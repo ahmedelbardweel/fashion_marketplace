@@ -946,7 +946,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Real-Time Decart AI Try-on Button
-                    ElevatedButton.icon(
+                    ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF00E676),
                         foregroundColor: AppColors.black,
@@ -956,50 +956,18 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         ),
                         minimumSize: const Size(double.infinity, 44),
                       ),
-                      icon: const Icon(Icons.auto_awesome, size: 20),
-                      label: const Text(
-                        'تجربة لايف بالذكاء الاصطناعي (Real-Time Try-On)',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                      ),
                       onPressed: () => context.push(
                         AppRoutes.customerRealtimeTryonPath(product.id),
                       ),
+                      child: const Text(
+                        'تجربة الملابس',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    // Row 1: AR Try-On & Compare side-by-side
+                    // Compare products.
                     Row(
                       children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.black,
-                              backgroundColor: AppColors.white,
-                              side: const BorderSide(
-                                color: AppColors.border,
-                                width: 1,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(AppRadii.button),
-                              ),
-                              minimumSize: const Size(0, 44),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.sm,
-                              ),
-                            ),
-                            icon: const Icon(Icons.view_in_ar_rounded, size: 20),
-                            label: const Text(
-                              'تجربة بالـ AR',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            onPressed: () => context.push(
-                              AppRoutes.customerArTryonPath(product.id),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
