@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.example.fashion_marketplace"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
