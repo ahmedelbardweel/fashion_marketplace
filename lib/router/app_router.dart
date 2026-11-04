@@ -34,6 +34,7 @@ import '../features/customer/presentation/screens/customer_profile_screen.dart';
 import '../features/customer/presentation/screens/customer_shops_screen.dart';
 import '../features/customer/presentation/screens/order_details_screen.dart';
 import '../features/customer/presentation/screens/product_ar_tryon_screen.dart';
+import '../features/customer/presentation/screens/decart_tryon_screen.dart';
 import '../features/customer/presentation/screens/product_comparison_screen.dart';
 import '../features/customer/presentation/screens/product_details_screen.dart';
 import '../features/customer/presentation/screens/shop_public_profile_screen.dart';
@@ -306,6 +307,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.customerArTryon,
         builder: (context, state) => ProductArTryonScreen(
+          productId: state.pathParameters['productId'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.customerRealtimeTryon,
+        builder: (context, state) => DecartTryonScreen(
           productId: state.pathParameters['productId'] ?? '',
         ),
       ),

@@ -945,6 +945,27 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Real-Time Decart AI Try-on Button
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00E676),
+                        foregroundColor: AppColors.black,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadii.button),
+                        ),
+                        minimumSize: const Size(double.infinity, 44),
+                      ),
+                      icon: const Icon(Icons.auto_awesome, size: 20),
+                      label: const Text(
+                        'تجربة لايف بالذكاء الاصطناعي (Real-Time Try-On)',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      onPressed: () => context.push(
+                        AppRoutes.customerRealtimeTryonPath(product.id),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
                     // Row 1: AR Try-On & Compare side-by-side
                     Row(
                       children: [

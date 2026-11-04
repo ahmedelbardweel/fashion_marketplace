@@ -15,6 +15,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radii.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/snackbar_utils.dart';
+import '../../../../router/routes.dart';
 import '../../domain/models/customer_product.dart';
 import '../providers/customer_providers.dart';
 
@@ -603,10 +604,22 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                       ),
                     ),
 
-                    // Switch camera button
-                    _circleIconBtn(
-                      icon: Icons.flip_camera_ios_rounded,
-                      onTap: _cameras.length > 1 ? _switchCamera : null,
+                    // Actions: Decart AI mode + Switch camera
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _circleIconBtn(
+                          icon: Icons.auto_awesome,
+                          onTap: () => context.push(
+                            AppRoutes.customerRealtimeTryonPath(widget.productId),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        _circleIconBtn(
+                          icon: Icons.flip_camera_ios_rounded,
+                          onTap: _cameras.length > 1 ? _switchCamera : null,
+                        ),
+                      ],
                     ),
                   ],
                 ),

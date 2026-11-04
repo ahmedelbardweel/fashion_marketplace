@@ -42,6 +42,8 @@ class AppRoutes {
   static const customerShopProfile = '/customer/shops/:shopId';
   static const customerProductDetails = '/customer/products/:productId';
   static const customerArTryon = '/customer/products/:productId/ar';
+  static const customerRealtimeTryon =
+      '/customer/products/:productId/realtime-tryon';
   static const customerFavorites = '/customer/favorites';
   static const customerCompare = '/customer/compare';
   static const customerCart = '/customer/cart';
@@ -60,6 +62,8 @@ class AppRoutes {
       '/customer/products/$productId';
   static String customerArTryonPath(String productId) =>
       '/customer/products/$productId/ar';
+  static String customerRealtimeTryonPath(String productId) =>
+      '/customer/products/$productId/realtime-tryon';
   static String customerOrderDetailsPath(String orderId) =>
       '/customer/orders/$orderId';
 
