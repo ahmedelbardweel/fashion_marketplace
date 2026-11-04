@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
@@ -25,6 +26,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   late DecartTryonNotifier _controller;
   RemoteVideoBinding? _videoBinding;
   bool _ready = false;
+  bool _showGarments = false;
   String? _rendererError;
 
   @override
@@ -38,6 +40,9 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   Future<void> _initialize() async {
     try {
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+      ]);
       await _rendererInitialization;
       if (!mounted) return;
       _service = ref.read(decartRealtimeServiceProvider(widget.productId));
@@ -245,6 +250,25 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        Row(
+          children: [
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Text(
+                'ثبّت الهاتف بالطول وابتعد ليظهر جسمك كاملاً',
+                style: TextStyle(color: Colors.white70, fontSize: 11),
+              ),
+            ),
+            IconButton(
+              tooltip: _showGarments ? 'إخفاء الملابس' : 'اختيار الملابس',
+              onPressed: () => setState(() => _showGarments = !_showGarments),
+              color: Colors.white,
+              icon: Icon(
+                _showGarments ? Icons.expand_more : Icons.checkroom_outlined,
+              ),
+            ),
+          ],
+        ),
         Text(
           state.isUpdating
               ? 'جارٍ تطبيق القطعة…'
@@ -253,20 +277,21 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: Colors.white),
         ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 108,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: state.availableProducts.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (context, index) {
-              final product = state.availableProducts[index];
-              return _garmentTile(product, state);
-            },
+        if (_showGarments) const SizedBox(height: 8),
+        if (_showGarments)
+          SizedBox(
+            height: 108,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: state.availableProducts.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                final product = state.availableProducts[index];
+                return _garmentTile(product, state);
+              },
+            ),
           ),
-        ),
       ],
     ),
   );

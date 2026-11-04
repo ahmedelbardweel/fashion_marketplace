@@ -15,6 +15,7 @@ void main() {
     final stream = _Stream();
     final source = WebRtcCameraSource(
       useWebCapture: true,
+      portraitWebCapture: false,
       discoverCameras: () =>
           throw StateError('Browser must not probe every camera'),
       capture: (constraints) async {
@@ -32,6 +33,22 @@ void main() {
     );
     expect(await source.open(), same(stream));
     expect(captures, 1);
+  });
+
+  test('mobile web requests portrait capture without digital crop', () async {
+    final source = WebRtcCameraSource(
+      useWebCapture: true,
+      portraitWebCapture: true,
+      capture: (constraints) async {
+        final video = constraints['video'] as Map;
+        expect(video['width'], {'ideal': 720});
+        expect(video['height'], {'ideal': 1280});
+        expect(video['resizeMode'], {'ideal': 'none'});
+        expect(video['zoom'], {'ideal': 1.0});
+        return _Stream();
+      },
+    );
+    await source.open();
   });
 
   test('native path still discovers the camera before capturing', () async {

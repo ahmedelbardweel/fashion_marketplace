@@ -110,6 +110,9 @@ class DecartRealtimeService implements TryonSession {
       _local = await capture.timeout(const Duration(seconds: 30));
       if (!_current(generation)) return;
       stage = TryonStartupStage.session;
+      final cameraTrack = _local!.getVideoTracks().firstOrNull;
+      if (cameraTrack != null) await _camera.resetZoom(cameraTrack);
+      if (!_current(generation)) return;
       final config = await loadConfig().timeout(const Duration(seconds: 15));
       if (!_current(generation)) return;
       stage = TryonStartupStage.peer;
@@ -382,7 +385,10 @@ class DecartRealtimeService implements TryonSession {
     if (track == null || !_reportedConnected) return;
     try {
       final switched = await Helper.switchCamera(track);
-      if (switched) _camera.front = !_camera.front;
+      if (switched) {
+        _camera.front = !_camera.front;
+        await _camera.resetZoom(track);
+      }
     } catch (_) {
       throw const TryonFailure('تعذر تبديل الكاميرا.');
     }
@@ -477,4 +483,3 @@ class DecartRealtimeService implements TryonSession {
     await _events.close();
   }
 }
-
