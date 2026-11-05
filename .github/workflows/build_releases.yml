@@ -52,7 +52,23 @@ jobs:
         run: flutter build apk --release --build-number=${{ github.run_number }}
       - name: Build iPhone app without signing
         if: matrix.platform == 'ios'
-        run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            log_file="$RUNNER_TEMP/ios-build-$attempt.log"
+            if flutter build ios --release --no-codesign --build-number=${{ github.run_number }} > "$log_file" 2>&1; then
+              cat "$log_file"
+              exit 0
+            else
+              build_status=$?
+            fi
+            cat "$log_file"
+            if [ "$attempt" -eq 3 ] || ! grep -Eiq 'badResponseStatusCode\((429|500|502|503|504)\)|The request timed out|Could not resolve host|Connection reset by peer' "$log_file"; then
+              exit "$build_status"
+            fi
+            echo "::warning::Transient dependency download failure; retrying iOS build ($attempt/3)."
+            sleep $((attempt * 20))
+          done
       - name: Package iPhone IPA for external signing
         if: matrix.platform == 'ios'
         shell: bash
