@@ -63,7 +63,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.black,
+      backgroundColor: AppColors.white,
       body: SafeArea(
         child: Center(
           child: AnimatedBuilder(
@@ -76,33 +76,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      const Icon(Icons.shopping_bag_outlined, size: 40),
                       Text(
-                        'FASHION',
+                        'ملابسي',
                         style: Theme.of(context)
                             .textTheme
                             .headlineLarge
                             ?.copyWith(
-                              color: AppColors.white,
+                              color: AppColors.black,
                               letterSpacing: 6,
                               fontWeight: FontWeight.w700,
                             ),
                       ),
-                      const SizedBox(height: AppSpacing.sm),
-                      ClipRect(
-                        child: SlideTransition(
-                          position: _lineSlide,
-                          child: Container(
-                            width: 88,
-                            height: 2,
-                            color: AppColors.white,
-                          ),
-                        ),
-                      ),
                       const SizedBox(height: AppSpacing.md),
                       Text(
-                        'MARKETPLACE',
+                        'Malabsi',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: AppColors.gray300,
+                              color: AppColors.black,
                               letterSpacing: 4,
                             ),
                       ),

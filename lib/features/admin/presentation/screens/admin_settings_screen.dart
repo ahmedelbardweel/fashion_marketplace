@@ -11,7 +11,7 @@ import '../../../../core/widgets/app_text_field.dart';
 import '../../domain/models/catalog_models.dart';
 import '../providers/admin_providers.dart';
 import '../widgets/admin_app_bar.dart';
-import '../widgets/admin_async_body.dart';
+import '../widgets/decart_settings_card.dart';
 import '../widgets/admin_logout.dart';
 
 class AdminSettingsScreen extends ConsumerWidget {
@@ -81,45 +81,50 @@ class AdminSettingsScreen extends ConsumerWidget {
     return AdminScaffold(
       title: 'إعدادات المنصة',
       showBack: false,
-      body: AdminAsyncBody<List<PlatformSetting>>(
-        value: settings,
-        emptyMessage: 'لا توجد إعدادات',
-        isEmpty: (data) => data.isEmpty,
-        onRetry: () => ref.invalidate(adminSettingsProvider),
-        builder: (items) {
-          return ListView(
-            padding: AppSpacing.page,
-            children: items
-                .map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: AppCard(
-                      onTap: busy ? null : () => _edit(context, ref, item),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.label,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            item.key,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: AppSpacing.sm),
-                          Text(
-                            item.value,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                          ),
-                        ],
+      body: ListView(
+        padding: AppSpacing.page,
+        children: [
+          const DecartSettingsCard(),
+          const SizedBox(height: AppSpacing.md),
+          settings.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, _) => AppButton(
+              label: 'إعادة تحميل إعدادات المنصة',
+              onPressed: () => ref.invalidate(adminSettingsProvider),
+            ),
+            data: (items) => Column(
+              children: items
+                  .map(
+                    (item) => Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: AppCard(
+                        onTap: busy ? null : () => _edit(context, ref, item),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.label,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            const SizedBox(height: AppSpacing.xs),
+                            Text(
+                              item.key,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            Text(
+                              item.value,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                )
-                .toList(),
-          );
-        },
+                  )
+                  .toList(),
+            ),
+          ),
+        ],
       ),
       bottom: AppButton(
         label: 'تسجيل الخروج',

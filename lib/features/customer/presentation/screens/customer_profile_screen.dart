@@ -1,9 +1,11 @@
+import '../widgets/customer_action_sheet.dart';
+import '../../../../core/widgets/app_bottom_sheet.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radii.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -59,7 +61,9 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
 
     setState(() => _isSaving = true);
     try {
-      final updated = await ref.read(customerRepositoryProvider).updateProfile(
+      final updated = await ref
+          .read(customerRepositoryProvider)
+          .updateProfile(
             fullName: name,
             phone: phone,
             city: city,
@@ -82,35 +86,35 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
   }
 
   void _confirmLogout() {
-    showDialog(
+    AppBottomSheet.show(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: AppColors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadii.card),
-          ),
-          title: const Text('تسجيل الخروج'),
-          content: const Text('هل أنت متأكد من رغبتك في تسجيل الخروج من حسابك؟'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('إلغاء'),
+      child: Builder(
+        builder: (ctx) {
+          return CustomerActionSheet(
+            title: const Text('تسجيل الخروج'),
+            content: const Text(
+              'هل أنت متأكد من رغبتك في تسجيل الخروج من حسابك؟',
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.black,
-                foregroundColor: AppColors.white,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('إلغاء'),
               ),
-              onPressed: () {
-                Navigator.of(ctx).pop();
-                ref.read(authControllerProvider.notifier).signOut();
-              },
-              child: const Text('تسجيل الخروج'),
-            ),
-          ],
-        );
-      },
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.black,
+                  foregroundColor: AppColors.white,
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop();
+                  ref.read(authControllerProvider.notifier).signOut();
+                },
+                child: const Text('تسجيل الخروج'),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -150,7 +154,8 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                     radius: 32,
                     backgroundColor: AppColors.black,
                     child: Text(
-                      (user?.fullName != null && user!.fullName!.trim().isNotEmpty)
+                      (user?.fullName != null &&
+                              user!.fullName!.trim().isNotEmpty)
                           ? user.fullName!.trim()[0].toUpperCase()
                           : 'U',
                       style: const TextStyle(
@@ -167,16 +172,12 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                       children: [
                         Text(
                           user?.fullName ?? 'عميل المتجر',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
+                          style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         Text(
                           user?.email ?? '',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
+                          style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: AppColors.gray500),
                         ),
                       ],
@@ -194,9 +195,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
               children: [
                 Text(
                   'البيانات وعنوان التوصيل',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
+                  style: Theme.of(context).textTheme.titleMedium
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 TextButton.icon(
@@ -256,9 +255,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
             // Quick Navigation Shortcuts
             Text(
               'روابط سريعة',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
+              style: Theme.of(context).textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: AppSpacing.xs),

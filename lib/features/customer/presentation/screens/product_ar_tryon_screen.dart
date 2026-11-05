@@ -1,3 +1,6 @@
+import '../widgets/customer_action_sheet.dart';
+import '../../../../core/widgets/app_bottom_sheet.dart';
+
 import 'dart:async';
 import 'dart:ui' as ui;
 
@@ -112,8 +115,9 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
         setState(() => _camError = 'لم يتم العثور على كاميرا في هذا الجهاز');
         return;
       }
-      final frontIdx =
-          _cameras.indexWhere((c) => c.lensDirection == CameraLensDirection.front);
+      final frontIdx = _cameras.indexWhere(
+        (c) => c.lensDirection == CameraLensDirection.front,
+      );
       _camIndex = frontIdx >= 0 ? frontIdx : 0;
       await _startCamera(_cameras[_camIndex]);
     } catch (e) {
@@ -190,9 +194,8 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
 
       if (poses.isNotEmpty && _canvasSize != Size.zero) {
         final isFront = camera.lensDirection == CameraLensDirection.front;
-        final rotation = InputImageRotationValue.fromRawValue(
-              camera.sensorOrientation,
-            ) ??
+        final rotation =
+            InputImageRotationValue.fromRawValue(camera.sensorOrientation) ??
             InputImageRotation.rotation0deg;
 
         final newTransform = _fitter.fitGarment(
@@ -214,7 +217,8 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
       }
 
       _lostFrameCount++;
-      if (_lostFrameCount >= _lostThreshold && _bodyStatus == _BodyStatus.detected) {
+      if (_lostFrameCount >= _lostThreshold &&
+          _bodyStatus == _BodyStatus.detected) {
         setState(() {
           _bodyStatus = _BodyStatus.searching;
           _transform = GarmentTransform.empty;
@@ -226,8 +230,9 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
   }
 
   InputImage? _buildInputImage(CameraImage image, CameraDescription camera) {
-    final rotation =
-        InputImageRotationValue.fromRawValue(camera.sensorOrientation);
+    final rotation = InputImageRotationValue.fromRawValue(
+      camera.sensorOrientation,
+    );
     if (rotation == null) return null;
 
     final format = InputImageFormatValue.fromRawValue(image.format.raw);
@@ -269,8 +274,14 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
 
     final ls = Offset(centerX - shoulderHalfWidth, shoulderY);
     final rs = Offset(centerX + shoulderHalfWidth, shoulderY);
-    final lh = Offset(centerX - shoulderHalfWidth * 0.85, shoulderY + _canvasSize.height * 0.26);
-    final rh = Offset(centerX + shoulderHalfWidth * 0.85, shoulderY + _canvasSize.height * 0.26);
+    final lh = Offset(
+      centerX - shoulderHalfWidth * 0.85,
+      shoulderY + _canvasSize.height * 0.26,
+    );
+    final rh = Offset(
+      centerX + shoulderHalfWidth * 0.85,
+      shoulderY + _canvasSize.height * 0.26,
+    );
     final shoulderWidth = (rs - ls).distance;
 
     setState(() {
@@ -323,9 +334,8 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
   Future<ui.Image?> _fetchUiImage(String url) async {
     try {
       final completer = Completer<ui.Image>();
-      final stream = NetworkImage(url).resolve(
-        const ImageConfiguration(size: Size(900, 900)),
-      );
+      final stream = NetworkImage(url)
+          .resolve(const ImageConfiguration(size: Size(900, 900)));
 
       late ImageStreamListener listener;
       listener = ImageStreamListener(
@@ -350,7 +360,9 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
   //  Capture Snapshot & Purchase
   // ──────────────────────────────────────────────────────
   Future<void> _captureSnapshot(CustomerProduct product) async {
-    final suggestedSize = _transform.isDetected ? _transform.estimatedSize : 'M';
+    final suggestedSize = _transform.isDetected
+        ? _transform.estimatedSize
+        : 'M';
 
     final matchingVariant = product.variants.firstWhere(
       (v) => v.size.toUpperCase() == suggestedSize && v.stock > 0,
@@ -366,117 +378,115 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
             ),
     );
 
-    showDialog(
+    AppBottomSheet.show(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        backgroundColor: AppColors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.card),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.verified_rounded, color: Colors.green, size: 24),
-            const SizedBox(width: AppSpacing.xs),
-            Text(
-              'مطابقة القياس بنجاح 📸',
-              style: Theme.of(dialogCtx)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              decoration: BoxDecoration(
-                color: AppColors.gray100,
-                borderRadius: BorderRadius.circular(AppRadii.card),
-                border: Border.all(color: AppColors.border),
+      child: Builder(
+        builder: (dialogCtx) => CustomerActionSheet(
+          title: Row(
+            children: [
+              const Icon(Icons.verified_rounded, color: Colors.green, size: 24),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                'مطابقة القياس بنجاح 📸',
+                style: Theme.of(dialogCtx).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'المقاس المناسب لك:',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm + 4,
-                          vertical: 2,
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.gray100,
+                  borderRadius: BorderRadius.circular(AppRadii.card),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'المقاس المناسب لك:',
+                          style: TextStyle(fontWeight: FontWeight.w600),
                         ),
-                        decoration: BoxDecoration(
-                          color: AppColors.black,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          suggestedSize,
-                          style: const TextStyle(
-                            color: AppColors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm + 4,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.black,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            suggestedSize,
+                            style: const TextStyle(
+                              color: AppColors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: AppSpacing.md),
-                  Text(
-                    product.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  ),
-                  Text(
-                    '${product.price.toStringAsFixed(2)} ر.س',
-                    style: const TextStyle(color: AppColors.gray700),
-                  ),
-                ],
+                      ],
+                    ),
+                    const Divider(height: AppSpacing.md),
+                    Text(
+                      product.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                    Text(
+                      '${product.price.toStringAsFixed(2)} ر.س',
+                      style: const TextStyle(color: AppColors.gray700),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(height: AppSpacing.md),
+              const Text(
+                'القطعة متناسقة تماماً مع قياسات جسمك! هل ترغب بإضافتها إلى سلتك؟',
+                style: TextStyle(fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('متابعة التجربة'),
             ),
-            const SizedBox(height: AppSpacing.md),
-            const Text(
-              'القطعة متناسقة تماماً مع قياسات جسمك! هل ترغب بإضافتها إلى سلتك؟',
-              style: TextStyle(fontSize: 12),
-              textAlign: TextAlign.center,
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.black,
+                foregroundColor: AppColors.white,
+              ),
+              onPressed: () {
+                Navigator.of(dialogCtx).pop();
+                ref
+                    .read(cartProvider.notifier)
+                    .addItem(
+                      product: product,
+                      variantId: matchingVariant.id.isNotEmpty
+                          ? matchingVariant.id
+                          : null,
+                      color: matchingVariant.color,
+                      size: matchingVariant.size,
+                      maxStock: matchingVariant.stock,
+                    );
+                showAppSnackBar(
+                  context,
+                  'تمت إضافة مقاس ($suggestedSize) بنجاح إلى سلتك!',
+                );
+                context.pop();
+              },
+              child: Text('إضافة مقاس ($suggestedSize) للسلة'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: const Text('متابعة التجربة'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.black,
-              foregroundColor: AppColors.white,
-            ),
-            onPressed: () {
-              Navigator.of(dialogCtx).pop();
-              ref.read(cartProvider.notifier).addItem(
-                    product: product,
-                    variantId: matchingVariant.id.isNotEmpty
-                        ? matchingVariant.id
-                        : null,
-                    color: matchingVariant.color,
-                    size: matchingVariant.size,
-                    maxStock: matchingVariant.stock,
-                  );
-              showAppSnackBar(
-                context,
-                'تمت إضافة مقاس ($suggestedSize) بنجاح إلى سلتك!',
-              );
-              context.pop();
-            },
-            child: Text('إضافة مقاس ($suggestedSize) للسلة'),
-          ),
-        ],
       ),
     );
   }
@@ -486,8 +496,9 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
   // ──────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final productAsync =
-        ref.watch(customerProductDetailsProvider(widget.productId));
+    final productAsync = ref.watch(
+      customerProductDetailsProvider(widget.productId),
+    );
 
     return Scaffold(
       backgroundColor: AppColors.black,
@@ -528,7 +539,9 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                     // Animated opacity: 0 when searching (hidden), 1 when body detected!
                     return AnimatedOpacity(
                       duration: const Duration(milliseconds: 300),
-                      opacity: (_bodyStatus == _BodyStatus.detected && _transform.isDetected)
+                      opacity:
+                          (_bodyStatus == _BodyStatus.detected &&
+                              _transform.isDetected)
                           ? 1.0
                           : 0.0,
                       child: CustomPaint(
@@ -611,7 +624,9 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                         _circleIconBtn(
                           icon: Icons.auto_awesome,
                           onTap: () => context.push(
-                            AppRoutes.customerRealtimeTryonPath(widget.productId),
+                            AppRoutes.customerRealtimeTryonPath(
+                              widget.productId,
+                            ),
                           ),
                         ),
                         const SizedBox(width: AppSpacing.xs),
@@ -674,10 +689,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: AppColors.white,
-                        border: Border.all(
-                          color: Colors.black26,
-                          width: 4,
-                        ),
+                        border: Border.all(color: Colors.black26, width: 4),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.3),
@@ -702,8 +714,10 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
           child: CircularProgressIndicator(color: AppColors.white),
         ),
         error: (e, _) => Center(
-          child: Text('حدث خطأ: $e',
-              style: const TextStyle(color: AppColors.white)),
+          child: Text(
+            'حدث خطأ: $e',
+            style: const TextStyle(color: AppColors.white),
+          ),
         ),
       ),
     );
@@ -740,8 +754,11 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.camera_alt_outlined,
-                size: 56, color: Colors.white30),
+            const Icon(
+              Icons.camera_alt_outlined,
+              size: 56,
+              color: Colors.white30,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               _camError ?? 'جاري تشغيل الكاميرا...',
@@ -754,10 +771,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
     );
   }
 
-  Widget _circleIconBtn({
-    required IconData icon,
-    VoidCallback? onTap,
-  }) {
+  Widget _circleIconBtn({required IconData icon, VoidCallback? onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(

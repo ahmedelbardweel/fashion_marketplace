@@ -8,12 +8,14 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../router/routes.dart';
 import '../providers/customer_providers.dart';
 
-class CustomerAppBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
+class CustomerAppBar extends ConsumerStatefulWidget
+    implements PreferredSizeWidget {
   const CustomerAppBar({
     super.key,
     required this.title,
     this.showBack = true,
     this.showSearch = true,
+    this.showProfile = false,
     this.actions,
     this.onSearchSubmitted,
   });
@@ -21,6 +23,7 @@ class CustomerAppBar extends ConsumerStatefulWidget implements PreferredSizeWidg
   final String title;
   final bool showBack;
   final bool showSearch;
+  final bool showProfile;
   final List<Widget>? actions;
   final ValueChanged<String>? onSearchSubmitted;
 
@@ -88,8 +91,9 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
     if (widget.onSearchSubmitted != null) {
       widget.onSearchSubmitted!(trimmed);
     } else if (trimmed.isNotEmpty) {
-      ref.read(productFilterProvider.notifier).state =
-          ref.read(productFilterProvider).copyWith(search: trimmed);
+      ref.read(productFilterProvider.notifier).state = ref
+          .read(productFilterProvider)
+          .copyWith(search: trimmed);
       final currentLoc = GoRouterState.of(context).uri.path;
       if (!currentLoc.startsWith(AppRoutes.customerCatalog)) {
         context.push(AppRoutes.customerCatalog);
@@ -130,19 +134,28 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                         child: IgnorePointer(
                           ignoring: progress > 0.3,
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm,
+                            ),
                             child: Row(
                               children: [
                                 if (canPop)
                                   IconButton(
-                                    onPressed: () => Navigator.of(context).maybePop(),
-                                    icon: const Icon(Icons.arrow_forward, color: AppColors.black),
+                                    onPressed: () =>
+                                        Navigator.of(context).maybePop(),
+                                    icon: const Icon(
+                                      Icons.arrow_forward,
+                                      color: AppColors.black,
+                                    ),
                                     tooltip: 'رجوع',
                                   ),
                                 if (!widget.showSearch) ...[
                                   Text(
                                     widget.title,
-                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
                                           color: AppColors.black,
                                           fontWeight: FontWeight.bold,
                                         ),
@@ -160,7 +173,9 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                         ),
                                         decoration: BoxDecoration(
                                           color: AppColors.gray100,
-                                          borderRadius: BorderRadius.circular(AppRadii.input),
+                                          borderRadius: BorderRadius.circular(
+                                            AppRadii.input,
+                                          ),
                                           border: Border.all(
                                             color: AppColors.border,
                                             width: 1,
@@ -173,7 +188,9 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                               size: 20,
                                               color: AppColors.gray500,
                                             ),
-                                            const SizedBox(width: AppSpacing.xs),
+                                            const SizedBox(
+                                              width: AppSpacing.xs,
+                                            ),
                                             Expanded(
                                               child: Text(
                                                 'ابحث عن قميص، فستان، هودي، أو مقاسك...',
@@ -201,17 +218,23 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                       label: Text('$compareCount'),
                                       backgroundColor: AppColors.black,
                                       textColor: AppColors.white,
-                                      child: const Icon(Icons.compare_arrows_rounded,
-                                          color: AppColors.black),
+                                      child: const Icon(
+                                        Icons.compare_arrows_rounded,
+                                        color: AppColors.black,
+                                      ),
                                     ),
-                                    onPressed: () => context.push(AppRoutes.customerCompare),
+                                    onPressed: () =>
+                                        context.push(AppRoutes.customerCompare),
                                   ),
                                 IconButton(
                                   tooltip: 'الإشعارات',
-                                  icon: const Icon(Icons.notifications_none_rounded,
-                                      color: AppColors.black),
-                                  onPressed: () =>
-                                      context.push(AppRoutes.customerNotifications),
+                                  icon: const Icon(
+                                    Icons.notifications_none_rounded,
+                                    color: AppColors.black,
+                                  ),
+                                  onPressed: () => context.push(
+                                    AppRoutes.customerNotifications,
+                                  ),
                                 ),
                                 IconButton(
                                   tooltip: 'سلة المشتريات',
@@ -220,13 +243,28 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                           label: Text('$cartCount'),
                                           backgroundColor: AppColors.black,
                                           textColor: AppColors.white,
-                                          child: const Icon(Icons.shopping_bag_outlined,
-                                              color: AppColors.black),
+                                          child: const Icon(
+                                            Icons.shopping_bag_outlined,
+                                            color: AppColors.black,
+                                          ),
                                         )
-                                      : const Icon(Icons.shopping_bag_outlined,
-                                          color: AppColors.black),
-                                  onPressed: () => context.push(AppRoutes.customerCart),
+                                      : const Icon(
+                                          Icons.shopping_bag_outlined,
+                                          color: AppColors.black,
+                                        ),
+                                  onPressed: () =>
+                                      context.push(AppRoutes.customerCart),
                                 ),
+                                if (widget.showProfile)
+                                  IconButton(
+                                    tooltip: 'الملف الشخصي',
+                                    icon: const Icon(
+                                      Icons.person_outline_rounded,
+                                      color: AppColors.black,
+                                    ),
+                                    onPressed: () =>
+                                        context.push(AppRoutes.customerProfile),
+                                  ),
                               ],
                             ),
                           ),
@@ -248,7 +286,9 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                             child: Container(
                               decoration: BoxDecoration(
                                 color: AppColors.gray100,
-                                borderRadius: BorderRadius.circular(AppRadii.input),
+                                borderRadius: BorderRadius.circular(
+                                  AppRadii.input,
+                                ),
                                 border: Border.all(
                                   color: AppColors.border,
                                   width: 1,
@@ -275,7 +315,8 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                       controller: _searchController,
                                       focusNode: _focusNode,
                                       textInputAction: TextInputAction.search,
-                                      textAlignVertical: TextAlignVertical.center,
+                                      textAlignVertical:
+                                          TextAlignVertical.center,
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodyMedium
@@ -288,7 +329,9 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                         hintStyle: Theme.of(context)
                                             .textTheme
                                             .bodyMedium
-                                            ?.copyWith(color: AppColors.gray500),
+                                            ?.copyWith(
+                                              color: AppColors.gray500,
+                                            ),
                                         border: InputBorder.none,
                                         enabledBorder: InputBorder.none,
                                         focusedBorder: InputBorder.none,
@@ -296,13 +339,15 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                         disabledBorder: InputBorder.none,
                                         filled: false,
                                         isDense: true,
-                                        contentPadding: const EdgeInsets.symmetric(
-                                          horizontal: AppSpacing.xs,
-                                          vertical: 8,
-                                        ),
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: AppSpacing.xs,
+                                              vertical: 8,
+                                            ),
                                       ),
                                       onChanged: (text) => setState(() {}),
-                                      onSubmitted: (query) => _submitSearch(query),
+                                      onSubmitted: (query) =>
+                                          _submitSearch(query),
                                     ),
                                   ),
                                   if (_searchController.text.isNotEmpty)
@@ -379,6 +424,11 @@ class CustomerBottomNav extends StatelessWidget {
 
     return Material(
       color: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadii.bottomSheet),
+        ),
+      ),
       child: Container(
         decoration: const BoxDecoration(
           color: AppColors.white,
@@ -452,9 +502,9 @@ class _CustomerNavItem extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: selected ? AppColors.black : AppColors.gray500,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                ),
+              color: selected ? AppColors.black : AppColors.gray500,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            ),
           ),
         ),
       ),
@@ -470,6 +520,7 @@ class CustomerScaffold extends StatelessWidget {
     this.currentNavIndex,
     this.showBack = true,
     this.showSearch = true,
+    this.showProfile = false,
     this.actions,
     this.onSearchSubmitted,
     this.floatingActionButton,
@@ -482,6 +533,7 @@ class CustomerScaffold extends StatelessWidget {
   final int? currentNavIndex;
   final bool showBack;
   final bool showSearch;
+  final bool showProfile;
   final List<Widget>? actions;
   final ValueChanged<String>? onSearchSubmitted;
   final Widget? floatingActionButton;
@@ -496,21 +548,18 @@ class CustomerScaffold extends StatelessWidget {
         title: title,
         showBack: showBack,
         showSearch: showSearch,
+        showProfile: showProfile,
         actions: actions,
         onSearchSubmitted: onSearchSubmitted,
       ),
-      body: SafeArea(
-        top: false,
-        child: body,
+      body: SafeArea(top: false, child: body),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ?bottomNavigationBar,
+          CustomerBottomNav(currentIndex: currentNavIndex),
+        ],
       ),
-      bottomNavigationBar: currentNavIndex != null
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CustomerBottomNav(currentIndex: currentNavIndex),
-              ],
-            )
-          : bottomNavigationBar,
       floatingActionButton: floatingActionButton,
       bottomSheet: bottomSheet,
     );

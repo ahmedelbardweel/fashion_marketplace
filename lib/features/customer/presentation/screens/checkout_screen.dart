@@ -1,9 +1,11 @@
+import '../widgets/customer_action_sheet.dart';
+import '../../../../core/widgets/app_bottom_sheet.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radii.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -51,7 +53,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final phone = _phoneController.text.trim();
 
     if (address.isEmpty || phone.isEmpty) {
-      showAppSnackBar(context, 'يرجى إدخال عنوان التوصيل ورقم الهاتف', isError: true);
+      showAppSnackBar(
+        context,
+        'يرجى إدخال عنوان التوصيل ورقم الهاتف',
+        isError: true,
+      );
       return;
     }
 
@@ -81,62 +87,57 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
       if (!mounted) return;
 
-      // Show Order Success Dialog
-      showDialog(
+      // Confirm the order in the shared customer sheet.
+      AppBottomSheet.show(
         context: context,
-        barrierDismissible: false,
-        builder: (ctx) {
-          return AlertDialog(
-            backgroundColor: AppColors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadii.card),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: AppSpacing.md),
-                Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: const BoxDecoration(
-                    color: AppColors.gray100,
-                    shape: BoxShape.circle,
+        isDismissible: false,
+        enableDrag: false,
+        child: Builder(
+          builder: (ctx) {
+            return CustomerActionSheet(
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: AppSpacing.md),
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: const BoxDecoration(
+                      color: AppColors.gray100,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      color: AppColors.black,
+                      size: 64,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.check_circle_rounded,
-                    color: AppColors.black,
-                    size: 64,
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    'تم تأكيد طلبك بنجاح! 🎉',
+                    style: Theme.of(ctx).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
                   ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                Text(
-                  'تم تأكيد طلبك بنجاح! 🎉',
-                  style: Theme.of(ctx)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppSpacing.xs),
-                Text(
-                  'سيتولى المتجر تجهيز ملابسك وشحنها إلى عنوانك في أقرب وقت.',
-                  style: Theme.of(ctx)
-                      .textTheme
-                  .bodyMedium
-                      ?.copyWith(color: AppColors.gray500),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                AppButton(
-                  label: 'متابعة تفاصيل الطلب',
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    context.go(AppRoutes.customerOrders);
-                  },
-                ),
-              ],
-            ),
-          );
-        },
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'سيتولى المتجر تجهيز ملابسك وشحنها إلى عنوانك في أقرب وقت.',
+                    style: Theme.of(ctx).textTheme.bodyMedium
+                        ?.copyWith(color: AppColors.gray500),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                  AppButton(
+                    label: 'متابعة تفاصيل الطلب',
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      context.go(AppRoutes.customerOrders);
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       );
     } catch (error) {
       if (!mounted) return;
@@ -165,9 +166,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             // Delivery Information Card
             Text(
               'عنوان التوصيل والتواصل',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
+              style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -198,9 +197,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             // Payment Method
             Text(
               'طريقة الدفع',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
+              style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -215,16 +212,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       children: [
                         Text(
                           'الدفع عند الاستلام (Cash on Delivery)',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
+                          style: Theme.of(context).textTheme.titleSmall
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         Text(
                           'ادفع نقداً أو عبر بطاقة مدى عند استلام ملابسك',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
+                          style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: AppColors.gray500),
                         ),
                       ],
@@ -240,9 +233,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             // Order Summary
             Text(
               'ملخص الطلب (${cartItems.length} عناصر)',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
+              style: Theme.of(context).textTheme.titleLarge
                   ?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -279,7 +270,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       const Text(
                         'مجاناً',
                         style: TextStyle(
-                            color: AppColors.black, fontWeight: FontWeight.bold),
+                          color: AppColors.black,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
@@ -289,16 +282,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     children: [
                       Text(
                         'المبلغ المطلوب دفعه',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
+                        style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       Text(
                         '${totalAmount.toStringAsFixed(2)} ر.س',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
+                        style: Theme.of(context).textTheme.titleLarge
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                     ],

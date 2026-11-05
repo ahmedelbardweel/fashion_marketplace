@@ -7,6 +7,7 @@ import '../../shop/domain/models/shop.dart';
 import '../../shop/domain/models/shop_product.dart';
 import '../domain/models/admin_stats.dart';
 import '../domain/models/catalog_models.dart';
+import '../domain/models/decart_settings_status.dart';
 
 class AdminRepository {
   AdminRepository({SupabaseClient? client})
@@ -243,6 +244,17 @@ class AdminRepository {
       },
     );
     return AdminNotification.fromMap(asStringMap(data));
+  }
+
+  Future<DecartSettingsStatus> fetchDecartStatus() async {
+    final data = await _client.rpc('admin_decart_status');
+    return DecartSettingsStatus.fromMap(asStringMap(data));
+  }
+
+  Future<void> setDecartApiKey(String apiKey) async {
+    await _client.rpc('admin_set_decart_api_key', params: {
+      'p_api_key': apiKey.trim(),
+    });
   }
 
   Future<List<PlatformSetting>> fetchSettings() async {

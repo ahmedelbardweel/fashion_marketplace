@@ -1,4 +1,6 @@
 ﻿// Deploy with JWT verification enabled. No permanent key is returned to Flutter.
+import { resolveDecartApiKey } from './secret_resolver.ts';
+
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -16,8 +18,8 @@ Deno.serve(async (request: Request) => {
   try {
     const url = Deno.env.get('SUPABASE_URL');
     const anon = Deno.env.get('SUPABASE_ANON_KEY');
-    const apiKey = Deno.env.get('DECART_API_KEY');
-    if (!url || !anon || !apiKey) return respond({ error: 'Service not configured' }, 503);
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!url || !anon || !serviceKey) return respond({ error: 'Service not configured' }, 503);
     // Validate the caller with Auth rather than trusting decoded JWT claims.
     const auth = await fetch(`${url}/auth/v1/user`, {
       headers: { Authorization: authorization, apikey: anon },
@@ -26,6 +28,10 @@ Deno.serve(async (request: Request) => {
     if (!auth.ok) return respond({ error: 'Unauthorized' }, 401);
     const user = await auth.json();
     if (!user.id || user.is_anonymous) return respond({ error: 'Unauthorized' }, 401);
+    const apiKey = await resolveDecartApiKey(
+      url, serviceKey, Deno.env.get('DECART_API_KEY'),
+    );
+    if (!apiKey) return respond({ error: 'Service not configured' }, 503);
     const model = 'lucy-vton-3.6';
     const response = await fetch('https://api.decart.ai/v1/client/tokens', {
       method: 'POST',

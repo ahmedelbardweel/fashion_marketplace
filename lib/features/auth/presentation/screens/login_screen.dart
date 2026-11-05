@@ -64,20 +64,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'FASHION',
+                      'ملابسي',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                             letterSpacing: 4,
                             fontWeight: FontWeight.w700,
                           ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Center(
-                      child: Container(
-                        width: 48,
-                        height: 2,
-                        color: AppColors.black,
-                      ),
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     Text(

@@ -9,6 +9,7 @@ import '../../../shop/domain/models/shop_product.dart';
 import '../../data/admin_repository.dart';
 import '../../domain/models/admin_stats.dart';
 import '../../domain/models/catalog_models.dart';
+import '../../domain/models/decart_settings_status.dart';
 
 final adminRepositoryProvider = Provider<AdminRepository>((ref) {
   return AdminRepository();
@@ -78,6 +79,12 @@ final adminNotificationsProvider =
     FutureProvider.autoDispose<List<AdminNotification>>((ref) async {
   if (!_isAdmin(ref)) return const [];
   return ref.watch(adminRepositoryProvider).fetchNotifications();
+});
+
+final adminDecartStatusProvider =
+    FutureProvider.autoDispose<DecartSettingsStatus>((ref) async {
+  if (!_isAdmin(ref)) throw StateError('Admin access required');
+  return ref.watch(adminRepositoryProvider).fetchDecartStatus();
 });
 
 final adminSettingsProvider =
