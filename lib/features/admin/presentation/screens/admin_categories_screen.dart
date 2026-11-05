@@ -1,3 +1,5 @@
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -22,8 +24,9 @@ class AdminCategoriesScreen extends ConsumerWidget {
     CatalogCategory? category,
   }) async {
     final nameController = TextEditingController(text: category?.name ?? '');
-    final descController =
-        TextEditingController(text: category?.description ?? '');
+    final descController = TextEditingController(
+      text: category?.description ?? '',
+    );
     var isActive = category?.isActive ?? true;
     final formKey = GlobalKey<FormState>();
 
@@ -108,6 +111,7 @@ class AdminCategoriesScreen extends ConsumerWidget {
     return AdminScaffold(
       title: 'التصنيفات',
       body: AdminAsyncBody<List<CatalogCategory>>(
+        placeholder: LoadingFixtures.categories,
         value: categories,
         emptyMessage: 'لا توجد تصنيفات بعد',
         isEmpty: (data) => data.isEmpty,

@@ -1,3 +1,5 @@
+import '../../../../core/widgets/app_skeleton.dart';
+
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -19,11 +21,7 @@ import '../providers/shop_catalog_providers.dart';
 import '../widgets/shop_shell.dart';
 
 class _VariantDraft {
-  _VariantDraft({
-    required this.color,
-    required this.size,
-    required this.stock,
-  });
+  _VariantDraft({required this.color, required this.size, required this.stock});
 
   String color;
   String size;
@@ -78,8 +76,10 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
 
   void _seed() {
     if (_seeded || widget.productId == null) return;
-    final product =
-        ref.read(shopProductProvider(widget.productId!)).asData?.value;
+    final product = ref
+        .read(shopProductProvider(widget.productId!))
+        .asData
+        ?.value;
     if (product == null) return;
     _seeded = true;
     _nameController.text = product.name;
@@ -106,7 +106,11 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
     final size = _sizeController.text.trim();
     final stock = int.tryParse(_stockController.text.trim()) ?? -1;
     if (color.isEmpty || size.isEmpty || stock < 0) {
-      showAppSnackBar(context, 'أدخل لوناً ومقاساً ومخزوناً صالحاً', isError: true);
+      showAppSnackBar(
+        context,
+        'أدخل لوناً ومقاساً ومخزوناً صالحاً',
+        isError: true,
+      );
       return;
     }
     setState(() {
@@ -134,14 +138,17 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
       String? contentType = picked.contentType;
 
       if (_removeBg) {
-        uploadBytes = await BackgroundRemovalService.instance
-            .removeBackground(picked.bytes);
+        uploadBytes = await BackgroundRemovalService.instance.removeBackground(
+          picked.bytes,
+        );
         final baseName = p.basenameWithoutExtension(picked.fileName);
         uploadFileName = '$baseName.png';
         contentType = 'image/png';
       }
 
-      final url = await ref.read(shopStorageRepositoryProvider).uploadBytes(
+      final url = await ref
+          .read(shopStorageRepositoryProvider)
+          .uploadBytes(
             bucket: 'product-media',
             folder: kind,
             fileName: uploadFileName,
@@ -180,7 +187,11 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
     if (_variants.isEmpty) {
-      showAppSnackBar(context, 'أضف لوناً ومقاساً واحداً على الأقل', isError: true);
+      showAppSnackBar(
+        context,
+        'أضف لوناً ومقاساً واحداً على الأقل',
+        isError: true,
+      );
       return;
     }
 
@@ -199,7 +210,9 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
       status: publish ? 'published' : _status,
       id: widget.productId,
       variants: _variants
-          .map((item) => (color: item.color, size: item.size, stock: item.stock))
+          .map(
+            (item) => (color: item.color, size: item.size, stock: item.stock),
+          )
           .toList(),
       images: _newImages
           .map((item) => (path: item.path, kind: item.kind))
@@ -224,7 +237,10 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(shopProductProvider(widget.productId ?? ''), (previous, next) => _seed());
+    ref.listen(
+      shopProductProvider(widget.productId ?? ''),
+      (previous, next) => _seed(),
+    );
     _seed();
 
     final categories = ref.watch(shopCategoriesProvider).value ?? [];
@@ -232,159 +248,164 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
 
     return ShopScaffold(
       title: widget.productId == null ? 'إضافة منتج' : 'تعديل منتج',
-      body: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AppTextField(
-                controller: _nameController,
-                label: 'اسم المنتج',
-                validator: (value) =>
-                    Validators.required(value, field: 'اسم المنتج'),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _descController,
-                label: 'الوصف',
-                maxLines: 3,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: _priceController,
-                label: 'السعر',
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                validator: (value) =>
-                    Validators.required(value, field: 'السعر'),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text('التصنيف', style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: AppSpacing.sm),
-              DropdownButtonFormField<String?>(
-                initialValue: _categoryId,
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null,
-                    child: Text('بدون تصنيف'),
+      body: AppSkeleton(
+        enabled:
+            widget.productId != null &&
+            ref.watch(shopProductProvider(widget.productId!)).isLoading &&
+            !ref.watch(shopProductProvider(widget.productId!)).hasValue,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppTextField(
+                  controller: _nameController,
+                  label: 'اسم المنتج',
+                  validator: (value) =>
+                      Validators.required(value, field: 'اسم المنتج'),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _descController,
+                  label: 'الوصف',
+                  maxLines: 3,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: _priceController,
+                  label: 'السعر',
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
                   ),
-                  ...categories.map(
-                    (item) => DropdownMenuItem<String?>(
-                      value: item.id,
-                      child: Text(item.name),
+                  validator: (value) =>
+                      Validators.required(value, field: 'السعر'),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text('التصنيف', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: AppSpacing.sm),
+                DropdownButtonFormField<String?>(
+                  initialValue: _categoryId,
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('بدون تصنيف'),
+                    ),
+                    ...categories.map(
+                      (item) => DropdownMenuItem<String?>(
+                        value: item.id,
+                        child: Text(item.name),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => _categoryId = value),
+                  decoration: const InputDecoration(),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Text(
+                  'الألوان والمقاسات',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AppTextField(controller: _colorController, label: 'اللون'),
+                const SizedBox(height: AppSpacing.sm),
+                AppTextField(controller: _sizeController, label: 'المقاس'),
+                const SizedBox(height: AppSpacing.sm),
+                AppTextField(
+                  controller: _stockController,
+                  label: 'المخزون',
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AppButton(
+                  label: 'إضافة مقاس/لون',
+                  variant: AppButtonVariant.outlined,
+                  onPressed: busy ? null : _addVariant,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                ..._variants.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: AppCard(
+                      child: Text(
+                        '${item.color} / ${item.size} · مخزون ${item.stock}',
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Text(
+                  'صور المنتج وAR',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('تفريغ الخلفية تلقائياً (مجاني ✨)'),
+                  subtitle: const Text(
+                    'عزل المنتج وجعل الخلفية شفافة بالذكاء الاصطناعي',
+                  ),
+                  value: _removeBg,
+                  onChanged: _uploading
+                      ? null
+                      : (val) => setState(() => _removeBg = val),
+                ),
+                if (_uploadStatusText != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.xs,
+                    ),
+                    child: Row(
+                      children: [
+                        const AppSkeleton(
+                          child: Icon(Icons.cloud_upload_outlined, size: 16),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Text(
+                          _uploadStatusText!,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.gray700),
+                        ),
+                      ],
                     ),
                   ),
                 ],
-                onChanged: (value) => setState(() => _categoryId = value),
-                decoration: const InputDecoration(),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Text('الألوان والمقاسات',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: AppSpacing.sm),
-              AppTextField(
-                controller: _colorController,
-                label: 'اللون',
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              AppTextField(
-                controller: _sizeController,
-                label: 'المقاس',
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              AppTextField(
-                controller: _stockController,
-                label: 'المخزون',
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              AppButton(
-                label: 'إضافة مقاس/لون',
-                variant: AppButtonVariant.outlined,
-                onPressed: busy ? null : _addVariant,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              ..._variants.map(
-                (item) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: AppCard(
-                    child: Text(
-                      '${item.color} / ${item.size} · مخزون ${item.stock}',
-                    ),
-                  ),
+                const SizedBox(height: AppSpacing.xs),
+                AppButton(
+                  label: 'رفع صورة منتج',
+                  variant: AppButtonVariant.outlined,
+                  isLoading: _uploading,
+                  onPressed: () => _uploadImage(kind: 'gallery'),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              Text('صور المنتج وAR',
-                  style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: AppSpacing.sm),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('تفريغ الخلفية تلقائياً (مجاني ✨)'),
-                subtitle: const Text(
-                  'عزل المنتج وجعل الخلفية شفافة بالذكاء الاصطناعي',
-                ),
-                value: _removeBg,
-                onChanged:
-                    _uploading ? null : (val) => setState(() => _removeBg = val),
-              ),
-              if (_uploadStatusText != null) ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-                  child: Row(
-                    children: [
-                      const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Text(
-                        _uploadStatusText!,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.gray700,
-                            ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: AppSpacing.xs),
-              AppButton(
-                label: 'رفع صورة منتج',
-                variant: AppButtonVariant.outlined,
-                isLoading: _uploading,
-                onPressed: () => _uploadImage(kind: 'gallery'),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              AppButton(
-                label: 'رفع صورة AR',
-                variant: AppButtonVariant.outlined,
-                isLoading: _uploading,
-                onPressed: () => _uploadImage(kind: 'ar'),
-              ),
-              if (_newImages.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.sm),
-                Text('صور جديدة: ${_newImages.length}'),
+                AppButton(
+                  label: 'رفع صورة AR',
+                  variant: AppButtonVariant.outlined,
+                  isLoading: _uploading,
+                  onPressed: () => _uploadImage(kind: 'ar'),
+                ),
+                if (_newImages.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text('صور جديدة: ${_newImages.length}'),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                AppButton(
+                  label: 'حفظ كمسودة',
+                  variant: AppButtonVariant.outlined,
+                  isLoading: busy,
+                  onPressed: () {
+                    _status = 'draft';
+                    _save(publish: false);
+                  },
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AppButton(
+                  label: 'حفظ ونشر',
+                  isLoading: busy,
+                  onPressed: () => _save(publish: true),
+                ),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              AppButton(
-                label: 'حفظ كمسودة',
-                variant: AppButtonVariant.outlined,
-                isLoading: busy,
-                onPressed: () {
-                  _status = 'draft';
-                  _save(publish: false);
-                },
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              AppButton(
-                label: 'حفظ ونشر',
-                isLoading: busy,
-                onPressed: () => _save(publish: true),
-              ),
-            ],
+            ),
           ),
         ),
       ),

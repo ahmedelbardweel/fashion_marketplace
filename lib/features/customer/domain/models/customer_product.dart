@@ -72,7 +72,8 @@ class ProductReview {
       customerName: map['customer_name']?.toString() ?? 'عميل',
       rating: (map['rating'] as num?)?.toInt() ?? 5,
       comment: map['comment']?.toString(),
-      createdAt: DateTime.tryParse(map['created_at']?.toString() ?? '') ??
+      createdAt:
+          DateTime.tryParse(map['created_at']?.toString() ?? '') ??
           DateTime.now(),
     );
   }
@@ -175,6 +176,25 @@ class CustomerProduct {
     if (back.isNotEmpty) return back.first.filePath;
     if (ar.length > 1) return ar[1].filePath;
     return null;
+  }
+
+  /// Prefer an explicit front reference; never send a 3D asset or rear image.
+  String? get tryonReferenceImage {
+    final candidates =
+        images.where((image) {
+          final uri = Uri.tryParse(image.filePath);
+          final path = uri?.path.toLowerCase() ?? '';
+          return uri?.scheme == 'https' &&
+              (image.kind == 'ar' || image.kind == 'gallery') &&
+              !RegExp(r'(^|[-_./])(back|rear)([-_./]|$)').hasMatch(path) &&
+              !RegExp(r'\.(glb|gltf|fbx|deepar)$').hasMatch(path);
+        }).toList()..sort((a, b) {
+          final priority = (a.kind == 'ar' ? 0 : 1).compareTo(
+            b.kind == 'ar' ? 0 : 1,
+          );
+          return priority != 0 ? priority : a.sortOrder.compareTo(b.sortOrder);
+        });
+    return candidates.firstOrNull?.filePath;
   }
 
   /// 3D Model file URL (.glb, .gltf, .deepar) for 3D Mesh AR Virtual Try-On

@@ -1,3 +1,5 @@
+import '../../../../core/widgets/app_skeleton.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -164,7 +166,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                 if (state.isUpdating)
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 24),
-                    child: LinearProgressIndicator(minHeight: 2),
+                    child: AppBusyLabel(label: 'جارٍ تبديل القطعة…'),
                   ),
                 if (state.errorMessage != null && state.isConnected)
                   Padding(
@@ -218,7 +220,9 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       return _panel(
         key: const ValueKey('loading'),
         children: [
-          const CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+          const AppSkeleton(
+            child: Icon(Icons.videocam_outlined, size: 64, color: Colors.white),
+          ),
           const SizedBox(height: 16),
           Text(
             state.status == DecartSessionStatus.connecting
@@ -272,7 +276,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
         Text(
           state.isUpdating
               ? 'جارٍ تطبيق القطعة…'
-              : state.selectedProduct?.name ?? 'ملابس علوية',
+              : state.selectedProduct?.name ?? 'قطع الملابس',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(color: Colors.white),
@@ -322,8 +326,8 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
           child: Column(
             children: [
               Expanded(
-                child: Image.network(
-                  product.arFrontImage!,
+                child: AppNetworkImage(
+                  product.tryonReferenceImage!,
                   fit: BoxFit.contain,
                   cacheWidth: 192,
                   errorBuilder: (_, _, _) =>

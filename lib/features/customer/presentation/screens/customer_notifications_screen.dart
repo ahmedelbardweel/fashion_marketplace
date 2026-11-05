@@ -1,3 +1,6 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -17,11 +20,12 @@ class CustomerNotificationsScreen extends ConsumerWidget {
 
     return CustomerScaffold(
       title: 'الإشعارات',
-      body: RefreshIndicator(
+      body: RefreshIndicator.noSpinner(
         onRefresh: () async {
           ref.invalidate(customerNotificationsProvider);
         },
-        child: notificationsAsync.when(
+        child: notificationsAsync.skeletonWhen(
+          placeholder: LoadingFixtures.notifications,
           data: (notifications) {
             if (notifications.isEmpty) {
               return Center(
@@ -41,9 +45,7 @@ class CustomerNotificationsScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       'ستصلك هنا العروض الحصرية وتحديثات طلباتك',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
+                      style: Theme.of(context).textTheme.bodyMedium
                           ?.copyWith(color: AppColors.gray500),
                     ),
                   ],
@@ -58,8 +60,8 @@ class CustomerNotificationsScreen extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
                 final notif = notifications[index];
-                final dateStr =
-                    DateFormat('yyyy/MM/dd – hh:mm a').format(notif.createdAt);
+                final dateStr = DateFormat('yyyy/MM/dd – hh:mm a')
+                    .format(notif.createdAt);
 
                 return AppCard(
                   child: Row(
@@ -84,9 +86,7 @@ class CustomerNotificationsScreen extends ConsumerWidget {
                           children: [
                             Text(
                               notif.title,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
+                              style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 2),
@@ -97,9 +97,7 @@ class CustomerNotificationsScreen extends ConsumerWidget {
                             const SizedBox(height: 4),
                             Text(
                               dateStr,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: AppColors.gray500),
                             ),
                           ],
@@ -111,12 +109,7 @@ class CustomerNotificationsScreen extends ConsumerWidget {
               },
             );
           },
-          loading: () => const Center(
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          error: (err, _) => Center(
-            child: Text('تعذر تحميل الإشعارات: $err'),
-          ),
+          error: (err, _) => Center(child: Text('تعذر تحميل الإشعارات: $err')),
         ),
       ),
     );

@@ -1,3 +1,5 @@
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,6 +20,7 @@ class AdminOrdersScreen extends ConsumerWidget {
     return AdminScaffold(
       title: 'الطلبات',
       body: AdminAsyncBody<List<AdminOrder>>(
+        placeholder: LoadingFixtures.adminOrders,
         value: orders,
         emptyMessage: 'لا توجد طلبات بعد',
         isEmpty: (data) => data.isEmpty,

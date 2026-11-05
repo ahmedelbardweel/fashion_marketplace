@@ -1,3 +1,6 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -31,28 +34,32 @@ class OrderDetailsScreen extends ConsumerWidget {
               height: 24,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isCompleted || isCurrent ? AppColors.black : AppColors.gray100,
+                color: isCompleted || isCurrent
+                    ? AppColors.black
+                    : AppColors.gray100,
                 border: Border.all(
-                  color: isCompleted || isCurrent ? AppColors.black : AppColors.border,
+                  color: isCompleted || isCurrent
+                      ? AppColors.black
+                      : AppColors.border,
                   width: 2,
                 ),
               ),
               child: isCompleted
                   ? const Icon(Icons.check, size: 14, color: AppColors.white)
                   : (isCurrent
-                      ? const Center(
-                          child: SizedBox(
-                            width: 8,
-                            height: 8,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppColors.white,
+                        ? const Center(
+                            child: SizedBox(
+                              width: 8,
+                              height: 8,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.white,
+                                ),
                               ),
                             ),
-                          ),
-                        )
-                      : null),
+                          )
+                        : null),
             ),
             if (!isLast)
               Container(
@@ -70,18 +77,15 @@ class OrderDetailsScreen extends ConsumerWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight:
-                          isCurrent ? FontWeight.bold : FontWeight.normal,
-                      color: isCompleted || isCurrent
-                          ? AppColors.black
-                          : AppColors.gray500,
-                    ),
+                  fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                  color: isCompleted || isCurrent
+                      ? AppColors.black
+                      : AppColors.gray500,
+                ),
               ),
               Text(
                 subtitle,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
+                style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(color: AppColors.gray500),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -96,7 +100,8 @@ class OrderDetailsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final orderAsync = ref.watch(customerOrderDetailsProvider(orderId));
 
-    return orderAsync.when(
+    return orderAsync.skeletonWhen(
+      placeholder: LoadingFixtures.order,
       data: (order) {
         if (order == null) {
           return const CustomerScaffold(
@@ -106,8 +111,8 @@ class OrderDetailsScreen extends ConsumerWidget {
         }
 
         final currentStep = order.statusStep;
-        final dateStr =
-            DateFormat('yyyy/MM/dd – hh:mm a').format(order.createdAt);
+        final dateStr = DateFormat('yyyy/MM/dd – hh:mm a')
+            .format(order.createdAt);
 
         return CustomerScaffold(
           title: 'طلب #${order.id.substring(0, 8).toUpperCase()}',
@@ -121,14 +126,13 @@ class OrderDetailsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        spacing: AppSpacing.sm,
                         children: [
                           Text(
                             'المتجر: ${order.shopName}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           Text(
@@ -140,9 +144,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                       const SizedBox(height: 4),
                       Text(
                         'تاريخ الإنشاء: $dateStr',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
+                        style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: AppColors.gray500),
                       ),
                     ],
@@ -154,9 +156,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                 // Status Timeline Card
                 Text(
                   'مراحل توصيل الشحنة',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
+                  style: Theme.of(context).textTheme.titleLarge
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -204,9 +204,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                 // Items List
                 Text(
                   'القطع المشتراة (${order.items.length})',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
+                  style: Theme.of(context).textTheme.titleLarge
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: AppSpacing.sm),
@@ -226,7 +224,8 @@ class OrderDetailsScreen extends ConsumerWidget {
                                     Text(
                                       item.productName,
                                       style: const TextStyle(
-                                          fontWeight: FontWeight.bold),
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                     if (item.variantInfo != null)
                                       Text(
@@ -235,7 +234,8 @@ class OrderDetailsScreen extends ConsumerWidget {
                                             .textTheme
                                             .bodySmall
                                             ?.copyWith(
-                                                color: AppColors.gray500),
+                                              color: AppColors.gray500,
+                                            ),
                                       ),
                                     Text(
                                       'الكمية: ${item.quantity}',
@@ -249,22 +249,22 @@ class OrderDetailsScreen extends ConsumerWidget {
                               Text(
                                 '${item.totalPrice.toStringAsFixed(2)} ر.س',
                                 style: const TextStyle(
-                                    fontWeight: FontWeight.bold),
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ),
                         );
                       }),
                       const Divider(height: AppSpacing.lg),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        spacing: AppSpacing.sm,
                         children: [
                           const Text('الإجمالي المدفوع'),
                           Text(
                             '${order.total.toStringAsFixed(2)} ر.س',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
+                            style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -277,10 +277,6 @@ class OrderDetailsScreen extends ConsumerWidget {
           ),
         );
       },
-      loading: () => const CustomerScaffold(
-        title: 'جاري التحميل...',
-        body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      ),
       error: (err, _) => CustomerScaffold(
         title: 'خطأ',
         body: Center(child: Text('تعذر تحميل تفاصيل الطلب: $err')),

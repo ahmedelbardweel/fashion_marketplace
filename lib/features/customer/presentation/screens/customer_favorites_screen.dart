@@ -1,4 +1,8 @@
+import '../widgets/product_cart_sheet.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/app_button.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -21,11 +25,12 @@ class CustomerFavoritesScreen extends ConsumerWidget {
       title: 'المفضلة (Wishlist)',
       currentNavIndex: 2,
       showBack: false,
-      body: RefreshIndicator(
+      body: RefreshIndicator.noSpinner(
         onRefresh: () async {
           ref.invalidate(customerFavoritesProvider);
         },
-        child: favoritesAsync.when(
+        child: favoritesAsync.skeletonWhen(
+          placeholder: LoadingFixtures.products,
           data: (favorites) {
             if (favorites.isEmpty) {
               return Center(
@@ -45,9 +50,7 @@ class CustomerFavoritesScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       'احفظ الملابس التي تنال إعجابك للرجوع إليها لاحقاً',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
+                      style: Theme.of(context).textTheme.bodyMedium
                           ?.copyWith(color: AppColors.gray500),
                     ),
                     const SizedBox(height: AppSpacing.lg),
@@ -63,15 +66,14 @@ class CustomerFavoritesScreen extends ConsumerWidget {
             return GridView.builder(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: favorites.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: AppSpacing.sm,
-                mainAxisSpacing: AppSpacing.sm,
-                childAspectRatio: 0.58,
+              gridDelegate: ProductGridDelegate(
+                textScale: MediaQuery.textScalerOf(context).scale(14) / 14,
               ),
               itemBuilder: (context, index) {
                 final product = favorites[index];
                 return ProductGridCard(
+                  onAddToCart: () => showProductCartSheet(context, product.id),
+                  inStock: product.totalStock > 0,
                   imageUrl: product.coverImage,
                   title: product.name,
                   subtitle: product.shopName,
@@ -83,12 +85,7 @@ class CustomerFavoritesScreen extends ConsumerWidget {
               },
             );
           },
-          loading: () => const Center(
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          error: (err, _) => Center(
-            child: Text('تعذر تحميل المفضلة: $err'),
-          ),
+          error: (err, _) => Center(child: Text('تعذر تحميل المفضلة: $err')),
         ),
       ),
     );

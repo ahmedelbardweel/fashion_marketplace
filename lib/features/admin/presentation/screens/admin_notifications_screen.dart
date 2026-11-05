@@ -1,3 +1,5 @@
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -48,7 +50,10 @@ class AdminNotificationsScreen extends ConsumerWidget {
                         Validators.required(value, field: 'المحتوى'),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  Text('الجمهور', style: Theme.of(context).textTheme.titleSmall),
+                  Text(
+                    'الجمهور',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
                   const SizedBox(height: AppSpacing.sm),
                   Wrap(
                     spacing: 8,
@@ -116,6 +121,7 @@ class AdminNotificationsScreen extends ConsumerWidget {
     return AdminScaffold(
       title: 'الإشعارات',
       body: AdminAsyncBody<List<AdminNotification>>(
+        placeholder: LoadingFixtures.notifications,
         value: notifications,
         emptyMessage: 'لا توجد إشعارات مرسلة بعد',
         isEmpty: (data) => data.isEmpty,

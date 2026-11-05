@@ -66,33 +66,100 @@ class FakeSession implements TryonSession {
 }
 
 void main() {
-  test('reference payload preserves exact prompt and transfers image bytes', () async {
-    final garment = GarmentSelection(
-      id: '1',
-      name: 'Navy hoodie',
-      imageUrl: 'https://example.com/1.png',
-    );
-    final client = MockClient(
-      (request) async => http.Response.bytes(
-        [1, 2, 3],
-        200,
-        headers: {'content-type': 'image/png'},
-      ),
-    );
-    final message = jsonDecode(
-      await GarmentPayloadLoader(client).load(garment),
-    );
-    expect(message['type'], 'set_image');
-    expect(message['image_data'], 'AQID');
-    expect(message['enhance_prompt'], false);
-    expect(
-      message['prompt'],
-      'Real-time virtual try-on: Maintain exact facial features, body posture, '
-      'and lighting of the person in the video feed. Replace upper clothing with '
-      'Navy hoodie, ensuring natural fabric draping and dynamic movement matching body gestures.',
-    );
-    client.close();
+  test('reference selection excludes rear and 3D assets but accepts background filenames', () {
+    CustomerProduct withImage(String path, String kind) => CustomerProduct.fromMap(
+      const {'id': 'x', 'name': 'Dress'}, images: [ProductImage(
+        id: 'image', productId: 'x', filePath: 'https://example.com/$path',
+        kind: kind, sortOrder: 0,
+      )]);
+    expect(withImage('dress-back.png', 'ar').tryonReferenceImage, isNull);
+    expect(withImage('dress.glb', 'gallery').tryonReferenceImage, isNull);
+    expect(withImage('dress-background-removed.png', 'ar').tryonReferenceImage,
+      'https://example.com/dress-background-removed.png');
   });
+  test('prompt targets the garment region and retains product details', () {
+    for (final entry in {
+      'فستان سهرة': 'outfit',
+      'Red dress': 'outfit',
+      'Dresses': 'outfit',
+      'بنطلون': 'lower body garment',
+      'Football jersey': 'upper body garment',
+      'Dress shirt': 'upper body garment',
+    }.entries) {
+      final garment = GarmentSelection(
+        id: 'x',
+        name: entry.key,
+        imageUrl: 'https://example.com/item.png',
+        description: 'Red stripes and printed number 10',
+      );
+      expect(garment.region, entry.value);
+      expect(garment.prompt, startsWith('Substitute the ${entry.value} with'));
+      expect(garment.prompt, contains('Red stripes and printed number 10'));
+    }
+  });
+
+  test('requested dress is selected instead of the first shirt', () async {
+    final session = FakeSession();
+    final notifier = DecartTryonNotifier(
+      session,
+      () async => [product('shirt'), product('dress', category: 'Dresses')],
+      'dress',
+    );
+    await notifier.start();
+    expect(notifier.state.appliedProductId, 'dress');
+    expect(session.starts, 1);
+    notifier.dispose();
+    await session.dispose();
+  });
+
+  test(
+    'missing requested product never silently starts a different garment',
+    () async {
+      final session = FakeSession();
+      final notifier = DecartTryonNotifier(
+        session,
+        () async => [product('shirt')],
+        'missing',
+      );
+      await notifier.start();
+      expect(session.starts, 0);
+      expect(notifier.state.errorMessage, contains('لم يتم استبداله'));
+      expect(notifier.state.appliedProductId, isNull);
+      notifier.dispose();
+      await session.dispose();
+    },
+  );
+
+  test(
+    'reference payload preserves exact prompt and transfers image bytes',
+    () async {
+      final garment = GarmentSelection(
+        id: '1',
+        name: 'Navy hoodie',
+        imageUrl: 'https://example.com/1.png',
+      );
+      final client = MockClient(
+        (request) async => http.Response.bytes(
+          [1, 2, 3],
+          200,
+          headers: {'content-type': 'image/png'},
+        ),
+      );
+      final message = jsonDecode(
+        await GarmentPayloadLoader(client).load(garment),
+      );
+      expect(message['type'], 'set_image');
+      expect(message['image_data'], 'AQID');
+      expect(message['enhance_prompt'], false);
+      expect(message['prompt'], garment.prompt);
+      expect(
+        garment.prompt,
+        startsWith('Substitute the upper body garment with Navy hoodie'),
+      );
+      expect(garment.prompt, contains('supplied garment image'));
+      client.close();
+    },
+  );
 
   test('rejects insecure URLs, oversized responses and non-images', () async {
     expect(
@@ -163,25 +230,22 @@ void main() {
     await session.dispose();
   });
 
-  test(
-    'failure can be cleared by retry and catalog excludes non-tops',
-    () async {
-      final session = FakeSession();
-      var fail = true;
-      final notifier = DecartTryonNotifier(session, () async {
-        if (fail) throw const TryonFailure('catalog failed');
-        return [product('a'), product('shoe', category: 'Shoes')];
-      }, 'a');
-      await notifier.start();
-      expect(notifier.state.errorMessage, 'catalog failed');
-      fail = false;
-      await notifier.retry();
-      expect(notifier.state.errorMessage, isNull);
-      expect(notifier.state.availableProducts.map((p) => p.id), ['a']);
-      notifier.dispose();
-      await session.dispose();
-    },
-  );
+  test('failure can be cleared by retry and catalog supports other garment regions', () async {
+    final session = FakeSession();
+    var fail = true;
+    final notifier = DecartTryonNotifier(session, () async {
+      if (fail) throw const TryonFailure('catalog failed');
+      return [product('a'), product('shoe', category: 'Shoes')];
+    }, 'a');
+    await notifier.start();
+    expect(notifier.state.errorMessage, 'catalog failed');
+    fail = false;
+    await notifier.retry();
+    expect(notifier.state.errorMessage, isNull);
+    expect(notifier.state.availableProducts.map((p) => p.id), ['a', 'shoe']);
+    notifier.dispose();
+    await session.dispose();
+  });
 
   testWidgets('rejected update preserves applied garment and allows retry', (
     tester,

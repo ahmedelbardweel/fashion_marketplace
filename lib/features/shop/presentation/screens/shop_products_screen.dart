@@ -1,3 +1,6 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -90,15 +93,19 @@ class ShopProductsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final shop = ref.watch(myShopProvider).asData?.value;
-    final products = ref.watch(shopProductsProvider);
+    final shopState = ref.watch(myShopProvider);
+    final shop = shopState.asData?.value;
+    final awaitingShop = shopState.isLoading && !shopState.hasValue;
+    final products = awaitingShop
+        ? const AsyncLoading<List<ShopProduct>>()
+        : ref.watch(shopProductsProvider);
     final busy = ref.watch(shopCatalogActionProvider).isLoading;
     final approved = shop?.visibleStatus == ShopStatus.approved;
 
     return ShopScaffold(
       title: 'المنتجات',
       showBack: false,
-      body: !approved
+      body: !approved && !awaitingShop
           ? ListView(
               padding: AppSpacing.page,
               children: const [
@@ -109,9 +116,9 @@ class ShopProductsScreen extends ConsumerWidget {
                 ),
               ],
             )
-          : products.when(
+          : products.skeletonWhen(
+              placeholder: LoadingFixtures.shopProducts,
               skipLoadingOnReload: true,
-              loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, _) => Center(
                 child: Text(
                   ref.read(shopCatalogRepositoryProvider).mapError(error),

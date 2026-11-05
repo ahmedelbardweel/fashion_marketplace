@@ -1,4 +1,8 @@
+import '../widgets/product_cart_sheet.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../domain/models/customer_product.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,12 +22,17 @@ class ShopPublicProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shopAsync = ref.watch(customerShopDetailsProvider(shopId));
-    final shopProductsAsync = FutureProvider.autoDispose<List<CustomerProduct>>((ref) async {
-      return ref.watch(customerRepositoryProvider).getProducts(shopId: shopId);
-    });
+    final shopProductsAsync = FutureProvider.autoDispose<List<CustomerProduct>>(
+      (ref) async {
+        return ref
+            .watch(customerRepositoryProvider)
+            .getProducts(shopId: shopId);
+      },
+    );
     final products = ref.watch(shopProductsAsync);
 
-    return shopAsync.when(
+    return shopAsync.skeletonWhen(
+      placeholder: LoadingFixtures.customerShop,
       data: (shop) {
         if (shop == null) {
           return const CustomerScaffold(
@@ -43,7 +52,7 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                   height: 140,
                   color: AppColors.gray100,
                   child: shop.coverPath != null && shop.coverPath!.isNotEmpty
-                      ? Image.network(
+                      ? AppNetworkImage(
                           shop.coverPath!,
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => const Center(
@@ -64,16 +73,20 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                           CircleAvatar(
                             radius: 30,
                             backgroundColor: AppColors.white,
-                            child: shop.logoPath != null &&
+                            child:
+                                shop.logoPath != null &&
                                     shop.logoPath!.isNotEmpty
                                 ? ClipOval(
-                                    child: Image.network(
+                                    child: AppNetworkImage(
                                       shop.logoPath!,
                                       fit: BoxFit.cover,
                                     ),
                                   )
-                                : const Icon(Icons.store,
-                                    size: 32, color: AppColors.black),
+                                : const Icon(
+                                    Icons.store,
+                                    size: 32,
+                                    color: AppColors.black,
+                                  ),
                           ),
                           const SizedBox(width: AppSpacing.md),
                           Expanded(
@@ -82,16 +95,12 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                               children: [
                                 Text(
                                   shop.name,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleLarge
+                                  style: Theme.of(context).textTheme.titleLarge
                                       ?.copyWith(fontWeight: FontWeight.bold),
                                 ),
                                 Text(
                                   '${shop.city ?? ''} · ${shop.address ?? ''}',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
+                                  style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(color: AppColors.gray500),
                                 ),
                               ],
@@ -112,22 +121,24 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.sm),
                       Text(
                         'منتجات هذا المتجر',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
+                        style: Theme.of(context).textTheme.titleLarge
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: AppSpacing.md),
 
                       // Products Grid
-                      products.when(
+                      products.skeletonWhen(
+                        placeholder: LoadingFixtures.products,
                         data: (items) {
                           if (items.isEmpty) {
                             return const Padding(
                               padding: EdgeInsets.symmetric(
-                                  vertical: AppSpacing.lg),
+                                vertical: AppSpacing.lg,
+                              ),
                               child: Center(
-                                child: Text('لا توجد منتجات منشورة لهذا المتجر حالياً'),
+                                child: Text(
+                                  'لا توجد منتجات منشورة لهذا المتجر حالياً',
+                                ),
                               ),
                             );
                           }
@@ -135,21 +146,21 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: items.length,
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: AppSpacing.sm,
-                              mainAxisSpacing: AppSpacing.sm,
-                              childAspectRatio: 0.58,
+                            gridDelegate: ProductGridDelegate(
+                              textScale:
+                                  MediaQuery.textScalerOf(context).scale(14) /
+                                  14,
                             ),
                             itemBuilder: (context, index) {
                               final p = items[index];
                               return ProductGridCard(
+                                onAddToCart: () =>
+                                    showProductCartSheet(context, p.id),
+                                inStock: p.totalStock > 0,
                                 imageUrl: p.coverImage,
                                 title: p.name,
-                                subtitle: p.categoryName ?? 'أزياء',
-                                meta:
-                                    '${p.price.toStringAsFixed(2)} ر.س · مخزون ${p.totalStock}',
+                                subtitle: p.shopName,
+                                meta: '${p.price.toStringAsFixed(2)} ر.س',
                                 onTap: () => context.push(
                                   AppRoutes.customerProductDetailsPath(p.id),
                                 ),
@@ -157,9 +168,6 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                             },
                           );
                         },
-                        loading: () => const Center(
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
                         error: (err, _) => Text('تعذر تحميل المنتجات: $err'),
                       ),
                     ],
@@ -170,10 +178,6 @@ class ShopPublicProfileScreen extends ConsumerWidget {
           ),
         );
       },
-      loading: () => const CustomerScaffold(
-        title: 'جاري التحميل...',
-        body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      ),
       error: (e, _) => CustomerScaffold(
         title: 'خطأ',
         body: Center(child: Text('تعذر تحميل المحل: $e')),

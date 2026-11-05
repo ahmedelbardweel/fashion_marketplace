@@ -1,3 +1,6 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,7 +37,11 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
       final shop = await ref.refresh(myShopProvider.future);
       if (!context.mounted) return;
       if (shop == null) {
-        showAppSnackBar(context, 'لم يتم العثور على بيانات المحل', isError: true);
+        showAppSnackBar(
+          context,
+          'لم يتم العثور على بيانات المحل',
+          isError: true,
+        );
         return;
       }
       showAppSnackBar(context, 'الحالة الحالية: ${shop.visibleStatus.labelAr}');
@@ -57,10 +64,10 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
       title: 'حالة الطلب',
       showBack: false,
       showBottomNav: false,
-      body: shopAsync.when(
+      body: shopAsync.skeletonWhen(
+        placeholder: LoadingFixtures.shop,
         skipLoadingOnReload: true,
         skipLoadingOnRefresh: true,
-        loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
           child: Padding(
             padding: AppSpacing.page,
@@ -89,14 +96,20 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('الحالة', style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      'الحالة',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       shop.visibleStatus.labelAr,
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    Text(shop.name, style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      shop.name,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       _message(shop),
@@ -104,8 +117,10 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
                     ),
                     if (shop.visibleRejectionReason != null) ...[
                       const SizedBox(height: AppSpacing.md),
-                      Text('سبب الرفض',
-                          style: Theme.of(context).textTheme.titleSmall),
+                      Text(
+                        'سبب الرفض',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(shop.visibleRejectionReason!),
                     ],

@@ -1,3 +1,5 @@
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -64,7 +66,10 @@ class AdminUsersScreen extends ConsumerWidget {
       );
       return;
     }
-    showAppSnackBar(context, nextActive ? 'تم تفعيل الحساب' : 'تم تعليق الحساب');
+    showAppSnackBar(
+      context,
+      nextActive ? 'تم تفعيل الحساب' : 'تم تعليق الحساب',
+    );
   }
 
   @override
@@ -75,6 +80,7 @@ class AdminUsersScreen extends ConsumerWidget {
     return AdminScaffold(
       title: 'المستخدمون والمحلات',
       body: AdminAsyncBody<List<AppUser>>(
+        placeholder: LoadingFixtures.users,
         value: users,
         emptyMessage: 'لا يوجد مستخدمون بعد',
         isEmpty: (data) => data.isEmpty,

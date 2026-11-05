@@ -1,5 +1,8 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/theme/app_radii.dart';
 import '../../../../core/widgets/app_button.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -23,11 +26,12 @@ class CustomerOrdersScreen extends ConsumerWidget {
       title: 'طلباتي ومشترياتي',
       currentNavIndex: 3,
       showBack: false,
-      body: RefreshIndicator(
+      body: RefreshIndicator.noSpinner(
         onRefresh: () async {
           ref.invalidate(customerOrdersProvider);
         },
-        child: ordersAsync.when(
+        child: ordersAsync.skeletonWhen(
+          placeholder: LoadingFixtures.orders,
           data: (orders) {
             if (orders.isEmpty) {
               return Center(
@@ -47,9 +51,7 @@ class CustomerOrdersScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       'عندما تشتري أي ملابس ستتمكن من تتبعها هنا فوراً',
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
+                      style: Theme.of(context).textTheme.bodyMedium
                           ?.copyWith(color: AppColors.gray500),
                     ),
                     const SizedBox(height: AppSpacing.lg),
@@ -79,14 +81,13 @@ class CustomerOrdersScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        spacing: AppSpacing.sm,
                         children: [
                           Text(
                             'طلب #${order.id.substring(0, 8).toUpperCase()}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
+                            style: Theme.of(context).textTheme.titleSmall
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           Container(
@@ -96,8 +97,9 @@ class CustomerOrdersScreen extends ConsumerWidget {
                             ),
                             decoration: BoxDecoration(
                               color: AppColors.gray100,
-                              borderRadius:
-                                  BorderRadius.circular(AppRadii.input),
+                              borderRadius: BorderRadius.circular(
+                                AppRadii.input,
+                              ),
                               border: Border.all(color: AppColors.border),
                             ),
                             child: Text(
@@ -113,23 +115,20 @@ class CustomerOrdersScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.xs),
                       Text(
                         'المتجر: ${order.shopName}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
+                        style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: AppColors.gray700),
                       ),
                       Text(
                         dateStr,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
+                        style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: AppColors.gray500),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       const Divider(),
                       const SizedBox(height: AppSpacing.xs),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        spacing: AppSpacing.sm,
                         children: [
                           Text(
                             '${order.items.length} قطع',
@@ -137,9 +136,7 @@ class CustomerOrdersScreen extends ConsumerWidget {
                           ),
                           Text(
                             'الإجمالي: ${order.total.toStringAsFixed(2)} ر.س',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
+                            style: Theme.of(context).textTheme.titleSmall
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -150,12 +147,7 @@ class CustomerOrdersScreen extends ConsumerWidget {
               },
             );
           },
-          loading: () => const Center(
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          error: (err, _) => Center(
-            child: Text('تعذر تحميل الطلبات: $err'),
-          ),
+          error: (err, _) => Center(child: Text('تعذر تحميل الطلبات: $err')),
         ),
       ),
     );

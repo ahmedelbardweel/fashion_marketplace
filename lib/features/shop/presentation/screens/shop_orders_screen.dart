@@ -1,3 +1,6 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -73,15 +76,19 @@ class ShopOrdersScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final shop = ref.watch(myShopProvider).asData?.value;
-    final orders = ref.watch(shopOrdersProvider);
+    final shopState = ref.watch(myShopProvider);
+    final shop = shopState.asData?.value;
+    final awaitingShop = shopState.isLoading && !shopState.hasValue;
+    final orders = awaitingShop
+        ? const AsyncLoading<List<ShopOrder>>()
+        : ref.watch(shopOrdersProvider);
     final busy = ref.watch(shopCatalogActionProvider).isLoading;
     final approved = shop?.visibleStatus == ShopStatus.approved;
 
     return ShopScaffold(
       title: 'طلبات المحل',
       showBack: false,
-      body: !approved
+      body: !approved && !awaitingShop
           ? ListView(
               padding: AppSpacing.page,
               children: const [
@@ -90,9 +97,9 @@ class ShopOrdersScreen extends ConsumerWidget {
                 ),
               ],
             )
-          : orders.when(
+          : orders.skeletonWhen(
+              placeholder: LoadingFixtures.shopOrders,
               skipLoadingOnReload: true,
-              loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, _) => Center(
                 child: Text(
                   ref.read(shopCatalogRepositoryProvider).mapError(error),
@@ -102,9 +109,7 @@ class ShopOrdersScreen extends ConsumerWidget {
                 if (items.isEmpty) {
                   return ListView(
                     padding: AppSpacing.page,
-                    children: const [
-                      AppCard(child: Text('لا توجد طلبات بعد')),
-                    ],
+                    children: const [AppCard(child: Text('لا توجد طلبات بعد'))],
                   );
                 }
                 return ListView(
@@ -124,8 +129,7 @@ class ShopOrdersScreen extends ConsumerWidget {
                                   order.customerName ??
                                       order.customerEmail ??
                                       'عميل',
-                                  style:
-                                      Theme.of(context).textTheme.titleLarge,
+                                  style: Theme.of(context).textTheme.titleLarge,
                                 ),
                                 const SizedBox(height: AppSpacing.xs),
                                 Text(
@@ -134,8 +138,7 @@ class ShopOrdersScreen extends ConsumerWidget {
                                 const SizedBox(height: AppSpacing.xs),
                                 Text(
                                   order.createdAt.toString().split('.').first,
-                                  style:
-                                      Theme.of(context).textTheme.bodySmall,
+                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ],
                             ),

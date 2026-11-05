@@ -94,8 +94,8 @@ final decartTryonProvider = StateNotifierProvider.autoDispose
         final initial = await repository.getProductDetails(id);
         final catalog = await repository.getProducts();
         return {
-          ?initial?.id: initial!,
           for (final item in catalog) item.id: item,
+          ?initial?.id: initial!,
         }.values.toList();
       }, id);
     });
@@ -127,17 +127,16 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
   int _revision = 0;
 
   static bool supports(CustomerProduct product) {
-    final text = '${product.categoryName ?? ''} ${product.name}'.toLowerCase();
-    return RegExp(
-          r't[ -]?shirts?|shirts?|hoodies?|sweaters?|sweatshirts?|tops?|تيشيرت|تيشرت|قميص|قمصان|هودي|كنز|بلوز|سويت',
-        ).hasMatch(text) &&
-        (product.arFrontImage?.isNotEmpty ?? false);
+    return product.name.trim().isNotEmpty &&
+        (product.tryonReferenceImage?.isNotEmpty ?? false);
   }
 
   GarmentSelection _garment(CustomerProduct product) => GarmentSelection(
     id: product.id,
     name: product.name,
-    imageUrl: product.arFrontImage ?? '',
+    imageUrl: product.tryonReferenceImage ?? '',
+    category: product.categoryName,
+    description: product.description,
   );
 
   Future<void> start() async {
@@ -154,11 +153,14 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
         if (!mounted || revision != _revision) return;
         final garments = catalog.where(supports).toList();
         if (garments.isEmpty) {
-          throw const TryonFailure('لا توجد قطع علوية بصور متاحة للتجربة.');
+          throw const TryonFailure('لا توجد قطع بصور أمامية متاحة للتجربة.');
         }
-        final initial =
-            garments.where((p) => p.id == _initialId).firstOrNull ??
-            garments.first;
+        final initial = garments.where((p) => p.id == _initialId).firstOrNull;
+        if (initial == null) {
+          throw const TryonFailure(
+            'المنتج المطلوب غير متاح للتجربة أو لا يملك صورة أمامية مناسبة. لم يتم استبداله بمنتج آخر.',
+          );
+        }
         state = state.copyWith(
           availableProducts: garments,
           selectedProduct: initial,

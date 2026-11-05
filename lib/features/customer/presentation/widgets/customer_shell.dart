@@ -524,6 +524,7 @@ class CustomerScaffold extends StatelessWidget {
     this.actions,
     this.onSearchSubmitted,
     this.floatingActionButton,
+    this.showBottomNav = true,
     this.bottomSheet,
     this.bottomNavigationBar,
   });
@@ -537,6 +538,7 @@ class CustomerScaffold extends StatelessWidget {
   final List<Widget>? actions;
   final ValueChanged<String>? onSearchSubmitted;
   final Widget? floatingActionButton;
+  final bool showBottomNav;
   final Widget? bottomSheet;
   final Widget? bottomNavigationBar;
 
@@ -553,13 +555,15 @@ class CustomerScaffold extends StatelessWidget {
         onSearchSubmitted: onSearchSubmitted,
       ),
       body: SafeArea(top: false, child: body),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ?bottomNavigationBar,
-          CustomerBottomNav(currentIndex: currentNavIndex),
-        ],
-      ),
+      bottomNavigationBar: !showBottomNav
+          ? bottomNavigationBar
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ?bottomNavigationBar,
+                CustomerBottomNav(currentIndex: currentNavIndex),
+              ],
+            ),
       floatingActionButton: floatingActionButton,
       bottomSheet: bottomSheet,
     );

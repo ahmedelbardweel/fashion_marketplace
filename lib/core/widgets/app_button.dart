@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_radii.dart';
+import 'app_skeleton.dart';
 
 enum AppButtonVariant { filled, outlined, text }
 
@@ -23,33 +24,18 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final child = isLoading
-        ? const SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
-        : Text(label);
+    final child = isLoading ? AppBusyLabel(label: label) : Text(label);
 
     final effectiveOnPressed = isLoading ? null : onPressed;
 
     Widget button;
     switch (variant) {
       case AppButtonVariant.filled:
-        button = ElevatedButton(
-          onPressed: effectiveOnPressed,
-          child: child,
-        );
+        button = ElevatedButton(onPressed: effectiveOnPressed, child: child);
       case AppButtonVariant.outlined:
-        button = OutlinedButton(
-          onPressed: effectiveOnPressed,
-          child: child,
-        );
+        button = OutlinedButton(onPressed: effectiveOnPressed, child: child);
       case AppButtonVariant.text:
-        button = TextButton(
-          onPressed: effectiveOnPressed,
-          child: child,
-        );
+        button = TextButton(onPressed: effectiveOnPressed, child: child);
     }
 
     if (!expand) return button;

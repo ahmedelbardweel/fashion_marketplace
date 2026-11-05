@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_skeleton.dart';
 import '../providers/admin_providers.dart';
 
 class DecartSettingsCard extends ConsumerStatefulWidget {
@@ -104,7 +105,9 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
             ),
             const SizedBox(height: AppSpacing.sm),
             status.when(
-              loading: () => const LinearProgressIndicator(),
+              loading: () => const AppSkeleton(
+                child: Text('حالة إعداد مفتاح تجربة الملابس'),
+              ),
               error: (_, _) => Row(
                 children: [
                   const Expanded(child: Text('تعذر قراءة حالة إعداد المفتاح.')),

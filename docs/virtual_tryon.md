@@ -16,7 +16,9 @@ Existing product-details navigation already opens the Decart screen.
 2. Deploy `supabase/functions/decart-session/index.ts` as `decart-session` with JWT verification enabled. It authenticates users through Supabase Auth and requests a 60-second client token scoped to `lucy-vton-3.6`; a session lasts at most 120 seconds. Retry obtains a fresh token. No server deployment was performed by this change.
 3. Optionally provide `DECART_ICE_SERVERS_JSON`, an array of RTC ICE servers with `urls`, `username`, `credential`. Use a TURN credential issuer with short-lived credentials in production. `DECART_RELAY_ONLY=true` requires a working TURN entry. STUN alone cannot traverse every network.
 4. Before a public rollout, apply per-user quotas/rate limits at your gateway. The session duration bound is not a per-user spending quota.
-5. Product `arFrontImage` (or its model fallback) must be an HTTPS JPEG/PNG/WebP URL accessible by the device, at most 4 MiB. Browser builds also need image-server CORS. The initial implementation targets Android/iOS.
+5. Product `tryonReferenceImage` must be an HTTPS JPEG/PNG/WebP URL accessible by the device, at most 4 MiB. Prefer a dedicated front AR image; otherwise use a gallery image. Rear-labelled files and 3D assets are excluded. Browser builds also need image-server CORS. The initial implementation targets Android/iOS.
+
+The requested product must exist in the eligible catalog; missing images/products produce an error instead of silently trying the first shirt. Prompts use the name, category and description, with different target regions for dresses, tops, bottoms and footwear. Region inference depends on product metadata and is not image understanding. Use descriptive, accurate metadata and a clean garment reference. These changes do not guarantee logo fidelity, visual accuracy, or physical sizing; validate real output against representative products before release.
 
 ## Capture and performance
 

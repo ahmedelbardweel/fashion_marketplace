@@ -1,3 +1,5 @@
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -22,8 +24,9 @@ class AdminBannersScreen extends ConsumerWidget {
     AdminBanner? banner,
   }) async {
     final titleController = TextEditingController(text: banner?.title ?? '');
-    final subtitleController =
-        TextEditingController(text: banner?.subtitle ?? '');
+    final subtitleController = TextEditingController(
+      text: banner?.subtitle ?? '',
+    );
     var isActive = banner?.isActive ?? true;
     final formKey = GlobalKey<FormState>();
 
@@ -129,6 +132,7 @@ class AdminBannersScreen extends ConsumerWidget {
     return AdminScaffold(
       title: 'العروض والبنرات',
       body: AdminAsyncBody<List<AdminBanner>>(
+        placeholder: LoadingFixtures.banners,
         value: banners,
         emptyMessage: 'لا توجد بنرات بعد',
         isEmpty: (data) => data.isEmpty,

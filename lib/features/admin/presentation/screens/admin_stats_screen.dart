@@ -1,3 +1,5 @@
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -18,6 +20,7 @@ class AdminStatsScreen extends ConsumerWidget {
     return AdminScaffold(
       title: 'إحصائيات التطبيق',
       body: AdminAsyncBody<AdminStats>(
+        placeholder: LoadingFixtures.stats,
         value: stats,
         onRetry: () => ref.invalidate(adminStatsProvider),
         builder: (data) {

@@ -1,3 +1,5 @@
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -81,6 +83,7 @@ class AdminProductsScreen extends ConsumerWidget {
     return AdminScaffold(
       title: 'المنتجات',
       body: AdminAsyncBody<List<AdminProduct>>(
+        placeholder: LoadingFixtures.adminProducts,
         value: products,
         emptyMessage: 'لا توجد منتجات بعد',
         isEmpty: (data) => data.isEmpty,

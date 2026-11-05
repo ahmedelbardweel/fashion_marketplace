@@ -1,3 +1,4 @@
+import '../../../../core/widgets/app_skeleton.dart';
 import '../widgets/customer_action_sheet.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 
@@ -710,8 +711,31 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
             ],
           );
         },
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppColors.white),
+        loading: () => const AppSkeleton(
+          child: Stack(
+            children: [
+              Center(
+                child: Icon(
+                  Icons.person_outline,
+                  size: 180,
+                  color: Colors.white,
+                ),
+              ),
+              Positioned(
+                bottom: 32,
+                left: 24,
+                right: 24,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Icon(Icons.flip_camera_ios, color: Colors.white),
+                    Icon(Icons.camera_alt, size: 64, color: Colors.white),
+                    Icon(Icons.checkroom, color: Colors.white),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         error: (e, _) => Center(
           child: Text(

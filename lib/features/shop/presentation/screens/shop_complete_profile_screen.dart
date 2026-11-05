@@ -1,3 +1,6 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -132,18 +135,24 @@ class _ShopCompleteProfileScreenState
     if (picked == null) return;
     setState(() => _uploading = true);
     try {
-      final url = await ref.read(shopStorageRepositoryProvider).uploadBytes(
+      final url = await ref
+          .read(shopStorageRepositoryProvider)
+          .uploadBytes(
             bucket: 'shop-media',
             folder: 'logo',
             fileName: picked.fileName,
             bytes: picked.bytes,
             contentType: picked.contentType,
           );
-      final ok =
-          await ref.read(shopCatalogActionProvider.notifier).setLogo(url);
+      final ok = await ref
+          .read(shopCatalogActionProvider.notifier)
+          .setLogo(url);
       if (!mounted) return;
-      showAppSnackBar(context, ok ? 'تم رفع الشعار' : 'تعذر رفع الشعار',
-          isError: !ok);
+      showAppSnackBar(
+        context,
+        ok ? 'تم رفع الشعار' : 'تعذر رفع الشعار',
+        isError: !ok,
+      );
     } catch (error) {
       if (!mounted) return;
       showAppSnackBar(
@@ -161,15 +170,18 @@ class _ShopCompleteProfileScreenState
     if (picked == null) return;
     setState(() => _uploading = true);
     try {
-      final url = await ref.read(shopStorageRepositoryProvider).uploadBytes(
+      final url = await ref
+          .read(shopStorageRepositoryProvider)
+          .uploadBytes(
             bucket: 'shop-media',
             folder: 'cover',
             fileName: picked.fileName,
             bytes: picked.bytes,
             contentType: picked.contentType,
           );
-      final ok =
-          await ref.read(shopCatalogActionProvider.notifier).setCover(url);
+      final ok = await ref
+          .read(shopCatalogActionProvider.notifier)
+          .setCover(url);
       if (!mounted) return;
       showAppSnackBar(
         context,
@@ -193,15 +205,18 @@ class _ShopCompleteProfileScreenState
     if (picked == null) return;
     setState(() => _uploading = true);
     try {
-      final url = await ref.read(shopStorageRepositoryProvider).uploadBytes(
+      final url = await ref
+          .read(shopStorageRepositoryProvider)
+          .uploadBytes(
             bucket: 'shop-media',
             folder: 'gallery',
             fileName: picked.fileName,
             bytes: picked.bytes,
             contentType: picked.contentType,
           );
-      final ok =
-          await ref.read(shopCatalogActionProvider.notifier).addShopImage(url);
+      final ok = await ref
+          .read(shopCatalogActionProvider.notifier)
+          .addShopImage(url);
       if (!mounted) return;
       showAppSnackBar(
         context,
@@ -225,20 +240,24 @@ class _ShopCompleteProfileScreenState
     if (picked == null) return;
     setState(() => _uploading = true);
     try {
-      final path = await ref.read(shopStorageRepositoryProvider).uploadBytes(
+      final path = await ref
+          .read(shopStorageRepositoryProvider)
+          .uploadBytes(
             bucket: 'shop-documents',
             folder: 'docs',
             fileName: picked.fileName,
             bytes: picked.bytes,
             contentType: picked.contentType,
           );
-      final ok = await ref.read(shopCatalogActionProvider.notifier).addDocument(
-            docType: 'إثبات محل',
-            path: path,
-          );
+      final ok = await ref
+          .read(shopCatalogActionProvider.notifier)
+          .addDocument(docType: 'إثبات محل', path: path);
       if (!mounted) return;
-      showAppSnackBar(context, ok ? 'تم رفع المستند' : 'تعذر رفع المستند',
-          isError: !ok);
+      showAppSnackBar(
+        context,
+        ok ? 'تم رفع المستند' : 'تعذر رفع المستند',
+        isError: !ok,
+      );
     } catch (error) {
       if (!mounted) return;
       showAppSnackBar(
@@ -257,7 +276,8 @@ class _ShopCompleteProfileScreenState
     final shopAsync = ref.watch(myShopProvider);
     final docs = ref.watch(shopDocumentsProvider).asData?.value ?? [];
     final images = ref.watch(shopImagesProvider).asData?.value ?? [];
-    final busy = ref.watch(shopActionProvider).isLoading ||
+    final busy =
+        ref.watch(shopActionProvider).isLoading ||
         ref.watch(shopCatalogActionProvider).isLoading ||
         _uploading;
 
@@ -267,8 +287,8 @@ class _ShopCompleteProfileScreenState
       title: 'بيانات المحل',
       showBack: false,
       showBottomNav: false,
-      body: shopAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+      body: shopAsync.skeletonWhen(
+        placeholder: LoadingFixtures.shop,
         error: (error, _) => Center(
           child: Padding(
             padding: AppSpacing.page,
@@ -334,10 +354,8 @@ class _ShopCompleteProfileScreenState
                   AppTextField(
                     controller: _registerController,
                     label: 'رقم السجل التجاري',
-                    validator: (value) => Validators.required(
-                      value,
-                      field: 'رقم السجل التجاري',
-                    ),
+                    validator: (value) =>
+                        Validators.required(value, field: 'رقم السجل التجاري'),
                     textInputAction: TextInputAction.next,
                   ),
                   const SizedBox(height: AppSpacing.md),

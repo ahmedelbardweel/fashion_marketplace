@@ -1,5 +1,7 @@
+import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/theme/app_radii.dart';
 import '../../../../core/widgets/app_button.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -46,9 +48,7 @@ class ProductComparisonScreen extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     'أضف منتجين أو أكثر من صفحة المنتج للمقارنة جنباً إلى جنب',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
+                    style: Theme.of(context).textTheme.bodyMedium
                         ?.copyWith(color: AppColors.gray500),
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -97,7 +97,7 @@ class ProductComparisonScreen extends ConsumerWidget {
                             height: 180,
                             color: AppColors.gray100,
                             child: product.coverImage != null
-                                ? Image.network(
+                                ? AppNetworkImage(
                                     product.coverImage!,
                                     fit: BoxFit.contain,
                                   )
@@ -112,9 +112,7 @@ class ProductComparisonScreen extends ConsumerWidget {
                           product.name,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
+                          style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
 
@@ -123,9 +121,7 @@ class ProductComparisonScreen extends ConsumerWidget {
                         // Shop
                         Text(
                           'المتجر: ${product.shopName}',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
+                          style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: AppColors.gray500),
                         ),
 
@@ -134,9 +130,7 @@ class ProductComparisonScreen extends ConsumerWidget {
                         // Price
                         Text(
                           '${product.price.toStringAsFixed(2)} ر.س',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
+                          style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.black,
@@ -149,8 +143,11 @@ class ProductComparisonScreen extends ConsumerWidget {
                         // Rating
                         Row(
                           children: [
-                            const Icon(Icons.star,
-                                color: Colors.amber, size: 18),
+                            const Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                              size: 18,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               '${product.ratingAvg.toStringAsFixed(1)} (${product.ratingCount} تقييم)',
@@ -162,11 +159,11 @@ class ProductComparisonScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.sm),
 
                         // Colors
-                        Text('الألوان:',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        Text(
+                          'الألوان:',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
                         Text(
                           product.availableColors.isEmpty
                               ? 'قياسي'
@@ -177,11 +174,11 @@ class ProductComparisonScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.sm),
 
                         // Sizes
-                        Text('المقاسات:',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        Text(
+                          'المقاسات:',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
                         Text(
                           product.availableSizes.isEmpty
                               ? 'قياسي'
@@ -192,11 +189,11 @@ class ProductComparisonScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.sm),
 
                         // Stock
-                        Text('المخزون:',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        Text(
+                          'المخزون:',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
                         Text(
                           '${product.totalStock} قطعة',
                           style: Theme.of(context).textTheme.bodyMedium,

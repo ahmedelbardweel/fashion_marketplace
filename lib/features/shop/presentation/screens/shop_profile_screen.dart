@@ -1,3 +1,6 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -75,15 +78,18 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     if (picked == null) return;
     setState(() => _uploading = true);
     try {
-      final url = await ref.read(shopStorageRepositoryProvider).uploadBytes(
+      final url = await ref
+          .read(shopStorageRepositoryProvider)
+          .uploadBytes(
             bucket: 'shop-media',
             folder: 'logo',
             fileName: picked.fileName,
             bytes: picked.bytes,
             contentType: picked.contentType,
           );
-      final ok =
-          await ref.read(shopCatalogActionProvider.notifier).setLogo(url);
+      final ok = await ref
+          .read(shopCatalogActionProvider.notifier)
+          .setLogo(url);
       if (!mounted) return;
       showAppSnackBar(
         context,
@@ -107,15 +113,18 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     if (picked == null) return;
     setState(() => _uploading = true);
     try {
-      final url = await ref.read(shopStorageRepositoryProvider).uploadBytes(
+      final url = await ref
+          .read(shopStorageRepositoryProvider)
+          .uploadBytes(
             bucket: 'shop-media',
             folder: 'cover',
             fileName: picked.fileName,
             bytes: picked.bytes,
             contentType: picked.contentType,
           );
-      final ok =
-          await ref.read(shopCatalogActionProvider.notifier).setCover(url);
+      final ok = await ref
+          .read(shopCatalogActionProvider.notifier)
+          .setCover(url);
       if (!mounted) return;
       showAppSnackBar(
         context,
@@ -139,15 +148,18 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     if (picked == null) return;
     setState(() => _uploading = true);
     try {
-      final url = await ref.read(shopStorageRepositoryProvider).uploadBytes(
+      final url = await ref
+          .read(shopStorageRepositoryProvider)
+          .uploadBytes(
             bucket: 'shop-media',
             folder: 'gallery',
             fileName: picked.fileName,
             bytes: picked.bytes,
             contentType: picked.contentType,
           );
-      final ok =
-          await ref.read(shopCatalogActionProvider.notifier).addShopImage(url);
+      final ok = await ref
+          .read(shopCatalogActionProvider.notifier)
+          .addShopImage(url);
       if (!mounted) return;
       showAppSnackBar(
         context,
@@ -171,17 +183,18 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     if (picked == null) return;
     setState(() => _uploading = true);
     try {
-      final path = await ref.read(shopStorageRepositoryProvider).uploadBytes(
+      final path = await ref
+          .read(shopStorageRepositoryProvider)
+          .uploadBytes(
             bucket: 'shop-documents',
             folder: 'docs',
             fileName: picked.fileName,
             bytes: picked.bytes,
             contentType: picked.contentType,
           );
-      final ok = await ref.read(shopCatalogActionProvider.notifier).addDocument(
-            docType: 'إثبات محل',
-            path: path,
-          );
+      final ok = await ref
+          .read(shopCatalogActionProvider.notifier)
+          .addDocument(docType: 'إثبات محل', path: path);
       if (!mounted) return;
       showAppSnackBar(
         context,
@@ -230,8 +243,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     final shopAsync = ref.watch(myShopProvider);
     final images = ref.watch(shopImagesProvider).asData?.value ?? [];
     final docs = ref.watch(shopDocumentsProvider).asData?.value ?? [];
-    final busy =
-        ref.watch(shopCatalogActionProvider).isLoading || _uploading;
+    final busy = ref.watch(shopCatalogActionProvider).isLoading || _uploading;
 
     ref.listen(myShopProvider, (_, next) => _seed(next.asData?.value));
     _seed(shopAsync.asData?.value);
@@ -239,8 +251,8 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     return ShopScaffold(
       title: 'ملف المحل',
       showBack: false,
-      body: shopAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+      body: shopAsync.skeletonWhen(
+        placeholder: LoadingFixtures.shop,
         error: (error, _) => Center(
           child: Text(ref.read(shopRepositoryProvider).mapError(error)),
         ),
@@ -262,8 +274,10 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                         ),
                         if (shop?.logoPath != null) ...[
                           const SizedBox(height: AppSpacing.sm),
-                          Text('الشعار مرفوع',
-                              style: Theme.of(context).textTheme.bodySmall),
+                          Text(
+                            'الشعار مرفوع',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                         ],
                       ],
                     ),
@@ -297,7 +311,9 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                     onPressed: _uploadDocument,
                   ),
                   const SizedBox(height: AppSpacing.sm),
-                  Text('صور مرفوعة: ${images.length} · مستندات: ${docs.length}'),
+                  Text(
+                    'صور مرفوعة: ${images.length} · مستندات: ${docs.length}',
+                  ),
                   const SizedBox(height: AppSpacing.lg),
                   AppTextField(
                     controller: _shopName,
@@ -330,10 +346,8 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                   AppTextField(
                     controller: _register,
                     label: 'السجل التجاري',
-                    validator: (value) => Validators.required(
-                      value,
-                      field: 'السجل التجاري',
-                    ),
+                    validator: (value) =>
+                        Validators.required(value, field: 'السجل التجاري'),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(

@@ -1,3 +1,6 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -149,6 +152,7 @@ class AdminShopReviewScreen extends ConsumerWidget {
     return AdminScaffold(
       title: 'مراجعة المحل',
       body: AdminAsyncBody<Shop?>(
+        placeholder: LoadingFixtures.shop,
         value: shopAsync,
         emptyMessage: 'الطلب غير موجود',
         isEmpty: (shop) => shop == null,
@@ -191,14 +195,8 @@ class AdminShopReviewScreen extends ConsumerWidget {
                       label: 'اسم المسؤول',
                       value: current.ownerName ?? '-',
                     ),
-                    _InfoRow(
-                      label: 'البريد',
-                      value: current.ownerEmail ?? '-',
-                    ),
-                    _InfoRow(
-                      label: 'الهاتف',
-                      value: current.ownerPhone ?? '-',
-                    ),
+                    _InfoRow(label: 'البريد', value: current.ownerEmail ?? '-'),
+                    _InfoRow(label: 'الهاتف', value: current.ownerPhone ?? '-'),
                   ],
                 ),
               ),
@@ -208,9 +206,12 @@ class AdminShopReviewScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('الشعار', style: Theme.of(context).textTheme.titleSmall),
+                      Text(
+                        'الشعار',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                       const SizedBox(height: AppSpacing.sm),
-                      Image.network(
+                      AppNetworkImage(
                         current.logoPath!,
                         height: 96,
                         fit: BoxFit.cover,
@@ -222,16 +223,10 @@ class AdminShopReviewScreen extends ConsumerWidget {
                 ),
               ],
               const SizedBox(height: AppSpacing.md),
-              Text(
-                'صور المحل',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              Text('صور المحل', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: AppSpacing.sm),
-              imagesAsync.when(
-                loading: () => const Padding(
-                  padding: EdgeInsets.all(AppSpacing.md),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
+              imagesAsync.skeletonWhen(
+                placeholder: LoadingFixtures.media,
                 error: (error, _) => AppCard(
                   child: Text(
                     ref.read(adminRepositoryProvider).mapError(error),
@@ -245,11 +240,12 @@ class AdminShopReviewScreen extends ConsumerWidget {
                     children: images
                         .map(
                           (image) => Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: AppSpacing.sm),
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.sm,
+                            ),
                             child: AppCard(
                               child: image.filePath.startsWith('http')
-                                  ? Image.network(
+                                  ? AppNetworkImage(
                                       image.filePath,
                                       height: 140,
                                       fit: BoxFit.cover,
@@ -265,16 +261,10 @@ class AdminShopReviewScreen extends ConsumerWidget {
                 },
               ),
               const SizedBox(height: AppSpacing.md),
-              Text(
-                'المستندات',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              Text('المستندات', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: AppSpacing.sm),
-              docsAsync.when(
-                loading: () => const Padding(
-                  padding: EdgeInsets.all(AppSpacing.md),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
+              docsAsync.skeletonWhen(
+                placeholder: LoadingFixtures.documents,
                 error: (error, _) => AppCard(
                   child: Text(
                     ref.read(adminRepositoryProvider).mapError(error),
@@ -290,8 +280,9 @@ class AdminShopReviewScreen extends ConsumerWidget {
                     children: docs
                         .map(
                           (doc) => Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: AppSpacing.sm),
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.sm,
+                            ),
                             child: AppCard(
                               onTap: () async {
                                 try {
@@ -329,8 +320,9 @@ class AdminShopReviewScreen extends ConsumerWidget {
                                   const SizedBox(height: AppSpacing.xs),
                                   Text(
                                     'اضغط لإنشاء رابط مؤقت للعرض',
-                                    style:
-                                        Theme.of(context).textTheme.bodySmall,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall,
                                   ),
                                 ],
                               ),

@@ -1,3 +1,5 @@
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,11 +18,7 @@ import '../widgets/admin_async_body.dart';
 class AdminShopsManageScreen extends ConsumerWidget {
   const AdminShopsManageScreen({super.key});
 
-  Future<void> _toggle(
-    BuildContext context,
-    WidgetRef ref,
-    Shop shop,
-  ) async {
+  Future<void> _toggle(BuildContext context, WidgetRef ref, Shop shop) async {
     if (shop.status != ShopStatus.approved &&
         shop.status != ShopStatus.suspended) {
       context.push(AppRoutes.adminShopReviewPath(shop.id));
@@ -86,6 +84,7 @@ class AdminShopsManageScreen extends ConsumerWidget {
     return AdminScaffold(
       title: 'إدارة المحلات',
       body: AdminAsyncBody<List<Shop>>(
+        placeholder: LoadingFixtures.shops,
         value: shops,
         emptyMessage: 'لا توجد محلات بعد',
         isEmpty: (data) => data.isEmpty,

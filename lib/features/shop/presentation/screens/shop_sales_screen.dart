@@ -1,3 +1,6 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,8 +20,8 @@ class ShopSalesScreen extends ConsumerWidget {
     return ShopScaffold(
       title: 'المبيعات والأرباح',
       showBottomNav: false,
-      body: statsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+      body: statsAsync.skeletonWhen(
+        placeholder: LoadingFixtures.shopStats,
         error: (error, _) => Center(
           child: Text(ref.read(shopCatalogRepositoryProvider).mapError(error)),
         ),
@@ -30,8 +33,10 @@ class ShopSalesScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('إجمالي المبيعات',
-                        style: Theme.of(context).textTheme.bodySmall),
+                    Text(
+                      'إجمالي المبيعات',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       stats.salesTotal.toStringAsFixed(2),

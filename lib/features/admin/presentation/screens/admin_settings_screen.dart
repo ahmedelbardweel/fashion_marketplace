@@ -1,3 +1,6 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -86,8 +89,8 @@ class AdminSettingsScreen extends ConsumerWidget {
         children: [
           const DecartSettingsCard(),
           const SizedBox(height: AppSpacing.md),
-          settings.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+          settings.skeletonWhen(
+            placeholder: LoadingFixtures.settings,
             error: (_, _) => AppButton(
               label: 'إعادة تحميل إعدادات المنصة',
               onPressed: () => ref.invalidate(adminSettingsProvider),

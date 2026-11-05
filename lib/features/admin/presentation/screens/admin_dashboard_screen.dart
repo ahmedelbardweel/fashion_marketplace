@@ -1,3 +1,5 @@
+import '../../../../core/widgets/app_skeleton.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -94,61 +96,63 @@ class AdminDashboardScreen extends ConsumerWidget {
     return AdminScaffold(
       title: 'لوحة الإدارة',
       showBack: false,
-      body: RefreshIndicator(
-        color: AppColors.black,
-        onRefresh: () async {
-          ref.invalidate(adminStatsProvider);
-          ref.invalidate(adminShopApplicationsProvider);
-          await ref.read(adminStatsProvider.future);
-        },
-        child: ListView(
-          padding: AppSpacing.page,
-          children: [
-            AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'CONTROL CENTER',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: AppColors.gray500,
-                          letterSpacing: 1.4,
-                        ),
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    user?.displayName ?? 'الإدارة',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    user?.email ?? '',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Container(height: 1, color: AppColors.border),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    'اختر ميزة للانتقال إلى واجهتها الخاصة',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            ...features.map(
-              (feature) => Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                child: AdminFeatureTile(
-                  code: feature.code,
-                  title: feature.title,
-                  subtitle: feature.subtitle,
-                  badge: feature.badge,
-                  onTap: () => context.push(feature.route),
+      body: AppSkeleton(
+        enabled: stats.isLoading && !stats.hasValue,
+        child: RefreshIndicator.noSpinner(
+          onRefresh: () async {
+            ref.invalidate(adminStatsProvider);
+            ref.invalidate(adminShopApplicationsProvider);
+            await ref.read(adminStatsProvider.future);
+          },
+          child: ListView(
+            padding: AppSpacing.page,
+            children: [
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CONTROL CENTER',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: AppColors.gray500,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      user?.displayName ?? 'الإدارة',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      user?.email ?? '',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Container(height: 1, color: AppColors.border),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      'اختر ميزة للانتقال إلى واجهتها الخاصة',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: AppSpacing.lg),
+              ...features.map(
+                (feature) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: AdminFeatureTile(
+                    code: feature.code,
+                    title: feature.title,
+                    subtitle: feature.subtitle,
+                    badge: feature.badge,
+                    onTap: () => context.push(feature.route),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

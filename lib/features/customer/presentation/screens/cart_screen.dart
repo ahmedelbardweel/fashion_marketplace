@@ -1,3 +1,5 @@
+import '../../../../core/widgets/app_skeleton.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -46,9 +48,7 @@ class CartScreen extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     'تصفح أحدث الأزياء وأضف المنتجات لسلتك',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
+                    style: Theme.of(context).textTheme.bodyMedium
                         ?.copyWith(color: AppColors.gray500),
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -75,14 +75,15 @@ class CartScreen extends ConsumerWidget {
                           children: [
                             // Product Image Thumbnail
                             ClipRRect(
-                              borderRadius:
-                                  BorderRadius.circular(AppRadii.card),
+                              borderRadius: BorderRadius.circular(
+                                AppRadii.card,
+                              ),
                               child: Container(
                                 width: 75,
                                 height: 75,
                                 color: AppColors.gray100,
                                 child: item.imagePath != null
-                                    ? Image.network(
+                                    ? AppNetworkImage(
                                         item.imagePath!,
                                         fit: BoxFit.cover,
                                         errorBuilder: (_, __, ___) =>
@@ -111,9 +112,7 @@ class CartScreen extends ConsumerWidget {
                                   const SizedBox(height: 2),
                                   Text(
                                     '${item.shopName} · ${item.variantDescription}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
+                                    style: Theme.of(context).textTheme.bodySmall
                                         ?.copyWith(color: AppColors.gray500),
                                   ),
                                   const SizedBox(height: AppSpacing.xs),
@@ -138,8 +137,11 @@ class CartScreen extends ConsumerWidget {
                                 IconButton(
                                   padding: EdgeInsets.zero,
                                   constraints: const BoxConstraints(),
-                                  icon: const Icon(Icons.delete_outline,
-                                      size: 20, color: AppColors.gray500),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 20,
+                                    color: AppColors.gray500,
+                                  ),
                                   onPressed: () =>
                                       cartNotifier.removeItem(item.id),
                                 ),
@@ -151,27 +153,38 @@ class CartScreen extends ConsumerWidget {
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(),
                                       icon: const Icon(
-                                          Icons.remove_circle_outline,
-                                          size: 22),
-                                      onPressed: () => cartNotifier
-                                          .updateQuantity(item.id, item.quantity - 1),
+                                        Icons.remove_circle_outline,
+                                        size: 22,
+                                      ),
+                                      onPressed: () =>
+                                          cartNotifier.updateQuantity(
+                                            item.id,
+                                            item.quantity - 1,
+                                          ),
                                     ),
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: AppSpacing.sm),
+                                        horizontal: AppSpacing.sm,
+                                      ),
                                       child: Text(
                                         '${item.quantity}',
                                         style: const TextStyle(
-                                            fontWeight: FontWeight.bold),
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
                                     IconButton(
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(),
-                                      icon: const Icon(Icons.add_circle_outline,
-                                          size: 22),
-                                      onPressed: () => cartNotifier
-                                          .updateQuantity(item.id, item.quantity + 1),
+                                      icon: const Icon(
+                                        Icons.add_circle_outline,
+                                        size: 22,
+                                      ),
+                                      onPressed: () =>
+                                          cartNotifier.updateQuantity(
+                                            item.id,
+                                            item.quantity + 1,
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -196,8 +209,10 @@ class CartScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('المجموع الفرعي',
-                              style: Theme.of(context).textTheme.bodyMedium),
+                          Text(
+                            'المجموع الفرعي',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
                           Text(
                             '${cartNotifier.totalAmount.toStringAsFixed(2)} ر.س',
                             style: Theme.of(context).textTheme.bodyMedium,
@@ -208,16 +223,17 @@ class CartScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('التوصيل',
-                              style: Theme.of(context).textTheme.bodyMedium),
+                          Text(
+                            'التوصيل',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
                           Text(
                             'مجاناً',
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
+                            style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
-                                    color: AppColors.black,
-                                    fontWeight: FontWeight.bold),
+                                  color: AppColors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
                           ),
                         ],
                       ),
@@ -227,16 +243,12 @@ class CartScreen extends ConsumerWidget {
                         children: [
                           Text(
                             'الإجمالي النهائي',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
+                            style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           Text(
                             '${cartNotifier.totalAmount.toStringAsFixed(2)} ر.س',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
+                            style: Theme.of(context).textTheme.titleLarge
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -244,7 +256,8 @@ class CartScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.md),
                       AppButton(
                         label: 'متابعة الشراء (${cartItems.length} عناصر)',
-                        onPressed: () => context.push(AppRoutes.customerCheckout),
+                        onPressed: () =>
+                            context.push(AppRoutes.customerCheckout),
                       ),
                     ],
                   ),

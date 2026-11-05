@@ -1,3 +1,7 @@
+import '../widgets/product_cart_sheet.dart';
+import '../../../../core/widgets/product_grid_skeleton.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 
 import 'package:flutter/material.dart';
@@ -310,13 +314,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                               }
                                             },
                                       child: isSubmitting
-                                          ? const SizedBox(
-                                              width: 20,
-                                              height: 20,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: AppColors.white,
-                                              ),
+                                          ? const AppBusyLabel(
+                                              label: 'إرسال التقييم',
                                             )
                                           : const Text('إرسال التقييم'),
                                     ),
@@ -416,17 +415,21 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     final reviewsAsync = ref.watch(productReviewsProvider(widget.productId));
     final compareList = ref.watch(productComparisonProvider);
 
-    return productAsync.when(
+    return productAsync.skeletonWhen(
+      placeholder: LoadingFixtures.product,
       data: (product) {
         if (product == null) {
           return const CustomerScaffold(
+            showBottomNav: false,
             title: 'تفاصيل المنتج',
             body: Center(child: Text('المنتج غير موجود')),
           );
         }
 
         // Initialize default selections
-        if (_selectedColor == null && product.availableColors.isNotEmpty) {
+        if (productAsync.hasValue &&
+            _selectedColor == null &&
+            product.availableColors.isNotEmpty) {
           _selectedColor = product.availableColors.first;
         }
 
@@ -435,7 +438,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
             .map((v) => v.size)
             .toList();
 
-        if (_selectedSize == null || !matchingSizes.contains(_selectedSize)) {
+        if (productAsync.hasValue &&
+            (_selectedSize == null || !matchingSizes.contains(_selectedSize))) {
           if (matchingSizes.isNotEmpty) {
             _selectedSize = matchingSizes.first;
           }
@@ -452,6 +456,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         final isInCompare = compareList.any((p) => p.id == product.id);
 
         return CustomerScaffold(
+          showBottomNav: false,
           title: product.name,
           actions: [
             // Favorite Button
@@ -483,7 +488,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 // Image Gallery
                 if (product.images.isNotEmpty) ...[
                   SizedBox(
-                    height: 380,
+                    height: 260,
                     child: PageView.builder(
                       itemCount: product.images.length,
                       onPageChanged: (index) =>
@@ -492,7 +497,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         final img = product.images[index];
                         return Container(
                           color: AppColors.gray100,
-                          child: Image.network(
+                          child: AppNetworkImage(
                             img.filePath,
                             fit: BoxFit.contain,
                             errorBuilder: (ctx, err, st) =>
@@ -538,8 +543,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         onTap: () => context.push(
                           AppRoutes.customerShopProfilePath(product.shopId),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                        child: Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             const Icon(
                               Icons.storefront_outlined,
@@ -548,8 +553,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             ),
                             const SizedBox(width: AppSpacing.xs),
                             Text(
-                              "المتجر صاحب الملابس هو : ",
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                              'يباع بواسطة',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: AppColors.gray500),
                             ),
                             const SizedBox(width: AppSpacing.xs),
                             Text(
@@ -564,7 +570,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: AppSpacing.xs),
+                      const SizedBox(height: AppSpacing.sm),
 
                       // Title
                       Text(
@@ -573,21 +579,33 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
 
-                      const SizedBox(height: AppSpacing.xs),
+                      if (product.description?.trim().isNotEmpty ?? false) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          product.description!,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(height: 1.6, color: AppColors.gray700),
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
 
-                      // Price & Rating
+                      // Price and rating share a row, aligned to opposite edges.
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            '${product.price.toStringAsFixed(2)} ر.س',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.black,
-                                ),
+                          Flexible(
+                            child: Text(
+                              '${product.price.toStringAsFixed(2)} ر.س',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.black,
+                                  ),
+                            ),
                           ),
+                          const SizedBox(width: AppSpacing.sm),
                           Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               const Icon(
                                 Icons.star,
@@ -605,7 +623,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       ),
 
                       const SizedBox(height: AppSpacing.md),
-                      const Divider(),
+                      const Divider(height: 1),
                       const SizedBox(height: AppSpacing.md),
 
                       // Colors Selection
@@ -614,7 +632,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: AppSpacing.xs),
+                      const SizedBox(height: AppSpacing.sm),
                       Wrap(
                         spacing: AppSpacing.xs,
                         runSpacing: AppSpacing.xs,
@@ -672,7 +690,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: AppSpacing.xs),
+                      const SizedBox(height: AppSpacing.sm),
                       Wrap(
                         spacing: AppSpacing.xs,
                         runSpacing: AppSpacing.xs,
@@ -721,6 +739,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
 
                       // Stock status badge
                       Container(
+                        width: double.infinity,
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.sm,
                           vertical: AppSpacing.xs,
@@ -741,39 +760,21 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                               color: AppColors.black,
                             ),
                             const SizedBox(width: AppSpacing.xs),
-                            Text(
-                              currentStock > 0
-                                  ? 'متوفر في المخزون ($currentStock قطعة)'
-                                  : 'نفذت الكمية لهذا المقاس',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: AppColors.black,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                            Flexible(
+                              child: Text(
+                                currentStock > 0
+                                    ? 'متوفر في المخزون ($currentStock قطعة)'
+                                    : 'نفذت الكمية لهذا المقاس',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: AppColors.black,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
                             ),
                           ],
                         ),
                       ),
-
-                      const SizedBox(height: AppSpacing.lg),
-
-                      // Description
-                      if (product.description != null &&
-                          product.description!.isNotEmpty) ...[
-                        Text(
-                          'تفاصيل ومواصفات القطعة',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: AppSpacing.xs),
-                        AppCard(
-                          child: Text(
-                            product.description!,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ),
-                        const SizedBox(height: AppSpacing.lg),
-                      ],
 
                       const SizedBox(height: AppSpacing.md),
                       const Divider(),
@@ -879,26 +880,15 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       const SizedBox(height: AppSpacing.md),
 
                       if (_recommendedProducts.isEmpty && _loadingMore) ...[
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(AppSpacing.xl),
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.black,
-                            ),
-                          ),
-                        ),
+                        const ProductGridSkeleton(),
                       ] else if (_recommendedProducts.isNotEmpty) ...[
                         GridView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: AppSpacing.sm,
-                                mainAxisSpacing: AppSpacing.sm,
-                                childAspectRatio: 0.58,
-                              ),
+                          gridDelegate: ProductGridDelegate(
+                            textScale:
+                                MediaQuery.textScalerOf(context).scale(14) / 14,
+                          ),
                           itemCount: _recommendedProducts.length,
                           itemBuilder: (context, index) {
                             final recProduct = _recommendedProducts[index];
@@ -906,10 +896,13 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                 ? recProduct.images.first.filePath
                                 : null;
                             return ProductGridCard(
+                              onAddToCart: () =>
+                                  showProductCartSheet(context, recProduct.id),
+                              inStock: recProduct.totalStock > 0,
                               title: recProduct.name,
-                              subtitle:
+                              subtitle: recProduct.shopName,
+                              meta:
                                   '${recProduct.price.toStringAsFixed(2)} ر.س',
-                              meta: recProduct.shopName,
                               imageUrl: primaryImg,
                               onTap: () => context.push(
                                 AppRoutes.customerProductDetailsPath(
@@ -919,19 +912,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             );
                           },
                         ),
-                        if (_loadingMore) ...[
-                          const Padding(
-                            padding: EdgeInsets.symmetric(
-                              vertical: AppSpacing.lg,
-                            ),
-                            child: Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.black,
-                              ),
-                            ),
-                          ),
-                        ],
+                        if (_loadingMore) ...[const ProductGridSkeleton()],
                         if (!_hasMore) ...[
                           Padding(
                             padding: const EdgeInsets.symmetric(
@@ -968,32 +949,34 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Real-Time Decart AI Try-on Button
-                    ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00E676),
-                        foregroundColor: AppColors.black,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadii.button),
-                        ),
-                        minimumSize: const Size(double.infinity, 44),
-                      ),
-                      onPressed: () => context.push(
-                        AppRoutes.customerRealtimeTryonPath(product.id),
-                      ),
-                      child: const Text(
-                        'تجربة الملابس',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    // Compare products.
                     Row(
                       children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF00E676),
+                              foregroundColor: AppColors.black,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadii.button,
+                                ),
+                              ),
+                              minimumSize: const Size(double.infinity, 44),
+                            ),
+                            onPressed: () => context.push(
+                              AppRoutes.customerRealtimeTryonPath(product.id),
+                            ),
+                            child: const Text(
+                              'تجربة الملابس',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: OutlinedButton.icon(
                             style: OutlinedButton.styleFrom(
@@ -1203,11 +1186,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           ),
         );
       },
-      loading: () => const CustomerScaffold(
-        title: 'جاري التحميل...',
-        body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      ),
       error: (err, _) => CustomerScaffold(
+        showBottomNav: false,
         title: 'خطأ',
         body: Center(child: Text('تعذر تحميل تفاصيل المنتج: $err')),
       ),

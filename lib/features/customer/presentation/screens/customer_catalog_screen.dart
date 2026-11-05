@@ -1,3 +1,6 @@
+import '../widgets/product_cart_sheet.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 
 import 'package:flutter/material.dart';
@@ -350,7 +353,8 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
 
           // Products Grid
           Expanded(
-            child: productsAsync.when(
+            child: productsAsync.skeletonWhen(
+              placeholder: LoadingFixtures.products,
               data: (products) {
                 if (products.isEmpty) {
                   return Center(
@@ -381,28 +385,27 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                   );
                 }
 
-                return RefreshIndicator(
+                return RefreshIndicator.noSpinner(
                   onRefresh: () async {
                     ref.invalidate(customerProductsProvider);
                   },
                   child: GridView.builder(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     itemCount: products.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: AppSpacing.sm,
-                          mainAxisSpacing: AppSpacing.sm,
-                          childAspectRatio: 0.58,
-                        ),
+                    gridDelegate: ProductGridDelegate(
+                      textScale:
+                          MediaQuery.textScalerOf(context).scale(14) / 14,
+                    ),
                     itemBuilder: (context, index) {
                       final product = products[index];
                       return ProductGridCard(
+                        onAddToCart: () =>
+                            showProductCartSheet(context, product.id),
+                        inStock: product.totalStock > 0,
                         imageUrl: product.coverImage,
                         title: product.name,
                         subtitle: product.shopName,
-                        meta:
-                            '${product.price.toStringAsFixed(2)} ر.س · مخزون ${product.totalStock}',
+                        meta: '${product.price.toStringAsFixed(2)} ر.س',
                         onTap: () => context.push(
                           AppRoutes.customerProductDetailsPath(product.id),
                         ),
@@ -411,9 +414,6 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                   ),
                 );
               },
-              loading: () => const Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
               error: (err, _) =>
                   Center(child: Text('تعذر تحميل المنتجات: $err')),
             ),

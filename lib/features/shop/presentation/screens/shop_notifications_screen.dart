@@ -1,3 +1,6 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,8 +20,8 @@ class ShopNotificationsScreen extends ConsumerWidget {
     return ShopScaffold(
       title: 'الإشعارات',
       showBottomNav: false,
-      body: notifications.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+      body: notifications.skeletonWhen(
+        placeholder: LoadingFixtures.notifications,
         error: (error, _) => Center(
           child: Text(ref.read(shopCatalogRepositoryProvider).mapError(error)),
         ),
@@ -26,9 +29,7 @@ class ShopNotificationsScreen extends ConsumerWidget {
           if (items.isEmpty) {
             return ListView(
               padding: AppSpacing.page,
-              children: const [
-                AppCard(child: Text('لا توجد إشعارات حالياً')),
-              ],
+              children: const [AppCard(child: Text('لا توجد إشعارات حالياً'))],
             );
           }
           return ListView(

@@ -1,3 +1,6 @@
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,11 +21,12 @@ class CustomerShopsScreen extends ConsumerWidget {
 
     return CustomerScaffold(
       title: 'المحلات المعتمدة',
-      body: RefreshIndicator(
+      body: RefreshIndicator.noSpinner(
         onRefresh: () async {
           ref.invalidate(customerShopsProvider);
         },
-        child: shopsAsync.when(
+        child: shopsAsync.skeletonWhen(
+          placeholder: LoadingFixtures.customerShops,
           data: (shops) {
             if (shops.isEmpty) {
               return const Center(child: Text('لا توجد محلات معتمدة حالياً'));
@@ -36,26 +40,27 @@ class CustomerShopsScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final shop = shops[index];
                 return AppCard(
-                  onTap: () => context.push(
-                    AppRoutes.customerShopProfilePath(shop.id),
-                  ),
+                  onTap: () =>
+                      context.push(AppRoutes.customerShopProfilePath(shop.id)),
                   child: Row(
                     children: [
                       CircleAvatar(
                         radius: 28,
                         backgroundColor: AppColors.gray100,
-                        child: shop.logoPath != null &&
-                                shop.logoPath!.isNotEmpty
+                        child:
+                            shop.logoPath != null && shop.logoPath!.isNotEmpty
                             ? ClipOval(
-                                child: Image.network(
+                                child: AppNetworkImage(
                                   shop.logoPath!,
                                   fit: BoxFit.cover,
                                   errorBuilder: (_, __, ___) =>
                                       const Icon(Icons.storefront_rounded),
                                 ),
                               )
-                            : const Icon(Icons.storefront_rounded,
-                                color: AppColors.black),
+                            : const Icon(
+                                Icons.storefront_rounded,
+                                color: AppColors.black,
+                              ),
                       ),
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
@@ -64,9 +69,7 @@ class CustomerShopsScreen extends ConsumerWidget {
                           children: [
                             Text(
                               shop.name,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
+                              style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(fontWeight: FontWeight.bold),
                             ),
                             if (shop.description != null &&
@@ -75,17 +78,13 @@ class CustomerShopsScreen extends ConsumerWidget {
                                 shop.description!,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
+                                style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(color: AppColors.gray500),
                               ),
                             const SizedBox(height: 2),
                             Text(
                               '${shop.city ?? 'متجر أزياء'} · ${shop.productsCount} منتج',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
+                              style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: AppColors.gray700),
                             ),
                           ],
@@ -98,12 +97,7 @@ class CustomerShopsScreen extends ConsumerWidget {
               },
             );
           },
-          loading: () => const Center(
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          error: (err, _) => Center(
-            child: Text('تعذر تحميل المحلات: $err'),
-          ),
+          error: (err, _) => Center(child: Text('تعذر تحميل المحلات: $err')),
         ),
       ),
     );

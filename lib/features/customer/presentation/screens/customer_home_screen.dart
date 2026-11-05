@@ -1,3 +1,7 @@
+import '../widgets/product_cart_sheet.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -25,7 +29,7 @@ class CustomerHomeScreen extends ConsumerWidget {
       currentNavIndex: 0,
       showBack: false,
       showProfile: true,
-      body: RefreshIndicator(
+      body: RefreshIndicator.noSpinner(
         onRefresh: () async {
           ref.invalidate(customerBannersProvider);
           ref.invalidate(customerCategoriesProvider);
@@ -39,7 +43,8 @@ class CustomerHomeScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Promotional Banners
-              bannersAsync.when(
+              bannersAsync.skeletonWhen(
+                placeholder: LoadingFixtures.banners,
                 data: (banners) {
                   if (banners.isEmpty) return const SizedBox.shrink();
                   return Padding(
@@ -88,12 +93,12 @@ class CustomerHomeScreen extends ConsumerWidget {
                     ),
                   );
                 },
-                loading: () => const SizedBox.shrink(),
                 error: (err, stack) => const SizedBox.shrink(),
               ),
 
               // Categories Section
-              categoriesAsync.when(
+              categoriesAsync.skeletonWhen(
+                placeholder: LoadingFixtures.categories,
                 data: (categories) {
                   if (categories.isEmpty) return const SizedBox.shrink();
                   return SizedBox(
@@ -122,12 +127,6 @@ class CustomerHomeScreen extends ConsumerWidget {
                     ),
                   );
                 },
-                loading: () => const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(AppSpacing.md),
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
                 error: (_, __) => const SizedBox.shrink(),
               ),
 
@@ -136,8 +135,9 @@ class CustomerHomeScreen extends ConsumerWidget {
               // Approved Shops Section
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
                       'المحلات المعتمدة',
@@ -152,7 +152,8 @@ class CustomerHomeScreen extends ConsumerWidget {
                 ),
               ),
 
-              shopsAsync.when(
+              shopsAsync.skeletonWhen(
+                placeholder: LoadingFixtures.customerShops,
                 data: (shops) {
                   if (shops.isEmpty) {
                     return const Padding(
@@ -161,7 +162,7 @@ class CustomerHomeScreen extends ConsumerWidget {
                     );
                   }
                   return SizedBox(
-                    height: 120,
+                    height: 68,
                     child: ListView.separated(
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.md,
@@ -169,35 +170,30 @@ class CustomerHomeScreen extends ConsumerWidget {
                       scrollDirection: Axis.horizontal,
                       itemCount: shops.length,
                       separatorBuilder: (_, __) =>
-                          const SizedBox(width: AppSpacing.md),
+                          const SizedBox(width: AppSpacing.sm),
                       itemBuilder: (context, index) {
                         final shop = shops[index];
                         return InkWell(
-                          borderRadius: BorderRadius.circular(AppRadii.card),
                           onTap: () => context.push(
                             AppRoutes.customerShopProfilePath(shop.id),
                           ),
                           child: Container(
-                            width: 140,
-                            padding: const EdgeInsets.all(AppSpacing.sm),
+                            width: 210,
                             decoration: BoxDecoration(
                               color: AppColors.white,
-                              borderRadius: BorderRadius.circular(
-                                AppRadii.card,
-                              ),
                               border: Border.all(color: AppColors.border),
                             ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: AppColors.gray100,
-                                  child:
-                                      shop.logoPath != null &&
-                                          shop.logoPath!.isNotEmpty
-                                      ? ClipOval(
-                                          child: Image.network(
+                                SizedBox(
+                                  width: 68,
+                                  child: ColoredBox(
+                                    color: AppColors.gray100,
+                                    child:
+                                        shop.logoPath != null &&
+                                            shop.logoPath!.isNotEmpty
+                                        ? AppNetworkImage(
                                             shop.logoPath!,
                                             fit: BoxFit.cover,
                                             errorBuilder: (_, __, ___) =>
@@ -205,26 +201,50 @@ class CustomerHomeScreen extends ConsumerWidget {
                                                   Icons.store,
                                                   color: AppColors.black,
                                                 ),
+                                          )
+                                        : const Icon(
+                                            Icons.store,
+                                            color: AppColors.black,
                                           ),
-                                        )
-                                      : const Icon(
-                                          Icons.store,
-                                          color: AppColors.black,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: AppSpacing.sm,
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          shop.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleSmall
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                         ),
-                                ),
-                                const SizedBox(height: AppSpacing.xs),
-                                Text(
-                                  shop.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.titleSmall
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                                Text(
-                                  shop.city ?? 'متجر أزياء',
-                                  maxLines: 1,
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(color: AppColors.gray500),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          shop.city ?? 'متجر أزياء',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: AppColors.gray500,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -234,7 +254,6 @@ class CustomerHomeScreen extends ConsumerWidget {
                     ),
                   );
                 },
-                loading: () => const SizedBox.shrink(),
                 error: (_, __) => const SizedBox.shrink(),
               ),
 
@@ -243,8 +262,9 @@ class CustomerHomeScreen extends ConsumerWidget {
               // Latest Products Section
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
                       'أحدث الملابس والمنتجات',
@@ -259,7 +279,8 @@ class CustomerHomeScreen extends ConsumerWidget {
                 ),
               ),
 
-              productsAsync.when(
+              productsAsync.skeletonWhen(
+                placeholder: LoadingFixtures.products,
                 data: (products) {
                   if (products.isEmpty) {
                     return const Padding(
@@ -275,21 +296,20 @@ class CustomerHomeScreen extends ConsumerWidget {
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: products.length,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: AppSpacing.sm,
-                            mainAxisSpacing: AppSpacing.sm,
-                            childAspectRatio: 0.58,
-                          ),
+                      gridDelegate: ProductGridDelegate(
+                        textScale:
+                            MediaQuery.textScalerOf(context).scale(14) / 14,
+                      ),
                       itemBuilder: (context, index) {
                         final product = products[index];
                         return ProductGridCard(
+                          onAddToCart: () =>
+                              showProductCartSheet(context, product.id),
+                          inStock: product.totalStock > 0,
                           imageUrl: product.coverImage,
                           title: product.name,
                           subtitle: product.shopName,
-                          meta:
-                              '${product.price.toStringAsFixed(2)} ر.س · مخزون ${product.totalStock}',
+                          meta: '${product.price.toStringAsFixed(2)} ر.س',
                           onTap: () => context.push(
                             AppRoutes.customerProductDetailsPath(product.id),
                           ),
@@ -298,12 +318,6 @@ class CustomerHomeScreen extends ConsumerWidget {
                     ),
                   );
                 },
-                loading: () => const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(AppSpacing.lg),
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
                 error: (err, _) => Padding(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   child: Text('تعذر تحميل المنتجات: $err'),

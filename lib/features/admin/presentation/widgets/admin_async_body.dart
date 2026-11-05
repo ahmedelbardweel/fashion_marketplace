@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_skeleton.dart';
 import '../providers/admin_providers.dart';
 
 class AdminAsyncBody<T> extends ConsumerWidget {
@@ -12,6 +13,7 @@ class AdminAsyncBody<T> extends ConsumerWidget {
     required this.value,
     required this.onRetry,
     required this.builder,
+    required this.placeholder,
     this.emptyMessage = 'لا توجد بيانات',
     this.isEmpty,
   });
@@ -19,6 +21,7 @@ class AdminAsyncBody<T> extends ConsumerWidget {
   final AsyncValue<T> value;
   final VoidCallback onRetry;
   final Widget Function(T data) builder;
+  final T placeholder;
   final String emptyMessage;
   final bool Function(T data)? isEmpty;
 
@@ -27,7 +30,8 @@ class AdminAsyncBody<T> extends ConsumerWidget {
     return value.when(
       skipLoadingOnReload: true,
       skipLoadingOnRefresh: true,
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () =>
+          AppSkeleton(child: Builder(builder: (_) => builder(placeholder))),
       error: (error, _) => Center(
         child: Padding(
           padding: AppSpacing.page,
@@ -45,9 +49,7 @@ class AdminAsyncBody<T> extends ConsumerWidget {
         if (isEmpty?.call(data) ?? false) {
           return ListView(
             padding: AppSpacing.page,
-            children: [
-              AppCard(child: Text(emptyMessage)),
-            ],
+            children: [AppCard(child: Text(emptyMessage))],
           );
         }
         return builder(data);
