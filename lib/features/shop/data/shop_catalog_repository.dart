@@ -8,12 +8,20 @@ import '../domain/models/shop_product.dart';
 
 class ShopCatalogRepository {
   ShopCatalogRepository({SupabaseClient? client})
-      : _client = client ?? SupabaseConfig.client;
+    : _client = client ?? SupabaseConfig.client;
 
   final SupabaseClient _client;
 
   static const _productSelect =
       '*, categories(name), product_variants(*), product_images(*)';
+
+  Future<ShopProduct> saveProductForm(Map<String, dynamic> data) async {
+    final result = await _client.rpc(
+      'shop_save_product_form',
+      params: {'p_data': data},
+    );
+    return ShopProduct.fromMap(asStringMap(result));
+  }
 
   Future<ShopStats> fetchStats() async {
     final data = await _client.rpc('shop_dashboard_stats');
@@ -92,10 +100,7 @@ class ShopCatalogRepository {
   }) async {
     final data = await _client.rpc(
       'shop_set_product_status',
-      params: {
-        'p_product_id': productId,
-        'p_status': status,
-      },
+      params: {'p_product_id': productId, 'p_status': status},
     );
     final product = ShopProduct.fromMap(asStringMap(data));
     return (await fetchProduct(product.id)) ?? product;
@@ -158,10 +163,7 @@ class ShopCatalogRepository {
   }) async {
     final data = await _client.rpc(
       'shop_update_order_status',
-      params: {
-        'p_order_id': orderId,
-        'p_status': status,
-      },
+      params: {'p_order_id': orderId, 'p_status': status},
     );
     return ShopOrder.fromMap(asStringMap(data));
   }
@@ -187,10 +189,7 @@ class ShopCatalogRepository {
   Future<Shop> setMedia({String? logoPath, String? coverPath}) async {
     final data = await _client.rpc(
       'shop_set_media',
-      params: {
-        'p_logo_path': logoPath,
-        'p_cover_path': coverPath,
-      },
+      params: {'p_logo_path': logoPath, 'p_cover_path': coverPath},
     );
     return Shop.fromMap(asStringMap(data), forOwner: true);
   }
@@ -201,10 +200,7 @@ class ShopCatalogRepository {
   }) async {
     final data = await _client.rpc(
       'shop_add_image',
-      params: {
-        'p_file_path': filePath,
-        'p_kind': kind,
-      },
+      params: {'p_file_path': filePath, 'p_kind': kind},
     );
     return ShopMediaItem.fromMap(asStringMap(data));
   }
@@ -215,10 +211,7 @@ class ShopCatalogRepository {
   }) async {
     final data = await _client.rpc(
       'shop_add_document',
-      params: {
-        'p_doc_type': docType,
-        'p_file_path': filePath,
-      },
+      params: {'p_doc_type': docType, 'p_file_path': filePath},
     );
     return ShopMediaItem.fromMap(asStringMap(data));
   }
@@ -233,8 +226,7 @@ class ShopCatalogRepository {
         .order('created_at', ascending: false);
     return (rows as List)
         .map(
-          (row) =>
-              ShopMediaItem.fromMap(Map<String, dynamic>.from(row as Map)),
+          (row) => ShopMediaItem.fromMap(Map<String, dynamic>.from(row as Map)),
         )
         .toList();
   }
@@ -249,8 +241,7 @@ class ShopCatalogRepository {
         .order('created_at', ascending: false);
     return (rows as List)
         .map(
-          (row) =>
-              ShopMediaItem.fromMap(Map<String, dynamic>.from(row as Map)),
+          (row) => ShopMediaItem.fromMap(Map<String, dynamic>.from(row as Map)),
         )
         .toList();
   }

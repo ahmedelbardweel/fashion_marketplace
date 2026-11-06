@@ -76,7 +76,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.shopping_bag_outlined, size: 40),
+                      const Icon(Icons.shopping_bag_outlined, size: 160),
                       Text(
                         'ملابسي',
                         style: Theme.of(context)

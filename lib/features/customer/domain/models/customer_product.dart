@@ -103,6 +103,7 @@ class CustomerProduct {
     this.ratingAvg = 5.0,
     this.ratingCount = 0,
     this.isFavorite = false,
+    this.details = const {},
   });
 
   factory CustomerProduct.fromMap(
@@ -121,10 +122,14 @@ class CustomerProduct {
       categoryName: map['category_name']?.toString(),
       name: map['name']?.toString() ?? '',
       description: map['description']?.toString(),
+      details: Map<String, dynamic>.from(map['details'] as Map? ?? {}),
       price: (map['price'] as num?)?.toDouble() ?? 0.0,
       status: map['status']?.toString() ?? 'published',
-      variants: variants ?? const [],
-      images: images ?? const [],
+      variants: (variants ?? const <ProductVariant>[])
+          .where((v) => v.isActive)
+          .toList(),
+      images: List<ProductImage>.from(images ?? const [])
+        ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)),
       ratingAvg: ratingAvg,
       ratingCount: ratingCount,
       isFavorite: isFavorite,
@@ -145,6 +150,7 @@ class CustomerProduct {
   final double ratingAvg;
   final int ratingCount;
   final bool isFavorite;
+  final Map<String, dynamic> details;
 
   String? get coverImage {
     final gallery = images.where((img) => img.kind == 'gallery').toList();
@@ -234,6 +240,7 @@ class CustomerProduct {
       categoryName: categoryName,
       name: name,
       description: description,
+      details: details,
       price: price,
       status: status,
       variants: variants,

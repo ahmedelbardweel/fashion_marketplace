@@ -143,7 +143,7 @@ class CustomerRepository {
   }) async {
     try {
       var query = _client.from('products').select('''
-        id, shop_id, category_id, name, description, price, status,
+        id, shop_id, category_id, name, description, details, price, status,
         shops:shop_id(name),
         categories:category_id(name),
         variants:product_variants(*),
@@ -229,7 +229,7 @@ class CustomerRepository {
   Future<CustomerProduct?> getProductDetails(String productId) async {
     try {
       final row = await _client.from('products').select('''
-        id, shop_id, category_id, name, description, price, status,
+        id, shop_id, category_id, name, description, details, price, status,
         shops:shop_id(name),
         categories:category_id(name),
         variants:product_variants(*),
@@ -326,7 +326,7 @@ class CustomerRepository {
     try {
       final rows = await _client.from('favorites').select('''
         product:products(
-          id, shop_id, category_id, name, description, price, status,
+          id, shop_id, category_id, name, description, details, price, status,
           shops:shop_id(name),
           categories:category_id(name),
           variants:product_variants(*),

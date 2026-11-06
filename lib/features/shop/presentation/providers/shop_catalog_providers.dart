@@ -5,7 +5,6 @@ import '../../../auth/domain/models/user_role.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/shop_catalog_repository.dart';
 import '../../data/shop_storage_repository.dart';
-import '../../domain/models/shop.dart';
 import '../../domain/models/shop_product.dart';
 import 'shop_providers.dart';
 
@@ -38,50 +37,54 @@ final shopStatsProvider = FutureProvider.autoDispose<ShopStats>((ref) async {
 
 final shopCategoriesProvider =
     FutureProvider.autoDispose<List<CatalogCategory>>((ref) async {
-  if (!_isShop(ref)) return const [];
-  return ref.watch(shopCatalogRepositoryProvider).fetchActiveCategories();
-});
+      if (!_isShop(ref)) return const [];
+      return ref.watch(shopCatalogRepositoryProvider).fetchActiveCategories();
+    });
 
-final shopProductsProvider =
-    FutureProvider.autoDispose<List<ShopProduct>>((ref) async {
+final shopProductsProvider = FutureProvider.autoDispose<List<ShopProduct>>((
+  ref,
+) async {
   if (!_isShop(ref)) return const [];
   return ref.watch(shopCatalogRepositoryProvider).fetchMyProducts();
 });
 
-final shopProductProvider =
-    FutureProvider.autoDispose.family<ShopProduct?, String>((ref, id) async {
-  if (!_isShop(ref)) return null;
-  return ref.watch(shopCatalogRepositoryProvider).fetchProduct(id);
-});
+final shopProductProvider = FutureProvider.autoDispose
+    .family<ShopProduct?, String>((ref, id) async {
+      if (!_isShop(ref)) return null;
+      return ref.watch(shopCatalogRepositoryProvider).fetchProduct(id);
+    });
 
-final shopOrdersProvider =
-    FutureProvider.autoDispose<List<ShopOrder>>((ref) async {
+final shopOrdersProvider = FutureProvider.autoDispose<List<ShopOrder>>((
+  ref,
+) async {
   if (!_isShop(ref)) return const [];
   return ref.watch(shopCatalogRepositoryProvider).fetchOrders();
 });
 
 final shopNotificationsProvider =
     FutureProvider.autoDispose<List<AdminNotification>>((ref) async {
-  if (!_isShop(ref)) return const [];
-  return ref.watch(shopCatalogRepositoryProvider).fetchNotifications();
-});
+      if (!_isShop(ref)) return const [];
+      return ref.watch(shopCatalogRepositoryProvider).fetchNotifications();
+    });
 
-final shopImagesProvider =
-    FutureProvider.autoDispose<List<ShopMediaItem>>((ref) async {
+final shopImagesProvider = FutureProvider.autoDispose<List<ShopMediaItem>>((
+  ref,
+) async {
   if (!_isShop(ref)) return const [];
   return ref.watch(shopCatalogRepositoryProvider).fetchShopImages();
 });
 
-final shopDocumentsProvider =
-    FutureProvider.autoDispose<List<ShopMediaItem>>((ref) async {
+final shopDocumentsProvider = FutureProvider.autoDispose<List<ShopMediaItem>>((
+  ref,
+) async {
   if (!_isShop(ref)) return const [];
   return ref.watch(shopCatalogRepositoryProvider).fetchDocuments();
 });
 
 final shopCatalogActionProvider =
     StateNotifierProvider<ShopCatalogActionController, AsyncValue<void>>(
-  (ref) => ShopCatalogActionController(ref),
-);
+      (ref) => ShopCatalogActionController(ref),
+    );
 
 class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
   ShopCatalogActionController(this._ref) : super(const AsyncValue.data(null));
@@ -104,49 +107,16 @@ class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
 
   String errorMessage(Object error) => _repo.mapError(error);
 
-  Future<ShopProduct?> saveProduct({
-    required String name,
-    required String description,
-    required double price,
-    String? categoryId,
-    String status = 'draft',
-    String? id,
-    List<({String color, String size, int stock})> variants = const [],
-    List<({String path, String kind})> images = const [],
-  }) async {
+  Future<ShopProduct?> saveProductForm(Map<String, dynamic> data) async {
     state = const AsyncValue.loading();
     try {
-      final product = await _repo.upsertProduct(
-        name: name,
-        description: description,
-        price: price,
-        categoryId: categoryId,
-        status: status,
-        id: id,
-      );
-
-      for (final variant in variants) {
-        await _repo.upsertVariant(
-          productId: product.id,
-          color: variant.color,
-          size: variant.size,
-          stock: variant.stock,
-        );
-      }
-
-      for (final image in images) {
-        await _repo.addProductImage(
-          productId: product.id,
-          filePath: image.path,
-          kind: image.kind,
-        );
-      }
-
+      final product = await _repo.saveProductForm(data);
       _ref.invalidate(shopProductsProvider);
       _ref.invalidate(shopStatsProvider);
+      _ref.invalidate(shopCategoriesProvider);
       _ref.invalidate(shopProductProvider(product.id));
       state = const AsyncValue.data(null);
-      return await _repo.fetchProduct(product.id);
+      return product;
     } catch (error, stack) {
       state = AsyncValue.error(error, stack);
       return null;
@@ -221,10 +191,7 @@ class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
     });
   }
 
-  Future<bool> addDocument({
-    required String docType,
-    required String path,
-  }) {
+  Future<bool> addDocument({required String docType, required String path}) {
     return _run(() async {
       await _repo.addDocument(docType: docType, filePath: path);
       _ref.invalidate(shopDocumentsProvider);

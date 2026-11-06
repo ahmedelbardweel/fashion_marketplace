@@ -587,6 +587,22 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                               ?.copyWith(height: 1.6, color: AppColors.gray700),
                         ),
                       ],
+                      for (final field in const {
+                        'brand': 'الماركة',
+                        'material': 'الخامة',
+                        'care': 'العناية',
+                      }.entries)
+                        if (product.details[field.key]
+                                ?.toString()
+                                .trim()
+                                .isNotEmpty ??
+                            false)
+                          Padding(
+                            padding: const EdgeInsets.only(top: AppSpacing.sm),
+                            child: Text(
+                              '${field.value}: ${product.details[field.key]}',
+                            ),
+                          ),
                       const SizedBox(height: AppSpacing.md),
 
                       // Price and rating share a row, aligned to opposite edges.

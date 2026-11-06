@@ -10,6 +10,7 @@ class ShopProduct {
     this.categoryName,
     this.variants = const [],
     this.images = const [],
+    this.details = const {},
   });
 
   final String id;
@@ -22,6 +23,7 @@ class ShopProduct {
   final String? categoryName;
   final List<ProductVariant> variants;
   final List<ProductImage> images;
+  final Map<String, dynamic> details;
 
   String get statusLabel {
     switch (status) {
@@ -36,8 +38,7 @@ class ShopProduct {
     }
   }
 
-  int get totalStock =>
-      variants.fold<int>(0, (sum, item) => sum + item.stock);
+  int get totalStock => variants.fold<int>(0, (sum, item) => sum + item.stock);
 
   List<ProductImage> get galleryImages =>
       images.where((item) => item.kind != 'ar').toList();
@@ -46,13 +47,13 @@ class ShopProduct {
       images.where((item) => item.kind == 'ar').toList();
 
   List<ProductImage> get model3dImages => images.where((item) {
-        final path = item.filePath.toLowerCase();
-        return item.kind == '3d_model' ||
-            path.endsWith('.glb') ||
-            path.endsWith('.gltf') ||
-            path.endsWith('.deepar') ||
-            path.endsWith('.fbx');
-      }).toList();
+    final path = item.filePath.toLowerCase();
+    return item.kind == '3d_model' ||
+        path.endsWith('.glb') ||
+        path.endsWith('.gltf') ||
+        path.endsWith('.deepar') ||
+        path.endsWith('.fbx');
+  }).toList();
 
   String? get model3dUrl =>
       model3dImages.isNotEmpty ? model3dImages.first.filePath : null;
@@ -68,7 +69,14 @@ class ShopProduct {
   factory ShopProduct.fromMap(Map<String, dynamic> map) {
     final category = map['categories'];
     final variantsRaw = map['product_variants'];
-    final imagesRaw = map['product_images'];
+    final imagesRaw = map['product_images'] is List
+        ? List<dynamic>.from(map['product_images'] as List)
+        : null;
+    imagesRaw?.sort(
+      (a, b) => ((a['sort_order'] as num?) ?? 0).compareTo(
+        (b['sort_order'] as num?) ?? 0,
+      ),
+    );
 
     return ShopProduct(
       id: map['id'] as String,
@@ -78,24 +86,25 @@ class ShopProduct {
       price: (map['price'] as num?)?.toDouble() ?? 0,
       status: map['status'] as String? ?? 'draft',
       categoryId: map['category_id'] as String?,
+      details: Map<String, dynamic>.from(map['details'] as Map? ?? {}),
       categoryName: category is Map ? category['name'] as String? : null,
       variants: variantsRaw is List
           ? variantsRaw
-              .map(
-                (row) => ProductVariant.fromMap(
-                  Map<String, dynamic>.from(row as Map),
-                ),
-              )
-              .toList()
+                .map(
+                  (row) => ProductVariant.fromMap(
+                    Map<String, dynamic>.from(row as Map),
+                  ),
+                )
+                .toList()
           : const [],
       images: imagesRaw is List
           ? imagesRaw
-              .map(
-                (row) => ProductImage.fromMap(
-                  Map<String, dynamic>.from(row as Map),
-                ),
-              )
-              .toList()
+                .map(
+                  (row) => ProductImage.fromMap(
+                    Map<String, dynamic>.from(row as Map),
+                  ),
+                )
+                .toList()
           : const [],
     );
   }
@@ -226,8 +235,8 @@ class ShopOrder {
       id: map['id'] as String,
       status: map['status'] as String? ?? 'pending',
       total: (map['total'] as num?)?.toDouble() ?? 0,
-      createdAt: DateTime.tryParse(map['created_at'] as String? ?? '')
-              ?.toLocal() ??
+      createdAt:
+          DateTime.tryParse(map['created_at'] as String? ?? '')?.toLocal() ??
           DateTime.now(),
       customerEmail: customerMap?['email'] as String?,
       customerName: customerMap?['full_name'] as String?,

@@ -20,6 +20,25 @@ class MediaPicker {
 
   static final ImagePicker _imagePicker = ImagePicker();
 
+  static Future<List<PickedBytes>> pickImages() async {
+    final files = await _imagePicker.pickMultiImage(
+      imageQuality: 90,
+      maxWidth: 2048,
+      maxHeight: 2048,
+    );
+    return Future.wait(
+      files
+          .take(12)
+          .map(
+            (file) async => PickedBytes(
+              bytes: await file.readAsBytes(),
+              fileName: file.name,
+              contentType: file.mimeType,
+            ),
+          ),
+    );
+  }
+
   static Future<PickedBytes?> pickImage() async {
     final file = await _imagePicker.pickImage(
       source: ImageSource.gallery,
