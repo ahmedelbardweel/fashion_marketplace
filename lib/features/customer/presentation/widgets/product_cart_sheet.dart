@@ -1,4 +1,8 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
+
+import '../../../../core/utils/snackbar_utils.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/widgets/app_bottom_sheet.dart';
@@ -43,8 +47,10 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
           children: [
             const Text('تعذر تحميل خيارات المنتج'),
             TextButton(
-              onPressed: () => ref.invalidate(
-                customerProductDetailsProvider(widget.productId),
+              onPressed: AppHaptics.action(
+                () => ref.invalidate(
+                  customerProductDetailsProvider(widget.productId),
+                ),
               ),
               child: const Text('إعادة المحاولة'),
             ),
@@ -104,32 +110,34 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                     ChoiceChip(
                       label: Text('${variant.color} · ${variant.size}'),
                       selected: choice?.id == variant.id,
-                      onSelected: (_) =>
-                          setState(() => selectedId = variant.id),
+                      onSelected: AppHaptics.change(
+                        (_) => setState(() => selectedId = variant.id),
+                      ),
                     ),
                 ],
               ),
               const SizedBox(height: 20),
               ElevatedButton(
-                onPressed: choice == null || atLimit
-                    ? null
-                    : () {
-                        ref
-                            .read(cartProvider.notifier)
-                            .addItem(
-                              product: product,
-                              variantId: choice.id,
-                              color: choice.color,
-                              size: choice.size,
-                              maxStock: choice.stock,
-                            );
-                        Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('تمت إضافة المنتج إلى السلة'),
-                          ),
-                        );
-                      },
+                onPressed: AppHaptics.action(
+                  choice == null || atLimit
+                      ? null
+                      : () {
+                          ref
+                              .read(cartProvider.notifier)
+                              .addItem(
+                                product: product,
+                                variantId: choice.id,
+                                color: choice.color,
+                                size: choice.size,
+                                maxStock: choice.stock,
+                              );
+                          Navigator.of(context).pop();
+                          showAppSnackBar(
+                            context,
+                            'تمت إضافة المنتج إلى السلة',
+                          );
+                        },
+                ),
                 child: Text(
                   atLimit ? 'وصلت للكمية المتاحة' : 'تأكيد الإضافة إلى السلة',
                 ),

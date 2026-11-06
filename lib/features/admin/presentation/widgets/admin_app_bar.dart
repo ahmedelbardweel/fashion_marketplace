@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -37,16 +38,17 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       leading: canPop
           ? IconButton(
-              onPressed: () => Navigator.of(context).maybePop(),
+              onPressed: AppHaptics.action(
+                () => Navigator.of(context).maybePop(),
+              ),
               icon: const Icon(Icons.arrow_forward, color: AppColors.black),
             )
           : const SizedBox.shrink(),
       leadingWidth: canPop ? 56 : 12,
       title: Text(
         title,
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: AppColors.black,
-            ),
+        style: Theme.of(context).textTheme.titleLarge
+            ?.copyWith(color: AppColors.black),
       ),
       actions: actions,
     );
@@ -74,11 +76,7 @@ class AdminScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AdminAppBar(
-        title: title,
-        showBack: showBack,
-        actions: actions,
-      ),
+      appBar: AdminAppBar(title: title, showBack: showBack, actions: actions),
       body: SafeArea(child: body),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
@@ -124,7 +122,7 @@ class AdminFeatureTile extends StatelessWidget {
     return Material(
       color: AppColors.white,
       child: InkWell(
-        onTap: onTap,
+        onTap: AppHaptics.action(onTap),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(AppSpacing.md),
@@ -141,9 +139,9 @@ class AdminFeatureTile extends StatelessWidget {
                     Text(
                       code,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: AppColors.gray500,
-                            letterSpacing: 0.6,
-                          ),
+                        color: AppColors.gray500,
+                        letterSpacing: 0.6,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(title, style: Theme.of(context).textTheme.titleLarge),
@@ -168,9 +166,8 @@ class AdminFeatureTile extends StatelessWidget {
                   ),
                   child: Text(
                     badge!,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: AppColors.white,
-                        ),
+                    style: Theme.of(context).textTheme.labelMedium
+                        ?.copyWith(color: AppColors.white),
                   ),
                 ),
               ],

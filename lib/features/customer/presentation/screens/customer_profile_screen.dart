@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../widgets/customer_action_sheet.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 
@@ -97,7 +99,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
+                onPressed: AppHaptics.action(() => Navigator.of(ctx).pop()),
                 child: const Text('إلغاء'),
               ),
               ElevatedButton(
@@ -105,10 +107,10 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                   backgroundColor: AppColors.black,
                   foregroundColor: AppColors.white,
                 ),
-                onPressed: () {
+                onPressed: AppHaptics.action(() {
                   Navigator.of(ctx).pop();
                   ref.read(authControllerProvider.notifier).signOut();
-                },
+                }),
                 child: const Text('تسجيل الخروج'),
               ),
             ],
@@ -138,7 +140,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
         IconButton(
           tooltip: 'تسجيل الخروج',
           icon: const Icon(Icons.logout, color: AppColors.black),
-          onPressed: _confirmLogout,
+          onPressed: AppHaptics.action(_confirmLogout),
         ),
       ],
       body: SingleChildScrollView(
@@ -201,12 +203,12 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                 TextButton.icon(
                   icon: Icon(_isEditing ? Icons.close : Icons.edit, size: 16),
                   label: Text(_isEditing ? 'إلغاء' : 'تعديل'),
-                  onPressed: () {
+                  onPressed: AppHaptics.action(() {
                     setState(() {
                       if (_isEditing) _populateFields();
                       _isEditing = !_isEditing;
                     });
-                  },
+                  }),
                 ),
               ],
             ),
@@ -268,28 +270,36 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                     leading: const Icon(Icons.receipt_long_outlined),
                     title: const Text('سجل طلباتي ومشترياتي'),
                     trailing: const Icon(Icons.chevron_left),
-                    onTap: () => context.push(AppRoutes.customerOrders),
+                    onTap: AppHaptics.action(
+                      () => context.push(AppRoutes.customerOrders),
+                    ),
                   ),
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.favorite_border),
                     title: const Text('قائمة المفضلة'),
                     trailing: const Icon(Icons.chevron_left),
-                    onTap: () => context.push(AppRoutes.customerFavorites),
+                    onTap: AppHaptics.action(
+                      () => context.push(AppRoutes.customerFavorites),
+                    ),
                   ),
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.compare_arrows_rounded),
                     title: const Text('مقارنة الملابس المختارة'),
                     trailing: const Icon(Icons.chevron_left),
-                    onTap: () => context.push(AppRoutes.customerCompare),
+                    onTap: AppHaptics.action(
+                      () => context.push(AppRoutes.customerCompare),
+                    ),
                   ),
                   const Divider(height: 1),
                   ListTile(
                     leading: const Icon(Icons.notifications_none_rounded),
                     title: const Text('الإشعارات والتحديثات'),
                     trailing: const Icon(Icons.chevron_left),
-                    onTap: () => context.push(AppRoutes.customerNotifications),
+                    onTap: AppHaptics.action(
+                      () => context.push(AppRoutes.customerNotifications),
+                    ),
                   ),
                 ],
               ),

@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -63,7 +64,7 @@ class RoleShell extends ConsumerWidget {
         title: Text(title),
         actions: [
           TextButton(
-            onPressed: () => _confirmLogout(context, ref),
+            onPressed: AppHaptics.action(() => _confirmLogout(context, ref)),
             child: const Text('خروج'),
           ),
         ],
@@ -78,10 +79,8 @@ class RoleShell extends ConsumerWidget {
                 children: [
                   Text(
                     roleLabel,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.gray500,
-                          letterSpacing: 1,
-                        ),
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: AppColors.gray500, letterSpacing: 1),
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(

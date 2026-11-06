@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,21 +37,20 @@ class ShopAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       scrolledUnderElevation: 0,
       systemOverlayStyle: SystemUiOverlayStyle.dark,
-      shape: const Border(
-        bottom: BorderSide(color: AppColors.border),
-      ),
+      shape: const Border(bottom: BorderSide(color: AppColors.border)),
       leading: canPop
           ? IconButton(
-              onPressed: () => Navigator.of(context).maybePop(),
+              onPressed: AppHaptics.action(
+                () => Navigator.of(context).maybePop(),
+              ),
               icon: const Icon(Icons.arrow_forward, color: AppColors.black),
             )
           : const SizedBox.shrink(),
       leadingWidth: canPop ? 56 : 12,
       title: Text(
         title,
-        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: AppColors.black,
-            ),
+        style: Theme.of(context).textTheme.titleLarge
+            ?.copyWith(color: AppColors.black),
       ),
       actions: actions,
     );
@@ -135,7 +135,7 @@ class _Item extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: InkWell(
-        onTap: onTap,
+        onTap: AppHaptics.action(onTap),
         borderRadius: BorderRadius.circular(AppRadii.sm),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -150,9 +150,9 @@ class _Item extends StatelessWidget {
           child: Text(
             label,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: selected ? AppColors.black : AppColors.gray500,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                ),
+              color: selected ? AppColors.black : AppColors.gray500,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            ),
           ),
         ),
       ),
@@ -181,11 +181,7 @@ class ShopScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: ShopAppBar(
-        title: title,
-        showBack: showBack,
-        actions: actions,
-      ),
+      appBar: ShopAppBar(title: title, showBack: showBack, actions: actions),
       body: SafeArea(child: body),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
@@ -231,7 +227,7 @@ class ShopFeatureTile extends StatelessWidget {
     return Material(
       color: AppColors.white,
       child: InkWell(
-        onTap: onTap,
+        onTap: AppHaptics.action(onTap),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(AppSpacing.md),
@@ -247,31 +243,34 @@ class ShopFeatureTile extends StatelessWidget {
                   children: [
                     Text(
                       code,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: AppColors.gray500,
-                          ),
+                      style: Theme.of(context).textTheme.labelMedium
+                          ?.copyWith(color: AppColors.gray500),
                     ),
                     const SizedBox(height: 4),
                     Text(title, style: Theme.of(context).textTheme.titleLarge),
                     const SizedBox(height: 4),
-                    Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
                   ],
                 ),
               ),
               if (badge != null) ...[
                 const SizedBox(width: AppSpacing.sm),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.black,
                     borderRadius: BorderRadius.circular(AppRadii.sm),
                   ),
                   child: Text(
                     badge!,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: AppColors.white,
-                        ),
+                    style: Theme.of(context).textTheme.labelMedium
+                        ?.copyWith(color: AppColors.white),
                   ),
                 ),
               ],

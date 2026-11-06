@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -44,7 +45,9 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final ok = await ref.read(authControllerProvider.notifier).registerShop(
+    final ok = await ref
+        .read(authControllerProvider.notifier)
+        .registerShop(
           email: _emailController.text,
           password: _passwordController.text,
           fullName: _nameController.text,
@@ -129,7 +132,9 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
                   autofillHints: const [AutofillHints.newPassword],
                   validator: Validators.password,
                   suffix: IconButton(
-                    onPressed: () => setState(() => _obscure = !_obscure),
+                    onPressed: AppHaptics.action(
+                      () => setState(() => _obscure = !_obscure),
+                    ),
                     icon: Icon(
                       _obscure
                           ? Icons.visibility_outlined
@@ -151,8 +156,9 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
                   ),
                   onFieldSubmitted: (_) => _submit(),
                   suffix: IconButton(
-                    onPressed: () =>
-                        setState(() => _obscureConfirm = !_obscureConfirm),
+                    onPressed: AppHaptics.action(
+                      () => setState(() => _obscureConfirm = !_obscureConfirm),
+                    ),
                     icon: Icon(
                       _obscureConfirm
                           ? Icons.visibility_outlined
@@ -172,8 +178,9 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
                 AppButton(
                   label: 'العودة لتسجيل الدخول',
                   variant: AppButtonVariant.text,
-                  onPressed:
-                      auth.isBusy ? null : () => context.go(AppRoutes.login),
+                  onPressed: auth.isBusy
+                      ? null
+                      : () => context.go(AppRoutes.login),
                 ),
               ],
             ),

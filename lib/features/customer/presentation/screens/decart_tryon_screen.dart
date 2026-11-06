@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../../../../core/widgets/app_skeleton.dart';
 
 import 'dart:async';
@@ -122,7 +124,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                     children: [
                       IconButton.filledTonal(
                         tooltip: 'رجوع',
-                        onPressed: () => context.pop(),
+                        onPressed: AppHaptics.action(() => context.pop()),
                         icon: const Icon(Icons.arrow_back),
                       ),
                       const SizedBox(width: 8),
@@ -144,9 +146,11 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                       ),
                       IconButton.filledTonal(
                         tooltip: 'تبديل الكاميرا',
-                        onPressed: _ready && state.isConnected
-                            ? _controller.switchCamera
-                            : null,
+                        onPressed: AppHaptics.action(
+                          _ready && state.isConnected
+                              ? _controller.switchCamera
+                              : null,
+                        ),
                         icon: const Icon(Icons.flip_camera_ios_outlined),
                       ),
                     ],
@@ -208,7 +212,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
           const SizedBox(height: 12),
           if (_ready)
             FilledButton(
-              onPressed: _controller.retry,
+              onPressed: AppHaptics.action(_controller.retry),
               child: const Text('إعادة الاتصال'),
             ),
         ],
@@ -265,7 +269,9 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
             ),
             IconButton(
               tooltip: _showGarments ? 'إخفاء الملابس' : 'اختيار الملابس',
-              onPressed: () => setState(() => _showGarments = !_showGarments),
+              onPressed: AppHaptics.action(
+                () => setState(() => _showGarments = !_showGarments),
+              ),
               color: Colors.white,
               icon: Icon(
                 _showGarments ? Icons.expand_more : Icons.checkroom_outlined,
@@ -307,9 +313,11 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       selected: selected,
       label: product.name,
       child: InkWell(
-        onTap: _ready && state.isConnected
-            ? () => _controller.selectGarment(product)
-            : null,
+        onTap: AppHaptics.action(
+          _ready && state.isConnected
+              ? () => _controller.selectGarment(product)
+              : null,
+        ),
         borderRadius: BorderRadius.circular(14),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),

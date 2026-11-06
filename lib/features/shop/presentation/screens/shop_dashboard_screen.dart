@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 
@@ -36,11 +38,11 @@ class ShopDashboardScreen extends ConsumerWidget {
             (ref.watch(shopStatsProvider).isLoading &&
                 !ref.watch(shopStatsProvider).hasValue),
         child: RefreshIndicator.noSpinner(
-          onRefresh: () async {
+          onRefresh: AppHaptics.refresh(() async {
             ref.invalidate(myShopProvider);
             ref.invalidate(shopStatsProvider);
             await ref.read(shopStatsProvider.future);
-          },
+          }),
           child: ListView(
             padding: AppSpacing.page,
             children: [

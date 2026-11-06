@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -79,9 +80,11 @@ class _CustomerCompleteProfileScreenState
         automaticallyImplyLeading: false,
         actions: [
           TextButton(
-            onPressed: busy
-                ? null
-                : () => ref.read(authControllerProvider.notifier).signOut(),
+            onPressed: AppHaptics.action(
+              busy
+                  ? null
+                  : () => ref.read(authControllerProvider.notifier).signOut(),
+            ),
             child: const Text('خروج'),
           ),
         ],

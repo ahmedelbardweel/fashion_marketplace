@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
@@ -31,11 +32,20 @@ class AppButton extends StatelessWidget {
     Widget button;
     switch (variant) {
       case AppButtonVariant.filled:
-        button = ElevatedButton(onPressed: effectiveOnPressed, child: child);
+        button = ElevatedButton(
+          onPressed: AppHaptics.action(effectiveOnPressed),
+          child: child,
+        );
       case AppButtonVariant.outlined:
-        button = OutlinedButton(onPressed: effectiveOnPressed, child: child);
+        button = OutlinedButton(
+          onPressed: AppHaptics.action(effectiveOnPressed),
+          child: child,
+        );
       case AppButtonVariant.text:
-        button = TextButton(onPressed: effectiveOnPressed, child: child);
+        button = TextButton(
+          onPressed: AppHaptics.action(effectiveOnPressed),
+          child: child,
+        );
     }
 
     if (!expand) return button;
@@ -58,7 +68,7 @@ class AppIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      onPressed: onPressed,
+      onPressed: AppHaptics.action(onPressed),
       tooltip: tooltip,
       icon: Icon(icon, color: AppColors.black),
       style: IconButton.styleFrom(

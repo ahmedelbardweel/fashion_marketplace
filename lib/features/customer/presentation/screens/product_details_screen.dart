@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../widgets/product_cart_sheet.dart';
 import '../../../../core/widgets/product_grid_skeleton.dart';
 import '../../../../core/widgets/app_skeleton.dart';
@@ -154,7 +156,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             ),
                             IconButton(
                               icon: const Icon(Icons.close, size: 20),
-                              onPressed: () => Navigator.of(ctx).pop(),
+                              onPressed: AppHaptics.action(
+                                () => Navigator.of(ctx).pop(),
+                              ),
                             ),
                           ],
                         ),
@@ -193,8 +197,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                     children: List.generate(5, (index) {
                                       final starNum = index + 1;
                                       return InkWell(
-                                        onTap: () => setSheetState(
-                                          () => rating = starNum,
+                                        onTap: AppHaptics.action(
+                                          () => setSheetState(
+                                            () => rating = starNum,
+                                          ),
                                         ),
                                         child: Padding(
                                           padding: const EdgeInsets.all(4.0),
@@ -261,58 +267,61 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                           ),
                                         ),
                                       ),
-                                      onPressed: isSubmitting
-                                          ? null
-                                          : () async {
-                                              setSheetState(
-                                                () => isSubmitting = true,
-                                              );
-                                              try {
-                                                await ref
-                                                    .read(
-                                                      customerRepositoryProvider,
-                                                    )
-                                                    .addReview(
-                                                      productId: product.id,
-                                                      rating: rating,
-                                                      comment: commentController
-                                                          .text
-                                                          .trim(),
-                                                    );
-                                                ref.invalidate(
-                                                  customerProductDetailsProvider(
-                                                    product.id,
-                                                  ),
-                                                );
-                                                ref.invalidate(
-                                                  productReviewsProvider(
-                                                    product.id,
-                                                  ),
-                                                );
-                                                commentController.clear();
-                                                setSheetState(() {
-                                                  isSubmitting = false;
-                                                  rating = 5;
-                                                });
-                                                if (context.mounted) {
-                                                  showAppSnackBar(
-                                                    context,
-                                                    'تمت إضافة تقييمك بنجاح ⭐',
-                                                  );
-                                                }
-                                              } catch (e) {
+                                      onPressed: AppHaptics.action(
+                                        isSubmitting
+                                            ? null
+                                            : () async {
                                                 setSheetState(
-                                                  () => isSubmitting = false,
+                                                  () => isSubmitting = true,
                                                 );
-                                                if (context.mounted) {
-                                                  showAppSnackBar(
-                                                    context,
-                                                    'تعذر إضافة التقييم',
-                                                    isError: true,
+                                                try {
+                                                  await ref
+                                                      .read(
+                                                        customerRepositoryProvider,
+                                                      )
+                                                      .addReview(
+                                                        productId: product.id,
+                                                        rating: rating,
+                                                        comment:
+                                                            commentController
+                                                                .text
+                                                                .trim(),
+                                                      );
+                                                  ref.invalidate(
+                                                    customerProductDetailsProvider(
+                                                      product.id,
+                                                    ),
                                                   );
+                                                  ref.invalidate(
+                                                    productReviewsProvider(
+                                                      product.id,
+                                                    ),
+                                                  );
+                                                  commentController.clear();
+                                                  setSheetState(() {
+                                                    isSubmitting = false;
+                                                    rating = 5;
+                                                  });
+                                                  if (context.mounted) {
+                                                    showAppSnackBar(
+                                                      context,
+                                                      'تمت إضافة تقييمك بنجاح ⭐',
+                                                    );
+                                                  }
+                                                } catch (e) {
+                                                  setSheetState(
+                                                    () => isSubmitting = false,
+                                                  );
+                                                  if (context.mounted) {
+                                                    showAppSnackBar(
+                                                      context,
+                                                      'تعذر إضافة التقييم',
+                                                      isError: true,
+                                                    );
+                                                  }
                                                 }
-                                              }
-                                            },
+                                              },
+                                      ),
                                       child: isSubmitting
                                           ? const AppBusyLabel(
                                               label: 'إرسال التقييم',
@@ -465,19 +474,21 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 product.isFavorite ? Icons.favorite : Icons.favorite_border,
                 color: AppColors.black,
               ),
-              onPressed: _togglingFavorite
-                  ? null
-                  : () async {
-                      setState(() => _togglingFavorite = true);
-                      await ref
-                          .read(customerRepositoryProvider)
-                          .toggleFavorite(product.id);
-                      ref.invalidate(
-                        customerProductDetailsProvider(widget.productId),
-                      );
-                      ref.invalidate(customerFavoritesProvider);
-                      setState(() => _togglingFavorite = false);
-                    },
+              onPressed: AppHaptics.action(
+                _togglingFavorite
+                    ? null
+                    : () async {
+                        setState(() => _togglingFavorite = true);
+                        await ref
+                            .read(customerRepositoryProvider)
+                            .toggleFavorite(product.id);
+                        ref.invalidate(
+                          customerProductDetailsProvider(widget.productId),
+                        );
+                        ref.invalidate(customerFavoritesProvider);
+                        setState(() => _togglingFavorite = false);
+                      },
+              ),
             ),
           ],
           body: SingleChildScrollView(
@@ -540,8 +551,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                     children: [
                       // Shop Link
                       InkWell(
-                        onTap: () => context.push(
-                          AppRoutes.customerShopProfilePath(product.shopId),
+                        onTap: AppHaptics.action(
+                          () => context.push(
+                            AppRoutes.customerShopProfilePath(product.shopId),
+                          ),
                         ),
                         child: Wrap(
                           crossAxisAlignment: WrapCrossAlignment.center,
@@ -655,12 +668,12 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         children: product.availableColors.map((clr) {
                           final isSelected = _selectedColor == clr;
                           return InkWell(
-                            onTap: () {
+                            onTap: AppHaptics.action(() {
                               setState(() {
                                 _selectedColor = clr;
                                 _selectedSize = null;
                               });
-                            },
+                            }),
                             borderRadius: BorderRadius.circular(AppRadii.sm),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
@@ -713,7 +726,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         children: matchingSizes.map((sz) {
                           final isSelected = _selectedSize == sz;
                           return InkWell(
-                            onTap: () => setState(() => _selectedSize = sz),
+                            onTap: AppHaptics.action(
+                              () => setState(() => _selectedSize = sz),
+                            ),
                             borderRadius: BorderRadius.circular(AppRadii.sm),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
@@ -798,10 +813,12 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
 
                       // Reviews Summary Box (Opens full-height bottom sheet on tap)
                       InkWell(
-                        onTap: () => _openFullReviewsBottomSheet(
-                          context,
-                          product,
-                          reviewsAsync.value ?? [],
+                        onTap: AppHaptics.action(
+                          () => _openFullReviewsBottomSheet(
+                            context,
+                            product,
+                            reviewsAsync.value ?? [],
+                          ),
                         ),
                         borderRadius: BorderRadius.circular(AppRadii.card),
                         child: Container(
@@ -980,8 +997,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                               ),
                               minimumSize: const Size(double.infinity, 44),
                             ),
-                            onPressed: () => context.push(
-                              AppRoutes.customerRealtimeTryonPath(product.id),
+                            onPressed: AppHaptics.action(
+                              () => context.push(
+                                AppRoutes.customerRealtimeTryonPath(product.id),
+                              ),
                             ),
                             child: const Text(
                               'تجربة الملابس',
@@ -1025,7 +1044,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                 fontSize: 13,
                               ),
                             ),
-                            onPressed: () {
+                            onPressed: AppHaptics.action(() {
                               final notifier = ref.read(
                                 productComparisonProvider.notifier,
                               );
@@ -1050,7 +1069,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                   );
                                 }
                               }
-                            },
+                            }),
                           ),
                         ),
                       ],
@@ -1077,9 +1096,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               InkWell(
-                                onTap: _quantity > 1
-                                    ? () => setState(() => _quantity--)
-                                    : null,
+                                onTap: AppHaptics.action(
+                                  _quantity > 1
+                                      ? () => setState(() => _quantity--)
+                                      : null,
+                                ),
                                 borderRadius: const BorderRadius.horizontal(
                                   right: Radius.circular(AppRadii.button),
                                 ),
@@ -1118,9 +1139,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                 ),
                               ),
                               InkWell(
-                                onTap: _quantity < currentStock
-                                    ? () => setState(() => _quantity++)
-                                    : null,
+                                onTap: AppHaptics.action(
+                                  _quantity < currentStock
+                                      ? () => setState(() => _quantity++)
+                                      : null,
+                                ),
                                 borderRadius: const BorderRadius.horizontal(
                                   left: Radius.circular(AppRadii.button),
                                 ),
@@ -1170,27 +1193,28 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                 fontSize: 14,
                               ),
                             ),
-                            onPressed:
-                                currentStock > 0 &&
-                                    _selectedColor != null &&
-                                    _selectedSize != null
-                                ? () {
-                                    ref
-                                        .read(cartProvider.notifier)
-                                        .addItem(
-                                          product: product,
-                                          variantId: currentVariant?.id,
-                                          color: _selectedColor!,
-                                          size: _selectedSize!,
-                                          quantity: _quantity,
-                                          maxStock: currentStock,
-                                        );
-                                    showAppSnackBar(
-                                      context,
-                                      'تمت إضافة القطعة إلى سلة المشتريات 🛍️',
-                                    );
-                                  }
-                                : null,
+                            onPressed: AppHaptics.action(
+                              currentStock > 0 &&
+                                      _selectedColor != null &&
+                                      _selectedSize != null
+                                  ? () {
+                                      ref
+                                          .read(cartProvider.notifier)
+                                          .addItem(
+                                            product: product,
+                                            variantId: currentVariant?.id,
+                                            color: _selectedColor!,
+                                            size: _selectedSize!,
+                                            quantity: _quantity,
+                                            maxStock: currentStock,
+                                          );
+                                      showAppSnackBar(
+                                        context,
+                                        'تمت إضافة القطعة إلى سلة المشتريات 🛍️',
+                                      );
+                                    }
+                                  : null,
+                            ),
                           ),
                         ),
                       ],

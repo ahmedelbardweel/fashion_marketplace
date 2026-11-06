@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../widgets/product_cart_sheet.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
@@ -30,12 +32,12 @@ class CustomerHomeScreen extends ConsumerWidget {
       showBack: false,
       showProfile: true,
       body: RefreshIndicator.noSpinner(
-        onRefresh: () async {
+        onRefresh: AppHaptics.refresh(() async {
           ref.invalidate(customerBannersProvider);
           ref.invalidate(customerCategoriesProvider);
           ref.invalidate(customerShopsProvider);
           ref.invalidate(customerProductsProvider);
-        },
+        }),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
@@ -117,11 +119,11 @@ class CustomerHomeScreen extends ConsumerWidget {
                           backgroundColor: AppColors.gray100,
                           side: const BorderSide(color: AppColors.border),
                           label: Text(cat.name),
-                          onPressed: () {
+                          onPressed: AppHaptics.action(() {
                             ref.read(productFilterProvider.notifier).state =
                                 ProductFilter(categoryId: cat.id);
                             context.push(AppRoutes.customerCatalog);
-                          },
+                          }),
                         );
                       },
                     ),
@@ -145,7 +147,9 @@ class CustomerHomeScreen extends ConsumerWidget {
                           ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     TextButton(
-                      onPressed: () => context.push(AppRoutes.customerShops),
+                      onPressed: AppHaptics.action(
+                        () => context.push(AppRoutes.customerShops),
+                      ),
                       child: const Text('جميع المحلات'),
                     ),
                   ],
@@ -174,8 +178,10 @@ class CustomerHomeScreen extends ConsumerWidget {
                       itemBuilder: (context, index) {
                         final shop = shops[index];
                         return InkWell(
-                          onTap: () => context.push(
-                            AppRoutes.customerShopProfilePath(shop.id),
+                          onTap: AppHaptics.action(
+                            () => context.push(
+                              AppRoutes.customerShopProfilePath(shop.id),
+                            ),
                           ),
                           child: Container(
                             width: 210,
@@ -272,7 +278,9 @@ class CustomerHomeScreen extends ConsumerWidget {
                           ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     TextButton(
-                      onPressed: () => context.push(AppRoutes.customerCatalog),
+                      onPressed: AppHaptics.action(
+                        () => context.push(AppRoutes.customerCatalog),
+                      ),
                       child: const Text('تصفح الكل'),
                     ),
                   ],

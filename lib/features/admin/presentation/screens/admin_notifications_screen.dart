@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../../../../core/widgets/loading_fixtures.dart';
 
 import 'package:flutter/material.dart';
@@ -66,8 +68,9 @@ class AdminNotificationsScreen extends ConsumerWidget {
                         ChoiceChip(
                           label: Text(option.$2),
                           selected: audience == option.$1,
-                          onSelected: (_) =>
-                              setModalState(() => audience = option.$1),
+                          onSelected: AppHaptics.change(
+                            (_) => setModalState(() => audience = option.$1),
+                          ),
                         ),
                     ],
                   ),

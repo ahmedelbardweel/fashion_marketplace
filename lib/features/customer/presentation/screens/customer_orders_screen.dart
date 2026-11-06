@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/theme/app_radii.dart';
@@ -27,9 +29,9 @@ class CustomerOrdersScreen extends ConsumerWidget {
       currentNavIndex: 3,
       showBack: false,
       body: RefreshIndicator.noSpinner(
-        onRefresh: () async {
+        onRefresh: AppHaptics.refresh(() async {
           ref.invalidate(customerOrdersProvider);
-        },
+        }),
         child: ordersAsync.skeletonWhen(
           placeholder: LoadingFixtures.orders,
           data: (orders) {

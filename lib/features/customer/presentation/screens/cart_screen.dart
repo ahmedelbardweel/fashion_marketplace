@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../../../../core/widgets/app_skeleton.dart';
 
 import 'package:flutter/material.dart';
@@ -26,7 +28,7 @@ class CartScreen extends ConsumerWidget {
       actions: [
         if (cartItems.isNotEmpty)
           TextButton(
-            onPressed: () => cartNotifier.clearCart(),
+            onPressed: AppHaptics.action(() => cartNotifier.clearCart()),
             child: const Text('تفريغ السلة'),
           ),
       ],
@@ -142,8 +144,9 @@ class CartScreen extends ConsumerWidget {
                                     size: 20,
                                     color: AppColors.gray500,
                                   ),
-                                  onPressed: () =>
-                                      cartNotifier.removeItem(item.id),
+                                  onPressed: AppHaptics.action(
+                                    () => cartNotifier.removeItem(item.id),
+                                  ),
                                 ),
                                 const SizedBox(height: AppSpacing.xs),
                                 Row(
@@ -156,11 +159,12 @@ class CartScreen extends ConsumerWidget {
                                         Icons.remove_circle_outline,
                                         size: 22,
                                       ),
-                                      onPressed: () =>
-                                          cartNotifier.updateQuantity(
-                                            item.id,
-                                            item.quantity - 1,
-                                          ),
+                                      onPressed: AppHaptics.action(
+                                        () => cartNotifier.updateQuantity(
+                                          item.id,
+                                          item.quantity - 1,
+                                        ),
+                                      ),
                                     ),
                                     Padding(
                                       padding: const EdgeInsets.symmetric(
@@ -180,11 +184,12 @@ class CartScreen extends ConsumerWidget {
                                         Icons.add_circle_outline,
                                         size: 22,
                                       ),
-                                      onPressed: () =>
-                                          cartNotifier.updateQuantity(
-                                            item.id,
-                                            item.quantity + 1,
-                                          ),
+                                      onPressed: AppHaptics.action(
+                                        () => cartNotifier.updateQuantity(
+                                          item.id,
+                                          item.quantity + 1,
+                                        ),
+                                      ),
                                     ),
                                   ],
                                 ),

@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -141,8 +142,9 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                               children: [
                                 if (canPop)
                                   IconButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).maybePop(),
+                                    onPressed: AppHaptics.action(
+                                      () => Navigator.of(context).maybePop(),
+                                    ),
                                     icon: const Icon(
                                       Icons.arrow_forward,
                                       color: AppColors.black,
@@ -164,7 +166,7 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                 ] else
                                   Expanded(
                                     child: GestureDetector(
-                                      onTap: _openSearch,
+                                      onTap: AppHaptics.action(_openSearch),
                                       behavior: HitTestBehavior.opaque,
                                       child: Container(
                                         height: 42,
@@ -223,8 +225,11 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                         color: AppColors.black,
                                       ),
                                     ),
-                                    onPressed: () =>
-                                        context.push(AppRoutes.customerCompare),
+                                    onPressed: AppHaptics.action(
+                                      () => context.push(
+                                        AppRoutes.customerCompare,
+                                      ),
+                                    ),
                                   ),
                                 IconButton(
                                   tooltip: 'الإشعارات',
@@ -232,8 +237,10 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                     Icons.notifications_none_rounded,
                                     color: AppColors.black,
                                   ),
-                                  onPressed: () => context.push(
-                                    AppRoutes.customerNotifications,
+                                  onPressed: AppHaptics.action(
+                                    () => context.push(
+                                      AppRoutes.customerNotifications,
+                                    ),
                                   ),
                                 ),
                                 IconButton(
@@ -252,8 +259,9 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                           Icons.shopping_bag_outlined,
                                           color: AppColors.black,
                                         ),
-                                  onPressed: () =>
-                                      context.push(AppRoutes.customerCart),
+                                  onPressed: AppHaptics.action(
+                                    () => context.push(AppRoutes.customerCart),
+                                  ),
                                 ),
                                 if (widget.showProfile)
                                   IconButton(
@@ -262,8 +270,11 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                       Icons.person_outline_rounded,
                                       color: AppColors.black,
                                     ),
-                                    onPressed: () =>
-                                        context.push(AppRoutes.customerProfile),
+                                    onPressed: AppHaptics.action(
+                                      () => context.push(
+                                        AppRoutes.customerProfile,
+                                      ),
+                                    ),
                                   ),
                               ],
                             ),
@@ -303,7 +314,7 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                       size: 20,
                                     ),
                                     tooltip: 'إغلاق البحث',
-                                    onPressed: _closeSearch,
+                                    onPressed: AppHaptics.action(_closeSearch),
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(
                                       minWidth: 40,
@@ -358,10 +369,10 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                         color: AppColors.gray500,
                                       ),
                                       tooltip: 'مسح',
-                                      onPressed: () {
+                                      onPressed: AppHaptics.action(() {
                                         _searchController.clear();
                                         setState(() {});
-                                      },
+                                      }),
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(
                                         minWidth: 32,
@@ -375,8 +386,10 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                       size: 20,
                                     ),
                                     tooltip: 'بحث',
-                                    onPressed: () =>
-                                        _submitSearch(_searchController.text),
+                                    onPressed: AppHaptics.action(
+                                      () =>
+                                          _submitSearch(_searchController.text),
+                                    ),
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(
                                       minWidth: 40,
@@ -487,7 +500,7 @@ class _CustomerNavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: InkWell(
-        onTap: onTap,
+        onTap: AppHaptics.action(onTap),
         borderRadius: BorderRadius.circular(AppRadii.sm),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),

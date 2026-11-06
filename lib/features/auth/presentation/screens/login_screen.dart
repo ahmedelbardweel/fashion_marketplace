@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -35,7 +36,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final ok = await ref.read(authControllerProvider.notifier).signIn(
+    final ok = await ref
+        .read(authControllerProvider.notifier)
+        .signIn(
           email: _emailController.text,
           password: _passwordController.text,
         );
@@ -66,7 +69,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     Text(
                       'ملابسي',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(
                             letterSpacing: 4,
                             fontWeight: FontWeight.w700,
                           ),
@@ -103,7 +107,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           Validators.required(value, field: 'كلمة المرور'),
                       onFieldSubmitted: (_) => _submit(),
                       suffix: IconButton(
-                        onPressed: () => setState(() => _obscure = !_obscure),
+                        onPressed: AppHaptics.action(
+                          () => setState(() => _obscure = !_obscure),
+                        ),
                         icon: Icon(
                           _obscure
                               ? Icons.visibility_outlined

@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 
@@ -22,9 +24,9 @@ class CustomerShopsScreen extends ConsumerWidget {
     return CustomerScaffold(
       title: 'المحلات المعتمدة',
       body: RefreshIndicator.noSpinner(
-        onRefresh: () async {
+        onRefresh: AppHaptics.refresh(() async {
           ref.invalidate(customerShopsProvider);
-        },
+        }),
         child: shopsAsync.skeletonWhen(
           placeholder: LoadingFixtures.customerShops,
           data: (shops) {

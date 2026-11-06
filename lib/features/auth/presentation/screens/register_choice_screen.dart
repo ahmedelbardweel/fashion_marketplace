@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -18,9 +19,7 @@ class RegisterChoiceScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'حساب المستخدم يتيح التصفح والشراء وتجربة الملابس.',
-            ),
+            Text('حساب المستخدم يتيح التصفح والشراء وتجربة الملابس.'),
             SizedBox(height: AppSpacing.md),
             Text(
               'حساب المحل يتيح التسجيل وإرسال طلب انضمام للإدارة. لا يمكن إضافة منتجات قبل الموافقة.',
@@ -38,7 +37,7 @@ class RegisterChoiceScreen extends StatelessWidget {
         title: const Text('إنشاء حساب'),
         actions: [
           TextButton(
-            onPressed: () => _openInfo(context),
+            onPressed: AppHaptics.action(() => _openInfo(context)),
             child: const Text('تفاصيل'),
           ),
         ],
@@ -82,10 +81,7 @@ class RegisterChoiceScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'محل',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+                    Text('محل', style: Theme.of(context).textTheme.titleLarge),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       'تسجيل متجر وإرسال طلب انضمام للإدارة',

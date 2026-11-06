@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../../../../core/widgets/loading_fixtures.dart';
 
 import 'package:flutter/material.dart';
@@ -58,7 +60,9 @@ class AdminCategoriesScreen extends ConsumerWidget {
                     contentPadding: EdgeInsets.zero,
                     title: const Text('نشط'),
                     value: isActive,
-                    onChanged: (value) => setModalState(() => isActive = value),
+                    onChanged: AppHaptics.change(
+                      (value) => setModalState(() => isActive = value),
+                    ),
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   AppButton(

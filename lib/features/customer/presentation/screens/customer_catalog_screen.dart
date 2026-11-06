@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../widgets/product_cart_sheet.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
@@ -87,7 +89,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                           TextButton(
-                            onPressed: () {
+                            onPressed: AppHaptics.action(() {
                               setModalState(() {
                                 selectedCategory = null;
                                 selectedColor = null;
@@ -95,7 +97,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                                 minPriceController.clear();
                                 maxPriceController.clear();
                               });
-                            },
+                            }),
                             child: const Text('إعادة ضبط'),
                           ),
                         ],
@@ -122,11 +124,11 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                                   ? AppColors.white
                                   : AppColors.black,
                             ),
-                            onSelected: (val) {
+                            onSelected: AppHaptics.change((val) {
                               setModalState(() {
                                 selectedCategory = val ? cat.id : null;
                               });
-                            },
+                            }),
                           );
                         }).toList(),
                       ),
@@ -183,11 +185,11 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                                   ? AppColors.white
                                   : AppColors.black,
                             ),
-                            onSelected: (val) {
+                            onSelected: AppHaptics.change((val) {
                               setModalState(() {
                                 selectedSize = val ? sz : null;
                               });
-                            },
+                            }),
                           );
                         }).toList(),
                       ),
@@ -252,7 +254,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                 ? AppColors.black
                 : AppColors.gray700,
           ),
-          onPressed: _openFilterBottomSheet,
+          onPressed: AppHaptics.action(_openFilterBottomSheet),
         ),
       ],
       body: Column(
@@ -268,11 +270,11 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear),
-                        onPressed: () {
+                        onPressed: AppHaptics.action(() {
                           _searchController.clear();
                           ref.read(productFilterProvider.notifier).state =
                               filter.copyWith(search: '');
-                        },
+                        }),
                       )
                     : null,
                 filled: true,
@@ -306,10 +308,10 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                         padding: const EdgeInsets.only(left: AppSpacing.xs),
                         child: InputChip(
                           label: const Text('تصنيف محدد'),
-                          onDeleted: () {
+                          onDeleted: AppHaptics.action(() {
                             ref.read(productFilterProvider.notifier).state =
                                 filter.copyWith(clearCategory: true);
-                          },
+                          }),
                         ),
                       ),
                     if (filter.minPrice != null || filter.maxPrice != null)
@@ -319,10 +321,10 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                           label: Text(
                             'السعر: ${filter.minPrice ?? 0} - ${filter.maxPrice ?? '∞'}',
                           ),
-                          onDeleted: () {
+                          onDeleted: AppHaptics.action(() {
                             ref.read(productFilterProvider.notifier).state =
                                 filter.copyWith(minPrice: null, maxPrice: null);
-                          },
+                          }),
                         ),
                       ),
                     if (filter.size != null)
@@ -330,18 +332,18 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                         padding: const EdgeInsets.only(left: AppSpacing.xs),
                         child: InputChip(
                           label: Text('المقاس: ${filter.size}'),
-                          onDeleted: () {
+                          onDeleted: AppHaptics.action(() {
                             ref.read(productFilterProvider.notifier).state =
                                 filter.copyWith(clearSize: true);
-                          },
+                          }),
                         ),
                       ),
                     TextButton(
-                      onPressed: () {
+                      onPressed: AppHaptics.action(() {
                         _searchController.clear();
                         ref.read(productFilterProvider.notifier).state =
                             const ProductFilter();
-                      },
+                      }),
                       child: const Text('مسح الكل'),
                     ),
                   ],
@@ -373,11 +375,11 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         TextButton(
-                          onPressed: () {
+                          onPressed: AppHaptics.action(() {
                             _searchController.clear();
                             ref.read(productFilterProvider.notifier).state =
                                 const ProductFilter();
-                          },
+                          }),
                           child: const Text('إعادة ضبط الفلاتر'),
                         ),
                       ],
@@ -386,9 +388,9 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                 }
 
                 return RefreshIndicator.noSpinner(
-                  onRefresh: () async {
+                  onRefresh: AppHaptics.refresh(() async {
                     ref.invalidate(customerProductsProvider);
-                  },
+                  }),
                   child: GridView.builder(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     itemCount: products.length,
@@ -444,7 +446,9 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: () => context.push(AppRoutes.customerCompare),
+                    onPressed: AppHaptics.action(
+                      () => context.push(AppRoutes.customerCompare),
+                    ),
                     child: const Text(
                       'فتح المقارنة',
                       style: TextStyle(

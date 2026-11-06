@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -44,7 +46,7 @@ class ProductFormSteps extends StatelessWidget {
                           selected: i == current,
                           button: true,
                           child: InkResponse(
-                            onTap: () => onSelected(i),
+                            onTap: AppHaptics.action(() => onSelected(i)),
                             radius: 26,
                             child: SizedBox(
                               width: 48,
@@ -96,7 +98,7 @@ class ProductFormSteps extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 3),
                   child: GestureDetector(
-                    onTap: () => onSelected(i),
+                    onTap: AppHaptics.action(() => onSelected(i)),
                     child: Text(
                       labels[i],
                       textAlign: TextAlign.center,

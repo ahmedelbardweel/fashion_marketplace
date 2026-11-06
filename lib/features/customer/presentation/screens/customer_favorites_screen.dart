@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../widgets/product_cart_sheet.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
@@ -26,9 +28,9 @@ class CustomerFavoritesScreen extends ConsumerWidget {
       currentNavIndex: 2,
       showBack: false,
       body: RefreshIndicator.noSpinner(
-        onRefresh: () async {
+        onRefresh: AppHaptics.refresh(() async {
           ref.invalidate(customerFavoritesProvider);
-        },
+        }),
         child: favoritesAsync.skeletonWhen(
           placeholder: LoadingFixtures.products,
           data: (favorites) {

@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -120,7 +121,7 @@ class ProductGridCard extends StatelessWidget {
                       vertical: 8,
                     ),
                   ),
-                  onPressed: inStock ? onAddToCart : null,
+                  onPressed: AppHaptics.action(inStock ? onAddToCart : null),
                   child: Text(
                     inStock ? 'إضافة إلى السلة' : 'نفدت الكمية',
                     textAlign: TextAlign.center,

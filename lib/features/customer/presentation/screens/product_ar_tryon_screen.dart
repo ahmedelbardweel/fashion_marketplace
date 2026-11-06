@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../../../../core/widgets/app_skeleton.dart';
 import '../widgets/customer_action_sheet.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
@@ -457,7 +459,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(),
+              onPressed: AppHaptics.action(() => Navigator.of(dialogCtx).pop()),
               child: const Text('متابعة التجربة'),
             ),
             ElevatedButton(
@@ -465,7 +467,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                 backgroundColor: AppColors.black,
                 foregroundColor: AppColors.white,
               ),
-              onPressed: () {
+              onPressed: AppHaptics.action(() {
                 Navigator.of(dialogCtx).pop();
                 ref
                     .read(cartProvider.notifier)
@@ -483,7 +485,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                   'تمت إضافة مقاس ($suggestedSize) بنجاح إلى سلتك!',
                 );
                 context.pop();
-              },
+              }),
               child: Text('إضافة مقاس ($suggestedSize) للسلة'),
             ),
           ],
@@ -649,7 +651,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                   right: 0,
                   child: Center(
                     child: GestureDetector(
-                      onTap: _toggleDesktopTryon,
+                      onTap: AppHaptics.action(_toggleDesktopTryon),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 14,
@@ -683,7 +685,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                 right: 0,
                 child: Center(
                   child: GestureDetector(
-                    onTap: () => _captureSnapshot(product),
+                    onTap: AppHaptics.action(() => _captureSnapshot(product)),
                     child: Container(
                       width: 72,
                       height: 72,
@@ -797,7 +799,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
 
   Widget _circleIconBtn({required IconData icon, VoidCallback? onTap}) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: AppHaptics.action(onTap),
       child: Container(
         width: 42,
         height: 42,

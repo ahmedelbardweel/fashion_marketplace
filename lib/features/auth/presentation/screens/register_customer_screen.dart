@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -44,7 +45,9 @@ class _RegisterCustomerScreenState
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final ok = await ref.read(authControllerProvider.notifier).registerCustomer(
+    final ok = await ref
+        .read(authControllerProvider.notifier)
+        .registerCustomer(
           email: _emailController.text,
           password: _passwordController.text,
           fullName: _nameController.text,
@@ -120,7 +123,9 @@ class _RegisterCustomerScreenState
                   autofillHints: const [AutofillHints.newPassword],
                   validator: Validators.password,
                   suffix: IconButton(
-                    onPressed: () => setState(() => _obscure = !_obscure),
+                    onPressed: AppHaptics.action(
+                      () => setState(() => _obscure = !_obscure),
+                    ),
                     icon: Icon(
                       _obscure
                           ? Icons.visibility_outlined
@@ -142,8 +147,9 @@ class _RegisterCustomerScreenState
                   ),
                   onFieldSubmitted: (_) => _submit(),
                   suffix: IconButton(
-                    onPressed: () =>
-                        setState(() => _obscureConfirm = !_obscureConfirm),
+                    onPressed: AppHaptics.action(
+                      () => setState(() => _obscureConfirm = !_obscureConfirm),
+                    ),
                     icon: Icon(
                       _obscureConfirm
                           ? Icons.visibility_outlined
@@ -163,8 +169,9 @@ class _RegisterCustomerScreenState
                 AppButton(
                   label: 'العودة لتسجيل الدخول',
                   variant: AppButtonVariant.text,
-                  onPressed:
-                      auth.isBusy ? null : () => context.go(AppRoutes.login),
+                  onPressed: auth.isBusy
+                      ? null
+                      : () => context.go(AppRoutes.login),
                 ),
               ],
             ),

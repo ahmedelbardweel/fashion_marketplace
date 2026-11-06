@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/theme/app_radii.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -24,9 +26,9 @@ class ProductComparisonScreen extends ConsumerWidget {
       actions: [
         if (products.isNotEmpty)
           TextButton(
-            onPressed: () {
+            onPressed: AppHaptics.action(() {
               ref.read(productComparisonProvider.notifier).clear();
-            },
+            }),
             child: const Text('مسح الكل'),
           ),
       ],
@@ -82,11 +84,11 @@ class ProductComparisonScreen extends ConsumerWidget {
                           alignment: Alignment.topLeft,
                           child: IconButton(
                             icon: const Icon(Icons.close, size: 20),
-                            onPressed: () {
+                            onPressed: AppHaptics.action(() {
                               ref
                                   .read(productComparisonProvider.notifier)
                                   .removeProduct(product.id);
-                            },
+                            }),
                           ),
                         ),
 

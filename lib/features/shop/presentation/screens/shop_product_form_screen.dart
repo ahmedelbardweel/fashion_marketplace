@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../widgets/product_form_steps.dart';
 
 import 'dart:typed_data';
@@ -289,7 +291,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                     .map(
                       (v) => ActionChip(
                         label: Text(v),
-                        onPressed: () => size.text = v,
+                        onPressed: AppHaptics.action(() => size.text = v),
                       ),
                     )
                     .toList(),
@@ -566,7 +568,9 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
             ),
           ),
           error: (_, _) => TextButton(
-            onPressed: () => ref.invalidate(shopCategoriesProvider),
+            onPressed: AppHaptics.action(
+              () => ref.invalidate(shopCategoriesProvider),
+            ),
             child: const Text('تعذر تحميل التصنيفات — إعادة المحاولة'),
           ),
           data: (items) => DropdownButtonFormField<String>(
@@ -594,19 +598,21 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                 ),
               ),
             ],
-            onChanged: (v) => setState(() {
-              if (v != '__new__') {
-                _categoryId = v;
-                _newCategory = null;
-              }
-              _dirty = true;
-            }),
+            onChanged: AppHaptics.change(
+              (v) => setState(() {
+                if (v != '__new__') {
+                  _categoryId = v;
+                  _newCategory = null;
+                }
+                _dirty = true;
+              }),
+            ),
           ),
         ),
         Align(
           alignment: AlignmentDirectional.centerStart,
           child: TextButton.icon(
-            onPressed: _addCategory,
+            onPressed: AppHaptics.action(_addCategory),
             icon: const Icon(Icons.add),
             label: const Text('إضافة تصنيف جديد'),
           ),
@@ -697,7 +703,9 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                     'تعذرت معالجة الصورة. أعد المحاولة أو احذفها لاختيار صورة أخرى.',
                   ),
                   TextButton(
-                    onPressed: _processing ? null : () => _retry(item),
+                    onPressed: AppHaptics.action(
+                      _processing ? null : () => _retry(item),
+                    ),
                     child: const Text('إعادة المحاولة'),
                   ),
                 ],
@@ -706,41 +714,49 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                   children: [
                     IconButton(
                       tooltip: 'تقديم الصورة',
-                      onPressed: index == 0
-                          ? null
-                          : () => setState(() {
-                              _images.removeAt(index);
-                              _images.insert(index - 1, item);
-                              _dirty = true;
-                            }),
+                      onPressed: AppHaptics.action(
+                        index == 0
+                            ? null
+                            : () => setState(() {
+                                _images.removeAt(index);
+                                _images.insert(index - 1, item);
+                                _dirty = true;
+                              }),
+                      ),
                       icon: const Icon(Icons.arrow_upward),
                     ),
                     IconButton(
                       tooltip: 'تأخير الصورة',
-                      onPressed: index == _images.length - 1
-                          ? null
-                          : () => setState(() {
-                              _images.removeAt(index);
-                              _images.insert(index + 1, item);
-                              _dirty = true;
-                            }),
+                      onPressed: AppHaptics.action(
+                        index == _images.length - 1
+                            ? null
+                            : () => setState(() {
+                                _images.removeAt(index);
+                                _images.insert(index + 1, item);
+                                _dirty = true;
+                              }),
+                      ),
                       icon: const Icon(Icons.arrow_downward),
                     ),
                     if (!primary && item.kind == 'gallery')
                       TextButton(
-                        onPressed: () => setState(() {
-                          _images.remove(item);
-                          _images.insert(0, item);
-                          _dirty = true;
-                        }),
+                        onPressed: AppHaptics.action(
+                          () => setState(() {
+                            _images.remove(item);
+                            _images.insert(0, item);
+                            _dirty = true;
+                          }),
+                        ),
                         child: const Text('جعلها الرئيسية'),
                       ),
                     IconButton(
                       tooltip: 'حذف الصورة',
-                      onPressed: () => setState(() {
-                        _images.remove(item);
-                        _dirty = true;
-                      }),
+                      onPressed: AppHaptics.action(
+                        () => setState(() {
+                          _images.remove(item);
+                          _dirty = true;
+                        }),
+                      ),
                       icon: const Icon(Icons.delete_outline),
                     ),
                   ],
@@ -771,15 +787,17 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
             children: [
               IconButton(
                 tooltip: 'تعديل الخيار',
-                onPressed: () => _editVariant(index),
+                onPressed: AppHaptics.action(() => _editVariant(index)),
                 icon: const Icon(Icons.edit_outlined),
               ),
               IconButton(
                 tooltip: 'حذف الخيار',
-                onPressed: () => setState(() {
-                  _variants.removeAt(index);
-                  _dirty = true;
-                }),
+                onPressed: AppHaptics.action(
+                  () => setState(() {
+                    _variants.removeAt(index);
+                    _dirty = true;
+                  }),
+                ),
                 icon: const Icon(Icons.delete_outline),
               ),
             ],
@@ -836,7 +854,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
           children: List.generate(
             3,
             (i) => TextButton(
-              onPressed: () => _go(i),
+              onPressed: AppHaptics.action(() => _go(i)),
               child: Text('تعديل ${_steps[i]}'),
             ),
           ),
@@ -866,8 +884,9 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
           title: 'تعديل منتج',
           body: Center(
             child: TextButton(
-              onPressed: () =>
-                  ref.invalidate(shopProductProvider(widget.productId!)),
+              onPressed: AppHaptics.action(
+                () => ref.invalidate(shopProductProvider(widget.productId!)),
+              ),
               child: const Text('تعذر فتح المنتج — إعادة المحاولة'),
             ),
           ),
@@ -956,13 +975,13 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                       children: [
                         if (_step > 0)
                           TextButton(
-                            onPressed: () => _go(_step - 1),
+                            onPressed: AppHaptics.action(() => _go(_step - 1)),
                             child: const Text('السابق'),
                           ),
                         TextButton(
-                          onPressed: saving || _processing
-                              ? null
-                              : () => _save(false),
+                          onPressed: AppHaptics.action(
+                            saving || _processing ? null : () => _save(false),
+                          ),
                           child: const Text('حفظ كمسودة'),
                         ),
                       ],

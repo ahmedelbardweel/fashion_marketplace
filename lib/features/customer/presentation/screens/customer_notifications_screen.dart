@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 
@@ -21,9 +23,9 @@ class CustomerNotificationsScreen extends ConsumerWidget {
     return CustomerScaffold(
       title: 'الإشعارات',
       body: RefreshIndicator.noSpinner(
-        onRefresh: () async {
+        onRefresh: AppHaptics.refresh(() async {
           ref.invalidate(customerNotificationsProvider);
-        },
+        }),
         child: notificationsAsync.skeletonWhen(
           placeholder: LoadingFixtures.notifications,
           data: (notifications) {

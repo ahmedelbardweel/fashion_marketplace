@@ -1,3 +1,5 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -113,7 +115,9 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
                   const Expanded(child: Text('تعذر قراءة حالة إعداد المفتاح.')),
                   IconButton(
                     tooltip: 'إعادة المحاولة',
-                    onPressed: () => ref.invalidate(adminDecartStatusProvider),
+                    onPressed: AppHaptics.action(
+                      () => ref.invalidate(adminDecartStatusProvider),
+                    ),
                     icon: const Icon(Icons.refresh),
                   ),
                 ],

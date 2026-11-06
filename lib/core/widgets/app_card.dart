@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
@@ -37,7 +38,7 @@ class AppCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: AppHaptics.action(onTap),
         borderRadius: BorderRadius.circular(AppRadii.card),
         child: content,
       ),
