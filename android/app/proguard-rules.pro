@@ -1,5 +1,8 @@
 # ProGuard and R8 rules for Fashion Marketplace
 
+# Disable aggressive bytecode optimization to prevent JNI and MethodChannel breakage
+-dontoptimize
+
 # 1. Flutter Engine, Plugins, and MethodChannels
 -keep class io.flutter.** { *; }
 -dontwarn io.flutter.**
