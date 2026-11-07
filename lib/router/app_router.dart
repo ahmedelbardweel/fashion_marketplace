@@ -63,6 +63,10 @@ class GoRouterRefresh extends ChangeNotifier {
       sessionGateProvider,
       (previous, next) => notifyListeners(),
     );
+    ref.listen<bool>(
+      splashCompletedProvider,
+      (previous, next) => notifyListeners(),
+    );
   }
 }
 
@@ -79,6 +83,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final location = state.matchedLocation;
 
       final isSplash = location == AppRoutes.splash;
+      final isSplashDone = ref.read(splashCompletedProvider);
+      if (!isSplashDone) {
+        return isSplash ? null : AppRoutes.splash;
+      }
+
       final isAuthRoute = location == AppRoutes.login ||
           location == AppRoutes.register ||
           location == AppRoutes.registerCustomer ||

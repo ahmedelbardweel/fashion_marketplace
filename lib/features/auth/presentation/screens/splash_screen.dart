@@ -5,6 +5,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../providers/auth_provider.dart';
 
+final splashCompletedProvider = StateProvider<bool>((ref) => false);
+
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
@@ -47,7 +49,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       ),
     );
 
-    _controller.forward();
+    _controller.forward().then((_) async {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (mounted) {
+        ref.read(splashCompletedProvider.notifier).state = true;
+      }
+    });
     // Ensure session restore starts immediately.
     Future.microtask(() {
       ref.read(authControllerProvider.notifier).restoreSession();
