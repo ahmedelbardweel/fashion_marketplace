@@ -42,8 +42,8 @@ jobs:
       - name: Configure public client environment
         shell: bash
         run: cp config/mobile.env .env
-      - name: Install locked dependencies
-        run: flutter pub get --enforce-lockfile
+      - name: Install dependencies
+        run: flutter pub get
       - name: Test virtual try-on
         if: matrix.platform == 'android'
         run: flutter test test/virtual_tryon/decart_service_test.dart test/virtual_tryon/tryon_controller_test.dart test/virtual_tryon/web_camera_test.dart
