@@ -34,7 +34,7 @@ class CustomerHomeScreen extends ConsumerWidget {
     final productsAsync = ref.watch(customerProductsProvider);
 
     return CustomerScaffold(
-      title: 'السوق العصري',
+      title: 'السوق العصري'.tr,
       currentNavIndex: 0,
       showBack: false,
       showProfile: true,
@@ -47,7 +47,7 @@ class CustomerHomeScreen extends ConsumerWidget {
         }),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -57,7 +57,7 @@ class CustomerHomeScreen extends ConsumerWidget {
                 data: (banners) {
                   if (banners.isEmpty) return const SizedBox.shrink();
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                     child: _HomeBannerCarousel(banners: banners),
                   );
                 },
@@ -80,7 +80,7 @@ class CustomerHomeScreen extends ConsumerWidget {
                         scrollDirection: Axis.horizontal,
                         itemCount: categories.length,
                         separatorBuilder: (_, _) =>
-                            const SizedBox(width: AppSpacing.sm),
+                            const SizedBox(width: 6),
                         itemBuilder: (context, index) {
                           final cat = categories[index];
                           return InkWell(
@@ -103,8 +103,8 @@ class CustomerHomeScreen extends ConsumerWidget {
                                 border: Border.all(color: ChipDesign.border),
                               ),
                               child: Text(
-                                cat.name,
-                                style: const TextStyle(
+                                cat.name.tr,
+                                style: TextStyle(
                                   fontSize: ChipDesign.textSize,
                                   fontWeight: ChipDesign.textWeight,
                                   color: ChipDesign.text,
@@ -122,8 +122,8 @@ class CustomerHomeScreen extends ConsumerWidget {
 
               // 3) Approved Shops (Story-style Avatars)
               AppSectionHeader(
-                title: 'المتاجر المعتمدة',
-                actionLabel: 'عرض الكل',
+                title: 'المتاجر المعتمدة'.tr,
+                actionLabel: 'عرض الكل'.tr,
                 onAction: AppHaptics.action(
                   () => context.push(AppRoutes.customerShops),
                 ),
@@ -133,22 +133,22 @@ class CustomerHomeScreen extends ConsumerWidget {
                 placeholder: LoadingFixtures.customerShops,
                 data: (shops) {
                   if (shops.isEmpty) {
-                    return const Padding(
+                    return Padding(
                       padding: AppSpacing.pageHorizontal,
                       child: Text(
-                        'لا توجد محلات معتمدة حالياً',
+                        'لا توجد محلات معتمدة حالياً'.tr,
                         style: TextStyle(color: AppColors.textMuted),
                       ),
                     );
                   }
                   return SizedBox(
-                    height: HomeDesign.shopAvatarSize + 34,
+                    height: HomeDesign.shopAvatarSize + 26,
                     child: ListView.separated(
                       padding: AppSpacing.pageHorizontal,
                       scrollDirection: Axis.horizontal,
                       itemCount: shops.length,
                       separatorBuilder: (_, _) =>
-                          const SizedBox(width: AppSpacing.md),
+                          const SizedBox(width: AppSpacing.xs),
                       itemBuilder: (context, index) {
                         final shop = shops[index];
                         return InkWell(
@@ -183,29 +183,32 @@ class CustomerHomeScreen extends ConsumerWidget {
                                               shop.logoPath!,
                                               fit: BoxFit.cover,
                                               errorBuilder: (_, _, _) =>
-                                                  const Icon(
+                                                  Icon(
                                                     AppIcons.shopActive,
                                                     color: HomeDesign
                                                         .shopAvatarIcon,
                                                   ),
                                             )
-                                          : const Icon(
+                                          : Icon(
                                               AppIcons.shopActive,
                                               color: HomeDesign.shopAvatarIcon,
                                             ),
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  shop.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: HomeDesign.shopNameSize,
-                                    fontWeight: HomeDesign.shopNameWeight,
-                                    color: AppColors.text,
+                                const SizedBox(height: 4),
+                                Flexible(
+                                  child: Text(
+                                    shop.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: HomeDesign.shopNameSize,
+                                      fontWeight: HomeDesign.shopNameWeight,
+                                      color: AppColors.text,
+                                      height: 1.2,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -223,8 +226,8 @@ class CustomerHomeScreen extends ConsumerWidget {
 
               // 4) Latest Products Grid
               AppSectionHeader(
-                title: 'أحدث الأزياء',
-                actionLabel: 'تصفح الكل',
+                title: 'أحدث الأزياء'.tr,
+                actionLabel: 'تصفح الكل'.tr,
                 onAction: AppHaptics.action(
                   () => context.push(AppRoutes.customerCatalog),
                 ),
@@ -235,9 +238,9 @@ class CustomerHomeScreen extends ConsumerWidget {
                 placeholder: LoadingFixtures.products,
                 data: (products) {
                   if (products.isEmpty) {
-                    return const AppEmpty(
+                    return AppEmpty(
                       icon: AppIcons.garment,
-                      message: 'لا توجد منتجات منشورة حالياً',
+                      message: 'لا توجد منتجات منشورة حالياً'.tr,
                     );
                   }
                   return Padding(
@@ -271,7 +274,7 @@ class CustomerHomeScreen extends ConsumerWidget {
                 },
                 error: (err, _) => AppEmpty(
                   icon: AppIcons.error,
-                  message: 'تعذر تحميل المنتجات: $err',
+                  message: 'تعذر تحميل المنتجات: $err'.tr,
                 ),
               ),
             ],
@@ -435,9 +438,9 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
                                           AppRadii.pill,
                                         ),
                                       ),
-                                      child: const Text(
-                                        'عرض خاص',
-                                        style: TextStyle(
+                                      child: Text(
+                                        'عرض خاص'.tr,
+                                        style: const TextStyle(
                                           fontSize: 11,
                                           fontWeight: AppFont.bold,
                                           color: HomeDesign.bannerTitle,
@@ -447,7 +450,7 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
                                     const SizedBox(height: AppSpacing.xs),
                                     Flexible(
                                       child: Text(
-                                        b.title,
+                                        b.title.tr,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
@@ -464,7 +467,7 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
                                       const SizedBox(height: 4),
                                       Flexible(
                                         child: Text(
-                                          b.subtitle!,
+                                          b.subtitle!.tr,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
@@ -490,18 +493,18 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
                                     AppRadii.pill,
                                   ),
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      'تسوق الآن',
-                                      style: TextStyle(
+                                      'تسوق الآن'.tr,
+                                      style: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: AppFont.bold,
                                         color: HomeDesign.bannerButtonText,
                                       ),
                                     ),
-                                    SizedBox(width: 4),
+                                    const SizedBox(width: 4),
                                     Icon(
                                       AppIcons.arrowForward,
                                       size: 14,
@@ -522,7 +525,7 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
           ),
         ),
         if (widget.banners.length > 1) ...[
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: 6),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(widget.banners.length, (i) {

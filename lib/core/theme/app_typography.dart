@@ -9,16 +9,16 @@ class AppTypography {
 
   static TextTheme textTheme() {
     final base = GoogleFonts.getTextTheme(AppFont.googleFamily);
-    const ink = AppColors.text;
+    final ink = AppColors.text;
 
     TextStyle? s(
       TextStyle? style,
       double size,
       FontWeight weight, {
-      Color color = ink,
+      Color? color,
       double? height,
     }) => style?.copyWith(
-      color: color,
+      color: color ?? ink,
       fontSize: size,
       fontWeight: weight,
       height: height,

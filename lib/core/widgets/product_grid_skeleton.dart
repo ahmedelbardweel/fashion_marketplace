@@ -16,7 +16,7 @@ class ProductGridSkeleton extends StatelessWidget {
         textScale: MediaQuery.textScalerOf(context).scale(14) / 14,
       ),
       itemBuilder: (_, _) => ProductGridCard(
-        meta: '120.00 ر.س',
+        meta: '120.00 ₪',
         imageUrl: 'skeleton://product',
         onAddToCart: () {},
         onToggleFavorite: () async {},

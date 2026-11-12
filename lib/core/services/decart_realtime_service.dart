@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/l10n/app_translations.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -107,7 +108,7 @@ class DecartRealtimeService implements TryonSession {
             await track.stop();
           }
           await stream.dispose();
-          throw const TryonFailure('تم إلغاء الجلسة.');
+          throw TryonFailure('تم إلغاء الجلسة.'.tr);
         }
         return stream;
       });
@@ -146,7 +147,7 @@ class DecartRealtimeService implements TryonSession {
           try {
             _send(message);
           } catch (_) {
-            _fail(generation, 'تعذر إرسال بيانات الاتصال.');
+            _fail(generation, 'تعذر إرسال بيانات الاتصال.'.tr);
           }
         } else {
           _localIce.add(message);
@@ -170,13 +171,13 @@ class DecartRealtimeService implements TryonSession {
             _disconnectDeadline?.cancel();
             _disconnectDeadline = Timer(
               const Duration(seconds: 8),
-              () => _fail(generation, 'انقطع اتصال الفيديو. أعد المحاولة.'),
+              () => _fail(generation, 'انقطع اتصال الفيديو. أعد المحاولة.'.tr),
             );
           case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
           case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
             _fail(
               generation,
-              'تعذر إنشاء اتصال الفيديو. تحقق من الشبكة وخادم TURN.',
+              'تعذر إنشاء اتصال الفيديو. تحقق من الشبكة وخادم TURN.'.tr,
             );
           default:
             break;
@@ -199,21 +200,21 @@ class DecartRealtimeService implements TryonSession {
                 }
               })
               .catchError((Object _) {
-                _fail(generation, 'وصلت رسالة اتصال غير صالحة من الخادم.');
+                _fail(generation, 'وصلت رسالة اتصال غير صالحة من الخادم.'.tr);
               });
         },
         onError: (Object _) {
-          _fail(generation, 'تعذر الاتصال بخادم التجربة.');
+          _fail(generation, 'تعذر الاتصال بخادم التجربة.'.tr);
         },
         onDone: () {
-          _fail(generation, 'أُغلق اتصال الخادم. أعد المحاولة.');
+          _fail(generation, 'أُغلق اتصال الخادم. أعد المحاولة.'.tr);
         },
       );
       await _socket!.ready.timeout(const Duration(seconds: 15));
       if (!_current(generation)) return;
       _socketReady = true;
       _deadline = Timer(const Duration(seconds: 35), () {
-        _fail(generation, 'لم يصل فيديو معالج من الخادم ضمن المهلة.');
+        _fail(generation, 'لم يصل فيديو معالج من الخادم ضمن المهلة.'.tr);
       });
       await _offer(generation);
       if (!_current(generation)) return;
@@ -244,7 +245,7 @@ class DecartRealtimeService implements TryonSession {
       _remote = stream;
       onRemoteStream?.call(stream);
     } catch (_) {
-      _fail(generation, 'تعذر عرض الفيديو المرتجع.');
+      _fail(generation, 'تعذر عرض الفيديو المرتجع.'.tr);
     }
   }
 
@@ -320,13 +321,13 @@ class DecartRealtimeService implements TryonSession {
             ack.complete();
           } else {
             ack.completeError(
-              const TryonFailure('رفض الخادم صورة القطعة أو وصفها.'),
+              TryonFailure('رفض الخادم صورة القطعة أو وصفها.'.tr),
             );
           }
         }
       case 'prompt_ack':
         if (data['success'] == false) {
-          _fail(generation, 'رفض الخادم وصف القطعة. اختر قطعة أخرى.');
+          _fail(generation, 'رفض الخادم وصف القطعة. اختر قطعة أخرى.'.tr);
         }
       case 'ice-restart':
         final turn = data['turn_config'] as Map<String, dynamic>?;
@@ -347,7 +348,7 @@ class DecartRealtimeService implements TryonSession {
       case 'generation_ended':
         _fail(
           generation,
-          'أنهى الخادم الجلسة أو رفض الاتصال. تحقق من الرصيد وإعدادات الخدمة.',
+          'أنهى الخادم الجلسة أو رفض الاتصال. تحقق من الرصيد وإعدادات الخدمة.'.tr,
         );
       default:
         break; // session_id, generation_started/tick and forward-compatible events.
@@ -355,7 +356,7 @@ class DecartRealtimeService implements TryonSession {
   }
 
   void _send(Map<String, dynamic> data) {
-    if (!_socketReady) throw const TryonFailure('قناة الاتصال غير جاهزة.');
+    if (!_socketReady) throw TryonFailure('قناة الاتصال غير جاهزة.'.tr);
     _socket!.sink.add(jsonEncode(data));
   }
 
@@ -364,21 +365,21 @@ class DecartRealtimeService implements TryonSession {
     final generation = _generation;
     final local = _local;
     if (local == null || !_reportedConnected) {
-      throw const TryonFailure('أعد فحص الجسم قبل اختيار القطعة.');
+      throw TryonFailure('أعد فحص الجسم قبل اختيار القطعة.'.tr);
     }
     await captureGuard.validate(
       local,
       garment,
       (message) => _fail(generation, message),
     );
-    if (!_current(generation)) throw const TryonFailure('انتهت الجلسة.');
+    if (!_current(generation)) throw TryonFailure('انتهت الجلسة.'.tr);
     await _select(garment);
   }
 
   Future<void> _select(GarmentSelection garment) async {
     final generation = _generation;
     if (!_socketReady || _selectionGeneration != null) {
-      throw const TryonFailure('انتظر اكتمال تحديث القطعة الحالية.');
+      throw TryonFailure('انتظر اكتمال تحديث القطعة الحالية.'.tr);
     }
     _selectionGeneration = generation;
     try {
@@ -386,7 +387,7 @@ class DecartRealtimeService implements TryonSession {
       final payload = await loader(garment)
           .timeout(const Duration(seconds: 20));
       if (!_current(generation) || !_socketReady) {
-        throw const TryonFailure('انتهت الجلسة.');
+        throw TryonFailure('انتهت الجلسة.'.tr);
       }
       // Protocol acknowledgments have no request ID; one update in flight.
       final ack = Completer<void>();
@@ -395,8 +396,8 @@ class DecartRealtimeService implements TryonSession {
         _socket!.sink.add(payload);
         await ack.future.timeout(acknowledgmentTimeout);
       } on TimeoutException {
-        _fail(generation, 'لم يؤكد الخادم تحديث القطعة. أعد الاتصال.');
-        throw const TryonFailure('انتهت مهلة تأكيد القطعة.');
+        _fail(generation, 'لم يؤكد الخادم تحديث القطعة. أعد الاتصال.'.tr);
+        throw TryonFailure('انتهت مهلة تأكيد القطعة.'.tr);
       } finally {
         if (identical(_imageAck, ack)) _imageAck = null;
       }
@@ -417,9 +418,9 @@ class DecartRealtimeService implements TryonSession {
         _camera.front = !_camera.front;
         await _camera.resetZoom(track);
       }
-      _fail(_generation, 'تم تغيير الكاميرا. أعد فحص الجسم قبل التجربة.');
+      _fail(_generation, 'تم تغيير الكاميرا. أعد فحص الجسم قبل التجربة.'.tr);
     } catch (_) {
-      throw const TryonFailure('تعذر تبديل الكاميرا.');
+      throw TryonFailure('تعذر تبديل الكاميرا.'.tr);
     }
   });
 
@@ -428,7 +429,7 @@ class DecartRealtimeService implements TryonSession {
     final ack = _imageAck;
     _imageAck = null;
     if (ack != null && !ack.isCompleted) {
-      ack.completeError(const TryonFailure('انتهت الجلسة.'));
+      ack.completeError(TryonFailure('انتهت الجلسة.'.tr));
     }
   }
 

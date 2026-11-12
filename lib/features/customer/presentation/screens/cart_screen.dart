@@ -20,22 +20,22 @@ class CartScreen extends ConsumerWidget {
     final cartNotifier = ref.read(cartProvider.notifier);
 
     return CustomerScaffold(
-      title: 'سلة المشتريات',
+      title: 'سلة المشتريات'.tr,
       showSearch: false,
       actions: [
         if (cartItems.isNotEmpty)
           TextButton.icon(
             onPressed: AppHaptics.action(() => cartNotifier.clearCart()),
             icon: const Icon(AppIcons.delete, size: 18),
-            label: const Text('تفريغ'),
+            label: Text('تفريغ'.tr),
           ),
       ],
       body: cartItems.isEmpty
           ? AppEmpty(
               icon: AppIcons.bag,
-              title: 'سلة المشتريات فارغة',
-              message: 'تصفح أحدث الأزياء وأضف القطع المفضلة إلى سلتك',
-              actionLabel: 'تصفح المتجر الآن',
+              title: 'سلة المشتريات فارغة'.tr,
+              message: 'تصفح أحدث الأزياء وأضف القطع المفضلة إلى سلتك'.tr,
+              actionLabel: 'تصفح المتجر الآن'.tr,
               onAction: AppHaptics.action(
                 () => context.go(AppRoutes.customerCatalog),
               ),
@@ -46,7 +46,7 @@ class CartScreen extends ConsumerWidget {
                   child: ListView.separated(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     itemCount: cartItems.length,
-                    separatorBuilder: (_, _) => const Divider(
+                    separatorBuilder: (_, _) => Divider(
                       height: AppSpacing.lg,
                       color: CartDesign.itemDivider,
                     ),
@@ -81,12 +81,12 @@ class CartScreen extends ConsumerWidget {
                                   ? AppNetworkImage(
                                       item.imagePath!,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => const Icon(
+                                      errorBuilder: (_, _, _) => Icon(
                                         AppIcons.garment,
                                         color: AppColors.iconMuted,
                                       ),
                                     )
-                                  : const Icon(
+                                  : Icon(
                                       AppIcons.garment,
                                       color: AppColors.iconMuted,
                                     ),
@@ -111,7 +111,7 @@ class CartScreen extends ConsumerWidget {
                                           item.productName,
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: CartDesign.itemTitleSize,
                                             fontWeight:
                                                 CartDesign.itemTitleWeight,
@@ -126,7 +126,7 @@ class CartScreen extends ConsumerWidget {
                                           minWidth: 28,
                                           minHeight: 28,
                                         ),
-                                        icon: const Icon(
+                                        icon: Icon(
                                           AppIcons.close,
                                           size: 18,
                                           color: CartDesign.removeIcon,
@@ -143,7 +143,7 @@ class CartScreen extends ConsumerWidget {
                                     '${item.shopName} · ${item.variantDescription}',
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
                                       color: CartDesign.itemMetaColor,
                                     ),
@@ -155,7 +155,7 @@ class CartScreen extends ConsumerWidget {
                                     children: [
                                       Text(
                                         AppFormat.price(item.totalPrice),
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: CartDesign.itemPriceSize,
                                           fontWeight:
                                               CartDesign.itemPriceWeight,
@@ -182,7 +182,7 @@ class CartScreen extends ConsumerWidget {
                                                   ),
                                               constraints:
                                                   const BoxConstraints(),
-                                              icon: const Icon(
+                                              icon: Icon(
                                                 AppIcons.remove,
                                                 size: 16,
                                                 color: AppColors.icon,
@@ -202,7 +202,7 @@ class CartScreen extends ConsumerWidget {
                                                   ),
                                               child: Text(
                                                 '${item.quantity}',
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontSize: 13,
                                                   fontWeight: AppFont.bold,
                                                   color: AppColors.text,
@@ -218,7 +218,7 @@ class CartScreen extends ConsumerWidget {
                                                   ),
                                               constraints:
                                                   const BoxConstraints(),
-                                              icon: const Icon(
+                                              icon: Icon(
                                                 AppIcons.add,
                                                 size: 16,
                                                 color: AppColors.icon,
@@ -249,7 +249,7 @@ class CartScreen extends ConsumerWidget {
                 // Cart Summary & Checkout Button
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: CartDesign.summaryBackground,
                     boxShadow: CartDesign.summaryShadow,
                     border: Border(
@@ -261,13 +261,13 @@ class CartScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'المجموع الفرعي',
+                          Text(
+                            'المجموع الفرعي'.tr,
                             style: TextStyle(color: CartDesign.summaryLabel),
                           ),
                           Text(
                             AppFormat.price(cartNotifier.totalAmount),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: AppFont.semiBold,
                               color: AppColors.text,
                             ),
@@ -275,15 +275,15 @@ class CartScreen extends ConsumerWidget {
                         ],
                       ),
                       const SizedBox(height: AppSpacing.xs),
-                      const Row(
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'التوصيل',
+                            'التوصيل'.tr,
                             style: TextStyle(color: CartDesign.summaryLabel),
                           ),
                           Text(
-                            'مجاناً',
+                            'مجاناً'.tr,
                             style: TextStyle(
                               color: AppColors.primaryDark,
                               fontWeight: AppFont.bold,
@@ -295,8 +295,8 @@ class CartScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'الإجمالي النهائي',
+                          Text(
+                            'الإجمالي النهائي'.tr,
                             style: TextStyle(
                               fontSize: CartDesign.totalSize,
                               fontWeight: CartDesign.totalWeight,
@@ -305,7 +305,7 @@ class CartScreen extends ConsumerWidget {
                           ),
                           Text(
                             AppFormat.price(cartNotifier.totalAmount),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: CartDesign.totalSize,
                               fontWeight: CartDesign.totalWeight,
                               color: AppColors.text,
@@ -315,7 +315,7 @@ class CartScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: AppSpacing.md),
                       AppButton(
-                        label: 'إتمام الشراء (${cartItems.length})',
+                        label: 'إتمام الشراء (${cartItems.length})'.tr,
                         onPressed: () =>
                             context.push(AppRoutes.customerCheckout),
                       ),

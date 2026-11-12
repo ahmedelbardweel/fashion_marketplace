@@ -24,7 +24,8 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final child = isLoading ? AppBusyLabel(label: label) : Text(label);
+    final text = AppLang.tr(label);
+    final child = isLoading ? AppBusyLabel(label: text) : Text(text);
 
     final effectiveOnPressed = isLoading ? null : onPressed;
 
@@ -68,12 +69,12 @@ class AppIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       onPressed: AppHaptics.action(onPressed),
-      tooltip: tooltip,
+      tooltip: tooltip == null ? null : AppLang.tr(tooltip!),
       icon: Icon(icon, color: ButtonDesign.iconButtonColor),
       style: IconButton.styleFrom(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(ButtonDesign.iconButtonRadius),
-          side: const BorderSide(color: ButtonDesign.iconButtonBorder),
+          side: BorderSide(color: ButtonDesign.iconButtonBorder),
         ),
       ),
     );

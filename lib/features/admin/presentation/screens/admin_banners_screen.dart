@@ -39,7 +39,7 @@ class AdminBannersScreen extends ConsumerWidget {
     final action = await AppBottomSheet.show<String>(
       context: context,
       child: AppBottomSheetScaffold(
-        title: banner == null ? 'بنر إعلاني جديد' : 'تعديل البنر الإعلاني',
+        title: banner == null ? 'بنر إعلاني جديد'.tr : 'تعديل البنر الإعلاني'.tr,
         child: StatefulBuilder(
           builder: (context, setModalState) {
             return Form(
@@ -49,21 +49,21 @@ class AdminBannersScreen extends ConsumerWidget {
                 children: [
                   AppTextField(
                     controller: titleController,
-                    label: 'العنوان الرئيسي',
-                    hint: 'مثال: خصم 30% على تشكيلة الصيف',
+                    label: 'العنوان الرئيسي'.tr,
+                    hint: 'مثال: خصم 30% على تشكيلة الصيف'.tr,
                     validator: (value) =>
-                        Validators.required(value, field: 'العنوان'),
+                        Validators.required(value, field: 'العنوان'.tr),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: subtitleController,
-                    label: 'النص الفرعي (اختياري)',
-                    hint: 'مثال: تسوق أحدث الموديلات العصرية الآن',
+                    label: 'النص الفرعي (اختياري)'.tr,
+                    hint: 'مثال: تسوق أحدث الموديلات العصرية الآن'.tr,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: imageController,
-                    label: 'رابط صورة البنر (اختياري)',
+                    label: 'رابط صورة البنر (اختياري)'.tr,
                     hint: 'https://...',
                     keyboardType: TextInputType.url,
                   ),
@@ -71,15 +71,15 @@ class AdminBannersScreen extends ConsumerWidget {
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     activeThumbColor: AppColors.primary,
-                    title: const Text(
-                      'تفعيل البنر للمستخدمين',
+                    title: Text(
+                      'تفعيل البنر للمستخدمين'.tr,
                       style: TextStyle(
                         fontWeight: AppFont.bold,
                         color: AppColors.text,
                       ),
                     ),
-                    subtitle: const Text(
-                      'يظهر فوراً في الصفحة الرئيسية للعميل عند التفعيل',
+                    subtitle: Text(
+                      'يظهر فوراً في الصفحة الرئيسية للعميل عند التفعيل'.tr,
                       style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textMuted,
@@ -92,7 +92,7 @@ class AdminBannersScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   AppButton(
-                    label: 'حفظ البنر',
+                    label: 'حفظ البنر'.tr,
                     onPressed: () {
                       if (formKey.currentState?.validate() != true) return;
                       Navigator.of(context).pop('save');
@@ -101,7 +101,7 @@ class AdminBannersScreen extends ConsumerWidget {
                   if (banner != null) ...[
                     const SizedBox(height: AppSpacing.sm),
                     AppButton(
-                      label: 'حذف البنر',
+                      label: 'حذف البنر'.tr,
                       variant: AppButtonVariant.outlined,
                       onPressed: () => Navigator.of(context).pop('delete'),
                     ),
@@ -131,8 +131,8 @@ class AdminBannersScreen extends ConsumerWidget {
       showAppSnackBar(
         context,
         ok
-            ? 'تم حذف البنر'
-            : (error == null ? 'تعذر الحذف' : actions.errorMessage(error)),
+            ? 'تم حذف البنر'.tr
+            : (error == null ? 'تعذر الحذف'.tr : actions.errorMessage(error)),
         isError: !ok,
       );
       return;
@@ -152,12 +152,12 @@ class AdminBannersScreen extends ConsumerWidget {
       final error = ref.read(adminActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر الحفظ' : actions.errorMessage(error),
+        error == null ? 'تعذر الحفظ'.tr : actions.errorMessage(error),
         isError: true,
       );
       return;
     }
-    showAppSnackBar(context, 'تم حفظ البنر بنجاح');
+    showAppSnackBar(context, 'تم حفظ البنر بنجاح'.tr);
   }
 
   @override
@@ -166,11 +166,11 @@ class AdminBannersScreen extends ConsumerWidget {
     final busy = ref.watch(adminActionProvider).isLoading;
 
     return AdminScaffold(
-      title: 'العروض والبنرات',
+      title: 'العروض والبنرات'.tr,
       body: AdminAsyncBody<List<AdminBanner>>(
         placeholder: LoadingFixtures.banners,
         value: banners,
-        emptyMessage: 'لا توجد بنرات إعلانية بعد',
+        emptyMessage: 'لا توجد بنرات إعلانية بعد'.tr,
         isEmpty: (data) => data.isEmpty,
         onRetry: () => ref.invalidate(adminBannersProvider),
         builder: (items) {
@@ -193,7 +193,7 @@ class AdminBannersScreen extends ConsumerWidget {
                     // Live Banner Preview Header
                     Container(
                       height: 110,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: HomeDesign.bannerBackground,
                         borderRadius: BorderRadius.vertical(
                           top: Radius.circular(CardDesign.radius),
@@ -259,16 +259,16 @@ class AdminBannersScreen extends ConsumerWidget {
                         children: [
                           AppStatusBadge(
                             label: item.isActive
-                                ? 'نشط (يظهر للمستخدم)'
-                                : 'متوقف',
+                                ? 'نشط (يظهر للمستخدم)'.tr
+                                : 'متوقف'.tr,
                             tone: item.isActive
                                 ? BadgeTone.success
                                 : BadgeTone.neutral,
                           ),
-                          const Row(
+                          Row(
                             children: [
                               Text(
-                                'تعديل',
+                                'تعديل'.tr,
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: AppFont.bold,
@@ -294,7 +294,7 @@ class AdminBannersScreen extends ConsumerWidget {
         },
       ),
       bottom: AppButton(
-        label: 'إضافة بنر إعلاني',
+        label: 'إضافة بنر إعلاني'.tr,
         isLoading: busy,
         onPressed: () => _openForm(context, ref),
       ),

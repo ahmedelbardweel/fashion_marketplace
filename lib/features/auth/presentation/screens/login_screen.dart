@@ -45,7 +45,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
     if (!ok) {
       final error = ref.read(authControllerProvider).errorMessage;
-      showAppSnackBar(context, error ?? 'فشل تسجيل الدخول', isError: true);
+      showAppSnackBar(context, error ?? 'فشل تسجيل الدخول'.tr, isError: true);
     }
   }
 
@@ -78,7 +78,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             AuthDesign.logoRadius,
                           ),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           AppIcons.bag,
                           size: 36,
                           color: AuthDesign.logoIcon,
@@ -86,8 +86,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    const Text(
-                      'ملابسي',
+                    Text(
+                      'ملابسي'.tr,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: AuthDesign.titleSize,
@@ -96,8 +96,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xl),
-                    const Text(
-                      'تسجيل الدخول',
+                    Text(
+                      'تسجيل الدخول'.tr,
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: AppFont.bold,
@@ -105,8 +105,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
-                      'أدخل بيانات حسابك للمتابعة إلى عالم الأزياء',
+                    Text(
+                      'أدخل بيانات حسابك للمتابعة إلى عالم الأزياء'.tr,
                       style: TextStyle(
                         fontSize: 14,
                         color: AuthDesign.subtitleColor,
@@ -115,7 +115,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: AppSpacing.lg),
                     AppTextField(
                       controller: _emailController,
-                      label: 'البريد الإلكتروني',
+                      label: 'البريد الإلكتروني'.tr,
                       hint: 'name@example.com',
                       prefixIcon: AppIcons.mail,
                       keyboardType: TextInputType.emailAddress,
@@ -126,14 +126,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: AppSpacing.md),
                     AppTextField(
                       controller: _passwordController,
-                      label: 'كلمة المرور',
+                      label: 'كلمة المرور'.tr,
                       hint: '********',
                       prefixIcon: AppIcons.lock,
                       obscureText: _obscure,
                       textInputAction: TextInputAction.done,
                       autofillHints: const [AutofillHints.password],
                       validator: (value) =>
-                          Validators.required(value, field: 'كلمة المرور'),
+                          Validators.required(value, field: 'كلمة المرور'.tr),
                       onFieldSubmitted: (_) => _submit(),
                       suffix: IconButton(
                         onPressed: AppHaptics.action(
@@ -148,13 +148,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     AppButton(
-                      label: 'دخول',
+                      label: 'دخول'.tr,
                       isLoading: auth.isBusy,
                       onPressed: _submit,
                     ),
                     const SizedBox(height: AppSpacing.md),
                     AppButton(
-                      label: 'إنشاء حساب جديد',
+                      label: 'إنشاء حساب جديد'.tr,
                       variant: AppButtonVariant.outlined,
                       onPressed: auth.isBusy
                           ? null

@@ -20,12 +20,12 @@ class AdminShopApplicationsScreen extends ConsumerWidget {
     final apps = ref.watch(adminShopApplicationsProvider);
 
     return AdminScaffold(
-      title: 'طلبات الانضمام',
+      title: 'طلبات الانضمام'.tr,
       showBack: false,
       body: AdminAsyncBody<List<Shop>>(
         placeholder: LoadingFixtures.shops,
         value: apps,
-        emptyMessage: 'لا توجد طلبات انضمام حالياً',
+        emptyMessage: 'لا توجد طلبات انضمام حالياً'.tr,
         isEmpty: (data) => data.isEmpty,
         onRetry: () => ref.invalidate(adminShopApplicationsProvider),
         builder: (shops) {
@@ -36,7 +36,7 @@ class AdminShopApplicationsScreen extends ConsumerWidget {
             padding: AppSpacing.page,
             children: [
               Text(
-                'بانتظار المراجعة: ${pending.length}',
+                'بانتظار المراجعة: ${pending.length}'.tr,
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: AppSpacing.md),
@@ -44,7 +44,7 @@ class AdminShopApplicationsScreen extends ConsumerWidget {
               if (others.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.lg),
                 Text(
-                  'طلبات سابقة',
+                  'طلبات سابقة'.tr,
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: AppSpacing.md),

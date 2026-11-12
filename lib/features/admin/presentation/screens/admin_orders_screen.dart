@@ -1,3 +1,4 @@
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 
 import 'package:flutter/material.dart';
@@ -18,11 +19,11 @@ class AdminOrdersScreen extends ConsumerWidget {
     final orders = ref.watch(adminOrdersProvider);
 
     return AdminScaffold(
-      title: 'الطلبات',
+      title: 'الطلبات'.tr,
       body: AdminAsyncBody<List<AdminOrder>>(
         placeholder: LoadingFixtures.adminOrders,
         value: orders,
-        emptyMessage: 'لا توجد طلبات بعد',
+        emptyMessage: 'لا توجد طلبات بعد'.tr,
         isEmpty: (data) => data.isEmpty,
         onRetry: () => ref.invalidate(adminOrdersProvider),
         builder: (items) {
@@ -37,12 +38,12 @@ class AdminOrdersScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            order.shopName ?? 'محل',
+                            order.shopName ?? 'محل'.tr,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            '${order.statusLabel} · ${order.total.toStringAsFixed(2)}',
+                            '${order.statusLabel.tr} · ${AppFormat.price(order.total)}',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           const SizedBox(height: AppSpacing.xs),

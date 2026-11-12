@@ -162,15 +162,15 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                           children: [
                             Row(
                               children: [
-                                const Icon(
+                                Icon(
                                   AppIcons.rateReview,
                                   size: 20,
                                   color: AppColors.icon,
                                 ),
                                 const SizedBox(width: AppSpacing.xs),
                                 Text(
-                                  'تقييمات وآراء المشترين (${currentReviews.length})',
-                                  style: const TextStyle(
+                                  'تقييمات وآراء المشترين (${currentReviews.length})'.tr,
+                                  style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: AppFont.bold,
                                     color: AppColors.text,
@@ -179,7 +179,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                               ],
                             ),
                             IconButton(
-                              icon: const Icon(
+                              icon: Icon(
                                 AppIcons.close,
                                 size: 22,
                                 color: AppColors.icon,
@@ -213,8 +213,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'أضف تقييمك ورأيك في القطعة',
+                                  Text(
+                                    'أضف تقييمك ورأيك في القطعة'.tr,
                                     style: TextStyle(
                                       fontSize: 15,
                                       fontWeight: AppFont.bold,
@@ -261,14 +261,14 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         ?.copyWith(color: AppColors.text),
                                     decoration: InputDecoration(
                                       hintText:
-                                          'اكتب رأيك وتجربتك مع المقاس والجودة والخامة...',
+                                          'اكتب رأيك وتجربتك مع المقاس والجودة والخامة...'.tr,
                                       filled: true,
                                       fillColor: AppColors.white,
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(
                                           InputDesign.radius,
                                         ),
-                                        borderSide: const BorderSide(
+                                        borderSide: BorderSide(
                                           color: AppColors.border,
                                         ),
                                       ),
@@ -276,7 +276,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         borderRadius: BorderRadius.circular(
                                           InputDesign.radius,
                                         ),
-                                        borderSide: const BorderSide(
+                                        borderSide: BorderSide(
                                           color: AppColors.border,
                                         ),
                                       ),
@@ -284,7 +284,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         borderRadius: BorderRadius.circular(
                                           InputDesign.radius,
                                         ),
-                                        borderSide: const BorderSide(
+                                        borderSide: BorderSide(
                                           color: AppColors.primary,
                                           width: 1.5,
                                         ),
@@ -336,7 +336,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                                   if (context.mounted) {
                                                     showAppSnackBar(
                                                       context,
-                                                      'تمت إضافة تقييمك بنجاح',
+                                                      'تمت إضافة تقييمك بنجاح'.tr,
                                                     );
                                                   }
                                                 } catch (e) {
@@ -346,7 +346,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                                   if (context.mounted) {
                                                     showAppSnackBar(
                                                       context,
-                                                      'تعذر إضافة التقييم',
+                                                      'تعذر إضافة التقييم'.tr,
                                                       isError: true,
                                                     );
                                                   }
@@ -354,10 +354,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                               },
                                       ),
                                       child: isSubmitting
-                                          ? const AppBusyLabel(
-                                              label: 'إرسال التقييم',
+                                          ? AppBusyLabel(
+                                              label: 'إرسال التقييم'.tr,
                                             )
-                                          : const Text('إرسال التقييم'),
+                                          : Text('إرسال التقييم'.tr),
                                     ),
                                   ),
                                 ],
@@ -366,8 +366,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             const SizedBox(height: AppSpacing.lg),
 
                             // Existing Reviews
-                            const Text(
-                              'آراء العملاء السابقة',
+                            Text(
+                              'آراء العملاء السابقة'.tr,
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: AppFont.bold,
@@ -376,10 +376,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             if (currentReviews.isEmpty)
-                              const AppEmpty(
+                              AppEmpty(
                                 icon: AppIcons.reviews,
                                 message:
-                                    'لا توجد تقييمات لهذا المنتج بعد. كن أول من يقيّمه.',
+                                    'لا توجد تقييمات لهذا المنتج بعد. كن أول من يقيّمه.'.tr,
                               )
                             else
                               ...currentReviews.map(
@@ -417,12 +417,12 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       placeholder: LoadingFixtures.product,
       data: (product) {
         if (product == null) {
-          return const CustomerScaffold(
+          return CustomerScaffold(
             showBottomNav: false,
-            title: 'تفاصيل المنتج',
+            title: 'تفاصيل المنتج'.tr,
             body: AppEmpty(
               icon: AppIcons.garment,
-              message: 'المنتج غير موجود',
+              message: 'المنتج غير موجود'.tr,
             ),
           );
         }
@@ -459,7 +459,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           _quantity = currentStock;
         }
         final isInCompare = compareList.any((p) => p.id == product.id);
-        final reviews = reviewsAsync.value ?? const <ProductReview>[];
+        final reviews = reviewsAsync.value ?? <ProductReview>[];
         final screenHeight = MediaQuery.of(context).size.height;
         final galleryHeight =
             (screenHeight * ProductDetailsDesign.galleryHeightFactor).clamp(
@@ -470,14 +470,14 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         final specFields = <MapEntry<String, String>>[];
         if (product.categoryName != null &&
             product.categoryName!.trim().isNotEmpty) {
-          specFields.add(MapEntry('التصنيف', product.categoryName!));
+          specFields.add(MapEntry('التصنيف'.tr, product.categoryName!));
         }
-        for (final field in const {
-          'brand': 'الماركة',
-          'material': 'الخامة',
-          'care': 'طريقة العناية',
-          'fit': 'القَصّة',
-          'origin': 'بلد الصنع',
+        for (final field in {
+          'brand': 'الماركة'.tr,
+          'material': 'الخامة'.tr,
+          'care': 'طريقة العناية'.tr,
+          'fit': 'القَصّة'.tr,
+          'origin': 'بلد الصنع'.tr,
         }.entries) {
           final val = product.details[field.key]?.toString().trim() ?? '';
           if (val.isNotEmpty) {
@@ -527,7 +527,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                       fit: ProductDetailsDesign.galleryImageFit,
                                       width: double.infinity,
                                       height: double.infinity,
-                                      errorBuilder: (_, _, _) => const Center(
+                                      errorBuilder: (_, _, _) => Center(
                                         child: Icon(
                                           AppIcons.garment,
                                           size: 48,
@@ -540,7 +540,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                               },
                             )
                           else
-                            const ColoredBox(
+                            ColoredBox(
                               color: ProductDetailsDesign.galleryBackground,
                               child: Center(
                                 child: Icon(
@@ -590,7 +590,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         boxShadow: ProductDetailsDesign
                                             .floatingButtonShadow,
                                       ),
-                                      child: const Row(
+                                      child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Icon(
@@ -601,7 +601,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                           ),
                                           SizedBox(width: 6),
                                           Text(
-                                            'جرّبها عليك الآن',
+                                            'جرّبها عليك الآن'.tr,
                                             style: TextStyle(
                                               fontSize: 12,
                                               fontWeight: AppFont.bold,
@@ -643,7 +643,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                   const SizedBox(width: AppSpacing.xs),
                                   _FloatingCircleButton(
                                     icon: AppIcons.fullscreen,
-                                    tooltip: 'تكبير الصورة',
+                                    tooltip: 'تكبير الصورة'.tr,
                                     onTap: () => _openFullScreenGallery(
                                       context,
                                       product.images,
@@ -665,7 +665,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         -ProductDetailsDesign.contentOverlap,
                       ),
                       child: Container(
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: ProductDetailsDesign.contentBackground,
                           borderRadius: BorderRadius.vertical(
                             top: Radius.circular(
@@ -756,7 +756,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           AppIcons.shop,
                                           size: 16,
                                           color: AppColors.icon,
@@ -764,7 +764,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         const SizedBox(width: 5),
                                         Text(
                                           product.shopName,
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: ProductDetailsDesign
                                                 .shopNameSize,
                                             fontWeight: ProductDetailsDesign
@@ -774,7 +774,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                           ),
                                         ),
                                         const SizedBox(width: 2),
-                                        const Icon(
+                                        Icon(
                                           AppIcons.forward,
                                           size: 16,
                                           color: ProductDetailsDesign
@@ -810,7 +810,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           AppIcons.starFilled,
                                           size: ProductDetailsDesign
                                               .ratingStarSize,
@@ -820,7 +820,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         const SizedBox(width: 4),
                                         Text(
                                           product.ratingAvg.toStringAsFixed(1),
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: ProductDetailsDesign
                                                 .ratingTextSize,
                                             fontWeight: AppFont.bold,
@@ -829,7 +829,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         ),
                                         Text(
                                           ' (${product.ratingCount})',
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 12,
                                             color: AppColors.textMuted,
                                           ),
@@ -846,7 +846,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             // Product Title
                             Text(
                               product.name,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: ProductDetailsDesign.titleSize,
                                 fontWeight: ProductDetailsDesign.titleWeight,
                                 color: ProductDetailsDesign.titleColor,
@@ -862,7 +862,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                               children: [
                                 Text(
                                   AppFormat.price(product.price),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: ProductDetailsDesign.priceSize,
                                     fontWeight:
                                         ProductDetailsDesign.priceWeight,
@@ -886,8 +886,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             if (product.availableColors.isNotEmpty) ...[
                               Row(
                                 children: [
-                                  const Text(
-                                    'اللون',
+                                  Text(
+                                    'اللون'.tr,
                                     style: TextStyle(
                                       fontSize:
                                           ProductDetailsDesign.sectionTitleSize,
@@ -900,7 +900,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                     const SizedBox(width: AppSpacing.xs),
                                     Text(
                                       '· $_selectedColor',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: AppFont.semiBold,
                                         color: ProductDetailsDesign
@@ -936,8 +936,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             if (allSizes.isNotEmpty) ...[
                               Row(
                                 children: [
-                                  const Text(
-                                    'المقاس',
+                                  Text(
+                                    'المقاس'.tr,
                                     style: TextStyle(
                                       fontSize:
                                           ProductDetailsDesign.sectionTitleSize,
@@ -950,7 +950,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                     const SizedBox(width: AppSpacing.xs),
                                     Text(
                                       '· $_selectedSize',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: AppFont.semiBold,
                                         color: ProductDetailsDesign
@@ -1019,20 +1019,20 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                           AppRadii.md,
                                         ),
                                       ),
-                                      child: const Icon(
+                                      child: Icon(
                                         AppIcons.tryOn,
                                         color: ProductDetailsDesign.tryOnIcon,
                                         size: 22,
                                       ),
                                     ),
                                     const SizedBox(width: AppSpacing.md),
-                                    const Expanded(
+                                    Expanded(
                                       child: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            'غرفة القياس الافتراضية المباشرة',
+                                            'غرفة القياس الافتراضية المباشرة'.tr,
                                             style: TextStyle(
                                               fontSize: 14,
                                               fontWeight: AppFont.bold,
@@ -1041,7 +1041,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                           ),
                                           SizedBox(height: 2),
                                           Text(
-                                            'شاهد كيف تبدو هذه القطعة عليك بالكاميرا مباشرة قبل الشراء',
+                                            'شاهد كيف تبدو هذه القطعة عليك بالكاميرا مباشرة قبل الشراء'.tr,
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: AppColors.textSecondary,
@@ -1050,7 +1050,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         ],
                                       ),
                                     ),
-                                    const Icon(
+                                    Icon(
                                       AppIcons.forward,
                                       size: 16,
                                       color: AppColors.icon,
@@ -1066,12 +1066,12 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             const Divider(height: 1),
                             if (product.description?.trim().isNotEmpty ?? false)
                               _DetailAccordion(
-                                title: 'وصف القطعة',
+                                title: 'وصف القطعة'.tr,
                                 icon: AppIcons.notes,
                                 initiallyExpanded: true,
                                 child: Text(
                                   product.description!,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: ProductDetailsDesign.bodyTextSize,
                                     color: ProductDetailsDesign.bodyTextColor,
                                     height: 1.65,
@@ -1080,7 +1080,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                               ),
                             if (specFields.isNotEmpty)
                               _DetailAccordion(
-                                title: 'المواصفات والخامة والعناية',
+                                title: 'المواصفات والخامة والعناية'.tr,
                                 icon: AppIcons.ruler,
                                 initiallyExpanded:
                                     product.description?.trim().isEmpty ?? true,
@@ -1097,7 +1097,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                               width: 110,
                                               child: Text(
                                                 entry.key,
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontSize: 13,
                                                   color: ProductDetailsDesign
                                                       .specLabelColor,
@@ -1107,7 +1107,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                             Expanded(
                                               child: Text(
                                                 entry.value,
-                                                style: const TextStyle(
+                                                style: TextStyle(
                                                   fontSize: 13,
                                                   fontWeight:
                                                       ProductDetailsDesign
@@ -1154,11 +1154,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                     Container(
                                       width: ProductDetailsDesign.shopLogoSize,
                                       height: ProductDetailsDesign.shopLogoSize,
-                                      decoration: const BoxDecoration(
+                                      decoration: BoxDecoration(
                                         color: AppColors.surfaceAlt,
                                         shape: BoxShape.circle,
                                       ),
-                                      child: const Icon(
+                                      child: Icon(
                                         AppIcons.shopActive,
                                         color: AppColors.icon,
                                         size: 22,
@@ -1170,8 +1170,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          const Text(
-                                            'يباع بواسطة',
+                                          Text(
+                                            'يباع بواسطة'.tr,
                                             style: TextStyle(
                                               fontSize: 11,
                                               color: AppColors.textMuted,
@@ -1180,7 +1180,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                           const SizedBox(height: 2),
                                           Text(
                                             product.shopName,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 15,
                                               fontWeight: AppFont.bold,
                                               color: AppColors.text,
@@ -1200,8 +1200,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                           AppRadii.pill,
                                         ),
                                       ),
-                                      child: const Text(
-                                        'زيارة المتجر',
+                                      child: Text(
+                                        'زيارة المتجر'.tr,
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: AppFont.bold,
@@ -1222,8 +1222,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             AppSectionHeader(
                               padding: EdgeInsets.zero,
                               title:
-                                  'تقييمات المشترين (${product.ratingCount})',
-                              actionLabel: 'عرض الكل وإضافة تقييم',
+                                  'تقييمات المشترين (${product.ratingCount})'.tr,
+                              actionLabel: 'عرض الكل وإضافة تقييم'.tr,
                               onAction: AppHaptics.action(
                                 () => _openFullReviewsBottomSheet(
                                   context,
@@ -1264,7 +1264,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                       children: [
                                         Text(
                                           product.ratingAvg.toStringAsFixed(1),
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontSize: 28,
                                             fontWeight: AppFont.extraBold,
                                             color: AppColors.text,
@@ -1291,8 +1291,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          const Text(
-                                            'شاركنا تجربتك مع القطعة',
+                                          Text(
+                                            'شاركنا تجربتك مع القطعة'.tr,
                                             style: TextStyle(
                                               fontSize: 14,
                                               fontWeight: AppFont.bold,
@@ -1302,9 +1302,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                           const SizedBox(height: 2),
                                           Text(
                                             product.ratingCount > 0
-                                                ? 'اضغط لقراءة ${product.ratingCount} تقييم أو كتابة تقييمك'
-                                                : 'لا توجد تقييمات بعد · كن أول من يقيّم هذه القطعة',
-                                            style: const TextStyle(
+                                                ? 'اضغط لقراءة ${product.ratingCount} تقييم أو كتابة تقييمك'.tr
+                                                : 'لا توجد تقييمات بعد · كن أول من يقيّم هذه القطعة'.tr,
+                                            style: TextStyle(
                                               fontSize: 12,
                                               color: AppColors.textMuted,
                                             ),
@@ -1312,7 +1312,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         ],
                                       ),
                                     ),
-                                    const Icon(
+                                    Icon(
                                       AppIcons.forward,
                                       color: AppColors.icon,
                                     ),
@@ -1337,9 +1337,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             ),
 
                             // Infinite Recommendations Section
-                            const AppSectionHeader(
+                            AppSectionHeader(
                               padding: EdgeInsets.zero,
-                              title: 'منتجات قد تعجبك',
+                              title: 'منتجات قد تعجبك'.tr,
                             ),
                             const SizedBox(height: AppSpacing.md),
 
@@ -1406,15 +1406,15 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       children: [
                         _FloatingCircleButton(
                           icon: AppIcons.back,
-                          tooltip: 'رجوع',
+                          tooltip: 'رجوع'.tr,
                           onTap: () => Navigator.of(context).maybePop(),
                         ),
                         const Spacer(),
                         _FloatingCircleButton(
                           icon: AppIcons.compare,
                           tooltip: isInCompare
-                              ? 'إزالة من المقارنة'
-                              : 'إضافة للمقارنة',
+                              ? 'إزالة من المقارنة'.tr
+                              : 'إضافة للمقارنة'.tr,
                           selected: isInCompare,
                           onTap: () {
                             final notifier = ref.read(
@@ -1424,22 +1424,22 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                               notifier.removeProduct(product.id);
                               showAppSnackBar(
                                 context,
-                                'تمت الإزالة من المقارنة',
+                                'تمت الإزالة من المقارنة'.tr,
                               );
                             } else {
                               final added = notifier.addProduct(product);
                               if (added) {
                                 showAppSnackBar(
                                   context,
-                                  'تمت الإضافة للمقارنة',
-                                  actionLabel: 'عرض المقارنة',
+                                  'تمت الإضافة للمقارنة'.tr,
+                                  actionLabel: 'عرض المقارنة'.tr,
                                   onAction: () =>
                                       context.push(AppRoutes.customerCompare),
                                 );
                               } else {
                                 showAppSnackBar(
                                   context,
-                                  'الحد الأقصى للمقارنة هو 3 منتجات',
+                                  'الحد الأقصى للمقارنة هو 3 منتجات'.tr,
                                   isError: true,
                                 );
                               }
@@ -1451,7 +1451,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                           icon: product.isFavorite
                               ? AppIcons.heartFilled
                               : AppIcons.heart,
-                          tooltip: 'المفضلة',
+                          tooltip: 'المفضلة'.tr,
                           onTap: _togglingFavorite
                               ? null
                               : () async {
@@ -1468,7 +1468,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         const SizedBox(width: AppSpacing.xs),
                         _FloatingCircleButton(
                           icon: AppIcons.bag,
-                          tooltip: 'سلة المشتريات',
+                          tooltip: 'سلة المشتريات'.tr,
                           badgeCount: cartCount,
                           onTap: () => context.push(AppRoutes.customerCart),
                         ),
@@ -1482,7 +1482,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
 
           // 3) Sticky Bottom Action Bar: Quantity Stepper + Primary Add to Cart CTA
           bottomNavigationBar: Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: ProductDetailsDesign.bottomBarBackground,
               boxShadow: ProductDetailsDesign.bottomBarShadow,
               border: Border(
@@ -1525,7 +1525,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                           ),
                           Text(
                             '$_quantity',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: ProductDetailsDesign.stepperValueSize,
                               fontWeight: AppFont.extraBold,
                               color: AppColors.text,
@@ -1562,8 +1562,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                           ),
                           label: Text(
                             currentStock > 0
-                                ? 'إضافة إلى السلة · ${AppFormat.price(product.price * _quantity)}'
-                                : 'نفدت الكمية',
+                                ? 'إضافة إلى السلة · ${AppFormat.price(product.price * _quantity)}'.tr
+                                : 'نفدت الكمية'.tr,
                           ),
                           onPressed: AppHaptics.action(
                             currentStock > 0 &&
@@ -1582,8 +1582,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         );
                                     showAppSnackBar(
                                       context,
-                                      'تمت إضافة القطعة إلى سلة المشتريات',
-                                      actionLabel: 'عرض السلة',
+                                      'تمت إضافة القطعة إلى سلة المشتريات'.tr,
+                                      actionLabel: 'عرض السلة'.tr,
                                       onAction: () =>
                                           context.push(AppRoutes.customerCart),
                                     );
@@ -1602,10 +1602,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       },
       error: (err, _) => CustomerScaffold(
         showBottomNav: false,
-        title: 'تفاصيل المنتج',
+        title: 'تفاصيل المنتج'.tr,
         body: AppEmpty(
           icon: AppIcons.error,
-          title: 'تعذر تحميل تفاصيل المنتج',
+          title: 'تعذر تحميل تفاصيل المنتج'.tr,
           message: '$err',
         ),
       ),
@@ -1743,19 +1743,19 @@ class _StockBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (stock <= 0) {
-      return const AppStatusBadge(
-        label: 'نفدت الكمية',
+      return AppStatusBadge(
+        label: 'نفدت الكمية'.tr,
         tone: BadgeTone.error,
       );
     }
     if (stock <= ProductDetailsDesign.lowStockThreshold) {
       return AppStatusBadge(
-        label: 'متبقي $stock فقط',
+        label: 'متبقي $stock فقط'.tr,
         tone: BadgeTone.warning,
       );
     }
-    return const AppStatusBadge(
-      label: 'متوفر في المخزون',
+    return AppStatusBadge(
+      label: 'متوفر في المخزون'.tr,
       tone: BadgeTone.primary,
     );
   }
@@ -1777,7 +1777,7 @@ class _DetailAccordion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: ProductDetailsDesign.expandableDivider),
         ),
@@ -1795,7 +1795,7 @@ class _DetailAccordion extends StatelessWidget {
           leading: Icon(icon, size: 20, color: AppColors.icon),
           title: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: ProductDetailsDesign.expandableTitleSize,
               fontWeight: ProductDetailsDesign.expandableTitleWeight,
               color: AppColors.text,
@@ -1820,7 +1820,7 @@ class _ReviewTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final initial = review.customerName.trim().isNotEmpty
         ? review.customerName.trim().characters.first
-        : 'ع';
+        : 'ع'.tr;
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -1839,14 +1839,14 @@ class _ReviewTile extends StatelessWidget {
               Container(
                 width: ProductDetailsDesign.reviewAvatarSize,
                 height: ProductDetailsDesign.reviewAvatarSize,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: ProductDetailsDesign.reviewAvatarBackground,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   initial,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: AppFont.bold,
                     color: ProductDetailsDesign.reviewAvatarText,
                   ),
@@ -1856,7 +1856,7 @@ class _ReviewTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   review.customerName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: AppFont.bold,
                     color: AppColors.text,
@@ -1883,7 +1883,7 @@ class _ReviewTile extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             Text(
               review.comment!,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 color: ProductDetailsDesign.bodyTextColor,
                 height: 1.5,
@@ -1972,7 +1972,7 @@ class _FullscreenGalleryPageState extends State<_FullscreenGalleryPage> {
                     ),
                     child: Text(
                       '${_index + 1} / ${widget.images.length}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: AppFont.bold,
                         color: AppColors.text,

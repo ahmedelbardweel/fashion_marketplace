@@ -29,7 +29,7 @@ class AdminNotificationsScreen extends ConsumerWidget {
     final saved = await AppBottomSheet.show<bool>(
       context: context,
       child: AppBottomSheetScaffold(
-        title: 'إرسال إشعار',
+        title: 'إرسال إشعار'.tr,
         child: StatefulBuilder(
           builder: (context, setModalState) {
             return Form(
@@ -39,31 +39,31 @@ class AdminNotificationsScreen extends ConsumerWidget {
                 children: [
                   AppTextField(
                     controller: titleController,
-                    label: 'العنوان',
+                    label: 'العنوان'.tr,
                     validator: (value) =>
-                        Validators.required(value, field: 'العنوان'),
+                        Validators.required(value, field: 'العنوان'.tr),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: bodyController,
-                    label: 'المحتوى',
+                    label: 'المحتوى'.tr,
                     maxLines: 4,
                     validator: (value) =>
-                        Validators.required(value, field: 'المحتوى'),
+                        Validators.required(value, field: 'المحتوى'.tr),
                   ),
-                  const SizedBox(height: AppSpacing.md),
+                  SizedBox(height: AppSpacing.md),
                   Text(
-                    'الجمهور',
+                    'الجمهور'.tr,
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
-                  const SizedBox(height: AppSpacing.sm),
+                  SizedBox(height: AppSpacing.sm),
                   Wrap(
                     spacing: 8,
                     children: [
-                      for (final option in const [
-                        ('all', 'الجميع'),
-                        ('customer', 'المستخدمون'),
-                        ('shop', 'المحلات'),
+                      for (final option in [
+                        ('all', 'الجميع'.tr),
+                        ('customer', 'المستخدمون'.tr),
+                        ('shop', 'المحلات'.tr),
                       ])
                         ChoiceChip(
                           label: Text(option.$2),
@@ -76,7 +76,7 @@ class AdminNotificationsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   AppButton(
-                    label: 'إرسال',
+                    label: 'إرسال'.tr,
                     onPressed: () {
                       if (formKey.currentState?.validate() != true) return;
                       Navigator.of(context).pop(true);
@@ -108,12 +108,12 @@ class AdminNotificationsScreen extends ConsumerWidget {
       final error = ref.read(adminActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر الإرسال' : actions.errorMessage(error),
+        error == null ? 'تعذر الإرسال'.tr : actions.errorMessage(error),
         isError: true,
       );
       return;
     }
-    showAppSnackBar(context, 'تم إرسال الإشعار');
+    showAppSnackBar(context, 'تم إرسال الإشعار'.tr);
   }
 
   @override
@@ -122,11 +122,11 @@ class AdminNotificationsScreen extends ConsumerWidget {
     final busy = ref.watch(adminActionProvider).isLoading;
 
     return AdminScaffold(
-      title: 'الإشعارات',
+      title: 'الإشعارات'.tr,
       body: AdminAsyncBody<List<AdminNotification>>(
         placeholder: LoadingFixtures.notifications,
         value: notifications,
-        emptyMessage: 'لا توجد إشعارات مرسلة بعد',
+        emptyMessage: 'لا توجد إشعارات مرسلة بعد'.tr,
         isEmpty: (data) => data.isEmpty,
         onRetry: () => ref.invalidate(adminNotificationsProvider),
         builder: (items) {
@@ -161,7 +161,7 @@ class AdminNotificationsScreen extends ConsumerWidget {
         },
       ),
       bottom: AppButton(
-        label: 'إرسال إشعار',
+        label: 'إرسال إشعار'.tr,
         isLoading: busy,
         onPressed: () => _send(context, ref),
       ),

@@ -34,29 +34,29 @@ class ShopProductsScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'الحالة: ${product.statusLabel}\nالمخزون: ${product.totalStock}',
+              'الحالة: ${product.statusLabel}\nالمخزون: ${product.totalStock}'.tr,
             ),
             const SizedBox(height: AppSpacing.lg),
             AppButton(
-              label: 'تعديل',
+              label: 'تعديل'.tr,
               onPressed: () => Navigator.of(context).pop('edit'),
             ),
             const SizedBox(height: AppSpacing.sm),
             if (product.status != 'published')
               AppButton(
-                label: 'نشر',
+                label: 'نشر'.tr,
                 variant: AppButtonVariant.outlined,
                 onPressed: () => Navigator.of(context).pop('published'),
               ),
             if (product.status == 'published')
               AppButton(
-                label: 'إيقاف النشر',
+                label: 'إيقاف النشر'.tr,
                 variant: AppButtonVariant.outlined,
                 onPressed: () => Navigator.of(context).pop('hidden'),
               ),
             const SizedBox(height: AppSpacing.sm),
             AppButton(
-              label: 'حذف',
+              label: 'حذف'.tr,
               variant: AppButtonVariant.outlined,
               onPressed: () => Navigator.of(context).pop('deleted'),
             ),
@@ -83,12 +83,12 @@ class ShopProductsScreen extends ConsumerWidget {
       final error = ref.read(shopCatalogActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر التحديث' : actions.errorMessage(error),
+        error == null ? 'تعذر التحديث'.tr : actions.errorMessage(error),
         isError: true,
       );
       return;
     }
-    showAppSnackBar(context, 'تم تحديث المنتج');
+    showAppSnackBar(context, 'تم تحديث المنتج'.tr);
   }
 
   @override
@@ -103,15 +103,15 @@ class ShopProductsScreen extends ConsumerWidget {
     final approved = shop?.visibleStatus == ShopStatus.approved;
 
     return ShopScaffold(
-      title: 'المنتجات',
+      title: 'المنتجات'.tr,
       showBack: false,
       body: !approved && !awaitingShop
           ? ListView(
               padding: AppSpacing.page,
-              children: const [
+              children: [
                 AppCard(
                   child: Text(
-                    'لا يمكن إدارة المنتجات قبل موافقة الإدارة على المحل.',
+                    'لا يمكن إدارة المنتجات قبل موافقة الإدارة على المحل.'.tr,
                   ),
                 ),
               ],
@@ -128,8 +128,8 @@ class ShopProductsScreen extends ConsumerWidget {
                 if (items.isEmpty) {
                   return ListView(
                     padding: AppSpacing.page,
-                    children: const [
-                      AppCard(child: Text('لا توجد منتجات بعد')),
+                    children: [
+                      AppCard(child: Text('لا توجد منتجات بعد'.tr)),
                     ],
                   );
                 }
@@ -154,7 +154,7 @@ class ShopProductsScreen extends ConsumerWidget {
             ),
       bottom: approved
           ? AppButton(
-              label: 'إضافة منتج',
+              label: 'إضافة منتج'.tr,
               isLoading: busy,
               onPressed: () => context.push(AppRoutes.shopProductForm),
             )

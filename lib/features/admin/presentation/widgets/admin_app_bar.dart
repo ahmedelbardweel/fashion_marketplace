@@ -31,7 +31,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       scrolledUnderElevation: 0,
       systemOverlayStyle: SystemUiOverlayStyle.dark,
-      shape: const Border(
+      shape: Border(
         bottom: BorderSide(color: AppBarDesign.borderColor, width: 1),
       ),
       leading: canPop
@@ -39,7 +39,7 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
               onPressed: AppHaptics.action(
                 () => Navigator.of(context).maybePop(),
               ),
-              icon: const Icon(
+              icon: Icon(
                 AppIcons.back,
                 color: AppBarDesign.iconColor,
               ),
@@ -47,8 +47,8 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
           : const SizedBox.shrink(),
       leadingWidth: canPop ? 56 : 12,
       title: Text(
-        title,
-        style: const TextStyle(
+        AppLang.tr(title),
+        style: TextStyle(
           fontSize: AppBarDesign.titleSize,
           fontWeight: AppBarDesign.titleWeight,
           color: AppBarDesign.titleColor,
@@ -144,7 +144,7 @@ class AdminFeatureTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      code,
+                      AppLang.tr(code),
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: AppColors.primaryDark,
                         fontWeight: AppFont.bold,
@@ -152,10 +152,13 @@ class AdminFeatureTile extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(title, style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      AppLang.tr(title),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 4),
                     Text(
-                      subtitle,
+                      AppLang.tr(subtitle),
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
@@ -170,8 +173,8 @@ class AdminFeatureTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(BadgeDesign.radius),
                   ),
                   child: Text(
-                    badge!,
-                    style: const TextStyle(
+                    AppLang.tr(badge!),
+                    style: TextStyle(
                       color: BadgeDesign.primaryText,
                       fontSize: BadgeDesign.textSize,
                       fontWeight: BadgeDesign.textWeight,
@@ -180,7 +183,7 @@ class AdminFeatureTile extends StatelessWidget {
                 ),
               ],
               const SizedBox(width: AppSpacing.xs),
-              const Icon(AppIcons.forward, color: AppColors.icon),
+              Icon(AppIcons.forward, color: AppColors.icon),
             ],
           ),
         ),

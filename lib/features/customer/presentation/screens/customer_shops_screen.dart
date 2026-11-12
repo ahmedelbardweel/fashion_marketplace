@@ -20,7 +20,7 @@ class CustomerShopsScreen extends ConsumerWidget {
     final shopsAsync = ref.watch(customerShopsProvider);
 
     return CustomerScaffold(
-      title: 'المتاجر المعتمدة',
+      title: 'المتاجر المعتمدة'.tr,
       showSearch: false,
       body: RefreshIndicator.noSpinner(
         onRefresh: AppHaptics.refresh(() async {
@@ -30,9 +30,9 @@ class CustomerShopsScreen extends ConsumerWidget {
           placeholder: LoadingFixtures.customerShops,
           data: (shops) {
             if (shops.isEmpty) {
-              return const AppEmpty(
+              return AppEmpty(
                 icon: AppIcons.shop,
-                message: 'لا توجد متاجر معتمدة حالياً',
+                message: 'لا توجد متاجر معتمدة حالياً'.tr,
               );
             }
 
@@ -65,12 +65,12 @@ class CustomerShopsScreen extends ConsumerWidget {
                             ? AppNetworkImage(
                                 shop.logoPath!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => const Icon(
+                                errorBuilder: (_, _, _) => Icon(
                                   AppIcons.shopActive,
                                   color: AppColors.icon,
                                 ),
                               )
-                            : const Icon(
+                            : Icon(
                                 AppIcons.shopActive,
                                 color: AppColors.icon,
                               ),
@@ -82,7 +82,7 @@ class CustomerShopsScreen extends ConsumerWidget {
                           children: [
                             Text(
                               shop.name,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: AppFont.bold,
                                 color: AppColors.text,
@@ -94,15 +94,15 @@ class CustomerShopsScreen extends ConsumerWidget {
                                 shop.description!,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textMuted,
                                 ),
                               ),
                             const SizedBox(height: 4),
                             Text(
-                              '${shop.city ?? 'متجر أزياء'} · ${shop.productsCount} منتج',
-                              style: const TextStyle(
+                              '${shop.city ?? 'متجر أزياء'.tr} · ${shop.productsCount} منتج',
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: AppFont.semiBold,
                                 color: AppColors.primaryDark,
@@ -111,7 +111,7 @@ class CustomerShopsScreen extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         AppIcons.forward,
                         color: AppColors.icon,
                       ),
@@ -123,7 +123,7 @@ class CustomerShopsScreen extends ConsumerWidget {
           },
           error: (err, _) => AppEmpty(
             icon: AppIcons.error,
-            message: 'تعذر تحميل المتاجر: $err',
+            message: 'تعذر تحميل المتاجر: $err'.tr,
           ),
         ),
       ),

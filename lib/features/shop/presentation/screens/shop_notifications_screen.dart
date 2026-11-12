@@ -18,7 +18,7 @@ class ShopNotificationsScreen extends ConsumerWidget {
     final notifications = ref.watch(shopNotificationsProvider);
 
     return ShopScaffold(
-      title: 'الإشعارات',
+      title: 'الإشعارات'.tr,
       showBottomNav: false,
       body: notifications.skeletonWhen(
         placeholder: LoadingFixtures.notifications,
@@ -29,7 +29,7 @@ class ShopNotificationsScreen extends ConsumerWidget {
           if (items.isEmpty) {
             return ListView(
               padding: AppSpacing.page,
-              children: const [AppCard(child: Text('لا توجد إشعارات حالياً'))],
+              children: [AppCard(child: Text('لا توجد إشعارات حالياً'.tr))],
             );
           }
           return ListView(

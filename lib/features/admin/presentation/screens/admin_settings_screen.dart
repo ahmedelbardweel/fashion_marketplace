@@ -39,13 +39,13 @@ class AdminSettingsScreen extends ConsumerWidget {
             children: [
               AppTextField(
                 controller: controller,
-                label: 'القيمة',
+                label: 'القيمة'.tr,
                 validator: (value) =>
-                    Validators.required(value, field: 'القيمة'),
+                    Validators.required(value, field: 'القيمة'.tr),
               ),
               const SizedBox(height: AppSpacing.lg),
               AppButton(
-                label: 'حفظ',
+                label: 'حفظ'.tr,
                 onPressed: () {
                   if (formKey.currentState?.validate() != true) return;
                   Navigator.of(context).pop(true);
@@ -68,12 +68,12 @@ class AdminSettingsScreen extends ConsumerWidget {
       final error = ref.read(adminActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر الحفظ' : actions.errorMessage(error),
+        error == null ? 'تعذر الحفظ'.tr : actions.errorMessage(error),
         isError: true,
       );
       return;
     }
-    showAppSnackBar(context, 'تم تحديث الإعداد');
+    showAppSnackBar(context, 'تم تحديث الإعداد'.tr);
   }
 
   @override
@@ -82,7 +82,7 @@ class AdminSettingsScreen extends ConsumerWidget {
     final busy = ref.watch(adminActionProvider).isLoading;
 
     return AdminScaffold(
-      title: 'إعدادات المنصة',
+      title: 'إعدادات المنصة'.tr,
       showBack: false,
       body: ListView(
         padding: AppSpacing.page,
@@ -92,7 +92,7 @@ class AdminSettingsScreen extends ConsumerWidget {
           settings.skeletonWhen(
             placeholder: LoadingFixtures.settings,
             error: (_, _) => AppButton(
-              label: 'إعادة تحميل إعدادات المنصة',
+              label: 'إعادة تحميل إعدادات المنصة'.tr,
               onPressed: () => ref.invalidate(adminSettingsProvider),
             ),
             data: (items) => Column(
@@ -130,7 +130,7 @@ class AdminSettingsScreen extends ConsumerWidget {
         ],
       ),
       bottom: AppButton(
-        label: 'تسجيل الخروج',
+        label: 'تسجيل الخروج'.tr,
         variant: AppButtonVariant.outlined,
         onPressed: () => confirmAdminLogout(context, ref),
       ),

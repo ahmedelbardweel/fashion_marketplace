@@ -28,7 +28,7 @@ class CustomerFavoritesScreen extends ConsumerWidget {
     final favoritesAsync = ref.watch(customerFavoritesProvider);
 
     return CustomerScaffold(
-      title: 'المفضلة',
+      title: 'المفضلة'.tr,
       currentNavIndex: 2,
       showBack: false,
       body: RefreshIndicator.noSpinner(
@@ -41,9 +41,9 @@ class CustomerFavoritesScreen extends ConsumerWidget {
             if (favorites.isEmpty) {
               return AppEmpty(
                 icon: FavoritesDesign.emptyIcon,
-                title: 'قائمة المفضلة فارغة',
-                message: 'احفظ الأزياء التي تنال إعجابك للرجوع إليها في أي وقت',
-                actionLabel: 'تصفح الأزياء الآن',
+                title: 'قائمة المفضلة فارغة'.tr,
+                message: 'احفظ الأزياء التي تنال إعجابك للرجوع إليها في أي وقت'.tr,
+                actionLabel: 'تصفح الأزياء الآن'.tr,
                 onAction: AppHaptics.action(
                   () => context.go(AppRoutes.customerCatalog),
                 ),
@@ -74,7 +74,7 @@ class CustomerFavoritesScreen extends ConsumerWidget {
           },
           error: (err, _) => AppEmpty(
             icon: AppIcons.error,
-            message: 'تعذر تحميل المفضلة: $err',
+            message: 'تعذر تحميل المفضلة: $err'.tr,
           ),
         ),
       ),

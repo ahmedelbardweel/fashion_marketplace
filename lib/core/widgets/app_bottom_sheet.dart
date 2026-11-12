@@ -92,7 +92,7 @@ class AppBottomSheetScaffold extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               child: Text(
-                title!,
+                AppLang.tr(title!),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontSize: SheetDesign.titleSize,

@@ -29,23 +29,23 @@ class AdminShopsManageScreen extends ConsumerWidget {
     final confirmed = await AppBottomSheet.show<bool>(
       context: context,
       child: AppBottomSheetScaffold(
-        title: suspend ? 'تعليق المحل' : 'إعادة تفعيل المحل',
+        title: suspend ? 'تعليق المحل'.tr : 'إعادة تفعيل المحل'.tr,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
               suspend
-                  ? 'تعليق محل "${shop.name}"؟'
-                  : 'إعادة تفعيل محل "${shop.name}"؟',
+                  ? 'تعليق محل "${shop.name}"؟'.tr
+                  : 'إعادة تفعيل محل "${shop.name}"؟'.tr,
             ),
             const SizedBox(height: AppSpacing.lg),
             AppButton(
-              label: 'تأكيد',
+              label: 'تأكيد'.tr,
               onPressed: () => Navigator.of(context).pop(true),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppButton(
-              label: 'إلغاء',
+              label: 'إلغاء'.tr,
               variant: AppButtonVariant.outlined,
               onPressed: () => Navigator.of(context).pop(false),
             ),
@@ -65,14 +65,14 @@ class AdminShopsManageScreen extends ConsumerWidget {
       final error = ref.read(adminActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر تحديث المحل' : actions.errorMessage(error),
+        error == null ? 'تعذر تحديث المحل'.tr : actions.errorMessage(error),
         isError: true,
       );
       return;
     }
     showAppSnackBar(
       context,
-      suspend ? 'تم تعليق المحل' : 'تم إعادة تفعيل المحل',
+      suspend ? 'تم تعليق المحل'.tr : 'تم إعادة تفعيل المحل'.tr,
     );
   }
 
@@ -82,11 +82,11 @@ class AdminShopsManageScreen extends ConsumerWidget {
     final busy = ref.watch(adminActionProvider).isLoading;
 
     return AdminScaffold(
-      title: 'إدارة المحلات',
+      title: 'إدارة المحلات'.tr,
       body: AdminAsyncBody<List<Shop>>(
         placeholder: LoadingFixtures.shops,
         value: shops,
-        emptyMessage: 'لا توجد محلات بعد',
+        emptyMessage: 'لا توجد محلات بعد'.tr,
         isEmpty: (data) => data.isEmpty,
         onRetry: () => ref.invalidate(adminManagedShopsProvider),
         builder: (items) {
@@ -121,8 +121,8 @@ class AdminShopsManageScreen extends ConsumerWidget {
                           Text(
                             shop.status == ShopStatus.approved ||
                                     shop.status == ShopStatus.suspended
-                                ? 'اضغط للتعليق أو إعادة التفعيل'
-                                : 'اضغط لعرض تفاصيل الطلب',
+                                ? 'اضغط للتعليق أو إعادة التفعيل'.tr
+                                : 'اضغط لعرض تفاصيل الطلب'.tr,
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],

@@ -44,11 +44,11 @@ class ShopPublicProfileScreen extends ConsumerWidget {
       placeholder: LoadingFixtures.customerShop,
       data: (shop) {
         if (shop == null) {
-          return const CustomerScaffold(
-            title: 'المتجر',
+          return CustomerScaffold(
+            title: 'المتجر'.tr,
             body: AppEmpty(
               icon: AppIcons.shop,
-              message: 'المتجر غير موجود',
+              message: 'المتجر غير موجود'.tr,
             ),
           );
         }
@@ -79,7 +79,7 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                           ? AppNetworkImage(
                               shop.coverPath!,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => const Center(
+                              errorBuilder: (_, _, _) => Center(
                                 child: Icon(
                                   AppIcons.shopActive,
                                   size: 48,
@@ -87,7 +87,7 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                                 ),
                               ),
                             )
-                          : const Center(
+                          : Center(
                               child: Icon(
                                 AppIcons.shopActive,
                                 size: 48,
@@ -116,7 +116,7 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                                 shop.logoPath!,
                                 fit: BoxFit.cover,
                               )
-                            : const Icon(
+                            : Icon(
                                 AppIcons.shopActive,
                                 size: 34,
                                 color: AppColors.icon,
@@ -136,7 +136,7 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                       Text(
                         shop.name,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: ShopProfileDesign.nameSize,
                           fontWeight: ShopProfileDesign.nameWeight,
                           color: AppColors.text,
@@ -148,7 +148,7 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
+                            Icon(
                               AppIcons.location,
                               size: 15,
                               color: AppColors.icon,
@@ -157,7 +157,7 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                             Flexible(
                               child: Text(
                                 locationText,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 13,
                                   color: ShopProfileDesign.metaColor,
                                 ),
@@ -172,7 +172,7 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                         Text(
                           shop.description!,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             color: AppColors.textSecondary,
                             height: 1.5,
@@ -187,7 +187,7 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                 const Divider(height: 1),
                 const SizedBox(height: AppSpacing.lg),
 
-                const AppSectionHeader(title: 'تشكيلة المتجر'),
+                AppSectionHeader(title: 'تشكيلة المتجر'.tr),
                 const SizedBox(height: AppSpacing.md),
 
                 // Products Grid
@@ -202,9 +202,9 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                     placeholder: LoadingFixtures.products,
                     data: (items) {
                       if (items.isEmpty) {
-                        return const AppEmpty(
+                        return AppEmpty(
                           icon: AppIcons.garment,
-                          message: 'لا توجد منتجات منشورة لهذا المتجر حالياً',
+                          message: 'لا توجد منتجات منشورة لهذا المتجر حالياً'.tr,
                         );
                       }
                       return GridView.builder(
@@ -234,7 +234,7 @@ class ShopPublicProfileScreen extends ConsumerWidget {
                     },
                     error: (err, _) => AppEmpty(
                       icon: AppIcons.error,
-                      message: 'تعذر تحميل المنتجات: $err',
+                      message: 'تعذر تحميل المنتجات: $err'.tr,
                     ),
                   ),
                 ),
@@ -244,10 +244,10 @@ class ShopPublicProfileScreen extends ConsumerWidget {
         );
       },
       error: (e, _) => CustomerScaffold(
-        title: 'المتجر',
+        title: 'المتجر'.tr,
         body: AppEmpty(
           icon: AppIcons.error,
-          message: 'تعذر تحميل المتجر: $e',
+          message: 'تعذر تحميل المتجر: $e'.tr,
         ),
       ),
     );

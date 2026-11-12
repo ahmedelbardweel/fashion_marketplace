@@ -113,7 +113,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
     try {
       _cameras = await availableCameras();
       if (_cameras.isEmpty) {
-        setState(() => _camError = 'لم يتم العثور على كاميرا في هذا الجهاز');
+        setState(() => _camError = 'لم يتم العثور على كاميرا في هذا الجهاز'.tr);
         return;
       }
       final frontIdx = _cameras.indexWhere(
@@ -122,7 +122,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
       _camIndex = frontIdx >= 0 ? frontIdx : 0;
       await _startCamera(_cameras[_camIndex]);
     } catch (e) {
-      setState(() => _camError = 'تعذر تشغيل الكاميرا: $e');
+      setState(() => _camError = 'تعذر تشغيل الكاميرا: $e'.tr);
     }
   }
 
@@ -154,7 +154,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _camError = 'خطأ أثناء تشغيل الكاميرا: $e');
+      setState(() => _camError = 'خطأ أثناء تشغيل الكاميرا: $e'.tr);
     }
   }
 
@@ -369,10 +369,10 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
       (v) => v.size.toUpperCase() == suggestedSize && v.stock > 0,
       orElse: () => product.variants.isNotEmpty
           ? product.variants.first
-          : const ProductVariant(
+          : ProductVariant(
               id: '',
               productId: '',
-              color: 'افتراضي',
+              color: 'افتراضي'.tr,
               size: 'M',
               stock: 10,
               isActive: true,
@@ -385,14 +385,14 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
         builder: (dialogCtx) => CustomerActionSheet(
           title: Row(
             children: [
-              const Icon(
+              Icon(
                 AppIcons.verified,
                 color: AppColors.primary,
                 size: 24,
               ),
               const SizedBox(width: AppSpacing.xs),
               Text(
-                'مطابقة القياس بنجاح',
+                'مطابقة القياس بنجاح'.tr,
                 style: Theme.of(dialogCtx).textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
@@ -414,8 +414,8 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'المقاس المناسب لك:',
+                        Text(
+                          'المقاس المناسب لك:'.tr,
                           style: TextStyle(fontWeight: FontWeight.w600),
                         ),
                         Container(
@@ -429,7 +429,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                           ),
                           child: Text(
                             suggestedSize,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
@@ -445,15 +445,15 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                       textAlign: TextAlign.center,
                     ),
                     Text(
-                      '${product.price.toStringAsFixed(2)} ر.س',
-                      style: const TextStyle(color: AppColors.gray700),
+                      AppFormat.price(product.price),
+                      style: TextStyle(color: AppColors.gray700),
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              const Text(
-                'القطعة متناسقة تماماً مع قياسات جسمك! هل ترغب بإضافتها إلى سلتك؟',
+              Text(
+                'القطعة متناسقة تماماً مع قياسات جسمك! هل ترغب بإضافتها إلى سلتك؟'.tr,
                 style: TextStyle(fontSize: 12),
                 textAlign: TextAlign.center,
               ),
@@ -462,7 +462,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
           actions: [
             TextButton(
               onPressed: AppHaptics.action(() => Navigator.of(dialogCtx).pop()),
-              child: const Text('متابعة التجربة'),
+              child: Text('متابعة التجربة'.tr),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -484,11 +484,11 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                     );
                 showAppSnackBar(
                   context,
-                  'تمت إضافة مقاس ($suggestedSize) بنجاح إلى سلتك!',
+                  'تمت إضافة مقاس ($suggestedSize) بنجاح إلى سلتك!'.tr,
                 );
                 context.pop();
               }),
-              child: Text('إضافة مقاس ($suggestedSize) للسلة'),
+              child: Text('إضافة مقاس ($suggestedSize) للسلة'.tr),
             ),
           ],
         ),
@@ -510,9 +510,9 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
       body: productAsync.when(
         data: (product) {
           if (product == null) {
-            return const Center(
+            return Center(
               child: Text(
-                'المنتج غير موجود',
+                'المنتج غير موجود'.tr,
                 style: TextStyle(color: AppColors.white),
               ),
             );
@@ -608,8 +608,8 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                           const SizedBox(width: AppSpacing.xs),
                           Text(
                             _bodyStatus == _BodyStatus.detected
-                                ? 'تم تحديد الجسم (المقاس: ${_transform.estimatedSize})'
-                                : 'قف أمام الكاميرا لتحديد الجسم...',
+                                ? 'تم تحديد الجسم (المقاس: ${_transform.estimatedSize})'.tr
+                                : 'قف أمام الكاميرا لتحديد الجسم...'.tr,
                             style: TextStyle(
                               color: _bodyStatus == _BodyStatus.detected
                                   ? TryOnDesign.detectedStroke
@@ -667,8 +667,8 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                         ),
                         child: Text(
                           (_bodyStatus == _BodyStatus.detected)
-                              ? 'إخفاء القطعة'
-                              : 'معاينة القطعة على الجسم',
+                              ? 'إخفاء القطعة'.tr
+                              : 'معاينة القطعة على الجسم'.tr,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 11,
@@ -703,7 +703,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                           ),
                         ],
                       ),
-                      child: const Icon(
+                      child: Icon(
                         AppIcons.camera,
                         size: 32,
                         color: AppColors.black,
@@ -743,8 +743,8 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
         ),
         error: (e, _) => Center(
           child: Text(
-            'حدث خطأ: $e',
-            style: const TextStyle(color: AppColors.white),
+            'حدث خطأ: $e'.tr,
+            style: TextStyle(color: AppColors.white),
           ),
         ),
       ),
@@ -789,7 +789,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              _camError ?? 'جاري تشغيل الكاميرا...',
+              _camError ?? 'جاري تشغيل الكاميرا...'.tr,
               style: const TextStyle(color: Colors.white70, fontSize: 13),
               textAlign: TextAlign.center,
             ),

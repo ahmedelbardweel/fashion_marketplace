@@ -35,7 +35,7 @@ class AdminCategoriesScreen extends ConsumerWidget {
     final saved = await AppBottomSheet.show<bool>(
       context: context,
       child: AppBottomSheetScaffold(
-        title: category == null ? 'تصنيف جديد' : 'تعديل التصنيف',
+        title: category == null ? 'تصنيف جديد'.tr : 'تعديل التصنيف'.tr,
         child: StatefulBuilder(
           builder: (context, setModalState) {
             return Form(
@@ -45,20 +45,20 @@ class AdminCategoriesScreen extends ConsumerWidget {
                 children: [
                   AppTextField(
                     controller: nameController,
-                    label: 'اسم التصنيف',
+                    label: 'اسم التصنيف'.tr,
                     validator: (value) =>
-                        Validators.required(value, field: 'اسم التصنيف'),
+                        Validators.required(value, field: 'اسم التصنيف'.tr),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: descController,
-                    label: 'الوصف',
+                    label: 'الوصف'.tr,
                     maxLines: 3,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('نشط'),
+                    title: Text('نشط'.tr),
                     value: isActive,
                     onChanged: AppHaptics.change(
                       (value) => setModalState(() => isActive = value),
@@ -66,7 +66,7 @@ class AdminCategoriesScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   AppButton(
-                    label: 'حفظ',
+                    label: 'حفظ'.tr,
                     onPressed: () {
                       if (formKey.currentState?.validate() != true) return;
                       Navigator.of(context).pop(true);
@@ -99,12 +99,12 @@ class AdminCategoriesScreen extends ConsumerWidget {
       final error = ref.read(adminActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر الحفظ' : actions.errorMessage(error),
+        error == null ? 'تعذر الحفظ'.tr : actions.errorMessage(error),
         isError: true,
       );
       return;
     }
-    showAppSnackBar(context, 'تم حفظ التصنيف');
+    showAppSnackBar(context, 'تم حفظ التصنيف'.tr);
   }
 
   @override
@@ -113,11 +113,11 @@ class AdminCategoriesScreen extends ConsumerWidget {
     final busy = ref.watch(adminActionProvider).isLoading;
 
     return AdminScaffold(
-      title: 'التصنيفات',
+      title: 'التصنيفات'.tr,
       body: AdminAsyncBody<List<CatalogCategory>>(
         placeholder: LoadingFixtures.categories,
         value: categories,
-        emptyMessage: 'لا توجد تصنيفات بعد',
+        emptyMessage: 'لا توجد تصنيفات بعد'.tr,
         isEmpty: (data) => data.isEmpty,
         onRetry: () => ref.invalidate(adminCategoriesProvider),
         builder: (items) {
@@ -140,7 +140,7 @@ class AdminCategoriesScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            item.isActive ? 'نشط' : 'متوقف',
+                            item.isActive ? 'نشط'.tr : 'متوقف'.tr,
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           if (item.description != null &&
@@ -158,7 +158,7 @@ class AdminCategoriesScreen extends ConsumerWidget {
         },
       ),
       bottom: AppButton(
-        label: 'إضافة تصنيف',
+        label: 'إضافة تصنيف'.tr,
         isLoading: busy,
         onPressed: () => _openForm(context, ref),
       ),

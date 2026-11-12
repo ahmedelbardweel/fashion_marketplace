@@ -35,13 +35,13 @@ class ShopAppBar extends StatelessWidget implements PreferredSizeWidget {
       elevation: 0,
       scrolledUnderElevation: 0,
       systemOverlayStyle: SystemUiOverlayStyle.dark,
-      shape: const Border(bottom: BorderSide(color: AppBarDesign.borderColor)),
+      shape: Border(bottom: BorderSide(color: AppBarDesign.borderColor)),
       leading: canPop
           ? IconButton(
               onPressed: AppHaptics.action(
                 () => Navigator.of(context).maybePop(),
               ),
-              icon: const Icon(
+              icon: Icon(
                 AppIcons.back,
                 color: AppBarDesign.iconColor,
               ),
@@ -49,8 +49,8 @@ class ShopAppBar extends StatelessWidget implements PreferredSizeWidget {
           : const SizedBox.shrink(),
       leadingWidth: canPop ? 56 : 12,
       title: Text(
-        title,
-        style: const TextStyle(
+        AppLang.tr(title),
+        style: TextStyle(
           fontSize: AppBarDesign.titleSize,
           fontWeight: AppBarDesign.titleWeight,
           color: AppBarDesign.titleColor,
@@ -82,7 +82,7 @@ class ShopBottomNav extends StatelessWidget {
     return Material(
       color: BottomNavDesign.background,
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: BottomNavDesign.background,
           border: Border(top: BorderSide(color: BottomNavDesign.borderColor)),
         ),
@@ -93,28 +93,28 @@ class ShopBottomNav extends StatelessWidget {
             child: Row(
               children: [
                 _Item(
-                  label: 'الرئيسية',
+                  label: 'الرئيسية'.tr,
                   icon: AppIcons.dashboard,
                   activeIcon: AppIcons.dashboardActive,
                   selected: current == 0,
                   onTap: () => context.go(AppRoutes.shopHome),
                 ),
                 _Item(
-                  label: 'المنتجات',
+                  label: 'المنتجات'.tr,
                   icon: AppIcons.garment,
                   activeIcon: AppIcons.garmentFilled,
                   selected: current == 1,
                   onTap: () => context.go(AppRoutes.shopProducts),
                 ),
                 _Item(
-                  label: 'الطلبات',
+                  label: 'الطلبات'.tr,
                   icon: AppIcons.orders,
                   activeIcon: AppIcons.ordersActive,
                   selected: current == 2,
                   onTap: () => context.go(AppRoutes.shopOrders),
                 ),
                 _Item(
-                  label: 'المتجر',
+                  label: 'المتجر'.tr,
                   icon: AppIcons.shop,
                   activeIcon: AppIcons.shopActive,
                   selected: current == 3,
@@ -181,7 +181,7 @@ class _Item extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  label,
+                  AppLang.tr(label),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -288,17 +288,20 @@ class ShopFeatureTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      code,
+                      AppLang.tr(code),
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: AppColors.primaryDark,
                         fontWeight: AppFont.bold,
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(title, style: Theme.of(context).textTheme.titleLarge),
+                    Text(
+                      AppLang.tr(title),
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
                     const SizedBox(height: 4),
                     Text(
-                      subtitle,
+                      AppLang.tr(subtitle),
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
@@ -313,8 +316,8 @@ class ShopFeatureTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(BadgeDesign.radius),
                   ),
                   child: Text(
-                    badge!,
-                    style: const TextStyle(
+                    AppLang.tr(badge!),
+                    style: TextStyle(
                       color: BadgeDesign.primaryText,
                       fontSize: BadgeDesign.textSize,
                       fontWeight: BadgeDesign.textWeight,
@@ -323,7 +326,7 @@ class ShopFeatureTile extends StatelessWidget {
                 ),
               ],
               const SizedBox(width: AppSpacing.xs),
-              const Icon(AppIcons.forward, color: AppColors.icon),
+              Icon(AppIcons.forward, color: AppColors.icon),
             ],
           ),
         ),
@@ -336,19 +339,19 @@ Future<void> confirmShopLogout(BuildContext context, WidgetRef ref) async {
   final confirmed = await AppBottomSheet.show<bool>(
     context: context,
     child: AppBottomSheetScaffold(
-      title: 'تسجيل الخروج',
+      title: 'تسجيل الخروج'.tr,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('هل تريد تسجيل الخروج من حساب المحل؟'),
+          Text('هل تريد تسجيل الخروج من حساب المحل؟'.tr),
           const SizedBox(height: AppSpacing.lg),
           AppButton(
-            label: 'تسجيل الخروج',
+            label: 'تسجيل الخروج'.tr,
             onPressed: () => Navigator.of(context).pop(true),
           ),
           const SizedBox(height: AppSpacing.sm),
           AppButton(
-            label: 'إلغاء',
+            label: 'إلغاء'.tr,
             variant: AppButtonVariant.outlined,
             onPressed: () => Navigator.of(context).pop(false),
           ),

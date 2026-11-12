@@ -19,13 +19,13 @@ void showAppSnackBar(
     ..hideCurrentSnackBar()
     ..showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(AppLang.tr(message)),
         backgroundColor: isError
             ? SnackBarDesign.errorBackground
             : SnackBarDesign.background,
         action: actionLabel != null && onAction != null
             ? SnackBarAction(
-                label: actionLabel,
+                label: AppLang.tr(actionLabel),
                 textColor: SnackBarDesign.action,
                 onPressed: onAction,
               )

@@ -19,7 +19,7 @@ class CustomerNotificationsScreen extends ConsumerWidget {
     final notificationsAsync = ref.watch(customerNotificationsProvider);
 
     return CustomerScaffold(
-      title: 'الإشعارات',
+      title: 'الإشعارات'.tr,
       showSearch: false,
       body: RefreshIndicator.noSpinner(
         onRefresh: AppHaptics.refresh(() async {
@@ -29,10 +29,10 @@ class CustomerNotificationsScreen extends ConsumerWidget {
           placeholder: LoadingFixtures.notifications,
           data: (notifications) {
             if (notifications.isEmpty) {
-              return const AppEmpty(
+              return AppEmpty(
                 icon: AppIcons.bell,
-                title: 'لا توجد إشعارات جديدة',
-                message: 'ستصلك هنا العروض الحصرية وتحديثات طلباتك',
+                title: 'لا توجد إشعارات جديدة'.tr,
+                message: 'ستصلك هنا العروض الحصرية وتحديثات طلباتك'.tr,
               );
             }
 
@@ -53,11 +53,11 @@ class CustomerNotificationsScreen extends ConsumerWidget {
                       Container(
                         width: NotificationsDesign.iconBoxSize,
                         height: NotificationsDesign.iconBoxSize,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: NotificationsDesign.iconBackground,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           AppIcons.bellActive,
                           color: NotificationsDesign.icon,
                           size: 20,
@@ -70,7 +70,7 @@ class CustomerNotificationsScreen extends ConsumerWidget {
                           children: [
                             Text(
                               notif.title,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: AppFont.bold,
                                 color: AppColors.text,
@@ -79,7 +79,7 @@ class CustomerNotificationsScreen extends ConsumerWidget {
                             const SizedBox(height: 4),
                             Text(
                               notif.body,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13,
                                 color: AppColors.textSecondary,
                                 height: 1.5,
@@ -88,7 +88,7 @@ class CustomerNotificationsScreen extends ConsumerWidget {
                             const SizedBox(height: 6),
                             Text(
                               dateStr,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 color: AppColors.textMuted,
                               ),
@@ -104,7 +104,7 @@ class CustomerNotificationsScreen extends ConsumerWidget {
           },
           error: (err, _) => AppEmpty(
             icon: AppIcons.error,
-            message: 'تعذر تحميل الإشعارات: $err',
+            message: 'تعذر تحميل الإشعارات: $err'.tr,
           ),
         ),
       ),

@@ -26,7 +26,7 @@ class AdminBottomNav extends StatelessWidget {
       color: BottomNavDesign.background,
       elevation: 0,
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: BottomNavDesign.background,
           border: Border(top: BorderSide(color: BottomNavDesign.borderColor)),
         ),
@@ -37,21 +37,21 @@ class AdminBottomNav extends StatelessWidget {
             child: Row(
               children: [
                 _NavItem(
-                  label: 'الرئيسية',
+                  label: 'الرئيسية'.tr,
                   icon: AppIcons.dashboard,
                   activeIcon: AppIcons.dashboardActive,
                   selected: current == 0,
                   onTap: () => context.go(AppRoutes.adminHome),
                 ),
                 _NavItem(
-                  label: 'الطلبات',
+                  label: 'الطلبات'.tr,
                   icon: AppIcons.shop,
                   activeIcon: AppIcons.shopActive,
                   selected: current == 1,
                   onTap: () => context.go(AppRoutes.adminShopApplications),
                 ),
                 _NavItem(
-                  label: 'الإعدادات',
+                  label: 'الإعدادات'.tr,
                   icon: AppIcons.settings,
                   activeIcon: AppIcons.settingsActive,
                   selected: current == 2,
@@ -118,7 +118,7 @@ class _NavItem extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  label,
+                  AppLang.tr(label),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

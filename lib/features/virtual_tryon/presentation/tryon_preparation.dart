@@ -46,7 +46,7 @@ class TryonSteps extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  ['التجهيز', 'فحص الجسم', 'التجربة'][i],
+                  ['التجهيز'.tr, 'فحص الجسم'.tr, 'التجربة'.tr][i],
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 11,
@@ -82,7 +82,7 @@ class TryonIntroduction extends StatelessWidget {
                 color: AppColors.primary.withValues(alpha: .06),
                 borderRadius: BorderRadius.circular(AppRadii.card),
               ),
-              child: const Stack(
+              child: Stack(
                 alignment: Alignment.center,
                 children: [
                   Icon(
@@ -93,7 +93,7 @@ class TryonIntroduction extends StatelessWidget {
                   Positioned(
                     bottom: 12,
                     child: Text(
-                      'تجربة تبدأ بجسمك',
+                      'تجربة تبدأ بجسمك'.tr,
                       style: TextStyle(fontSize: 11, color: AppColors.primary),
                     ),
                   ),
@@ -102,35 +102,35 @@ class TryonIntroduction extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'قطعتك، على مقاس صورتك',
+              'قطعتك، على مقاس صورتك'.tr,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 8),
-            const Text(
-              'خطوات بسيطة لتجربة أوضح وأكثر ثباتاً.',
+            Text(
+              'خطوات بسيطة لتجربة أوضح وأكثر ثباتاً.'.tr,
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.gray500),
             ),
             const SizedBox(height: 24),
-            const _Tip(
+            _Tip(
               AppIcons.sun,
-              'ضوء أمامك',
-              'اختر إضاءة متوازنة وتجنّب النافذة خلفك.',
+              'ضوء أمامك'.tr,
+              'اختر إضاءة متوازنة وتجنّب النافذة خلفك.'.tr,
             ),
-            const _Tip(
+            _Tip(
               AppIcons.user,
-              'أنت وحدك في الصورة',
-              'وجّه الكاميرا نحو المنطقة التي تريد تجربة القطعة عليها.',
+              'أنت وحدك في الصورة'.tr,
+              'وجّه الكاميرا نحو المنطقة التي تريد تجربة القطعة عليها.'.tr,
             ),
-            const _Tip(
+            _Tip(
               AppIcons.bodyGuide,
-              'بوضعيتك الطبيعية',
-              'جالساً أو واقفاً؛ للقطع العلوية يكفي ظهور الكتفين بوضوح.',
+              'بوضعيتك الطبيعية'.tr,
+              'جالساً أو واقفاً؛ للقطع العلوية يكفي ظهور الكتفين بوضوح.'.tr,
             ),
             const SizedBox(height: 16),
-            const Text(
-              'نفحص الصورة على جهازك. بعد نجاح الفحص، تبدأ التجربة تلقائياً ويُرسل فيديو الكاميرا إلى خدمة التجربة لمعالجته.',
+            Text(
+              'نفحص الصورة على جهازك. بعد نجاح الفحص، تبدأ التجربة تلقائياً ويُرسل فيديو الكاميرا إلى خدمة التجربة لمعالجته.'.tr,
               style: TextStyle(
                 fontSize: 12,
                 height: 1.6,
@@ -138,8 +138,8 @@ class TryonIntroduction extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'المعاينة تقديرية للشكل؛ لا تقيس محيط الجسم أو تحدد مقاس الشراء من صورة واحدة.',
+            Text(
+              'المعاينة تقديرية للشكل؛ لا تقيس محيط الجسم أو تحدد مقاس الشراء من صورة واحدة.'.tr,
               style: TextStyle(
                 fontSize: 12,
                 height: 1.6,
@@ -149,8 +149,8 @@ class TryonIntroduction extends StatelessWidget {
             const SizedBox(height: 24),
             const LinearProgressIndicator(),
             const SizedBox(height: 12),
-            const Text(
-              'جارٍ تجهيز الكاميرا والفحص تلقائياً…',
+            Text(
+              'جارٍ تجهيز الكاميرا والفحص تلقائياً…'.tr,
               textAlign: TextAlign.center,
             ),
           ],
@@ -180,7 +180,7 @@ class _Tip extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 subtitle,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.gray500,
                   fontSize: 12,
                   height: 1.6,
@@ -213,11 +213,11 @@ class CaptureChecklist extends StatelessWidget {
           liveRegion: true,
           child: Text(
             assessment.ready
-                ? 'اكتمل الفحص، جارٍ تجربة القطعة…'
+                ? 'اكتمل الفحص، جارٍ تجربة القطعة…'.tr
                 : assessment.issue == CaptureIssue.cropped &&
                       region == 'upper body garment'
-                ? 'أظهر الكتفين بوضوح داخل الصورة؛ لا يلزم ظهور الجسم كاملاً.'
-                : assessment.issue?.message ?? 'جارٍ تجهيز فحص الجسم…',
+                ? 'أظهر الكتفين بوضوح داخل الصورة؛ لا يلزم ظهور الجسم كاملاً.'.tr
+                : assessment.issue?.message ?? 'جارٍ تجهيز فحص الجسم…'.tr,
             textAlign: TextAlign.center,
             style: const TextStyle(fontWeight: FontWeight.w700, height: 1.5),
           ),
@@ -226,7 +226,7 @@ class CaptureChecklist extends StatelessWidget {
         Text(
           framingHint(region),
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12, color: AppColors.gray500),
+          style: TextStyle(fontSize: 12, color: AppColors.gray500),
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -234,13 +234,13 @@ class CaptureChecklist extends StatelessWidget {
           runSpacing: 8,
           alignment: WrapAlignment.center,
           children: [
-            _check('شخص واحد', assessment.peopleOk),
-            _check('إضاءة', assessment.lightOk),
-            _check('وضوح', assessment.clarityOk),
+            _check('شخص واحد'.tr, assessment.peopleOk),
+            _check('إضاءة'.tr, assessment.lightOk),
+            _check('وضوح'.tr, assessment.clarityOk),
             _check(
               region == 'upper body garment'
-                  ? 'الكتفان واضحان'
-                  : 'منطقة القطعة',
+                  ? 'الكتفان واضحان'.tr
+                  : 'منطقة القطعة'.tr,
               assessment.poseOk,
             ),
           ],
@@ -251,17 +251,17 @@ class CaptureChecklist extends StatelessWidget {
           minHeight: 3,
           backgroundColor: AppColors.gray100,
           color: AppColors.primary,
-          semanticsLabel: 'ثبات وضعية الجسم',
+          semanticsLabel: 'ثبات وضعية الجسم'.tr,
         ),
         const SizedBox(height: 14),
-        const Text(
-          'ثبّت وضعيتك لثانيتين؛ تبدأ التجربة تلقائياً عند اكتمال الفحص.',
+        Text(
+          'ثبّت وضعيتك لثانيتين؛ تبدأ التجربة تلقائياً عند اكتمال الفحص.'.tr,
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 12, color: AppColors.primary),
         ),
         const SizedBox(height: 8),
-        const Text(
-          'الفحص محلي على جهازك. بعد نجاحه يُرسل فيديو الكاميرا إلى خدمة التجربة للمعالجة.',
+        Text(
+          'الفحص محلي على جهازك. بعد نجاحه يُرسل فيديو الكاميرا إلى خدمة التجربة للمعالجة.'.tr,
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11, color: AppColors.gray500),
         ),

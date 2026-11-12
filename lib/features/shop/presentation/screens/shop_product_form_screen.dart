@@ -62,11 +62,11 @@ class ShopProductFormScreen extends ConsumerStatefulWidget {
 }
 
 class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
-  static const _steps = [
-    'بيانات المنتج',
-    'الصور',
-    'المقاسات والمخزون',
-    'المراجعة',
+  static List<String> get _steps => [
+    'بيانات المنتج'.tr,
+    'الصور'.tr,
+    'المقاسات والمخزون'.tr,
+    'المراجعة'.tr,
   ];
   final _name = TextEditingController();
   final _description = TextEditingController();
@@ -149,36 +149,36 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
   }
 
   double? get _parsedPrice =>
-      double.tryParse(_price.text.trim().replaceAll('٫', '.'));
+      double.tryParse(_price.text.trim().replaceAll('٫'.tr, '.'));
   String? _validate(int step, {bool publish = true, bool forSave = false}) {
     if (step == 0) {
-      if (_name.text.trim().isEmpty) return 'اكتب اسم المنتج أولاً';
+      if (_name.text.trim().isEmpty) return 'اكتب اسم المنتج أولاً'.tr;
       final price = _parsedPrice;
       if (price == null ||
           !price.isFinite ||
           price < 0 ||
           (publish && price == 0)) {
-        return 'أدخل سعراً صحيحاً أكبر من صفر';
+        return 'أدخل سعراً صحيحاً أكبر من صفر'.tr;
       }
       if (publish && _description.text.trim().isEmpty) {
-        return 'أضف وصفاً يوضح المنتج للعميل';
+        return 'أضف وصفاً يوضح المنتج للعميل'.tr;
       }
       if (publish && _categoryId == null && _newCategory == null) {
-        return 'اختر تصنيفاً أو أضف تصنيفاً جديداً';
+        return 'اختر تصنيفاً أو أضف تصنيفاً جديداً'.tr;
       }
     }
     if (step == 1) {
       if (forSave && (_processing || _images.any((i) => i.path == null))) {
-        return 'انتظر تجهيز الصور أو أعد محاولة الصور المتعثرة أو احذفها';
+        return 'انتظر تجهيز الصور أو أعد محاولة الصور المتعثرة أو احذفها'.tr;
       }
       if (publish && !_images.any((i) => i.kind == 'gallery')) {
-        return 'أضف صورة واحدة على الأقل للمنتج';
+        return 'أضف صورة واحدة على الأقل للمنتج'.tr;
       }
     }
     if (step == 2 && publish) {
-      if (_variants.isEmpty) return 'أضف اللون والمقاس والكمية المتاحة';
+      if (_variants.isEmpty) return 'أضف اللون والمقاس والكمية المتاحة'.tr;
       if (_variants.every((v) => v.stock == 0)) {
-        return 'أضف كمية متاحة قبل النشر';
+        return 'أضف كمية متاحة قبل النشر'.tr;
       }
     }
     return null;
@@ -230,22 +230,22 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
     final result = await AppBottomSheet.show<String>(
       context: context,
       child: AppBottomSheetScaffold(
-        title: 'تصنيف جديد',
+        title: 'تصنيف جديد'.tr,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'استخدم اسماً واضحاً مثل فساتين سهرة أو ملابس رياضية. سيُحفظ التصنيف مع المنتج.',
+            Text(
+              'استخدم اسماً واضحاً مثل فساتين سهرة أو ملابس رياضية. سيُحفظ التصنيف مع المنتج.'.tr,
             ),
             const SizedBox(height: 16),
             TextField(
               maxLength: 80,
-              decoration: const InputDecoration(labelText: 'اسم التصنيف'),
+              decoration: InputDecoration(labelText: 'اسم التصنيف'.tr),
               onChanged: (v) => value = v,
             ),
             const SizedBox(height: 16),
             AppButton(
-              label: 'استخدام التصنيف',
+              label: 'استخدام التصنيف'.tr,
               onPressed: () {
                 if (value.trim().isNotEmpty) {
                   Navigator.of(context).pop(value.trim());
@@ -278,17 +278,17 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
       context: context,
       child: StatefulBuilder(
         builder: (context, update) => AppBottomSheetScaffold(
-          title: index == null ? 'إضافة لون ومقاس' : 'تعديل الخيار',
+          title: index == null ? 'إضافة لون ومقاس'.tr : 'تعديل الخيار'.tr,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              AppTextField(controller: color, label: 'اللون، مثل أسود'),
+              AppTextField(controller: color, label: 'اللون، مثل أسود'.tr),
               const SizedBox(height: 12),
-              AppTextField(controller: size, label: 'المقاس، مثل M أو 38'),
+              AppTextField(controller: size, label: 'المقاس، مثل M أو 38'.tr),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 6,
-                children: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'مقاس موحد']
+                children: ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'مقاس موحد'.tr]
                     .map(
                       (v) => ActionChip(
                         label: Text(v),
@@ -300,7 +300,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
               const SizedBox(height: 12),
               AppTextField(
                 controller: stock,
-                label: 'عدد القطع المتاحة',
+                label: 'عدد القطع المتاحة'.tr,
                 keyboardType: TextInputType.number,
               ),
               if (error != null)
@@ -310,7 +310,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                 ),
               const SizedBox(height: 16),
               AppButton(
-                label: 'حفظ الخيار',
+                label: 'حفظ الخيار'.tr,
                 onPressed: () {
                   final amount = int.tryParse(stock.text.trim());
                   final duplicate = _variants.indexWhere(
@@ -324,13 +324,13 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                       amount == null ||
                       amount < 0 ||
                       amount > 2147483647) {
-                    update(() => error = 'أدخل اللون والمقاس وكمية صحيحة');
+                    update(() => error = 'أدخل اللون والمقاس وكمية صحيحة'.tr);
                     return;
                   }
                   if (duplicate != -1 && duplicate != index) {
                     update(
                       () => error =
-                          'هذا اللون والمقاس موجودان بالفعل؛ عدّل كميتهما',
+                          'هذا اللون والمقاس موجودان بالفعل؛ عدّل كميتهما'.tr,
                     );
                     return;
                   }
@@ -368,7 +368,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
       if (!mounted || picked.isEmpty) return;
       final remaining = (12 - _images.length).clamp(0, 12);
       if (picked.length > remaining) {
-        showAppSnackBar(context, 'يمكن إضافة 12 صورة كحد أقصى');
+        showAppSnackBar(context, 'يمكن إضافة 12 صورة كحد أقصى'.tr);
       }
       final drafts = picked
           .take(remaining)
@@ -387,7 +387,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
       if (mounted) {
         showAppSnackBar(
           context,
-          'تعذر اختيار الصور، حاول مجدداً',
+          'تعذر اختيار الصور، حاول مجدداً'.tr,
           isError: true,
         );
       }
@@ -473,7 +473,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
       final error = ref.read(shopCatalogActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر الحفظ' : actions.errorMessage(error),
+        error == null ? 'تعذر الحفظ'.tr : actions.errorMessage(error),
         isError: true,
       );
       return;
@@ -484,7 +484,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
     });
     showAppSnackBar(
       context,
-      publish ? 'تم نشر المنتج بنجاح' : 'تم حفظ المسودة',
+      publish ? 'تم نشر المنتج بنجاح'.tr : 'تم حفظ المسودة'.tr,
     );
     context.go(AppRoutes.shopProducts);
   }
@@ -494,19 +494,19 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
     final leave = await AppBottomSheet.show<bool>(
       context: context,
       child: AppBottomSheetScaffold(
-        title: 'مغادرة إضافة المنتج؟',
+        title: 'مغادرة إضافة المنتج؟'.tr,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('التغييرات غير المحفوظة لن تُضاف إلى منتجاتك.'),
+            Text('التغييرات غير المحفوظة لن تُضاف إلى منتجاتك.'.tr),
             const SizedBox(height: 16),
             AppButton(
-              label: 'متابعة التعديل',
+              label: 'متابعة التعديل'.tr,
               onPressed: () => Navigator.of(context).pop(false),
             ),
             const SizedBox(height: 8),
             AppButton(
-              label: 'مغادرة دون حفظ',
+              label: 'مغادرة دون حفظ'.tr,
               variant: AppButtonVariant.outlined,
               onPressed: () => Navigator.of(context).pop(true),
             ),
@@ -551,28 +551,28 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
   Widget _basics() {
     final categories = ref.watch(shopCategoriesProvider);
     return _section(
-      'عرّف العميل بالمنتج',
-      'الاسم والوصف والتصنيف والسعر مطلوبة للنشر. يمكنك إكمال البقية لاحقاً كمسودة.',
+      'عرّف العميل بالمنتج'.tr,
+      'الاسم والوصف والتصنيف والسعر مطلوبة للنشر. يمكنك إكمال البقية لاحقاً كمسودة.'.tr,
       [
-        _field(_name, 'اسم المنتج *'),
+        _field(_name, 'اسم المنتج *'.tr),
         _field(
           _description,
-          'الوصف * — القَصّة والتفاصيل وما يميز المنتج',
+          'الوصف * — القَصّة والتفاصيل وما يميز المنتج'.tr,
           lines: 4,
         ),
-        _field(_price, 'سعر القطعة (ر.س) *', number: true),
+        _field(_price, 'سعر القطعة (₪) *'.tr, number: true),
         categories.when(
-          loading: () => const AppSkeleton(
+          loading: () => AppSkeleton(
             child: ListTile(
-              title: Text('تصنيف المنتج'),
-              subtitle: Text('جاري تحميل التصنيفات'),
+              title: Text('تصنيف المنتج'.tr),
+              subtitle: Text('جاري تحميل التصنيفات'.tr),
             ),
           ),
           error: (_, _) => TextButton(
             onPressed: AppHaptics.action(
               () => ref.invalidate(shopCategoriesProvider),
             ),
-            child: const Text('تعذر تحميل التصنيفات — إعادة المحاولة'),
+            child: Text('تعذر تحميل التصنيفات — إعادة المحاولة'.tr),
           ),
           data: (items) => DropdownButtonFormField<String>(
             key: ValueKey('$_categoryId/$_newCategory/${items.length}'),
@@ -582,13 +582,13 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                 : items.any((c) => c.id == _categoryId)
                 ? _categoryId
                 : null,
-            decoration: const InputDecoration(labelText: 'التصنيف *'),
+            decoration: InputDecoration(labelText: 'التصنيف *'.tr),
             items: [
               if (_newCategory != null)
                 DropdownMenuItem(
                   value: '__new__',
                   child: Text(
-                    '$_newCategory (جديد)',
+                    '$_newCategory (جديد)'.tr,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -615,19 +615,19 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
           child: TextButton.icon(
             onPressed: AppHaptics.action(_addCategory),
             icon: const Icon(AppIcons.add),
-            label: const Text('إضافة تصنيف جديد'),
+            label: Text('إضافة تصنيف جديد'.tr),
           ),
         ),
         const Divider(height: 32),
         Text(
-          'تفاصيل تساعد العميل على الاختيار (اختيارية)',
+          'تفاصيل تساعد العميل على الاختيار (اختيارية)'.tr,
           style: Theme.of(context).textTheme.titleSmall,
         ),
         const SizedBox(height: 16),
-        _field(_brand, 'الماركة'),
-        _field(_material, 'الخامة وتركيبة القماش'),
-        _field(_care, 'تعليمات الغسيل والعناية', lines: 2),
-        _field(_sku, 'رمز المنتج لدى المحل'),
+        _field(_brand, 'الماركة'.tr),
+        _field(_material, 'الخامة وتركيبة القماش'.tr),
+        _field(_care, 'تعليمات الغسيل والعناية'.tr, lines: 2),
+        _field(_sku, 'رمز المنتج لدى المحل'.tr),
       ],
     );
   }
@@ -651,26 +651,26 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
   }
 
   Widget _photos() => _section(
-    'صور واضحة تبيع أفضل',
-    'اختر حتى 12 صورة. نزيل الخلفية تلقائياً ونرفعها بصيغة شفافة. اجعل الصورة الأمامية أولاً لتكون صورة المنتج الرئيسية.',
+    'صور واضحة تبيع أفضل'.tr,
+    'اختر حتى 12 صورة. نزيل الخلفية تلقائياً ونرفعها بصيغة شفافة. اجعل الصورة الأمامية أولاً لتكون صورة المنتج الرئيسية.'.tr,
     [
       AppButton(
         label: _processing
-            ? 'جاري تجهيز الصور… يمكنك إكمال البيانات'
-            : 'اختيار صور المنتج',
+            ? 'جاري تجهيز الصور… يمكنك إكمال البيانات'.tr
+            : 'اختيار صور المنتج'.tr,
         variant: AppButtonVariant.outlined,
         onPressed: _processing || _images.length >= 12 ? null : _pickImages,
       ),
       const SizedBox(height: 16),
       if (_images.isEmpty)
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(vertical: 32),
           child: Column(
             children: [
               Icon(AppIcons.addPhoto, size: 48),
               SizedBox(height: 12),
               Text(
-                'صورة أمامية، خلفية، وصورة للتفاصيل',
+                'صورة أمامية، خلفية، وصورة للتفاصيل'.tr,
                 textAlign: TextAlign.center,
               ),
             ],
@@ -691,30 +691,30 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                 const SizedBox(height: 8),
                 Text(
                   primary
-                      ? 'الصورة الرئيسية'
+                      ? 'الصورة الرئيسية'.tr
                       : item.kind == 'ar'
-                      ? 'صورة تجربة الملابس'
-                      : 'صورة ${index + 1}',
+                      ? 'صورة تجربة الملابس'.tr
+                      : 'صورة ${index + 1}'.tr,
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
                 if (item.working || (item.path == null && !item.failed))
-                  const AppBusyLabel(label: 'جاري إزالة الخلفية وتجهيز الصورة'),
+                  AppBusyLabel(label: 'جاري إزالة الخلفية وتجهيز الصورة'.tr),
                 if (item.failed) ...[
-                  const Text(
-                    'تعذرت معالجة الصورة. أعد المحاولة أو احذفها لاختيار صورة أخرى.',
+                  Text(
+                    'تعذرت معالجة الصورة. أعد المحاولة أو احذفها لاختيار صورة أخرى.'.tr,
                   ),
                   TextButton(
                     onPressed: AppHaptics.action(
                       _processing ? null : () => _retry(item),
                     ),
-                    child: const Text('إعادة المحاولة'),
+                    child: Text('إعادة المحاولة'.tr),
                   ),
                 ],
                 Wrap(
                   spacing: 8,
                   children: [
                     IconButton(
-                      tooltip: 'تقديم الصورة',
+                      tooltip: 'تقديم الصورة'.tr,
                       onPressed: AppHaptics.action(
                         index == 0
                             ? null
@@ -727,7 +727,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                       icon: const Icon(AppIcons.arrowUp),
                     ),
                     IconButton(
-                      tooltip: 'تأخير الصورة',
+                      tooltip: 'تأخير الصورة'.tr,
                       onPressed: AppHaptics.action(
                         index == _images.length - 1
                             ? null
@@ -748,10 +748,10 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                             _dirty = true;
                           }),
                         ),
-                        child: const Text('جعلها الرئيسية'),
+                        child: Text('جعلها الرئيسية'.tr),
                       ),
                     IconButton(
-                      tooltip: 'حذف الصورة',
+                      tooltip: 'حذف الصورة'.tr,
                       onPressed: AppHaptics.action(
                         () => setState(() {
                           _images.remove(item);
@@ -770,11 +770,11 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
     ],
   );
   Widget _stock() => _section(
-    'كل خيار وكمّيته',
-    'أضف كل لون ومقاس متاح مرة واحدة. يمكنك تعديل الكمية أو حذف الخيار قبل الحفظ.',
+    'كل خيار وكمّيته'.tr,
+    'أضف كل لون ومقاس متاح مرة واحدة. يمكنك تعديل الكمية أو حذف الخيار قبل الحفظ.'.tr,
     [
       Text(
-        '${_variants.length} خيارات · ${_variants.fold<int>(0, (sum, v) => sum + v.stock)} قطعة متاحة',
+        '${_variants.length} خيارات · ${_variants.fold<int>(0, (sum, v) => sum + v.stock)} قطعة متاحة'.tr,
       ),
       const SizedBox(height: 16),
       ...List.generate(_variants.length, (index) {
@@ -782,17 +782,17 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
         return ListTile(
           contentPadding: EdgeInsets.zero,
           title: Text('${v.color} · ${v.size}'),
-          subtitle: Text('${v.stock} قطعة'),
+          subtitle: Text('${v.stock} قطعة'.tr),
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
-                tooltip: 'تعديل الخيار',
+                tooltip: 'تعديل الخيار'.tr,
                 onPressed: AppHaptics.action(() => _editVariant(index)),
                 icon: const Icon(AppIcons.edit),
               ),
               IconButton(
-                tooltip: 'حذف الخيار',
+                tooltip: 'حذف الخيار'.tr,
                 onPressed: AppHaptics.action(
                   () => setState(() {
                     _variants.removeAt(index);
@@ -806,7 +806,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
         );
       }),
       AppButton(
-        label: 'إضافة لون ومقاس',
+        label: 'إضافة لون ومقاس'.tr,
         variant: AppButtonVariant.outlined,
         onPressed: () => _editVariant(),
       ),
@@ -816,8 +816,8 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
     final categories = ref.watch(shopCategoriesProvider).value ?? [];
     final matched = categories.where((c) => c.id == _categoryId);
     return _section(
-      'راجع منتجك قبل النشر',
-      'تأكد من السعر والصورة الرئيسية والمخزون. يمكنك الرجوع لأي مرحلة لتعديلها.',
+      'راجع منتجك قبل النشر'.tr,
+      'تأكد من السعر والصورة الرئيسية والمخزون. يمكنك الرجوع لأي مرحلة لتعديلها.'.tr,
       [
         if (_images.isNotEmpty)
           SizedBox(height: 220, child: _imagePreview(_images.first)),
@@ -827,18 +827,18 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
         Text(_description.text),
         const SizedBox(height: 16),
         Text(
-          '${_price.text} ر.س',
+          '${_price.text} ₪'.tr,
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const Divider(height: 32),
         Text(
-          'التصنيف: ${_newCategory ?? (matched.isEmpty ? 'غير محدد' : matched.first.name)}',
+          'التصنيف: ${_newCategory ?? (matched.isEmpty ? 'غير محدد'.tr : matched.first.name)}',
         ),
         for (final entry in {
-          'الماركة': _brand.text,
-          'الخامة': _material.text,
-          'العناية': _care.text,
-          'رمز المنتج': _sku.text,
+          'الماركة'.tr: _brand.text,
+          'الخامة'.tr: _material.text,
+          'العناية'.tr: _care.text,
+          'رمز المنتج'.tr: _sku.text,
         }.entries)
           if (entry.value.isNotEmpty)
             Padding(
@@ -847,7 +847,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
             ),
         const SizedBox(height: 12),
         Text(
-          '${_images.length} صور · ${_variants.length} خيارات · ${_variants.fold<int>(0, (sum, v) => sum + v.stock)} قطعة',
+          '${_images.length} صور · ${_variants.length} خيارات · ${_variants.fold<int>(0, (sum, v) => sum + v.stock)} قطعة'.tr,
         ),
         const SizedBox(height: 16),
         Wrap(
@@ -856,7 +856,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
             3,
             (i) => TextButton(
               onPressed: AppHaptics.action(() => _go(i)),
-              child: Text('تعديل ${_steps[i]}'),
+              child: Text('تعديل ${_steps[i]}'.tr),
             ),
           ),
         ),
@@ -882,26 +882,26 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
       }
       if (product.hasError || (product.hasValue && product.value == null)) {
         return ShopScaffold(
-          title: 'تعديل منتج',
+          title: 'تعديل منتج'.tr,
           body: Center(
             child: TextButton(
               onPressed: AppHaptics.action(
                 () => ref.invalidate(shopProductProvider(widget.productId!)),
               ),
-              child: const Text('تعذر فتح المنتج — إعادة المحاولة'),
+              child: Text('تعذر فتح المنتج — إعادة المحاولة'.tr),
             ),
           ),
         );
       }
       if (!_seeded) {
-        return const ShopScaffold(
-          title: 'تعديل منتج',
+        return ShopScaffold(
+          title: 'تعديل منتج'.tr,
           body: AppSkeleton(
             child: Column(
               children: [
                 ListTile(
-                  title: Text('بيانات المنتج'),
-                  subtitle: Text('وصف المنتج'),
+                  title: Text('بيانات المنتج'.tr),
+                  subtitle: Text('وصف المنتج'.tr),
                 ),
                 SizedBox(height: 200, child: Card()),
               ],
@@ -917,7 +917,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
         if (!didPop) _confirmLeave();
       },
       child: ShopScaffold(
-        title: widget.productId == null ? 'إضافة منتج' : 'تعديل منتج',
+        title: widget.productId == null ? 'إضافة منتج'.tr : 'تعديل منتج'.tr,
         showBottomNav: false,
         body: AbsorbPointer(
           absorbing: saving,
@@ -931,7 +931,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'الخطوة ${_step + 1} من 4',
+                      'الخطوة ${_step + 1} من 4'.tr,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 8),
@@ -963,8 +963,8 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                     const SizedBox(height: 20),
                     AppButton(
                       label: _step == 3
-                          ? 'نشر المنتج'
-                          : 'التالي: ${_steps[_step + 1]}',
+                          ? 'نشر المنتج'.tr
+                          : 'التالي: ${_steps[_step + 1]}'.tr,
                       isLoading: saving,
                       onPressed: _step == 3
                           ? (_processing ? null : () => _save(true))
@@ -977,13 +977,13 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                         if (_step > 0)
                           TextButton(
                             onPressed: AppHaptics.action(() => _go(_step - 1)),
-                            child: const Text('السابق'),
+                            child: Text('السابق'.tr),
                           ),
                         TextButton(
                           onPressed: AppHaptics.action(
                             saving || _processing ? null : () => _save(false),
                           ),
-                          child: const Text('حفظ كمسودة'),
+                          child: Text('حفظ كمسودة'.tr),
                         ),
                       ],
                     ),

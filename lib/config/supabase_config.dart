@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/l10n/app_translations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -8,7 +9,7 @@ class SupabaseConfig {
     final value = dotenv.env['SUPABASE_URL']?.trim() ?? '';
     if (value.isEmpty || value.contains('YOUR_PROJECT')) {
       throw StateError(
-        'SUPABASE_URL غير مضبوط. حدّث ملف .env بقيم مشروعك.',
+        'SUPABASE_URL غير مضبوط. حدّث ملف .env بقيم مشروعك.'.tr,
       );
     }
     return value;
@@ -18,7 +19,7 @@ class SupabaseConfig {
     final value = dotenv.env['SUPABASE_ANON_KEY']?.trim() ?? '';
     if (value.isEmpty || value.contains('YOUR_ANON_KEY')) {
       throw StateError(
-        'SUPABASE_ANON_KEY غير مضبوط. حدّث ملف .env بقيم مشروعك.',
+        'SUPABASE_ANON_KEY غير مضبوط. حدّث ملف .env بقيم مشروعك.'.tr,
       );
     }
     return value;

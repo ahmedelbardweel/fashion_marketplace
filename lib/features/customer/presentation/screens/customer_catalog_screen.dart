@@ -69,7 +69,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
       context: context,
       isScrollControlled: true,
       child: AppBottomSheetScaffold(
-        title: 'تصفية المنتجات',
+        title: 'تصفية المنتجات'.tr,
         child: StatefulBuilder(
           builder: (ctx, setModalState) {
             return Column(
@@ -77,8 +77,8 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (categories.isNotEmpty) ...[
-                  const Text(
-                    'التصنيف',
+                  Text(
+                    'التصنيف'.tr,
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: AppFont.bold,
@@ -106,8 +106,8 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                 ],
 
                 // Price Range
-                const Text(
-                  'نطاق السعر (ر.س)',
+                Text(
+                  'نطاق السعر (₪)'.tr,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: AppFont.bold,
@@ -121,7 +121,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                       child: TextField(
                         controller: minPriceController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(hintText: 'الحد الأدنى'),
+                        decoration: InputDecoration(hintText: 'الحد الأدنى'.tr),
                       ),
                     ),
                     const SizedBox(width: AppSpacing.md),
@@ -129,7 +129,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                       child: TextField(
                         controller: maxPriceController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(hintText: 'الحد الأقصى'),
+                        decoration: InputDecoration(hintText: 'الحد الأقصى'.tr),
                       ),
                     ),
                   ],
@@ -138,8 +138,8 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                 const SizedBox(height: AppSpacing.md),
 
                 // Sizes
-                const Text(
-                  'المقاس',
+                Text(
+                  'المقاس'.tr,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: AppFont.bold,
@@ -170,7 +170,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                   children: [
                     Expanded(
                       child: AppButton(
-                        label: 'إعادة ضبط',
+                        label: 'إعادة ضبط'.tr,
                         variant: AppButtonVariant.outlined,
                         onPressed: () {
                           setModalState(() {
@@ -187,7 +187,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                     Expanded(
                       flex: 2,
                       child: AppButton(
-                        label: 'تطبيق الفلترة',
+                        label: 'تطبيق الفلترة'.tr,
                         onPressed: () {
                           final minP = double.tryParse(
                             minPriceController.text.trim(),
@@ -231,16 +231,16 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
     final compareList = ref.watch(productComparisonProvider);
 
     return CustomerScaffold(
-      title: 'المنتجات',
+      title: 'المنتجات'.tr,
       currentNavIndex: 1,
       showBack: false,
       actions: [
         IconButton(
-          tooltip: 'تصفية وبحث متقدم',
+          tooltip: 'تصفية وبحث متقدم'.tr,
           icon: Badge(
             isLabelVisible: filter.hasActiveFilters,
             backgroundColor: CatalogDesign.filterActiveDot,
-            child: const Icon(
+            child: Icon(
               AppIcons.filter,
               color: CatalogDesign.filterButtonIcon,
             ),
@@ -256,7 +256,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
               if (categories.isEmpty) return const SizedBox.shrink();
               return Container(
                 height: 54,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: CatalogDesign.toolbarBackground,
                   border: Border(
                     bottom: BorderSide(color: CatalogDesign.toolbarBorder),
@@ -275,7 +275,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                     if (index == 0) {
                       final allSelected = filter.categoryId == null;
                       return _CategoryFilterPill(
-                        label: 'الكل',
+                        label: 'الكل'.tr,
                         selected: allSelected,
                         onTap: () {
                           ref.read(productFilterProvider.notifier).state =
@@ -322,7 +322,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                           end: AppSpacing.xs,
                         ),
                         child: InputChip(
-                          label: Text('بحث: ${filter.search}'),
+                          label: Text('بحث: ${filter.search}'.tr),
                           onDeleted: AppHaptics.action(() {
                             _searchController.clear();
                             ref.read(productFilterProvider.notifier).state =
@@ -337,7 +337,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                         ),
                         child: InputChip(
                           label: Text(
-                            'السعر: ${filter.minPrice ?? 0} - ${filter.maxPrice ?? '∞'}',
+                            'السعر: ${filter.minPrice ?? 0} - ${filter.maxPrice ?? '.tr∞'}',
                           ),
                           onDeleted: AppHaptics.action(() {
                             ref.read(productFilterProvider.notifier).state =
@@ -351,7 +351,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                           end: AppSpacing.xs,
                         ),
                         child: InputChip(
-                          label: Text('المقاس: ${filter.size}'),
+                          label: Text('المقاس: ${filter.size}'.tr),
                           onDeleted: AppHaptics.action(() {
                             ref.read(productFilterProvider.notifier).state =
                                 filter.copyWith(clearSize: true);
@@ -365,7 +365,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                             const ProductFilter();
                       }),
                       icon: const Icon(AppIcons.refresh, size: 16),
-                      label: const Text('مسح الكل'),
+                      label: Text('مسح الكل'.tr),
                     ),
                   ],
                 ),
@@ -380,10 +380,10 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                 if (products.isEmpty) {
                   return AppEmpty(
                     icon: AppIcons.searchOff,
-                    title: 'لا توجد منتجات مطابقة',
-                    message: 'جرّب تغيير كلمات البحث أو إعادة ضبط الفلاتر',
+                    title: 'لا توجد منتجات مطابقة'.tr,
+                    message: 'جرّب تغيير كلمات البحث أو إعادة ضبط الفلاتر'.tr,
                     actionLabel: filter.hasActiveFilters
-                        ? 'إعادة ضبط الفلاتر'
+                        ? 'إعادة ضبط الفلاتر'.tr
                         : null,
                     onAction: filter.hasActiveFilters
                         ? AppHaptics.action(() {
@@ -426,7 +426,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
               },
               error: (err, _) => AppEmpty(
                 icon: AppIcons.error,
-                message: 'تعذر تحميل المنتجات: $err',
+                message: 'تعذر تحميل المنتجات: $err'.tr,
               ),
             ),
           ),
@@ -438,7 +438,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                 horizontal: AppSpacing.md,
                 vertical: AppSpacing.sm,
               ),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColors.primarySoft,
                 border: Border(
                   top: BorderSide(color: AppColors.primaryBorder),
@@ -446,14 +446,14 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     AppIcons.compare,
                     color: AppColors.icon,
                   ),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
-                    'تم تحديد ${compareList.length} منتجات للمقارنة',
-                    style: const TextStyle(
+                    'تم تحديد ${compareList.length} منتجات للمقارنة'.tr,
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: AppFont.bold,
                       color: AppColors.text,
@@ -464,8 +464,8 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                     onPressed: AppHaptics.action(
                       () => context.push(AppRoutes.customerCompare),
                     ),
-                    child: const Text(
-                      'فتح المقارنة',
+                    child: Text(
+                      'فتح المقارنة'.tr,
                       style: TextStyle(
                         color: AppColors.primaryDark,
                         fontWeight: AppFont.extraBold,

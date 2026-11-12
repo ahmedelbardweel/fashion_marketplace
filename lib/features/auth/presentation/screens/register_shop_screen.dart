@@ -58,7 +58,7 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
     if (!mounted) return;
     if (!ok) {
       final error = ref.read(authControllerProvider).errorMessage;
-      showAppSnackBar(context, error ?? 'فشل إنشاء حساب المحل', isError: true);
+      showAppSnackBar(context, error ?? 'فشل إنشاء حساب المحل'.tr, isError: true);
     }
   }
 
@@ -67,7 +67,7 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
     final auth = ref.watch(authControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('تسجيل محل')),
+      appBar: AppBar(title: Text('تسجيل محل'.tr)),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: AppSpacing.page,
@@ -77,27 +77,27 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'أنشئ حساب المحل',
+                  'أنشئ حساب المحل'.tr,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'بعد التسجيل أكمل البيانات وأرسل طلب الانضمام. المنتجات غير متاحة قبل موافقة الإدارة.',
+                  'بعد التسجيل أكمل البيانات وأرسل طلب الانضمام. المنتجات غير متاحة قبل موافقة الإدارة.'.tr,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 AppTextField(
                   controller: _shopNameController,
-                  label: 'اسم المحل',
-                  hint: 'اسم المتجر',
+                  label: 'اسم المحل'.tr,
+                  hint: 'اسم المتجر'.tr,
                   textInputAction: TextInputAction.next,
                   validator: Validators.shopName,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
                   controller: _nameController,
-                  label: 'اسم المسؤول',
-                  hint: 'الاسم الكامل',
+                  label: 'اسم المسؤول'.tr,
+                  hint: 'الاسم الكامل'.tr,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.name],
                   validator: Validators.fullName,
@@ -105,7 +105,7 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
                   controller: _phoneController,
-                  label: 'رقم الهاتف',
+                  label: 'رقم الهاتف'.tr,
                   hint: '05xxxxxxxx',
                   keyboardType: TextInputType.phone,
                   textInputAction: TextInputAction.next,
@@ -115,7 +115,7 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
                   controller: _emailController,
-                  label: 'البريد الإلكتروني',
+                  label: 'البريد الإلكتروني'.tr,
                   hint: 'shop@example.com',
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
@@ -125,8 +125,8 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
                   controller: _passwordController,
-                  label: 'كلمة المرور',
-                  hint: '8 أحرف على الأقل مع أرقام',
+                  label: 'كلمة المرور'.tr,
+                  hint: '8 أحرف على الأقل مع أرقام'.tr,
                   obscureText: _obscure,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.newPassword],
@@ -145,7 +145,7 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
                   controller: _confirmController,
-                  label: 'تأكيد كلمة المرور',
+                  label: 'تأكيد كلمة المرور'.tr,
                   obscureText: _obscureConfirm,
                   textInputAction: TextInputAction.done,
                   validator: (value) => Validators.confirmPassword(
@@ -166,13 +166,13 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 AppButton(
-                  label: 'إنشاء حساب المحل',
+                  label: 'إنشاء حساب المحل'.tr,
                   isLoading: auth.isBusy,
                   onPressed: _submit,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AppButton(
-                  label: 'العودة لتسجيل الدخول',
+                  label: 'العودة لتسجيل الدخول'.tr,
                   variant: AppButtonVariant.text,
                   onPressed: auth.isBusy
                       ? null

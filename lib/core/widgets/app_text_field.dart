@@ -48,7 +48,7 @@ class AppTextField extends StatelessWidget {
       children: [
         if (label != null) ...[
           Text(
-            label!,
+            AppLang.tr(label!),
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
               color: InputDesign.label,
               fontWeight: InputDesign.labelWeight,
@@ -62,7 +62,12 @@ class AppTextField extends StatelessWidget {
           obscureText: obscureText,
           keyboardType: keyboardType,
           textInputAction: textInputAction,
-          validator: validator,
+          validator: validator == null
+              ? null
+              : (val) {
+                  final res = validator!(val);
+                  return res == null ? null : AppLang.tr(res);
+                },
           onChanged: onChanged,
           onFieldSubmitted: onFieldSubmitted,
           enabled: enabled,
@@ -72,7 +77,7 @@ class AppTextField extends StatelessWidget {
           style: Theme.of(context).textTheme.bodyLarge,
           cursorColor: InputDesign.cursor,
           decoration: InputDecoration(
-            hintText: hint,
+            hintText: hint == null ? null : AppLang.tr(hint!),
             suffixIcon: suffix,
             prefixIcon: prefixIcon == null
                 ? null

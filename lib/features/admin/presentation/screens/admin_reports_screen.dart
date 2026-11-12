@@ -18,7 +18,7 @@ class AdminReportsScreen extends ConsumerWidget {
     final stats = ref.watch(adminStatsProvider);
 
     return AdminScaffold(
-      title: 'التقارير',
+      title: 'التقارير'.tr,
       body: AdminAsyncBody<AdminStats>(
         placeholder: LoadingFixtures.stats,
         value: stats,
@@ -35,7 +35,7 @@ class AdminReportsScreen extends ConsumerWidget {
             padding: AppSpacing.page,
             children: [
               Text(
-                'ملخص تشغيلي من بيانات المنصة الحالية',
+                'ملخص تشغيلي من بيانات المنصة الحالية'.tr,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: AppSpacing.md),
@@ -44,13 +44,13 @@ class AdminReportsScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'نمو الحسابات',
+                      'نمو الحسابات'.tr,
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    Text('المستخدمون: ${data.customers}'),
-                    Text('المحلات: ${data.shops}'),
-                    Text('نسبة المحلات المعتمدة: $approvalRate%'),
+                    Text('المستخدمون: ${data.customers}'.tr),
+                    Text('المحلات: ${data.shops}'.tr),
+                    Text('نسبة المحلات المعتمدة: $approvalRate%'.tr),
                   ],
                 ),
               ),
@@ -60,13 +60,13 @@ class AdminReportsScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'الكتالوج',
+                      'الكتالوج'.tr,
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    Text('التصنيفات: ${data.categories}'),
-                    Text('المنتجات: ${data.products}'),
-                    Text('نسبة المخفي: $hiddenRate%'),
+                    Text('التصنيفات: ${data.categories}'.tr),
+                    Text('المنتجات: ${data.products}'.tr),
+                    Text('نسبة المخفي: $hiddenRate%'.tr),
                   ],
                 ),
               ),
@@ -76,14 +76,14 @@ class AdminReportsScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'العمليات',
+                      'العمليات'.tr,
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: AppSpacing.sm),
-                    Text('الطلبات: ${data.orders}'),
-                    Text('طلبات الانضمام المعلقة: ${data.pendingShops}'),
-                    Text('المحلات المعلقة: ${data.suspendedShops}'),
-                    Text('الإشعارات المرسلة: ${data.notifications}'),
+                    Text('الطلبات: ${data.orders}'.tr),
+                    Text('طلبات الانضمام المعلقة: ${data.pendingShops}'.tr),
+                    Text('المحلات المعلقة: ${data.suspendedShops}'.tr),
+                    Text('الإشعارات المرسلة: ${data.notifications}'.tr),
                   ],
                 ),
               ),

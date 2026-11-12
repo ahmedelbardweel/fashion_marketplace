@@ -29,7 +29,7 @@ class ShopDashboardScreen extends ConsumerWidget {
     final approved = shop?.visibleStatus == ShopStatus.approved;
 
     return ShopScaffold(
-      title: shop?.name ?? 'لوحة المحل',
+      title: shop?.name ?? 'لوحة المحل'.tr,
       showBack: false,
       body: AppSkeleton(
         enabled:
@@ -59,18 +59,18 @@ class ShopDashboardScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      shop?.name ?? 'المحل',
+                      shop?.name ?? 'المحل'.tr,
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'الحالة: ${shop?.visibleStatus.labelAr ?? '-'}',
+                      'الحالة: ${shop?.visibleStatus.labelAr ?? '.tr-'}',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     if (!approved) ...[
                       const SizedBox(height: AppSpacing.md),
-                      const Text(
-                        'إدارة المنتجات والطلبات متاحة بعد موافقة الإدارة.',
+                      Text(
+                        'إدارة المنتجات والطلبات متاحة بعد موافقة الإدارة.'.tr,
                       ),
                     ],
                   ],
@@ -86,7 +86,7 @@ class ShopDashboardScreen extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'المنتجات',
+                              'المنتجات'.tr,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                             Text(
@@ -104,7 +104,7 @@ class ShopDashboardScreen extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'الطلبات',
+                              'الطلبات'.tr,
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                             Text(
@@ -121,16 +121,16 @@ class ShopDashboardScreen extends ConsumerWidget {
               ],
               ShopFeatureTile(
                 code: 'SHOP-10',
-                title: 'المنتجات',
-                subtitle: 'إضافة وتعديل المنتجات والمخزون',
+                title: 'المنتجات'.tr,
+                subtitle: 'إضافة وتعديل المنتجات والمخزون'.tr,
                 badge: stats?.products.toString(),
                 onTap: () => context.go(AppRoutes.shopProducts),
               ),
               const SizedBox(height: AppSpacing.sm),
               ShopFeatureTile(
                 code: 'SHOP-17',
-                title: 'الطلبات',
-                subtitle: 'متابعة طلبات المحل وتحديث حالتها',
+                title: 'الطلبات'.tr,
+                subtitle: 'متابعة طلبات المحل وتحديث حالتها'.tr,
                 badge: stats?.pendingOrders == null || stats!.pendingOrders == 0
                     ? null
                     : stats.pendingOrders.toString(),
@@ -139,22 +139,22 @@ class ShopDashboardScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.sm),
               ShopFeatureTile(
                 code: 'SHOP-19',
-                title: 'المبيعات والأرباح',
-                subtitle: 'ملخص المبيعات والمخزون',
+                title: 'المبيعات والأرباح'.tr,
+                subtitle: 'ملخص المبيعات والمخزون'.tr,
                 onTap: () => context.push(AppRoutes.shopSales),
               ),
               const SizedBox(height: AppSpacing.sm),
               ShopFeatureTile(
                 code: 'SHOP-20',
-                title: 'الإشعارات',
-                subtitle: 'إشعارات الطلبات والتنبيهات',
+                title: 'الإشعارات'.tr,
+                subtitle: 'إشعارات الطلبات والتنبيهات'.tr,
                 onTap: () => context.push(AppRoutes.shopNotifications),
               ),
               const SizedBox(height: AppSpacing.sm),
               ShopFeatureTile(
                 code: 'SHOP-21',
-                title: 'ملف المحل',
-                subtitle: 'تعديل البيانات والشعار والمستندات',
+                title: 'ملف المحل'.tr,
+                subtitle: 'تعديل البيانات والشعار والمستندات'.tr,
                 onTap: () => context.go(AppRoutes.shopProfile),
               ),
             ],

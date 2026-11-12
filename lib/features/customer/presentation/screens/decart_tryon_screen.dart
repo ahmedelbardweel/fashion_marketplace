@@ -81,7 +81,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       if (_foreground) unawaited(_start());
     } catch (_) {
       if (mounted) {
-        setState(() => _rendererError = 'تعذر تهيئة الكاميرا على هذا الجهاز.');
+        setState(() => _rendererError = 'تعذر تهيئة الكاميرا على هذا الجهاز.'.tr);
       }
     }
   }
@@ -181,13 +181,13 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
               child: Row(
                 children: [
                   IconButton(
-                    tooltip: 'رجوع',
+                    tooltip: 'رجوع'.tr,
                     onPressed: () => context.pop(),
-                    icon: const Icon(AppIcons.back),
+                    icon: Icon(AppIcons.back),
                   ),
                   Expanded(
                     child: Text(
-                      'غرفة التجربة',
+                      'غرفة التجربة'.tr,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
@@ -268,8 +268,8 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                                         ),
                                         label: Text(
                                           _showOriginal
-                                              ? 'عرض القطعة'
-                                              : 'الصورة الأصلية',
+                                              ? 'عرض القطعة'.tr
+                                              : 'الصورة الأصلية'.tr,
                                         ),
                                       ),
                                     ),
@@ -280,18 +280,18 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                                         state.errorMessage ??
                                             guard.error ??
                                             _rendererError ??
-                                            'توقفت التجربة. أعد فحص الجسم للمتابعة.',
+                                            'توقفت التجربة. أعد فحص الجسم للمتابعة.'.tr,
                                       ),
                                     ),
                                   if (!failed &&
                                       (!guard.analyzing || guard.approved) &&
                                       !state.isConnected)
-                                    const Center(
+                                    Center(
                                       child: Card(
                                         child: Padding(
                                           padding: EdgeInsets.all(20),
                                           child: AppBusyLabel(
-                                            label: 'جارٍ تجهيز التجربة…',
+                                            label: 'جارٍ تجهيز التجربة…'.tr,
                                           ),
                                         ),
                                       ),
@@ -352,7 +352,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               AppIcons.focus,
               size: 36,
               color: AppColors.primary,
@@ -362,11 +362,11 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
             const SizedBox(height: 16),
             if (state.retryPending)
               AppBusyLabel(
-                label: 'جارٍ استئناف الفحص تلقائياً… (${state.retryAttempt}/3)',
+                label: 'جارٍ استئناف الفحص تلقائياً… (${state.retryAttempt}/3)'.tr,
               )
             else if (state.retryAttempt >= 3)
-              const Text(
-                'لم نتمكن من استئناف التجربة تلقائياً. تحقق من السبب أعلاه ثم ادخل غرفة التجربة مجدداً.',
+              Text(
+                'لم نتمكن من استئناف التجربة تلقائياً. تحقق من السبب أعلاه ثم ادخل غرفة التجربة مجدداً.'.tr,
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12, color: AppColors.gray500),
               ),
@@ -386,7 +386,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       children: [
         Row(
           children: [
-            const Icon(
+            Icon(
               AppIcons.shieldTick,
               size: 18,
               color: AppColors.primary,
@@ -395,8 +395,8 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
             Expanded(
               child: Text(
                 _showOriginal
-                    ? 'صورتك الأصلية'
-                    : 'المعالجة في منطقة القطعة فقط',
+                    ? 'صورتك الأصلية'.tr
+                    : 'المعالجة في منطقة القطعة فقط'.tr,
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -404,7 +404,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
               ),
             ),
             IconButton(
-              tooltip: 'اختيار قطعة',
+              tooltip: 'اختيار قطعة'.tr,
               onPressed: state.isConnected && !state.isUpdating
                   ? () => setState(() => _showGarments = !_showGarments)
                   : null,
@@ -415,26 +415,26 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
           ],
         ),
         Text(
-          state.selectedProduct?.name ?? 'قطعتك',
+          state.selectedProduct?.name ?? 'قطعتك'.tr,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 4),
-        const Text(
-          'معاينة للشكل، وليست توصية بمقاس الشراء.',
+        Text(
+          'معاينة للشكل، وليست توصية بمقاس الشراء.'.tr,
           style: TextStyle(fontSize: 11, color: AppColors.gray500),
         ),
         if (state.isConnected && !_matchingFrames(guard))
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(top: 8),
             child: Text(
-              'أبعاد الفيديو المعالج لا تطابق الكاميرا. أُخفيت القطعة للحفاظ على موضع الجسم.',
+              'أبعاد الفيديو المعالج لا تطابق الكاميرا. أُخفيت القطعة للحفاظ على موضع الجسم.'.tr,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12),
             ),
           ),
-        if (state.isUpdating) const AppBusyLabel(label: 'جارٍ تطبيق القطعة…'),
+        if (state.isUpdating) AppBusyLabel(label: 'جارٍ تطبيق القطعة…'.tr),
         if (state.isConnected &&
             guard.approved &&
             !guard.outputAligned &&
@@ -443,7 +443,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
             padding: const EdgeInsets.only(top: 8),
             child: Text(
               guard.assessment.issue?.message ??
-                  'جارٍ مطابقة القطعة مع وضعيتك…',
+                  'جارٍ مطابقة القطعة مع وضعيتك…'.tr,
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 12),
             ),

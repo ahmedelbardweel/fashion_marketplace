@@ -1,7 +1,6 @@
-import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
 import 'dart:async';
 
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -31,29 +30,33 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
     // Only display recognized code shapes, never upstream messages or details.
     if (error is PostgrestException) {
       final message = switch (error.code) {
-        '42501' => 'هذا الإعداد متاح للأدمن النشط فقط.',
-        'PGRST202' || '42883' || '42P01' => 'خدمة حفظ المفتاح غير مكتملة على السيرفر. يلزم مراجعة تحديثات قاعدة البيانات.',
-        '22023' => 'رفض السيرفر صيغة المفتاح. تأكد من صحة المفتاح وتطبيق تحديث قاعدة البيانات 011.',
-        '2201B' => 'يوجد خطأ في قاعدة التحقق من المفتاح على السيرفر. يلزم تطبيق تحديث قاعدة البيانات 011 ثم إعادة الحفظ.',
+        '42501' => 'هذا الإعداد متاح للأدمن النشط فقط.'.tr,
+        'PGRST202' || '42883' || '42P01' =>
+          'خدمة حفظ المفتاح غير مكتملة على السيرفر. يلزم مراجعة تحديثات قاعدة البيانات.'.tr,
+        '22023' =>
+          'رفض السيرفر صيغة المفتاح. تأكد من صحة المفتاح وتطبيق تحديث قاعدة البيانات 011.'.tr,
+        '2201B' =>
+          'يوجد خطأ في قاعدة التحقق من المفتاح على السيرفر. يلزم تطبيق تحديث قاعدة البيانات 011 ثم إعادة الحفظ.'.tr,
         'PGRST301' || 'PGRST303' =>
-          'جلسة تسجيل الدخول غير صالحة. سجّل الدخول مجدداً ثم أعد المحاولة.',
-        _ => 'رفض السيرفر حفظ المفتاح. يلزم فحص الخطأ في قاعدة البيانات.',
+          'جلسة تسجيل الدخول غير صالحة. سجّل الدخول مجدداً ثم أعد المحاولة.'.tr,
+        _ => 'رفض السيرفر حفظ المفتاح. يلزم فحص الخطأ في قاعدة البيانات.'.tr,
       };
       final code = error.code;
       if (code != null &&
           code.trim() == code &&
           RegExp(r'^(?:[A-Z0-9]{5}|PGRST[0-9]{3})$').hasMatch(code)) {
-        return '$message (رمز الخطأ: $code)';
+        return '$message (رمز الخطأ: $code)'.tr;
       }
       return message;
     }
     return switch (error) {
       AuthException() =>
-        'تعذر التحقق من جلسة الدخول. سجّل الدخول مجدداً ثم أعد المحاولة.',
-      TimeoutException() => 'انتهت مهلة الحفظ دون تأكيد النتيجة. حدّث حالة الإعداد قبل المحاولة مجدداً.',
+        'تعذر التحقق من جلسة الدخول. سجّل الدخول مجدداً ثم أعد المحاولة.'.tr,
+      TimeoutException() =>
+        'انتهت مهلة الحفظ دون تأكيد النتيجة. حدّث حالة الإعداد قبل المحاولة مجدداً.'.tr,
       http.ClientException() =>
-        'تعذر الاتصال بالسيرفر لتأكيد الحفظ. تحقق من الاتصال وحاول مجدداً.',
-      _ => 'تعذر تأكيد حفظ المفتاح بسبب خطأ غير متوقع في التطبيق.',
+        'تعذر الاتصال بالسيرفر لتأكيد الحفظ. تحقق من الاتصال وحاول مجدداً.'.tr,
+      _ => 'تعذر تأكيد حفظ المفتاح بسبب خطأ غير متوقع في التطبيق.'.tr,
     };
   }
 
@@ -79,7 +82,7 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
       ref.invalidate(adminDecartStatusProvider);
       setState(() {
         _failed = false;
-        _message = 'تم حفظ المفتاح. سيُستخدم في جلسات تجربة الملابس الجديدة.';
+        _message = 'تم حفظ المفتاح. سيُستخدم في جلسات تجربة الملابس الجديدة.'.tr;
       });
     } catch (error) {
       if (!mounted) return;
@@ -102,19 +105,19 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'تجربة الملابس — Decart',
+              'تجربة الملابس — Decart'.tr,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: AppSpacing.sm),
             status.when(
-              loading: () => const AppSkeleton(
-                child: Text('حالة إعداد مفتاح تجربة الملابس'),
+              loading: () => AppSkeleton(
+                child: Text('حالة إعداد مفتاح تجربة الملابس'.tr),
               ),
               error: (_, _) => Row(
                 children: [
-                  const Expanded(child: Text('تعذر قراءة حالة إعداد المفتاح.')),
+                  Expanded(child: Text('تعذر قراءة حالة إعداد المفتاح.'.tr)),
                   IconButton(
-                    tooltip: 'إعادة المحاولة',
+                    tooltip: 'إعادة المحاولة'.tr,
                     onPressed: AppHaptics.action(
                       () => ref.invalidate(adminDecartStatusProvider),
                     ),
@@ -124,8 +127,8 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
               ),
               data: (value) => Text(
                 value.configured
-                    ? 'يوجد مفتاح محفوظ بأمان. يمكنك استبداله أدناه.'
-                    : 'لم يُحفظ مفتاح من إعدادات الأدمن بعد.',
+                    ? 'يوجد مفتاح محفوظ بأمان. يمكنك استبداله أدناه.'.tr
+                    : 'لم يُحفظ مفتاح من إعدادات الأدمن بعد.'.tr,
               ),
             ),
             const SizedBox(height: AppSpacing.md),
@@ -137,24 +140,23 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
               autofillHints: const [],
               textDirection: TextDirection.ltr,
               enabled: !_saving,
-              decoration: const InputDecoration(
-                labelText: 'مفتاح Decart الجديد',
+              decoration: InputDecoration(
+                labelText: 'مفتاح Decart الجديد'.tr,
                 hintText: 'dct_new-app_…',
               ),
               validator: (value) =>
                   RegExp(r'^dct_(app|new-app)_[A-Za-z0-9]{20,512}$')
                       .hasMatch(value?.trim() ?? '')
                   ? null
-                  : 'أدخل مفتاح Decart صالحاً يبدأ بـ dct_app_ أو dct_new-app_',
+                  : 'أدخل مفتاح Decart صالحاً يبدأ بـ dct_app_ أو dct_new-app_'.tr,
             ),
             const SizedBox(height: AppSpacing.sm),
-            const Text(
-              'يُحفظ المفتاح مشفّراً على السيرفر ولا يظهر بعد الحفظ. '
-              'الحفظ لا يتحقق من رصيد Decart أو صلاحية الاشتراك.',
+            Text(
+              '${'يُحفظ المفتاح مشفّراً على السيرفر ولا يظهر بعد الحفظ. '.tr}${'الحفظ لا يتحقق من رصيد Decart أو صلاحية الاشتراك.'.tr}',
             ),
             const SizedBox(height: AppSpacing.md),
             AppButton(
-              label: _saving ? 'جارٍ الحفظ…' : 'حفظ المفتاح',
+              label: _saving ? 'جارٍ الحفظ…'.tr : 'حفظ المفتاح'.tr,
               onPressed: _saving ? null : _save,
             ),
             if (_message != null) ...[

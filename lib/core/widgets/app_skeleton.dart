@@ -14,7 +14,7 @@ class AppSkeleton extends StatelessWidget {
   Widget build(BuildContext context) => !enabled
       ? child
       : Semantics(
-          label: 'جارٍ التحميل',
+          label: 'جارٍ التحميل'.tr,
           child: ExcludeSemantics(
             child: ExcludeFocus(
               child: Skeletonizer(
@@ -99,5 +99,5 @@ class AppBusyLabel extends StatelessWidget {
   const AppBusyLabel({super.key, this.label = 'جارٍ التنفيذ…'});
   final String label;
   @override
-  Widget build(BuildContext context) => AppSkeleton(child: Text(label));
+  Widget build(BuildContext context) => AppSkeleton(child: Text(label.tr));
 }

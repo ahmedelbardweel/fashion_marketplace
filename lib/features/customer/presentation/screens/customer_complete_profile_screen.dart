@@ -63,7 +63,7 @@ class _CustomerCompleteProfileScreenState
       showAppSnackBar(
         context,
         error == null
-            ? 'تعذر حفظ الملف الشخصي'
+            ? 'تعذر حفظ الملف الشخصي'.tr
             : controller.errorMessage(error),
         isError: true,
       );
@@ -76,7 +76,7 @@ class _CustomerCompleteProfileScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('إكمال الملف الشخصي'),
+        title: Text('إكمال الملف الشخصي'.tr),
         automaticallyImplyLeading: false,
         actions: [
           TextButton(
@@ -85,7 +85,7 @@ class _CustomerCompleteProfileScreenState
                   ? null
                   : () => ref.read(authControllerProvider.notifier).signOut(),
             ),
-            child: const Text('خروج'),
+            child: Text('خروج'.tr),
           ),
         ],
       ),
@@ -98,25 +98,25 @@ class _CustomerCompleteProfileScreenState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'أكمل بياناتك للمتابعة',
+                  'أكمل بياناتك للمتابعة'.tr,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'هذه البيانات مطلوبة لاستخدام المتجر وإتمام الطلبات لاحقاً',
+                  'هذه البيانات مطلوبة لاستخدام المتجر وإتمام الطلبات لاحقاً'.tr,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 AppTextField(
                   controller: _nameController,
-                  label: 'الاسم الكامل',
+                  label: 'الاسم الكامل'.tr,
                   validator: Validators.fullName,
                   textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
                   controller: _phoneController,
-                  label: 'رقم الهاتف',
+                  label: 'رقم الهاتف'.tr,
                   keyboardType: TextInputType.phone,
                   validator: Validators.phone,
                   textInputAction: TextInputAction.next,
@@ -124,23 +124,23 @@ class _CustomerCompleteProfileScreenState
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
                   controller: _cityController,
-                  label: 'المدينة',
+                  label: 'المدينة'.tr,
                   validator: (value) =>
-                      Validators.required(value, field: 'المدينة'),
+                      Validators.required(value, field: 'المدينة'.tr),
                   textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
                   controller: _addressController,
-                  label: 'العنوان',
+                  label: 'العنوان'.tr,
                   validator: (value) =>
-                      Validators.required(value, field: 'العنوان'),
+                      Validators.required(value, field: 'العنوان'.tr),
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _submit(),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 AppButton(
-                  label: 'حفظ والمتابعة',
+                  label: 'حفظ والمتابعة'.tr,
                   isLoading: busy,
                   onPressed: _submit,
                 ),

@@ -27,22 +27,22 @@ class AdminShopReviewScreen extends ConsumerWidget {
     final confirmed = await AppBottomSheet.show<bool>(
       context: context,
       child: AppBottomSheetScaffold(
-        title: 'قبول المحل',
+        title: 'قبول المحل'.tr,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'قبول طلب "${shop.name}"؟ سيظهر القرار للمحل حسب إعداد تأخير القرار.',
+              'قبول طلب "${shop.name}"؟ سيظهر القرار للمحل حسب إعداد تأخير القرار.'.tr,
               style: Theme.of(context).textTheme.bodyLarge,
             ),
             const SizedBox(height: AppSpacing.lg),
             AppButton(
-              label: 'تأكيد القبول',
+              label: 'تأكيد القبول'.tr,
               onPressed: () => Navigator.of(context).pop(true),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppButton(
-              label: 'إلغاء',
+              label: 'إلغاء'.tr,
               variant: AppButtonVariant.outlined,
               onPressed: () => Navigator.of(context).pop(false),
             ),
@@ -60,14 +60,14 @@ class AdminShopReviewScreen extends ConsumerWidget {
       final error = ref.read(shopActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر قبول الطلب' : actions.errorMessage(error),
+        error == null ? 'تعذر قبول الطلب'.tr : actions.errorMessage(error),
         isError: true,
       );
       return;
     }
     ref.invalidate(adminStatsProvider);
     ref.invalidate(adminManagedShopsProvider);
-    showAppSnackBar(context, 'تم قبول الطلب');
+    showAppSnackBar(context, 'تم قبول الطلب'.tr);
     if (context.mounted) Navigator.of(context).pop();
   }
 
@@ -78,27 +78,27 @@ class AdminShopReviewScreen extends ConsumerWidget {
     final confirmed = await AppBottomSheet.show<bool>(
       context: context,
       child: AppBottomSheetScaffold(
-        title: 'رفض المحل',
+        title: 'رفض المحل'.tr,
         child: Form(
           key: formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'اكتب سبب الرفض. سيظهر للمحل حسب إعداد تأخير القرار.',
+                'اكتب سبب الرفض. سيظهر للمحل حسب إعداد تأخير القرار.'.tr,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               const SizedBox(height: AppSpacing.md),
               AppTextField(
                 controller: reasonController,
-                label: 'سبب الرفض',
+                label: 'سبب الرفض'.tr,
                 maxLines: 3,
                 validator: (value) =>
-                    Validators.required(value, field: 'سبب الرفض'),
+                    Validators.required(value, field: 'سبب الرفض'.tr),
               ),
               const SizedBox(height: AppSpacing.lg),
               AppButton(
-                label: 'تأكيد الرفض',
+                label: 'تأكيد الرفض'.tr,
                 onPressed: () {
                   if (formKey.currentState?.validate() != true) return;
                   Navigator.of(context).pop(true);
@@ -106,7 +106,7 @@ class AdminShopReviewScreen extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.sm),
               AppButton(
-                label: 'إلغاء',
+                label: 'إلغاء'.tr,
                 variant: AppButtonVariant.outlined,
                 onPressed: () => Navigator.of(context).pop(false),
               ),
@@ -131,14 +131,14 @@ class AdminShopReviewScreen extends ConsumerWidget {
       final error = ref.read(shopActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر رفض الطلب' : actions.errorMessage(error),
+        error == null ? 'تعذر رفض الطلب'.tr : actions.errorMessage(error),
         isError: true,
       );
       return;
     }
     ref.invalidate(adminStatsProvider);
     ref.invalidate(adminManagedShopsProvider);
-    showAppSnackBar(context, 'تم رفض الطلب');
+    showAppSnackBar(context, 'تم رفض الطلب'.tr);
     if (context.mounted) Navigator.of(context).pop();
   }
 
@@ -150,11 +150,11 @@ class AdminShopReviewScreen extends ConsumerWidget {
     final busy = ref.watch(shopActionProvider).isLoading;
 
     return AdminScaffold(
-      title: 'مراجعة المحل',
+      title: 'مراجعة المحل'.tr,
       body: AdminAsyncBody<Shop?>(
         placeholder: LoadingFixtures.shop,
         value: shopAsync,
-        emptyMessage: 'الطلب غير موجود',
+        emptyMessage: 'الطلب غير موجود'.tr,
         isEmpty: (shop) => shop == null,
         onRetry: () {
           ref.invalidate(adminShopByIdProvider(shopId));
@@ -175,7 +175,7 @@ class AdminShopReviewScreen extends ConsumerWidget {
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: AppSpacing.xs),
-                    Text('الحالة: ${current.status.labelAr}'),
+                    Text('الحالة: ${current.status.labelAr}'.tr),
                   ],
                 ),
               ),
@@ -184,19 +184,19 @@ class AdminShopReviewScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _InfoRow(label: 'الوصف', value: current.description ?? '-'),
-                    _InfoRow(label: 'المدينة', value: current.city ?? '-'),
-                    _InfoRow(label: 'العنوان', value: current.address ?? '-'),
+                    _InfoRow(label: 'الوصف'.tr, value: current.description ?? '-'),
+                    _InfoRow(label: 'المدينة'.tr, value: current.city ?? '-'),
+                    _InfoRow(label: 'العنوان'.tr, value: current.address ?? '-'),
                     _InfoRow(
-                      label: 'السجل التجاري',
+                      label: 'السجل التجاري'.tr,
                       value: current.commercialRegister ?? '-',
                     ),
                     _InfoRow(
-                      label: 'اسم المسؤول',
+                      label: 'اسم المسؤول'.tr,
                       value: current.ownerName ?? '-',
                     ),
-                    _InfoRow(label: 'البريد', value: current.ownerEmail ?? '-'),
-                    _InfoRow(label: 'الهاتف', value: current.ownerPhone ?? '-'),
+                    _InfoRow(label: 'البريد'.tr, value: current.ownerEmail ?? '-'),
+                    _InfoRow(label: 'الهاتف'.tr, value: current.ownerPhone ?? '-'),
                   ],
                 ),
               ),
@@ -207,7 +207,7 @@ class AdminShopReviewScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'الشعار',
+                        'الشعار'.tr,
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                       const SizedBox(height: AppSpacing.sm),
@@ -216,14 +216,14 @@ class AdminShopReviewScreen extends ConsumerWidget {
                         height: 96,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) =>
-                            const Text('تعذر عرض الشعار'),
+                            Text('تعذر عرض الشعار'.tr),
                       ),
                     ],
                   ),
                 ),
               ],
               const SizedBox(height: AppSpacing.md),
-              Text('صور المحل', style: Theme.of(context).textTheme.titleLarge),
+              Text('صور المحل'.tr, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: AppSpacing.sm),
               imagesAsync.skeletonWhen(
                 placeholder: LoadingFixtures.media,
@@ -234,7 +234,7 @@ class AdminShopReviewScreen extends ConsumerWidget {
                 ),
                 data: (images) {
                   if (images.isEmpty) {
-                    return const AppCard(child: Text('لا توجد صور مرفوعة'));
+                    return AppCard(child: Text('لا توجد صور مرفوعة'.tr));
                   }
                   return Column(
                     children: images
@@ -261,7 +261,7 @@ class AdminShopReviewScreen extends ConsumerWidget {
                 },
               ),
               const SizedBox(height: AppSpacing.md),
-              Text('المستندات', style: Theme.of(context).textTheme.titleLarge),
+              Text('المستندات'.tr, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: AppSpacing.sm),
               docsAsync.skeletonWhen(
                 placeholder: LoadingFixtures.documents,
@@ -272,8 +272,8 @@ class AdminShopReviewScreen extends ConsumerWidget {
                 ),
                 data: (docs) {
                   if (docs.isEmpty) {
-                    return const AppCard(
-                      child: Text('لا توجد مستندات مرفوعة لهذا المحل بعد'),
+                    return AppCard(
+                      child: Text('لا توجد مستندات مرفوعة لهذا المحل بعد'.tr),
                     );
                   }
                   return Column(
@@ -298,7 +298,7 @@ class AdminShopReviewScreen extends ConsumerWidget {
                                   if (!opened) {
                                     showAppSnackBar(
                                       context,
-                                      'تعذر فتح المستند',
+                                      'تعذر فتح المستند'.tr,
                                       isError: true,
                                     );
                                   }
@@ -319,7 +319,7 @@ class AdminShopReviewScreen extends ConsumerWidget {
                                   Text(doc.docType),
                                   const SizedBox(height: AppSpacing.xs),
                                   Text(
-                                    'اضغط لإنشاء رابط مؤقت للعرض',
+                                    'اضغط لإنشاء رابط مؤقت للعرض'.tr,
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodySmall,
@@ -336,13 +336,13 @@ class AdminShopReviewScreen extends ConsumerWidget {
               if (current.status == ShopStatus.pending) ...[
                 const SizedBox(height: AppSpacing.lg),
                 AppButton(
-                  label: 'قبول',
+                  label: 'قبول'.tr,
                   isLoading: busy,
                   onPressed: () => _approve(context, ref, current),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AppButton(
-                  label: 'رفض',
+                  label: 'رفض'.tr,
                   variant: AppButtonVariant.outlined,
                   isLoading: busy,
                   onPressed: () => _reject(context, ref, current),

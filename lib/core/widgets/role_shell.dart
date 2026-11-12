@@ -26,22 +26,22 @@ class RoleShell extends ConsumerWidget {
     final confirmed = await AppBottomSheet.show<bool>(
       context: context,
       child: AppBottomSheetScaffold(
-        title: 'تسجيل الخروج',
+        title: 'تسجيل الخروج'.tr,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'هل تريد تسجيل الخروج من الحساب؟',
+              'هل تريد تسجيل الخروج من الحساب؟'.tr,
               style: Theme.of(context).textTheme.bodyLarge,
             ),
             const SizedBox(height: AppSpacing.lg),
             AppButton(
-              label: 'تسجيل الخروج',
+              label: 'تسجيل الخروج'.tr,
               onPressed: () => Navigator.of(context).pop(true),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppButton(
-              label: 'إلغاء',
+              label: 'إلغاء'.tr,
               variant: AppButtonVariant.outlined,
               onPressed: () => Navigator.of(context).pop(false),
             ),
@@ -65,7 +65,7 @@ class RoleShell extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: AppHaptics.action(() => _confirmLogout(context, ref)),
-            child: const Text('خروج'),
+            child: Text('خروج'.tr),
           ),
         ],
       ),

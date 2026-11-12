@@ -57,7 +57,7 @@ class _RegisterCustomerScreenState
     if (!mounted) return;
     if (!ok) {
       final error = ref.read(authControllerProvider).errorMessage;
-      showAppSnackBar(context, error ?? 'فشل إنشاء الحساب', isError: true);
+      showAppSnackBar(context, error ?? 'فشل إنشاء الحساب'.tr, isError: true);
     }
   }
 
@@ -66,7 +66,7 @@ class _RegisterCustomerScreenState
     final auth = ref.watch(authControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('تسجيل مستخدم')),
+      appBar: AppBar(title: Text('تسجيل مستخدم'.tr)),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: AppSpacing.page,
@@ -76,19 +76,19 @@ class _RegisterCustomerScreenState
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'أنشئ حسابك كمستخدم',
+                  'أنشئ حسابك كمستخدم'.tr,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'ستتمكن من تصفح المنتجات والشراء بعد التسجيل',
+                  'ستتمكن من تصفح المنتجات والشراء بعد التسجيل'.tr,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 AppTextField(
                   controller: _nameController,
-                  label: 'الاسم الكامل',
-                  hint: 'الاسم',
+                  label: 'الاسم الكامل'.tr,
+                  hint: 'الاسم'.tr,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.name],
                   validator: Validators.fullName,
@@ -96,7 +96,7 @@ class _RegisterCustomerScreenState
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
                   controller: _phoneController,
-                  label: 'رقم الهاتف',
+                  label: 'رقم الهاتف'.tr,
                   hint: '05xxxxxxxx',
                   keyboardType: TextInputType.phone,
                   textInputAction: TextInputAction.next,
@@ -106,7 +106,7 @@ class _RegisterCustomerScreenState
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
                   controller: _emailController,
-                  label: 'البريد الإلكتروني',
+                  label: 'البريد الإلكتروني'.tr,
                   hint: 'name@example.com',
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
@@ -116,8 +116,8 @@ class _RegisterCustomerScreenState
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
                   controller: _passwordController,
-                  label: 'كلمة المرور',
-                  hint: '8 أحرف على الأقل مع أرقام',
+                  label: 'كلمة المرور'.tr,
+                  hint: '8 أحرف على الأقل مع أرقام'.tr,
                   obscureText: _obscure,
                   textInputAction: TextInputAction.next,
                   autofillHints: const [AutofillHints.newPassword],
@@ -136,7 +136,7 @@ class _RegisterCustomerScreenState
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(
                   controller: _confirmController,
-                  label: 'تأكيد كلمة المرور',
+                  label: 'تأكيد كلمة المرور'.tr,
                   obscureText: _obscureConfirm,
                   textInputAction: TextInputAction.done,
                   validator: (value) => Validators.confirmPassword(
@@ -157,13 +157,13 @@ class _RegisterCustomerScreenState
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 AppButton(
-                  label: 'إنشاء الحساب',
+                  label: 'إنشاء الحساب'.tr,
                   isLoading: auth.isBusy,
                   onPressed: _submit,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AppButton(
-                  label: 'العودة لتسجيل الدخول',
+                  label: 'العودة لتسجيل الدخول'.tr,
                   variant: AppButtonVariant.text,
                   onPressed: auth.isBusy
                       ? null

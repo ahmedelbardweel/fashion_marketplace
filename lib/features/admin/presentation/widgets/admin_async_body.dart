@@ -38,9 +38,9 @@ class AdminAsyncBody<T> extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(ref.read(adminRepositoryProvider).mapError(error)),
+              Text(ref.read(adminRepositoryProvider).mapError(error).tr),
               const SizedBox(height: AppSpacing.md),
-              AppButton(label: 'إعادة المحاولة', onPressed: onRetry),
+              AppButton(label: 'إعادة المحاولة'.tr, onPressed: onRetry),
             ],
           ),
         ),
@@ -49,7 +49,7 @@ class AdminAsyncBody<T> extends ConsumerWidget {
         if (isEmpty?.call(data) ?? false) {
           return ListView(
             padding: AppSpacing.page,
-            children: [AppCard(child: Text(emptyMessage))],
+            children: [AppCard(child: Text(emptyMessage.tr))],
           );
         }
         return builder(data);

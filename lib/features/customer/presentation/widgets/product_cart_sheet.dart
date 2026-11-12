@@ -30,15 +30,15 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
   Widget build(BuildContext context) {
     final details = ref.watch(customerProductDetailsProvider(widget.productId));
     return AppBottomSheetScaffold(
-      title: 'اختر اللون والمقاس',
+      title: 'اختر اللون والمقاس'.tr,
       child: details.when(
-        loading: () => const AppSkeleton(
+        loading: () => AppSkeleton(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('اسم المنتج'),
+              Text('اسم المنتج'.tr),
               SizedBox(height: 16),
-              Text('اختر اللون والمقاس'),
+              Text('اختر اللون والمقاس'.tr),
               SizedBox(height: 20),
               SizedBox(height: 48, child: Card()),
             ],
@@ -46,20 +46,20 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
         ),
         error: (_, _) => Column(
           children: [
-            const Text('تعذر تحميل خيارات المنتج'),
+            Text('تعذر تحميل خيارات المنتج'.tr),
             TextButton(
               onPressed: AppHaptics.action(
                 () => ref.invalidate(
                   customerProductDetailsProvider(widget.productId),
                 ),
               ),
-              child: const Text('إعادة المحاولة'),
+              child: Text('إعادة المحاولة'.tr),
             ),
           ],
         ),
         data: (product) {
           if (product == null || product.status != 'published') {
-            return const Text('هذا المنتج غير متاح حالياً');
+            return Text('هذا المنتج غير متاح حالياً'.tr);
           }
 
           final available = product.variants
@@ -126,7 +126,7 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                             product.coverImage!,
                             fit: BoxFit.cover,
                           )
-                        : const Icon(
+                        : Icon(
                             AppIcons.garment,
                             color: AppColors.iconMuted,
                           ),
@@ -138,7 +138,7 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                       children: [
                         Text(
                           product.shopName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: AppFont.semiBold,
                             color: ProductDetailsDesign.shopNameColor,
@@ -149,7 +149,7 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                           product.name,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: AppFont.bold,
                             color: AppColors.text,
@@ -158,7 +158,7 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                         const SizedBox(height: 6),
                         Text(
                           AppFormat.price(product.price),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: AppFont.extraBold,
                             color: AppColors.text,
@@ -174,8 +174,8 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
               const SizedBox(height: AppSpacing.md),
 
               if (available.isEmpty)
-                const Text(
-                  'نفدت الكمية حالياً',
+                Text(
+                  'نفدت الكمية حالياً'.tr,
                   style: TextStyle(
                     fontWeight: AppFont.bold,
                     color: AppColors.error,
@@ -185,8 +185,8 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                 // Color Selection
                 Row(
                   children: [
-                    const Text(
-                      'اللون',
+                    Text(
+                      'اللون'.tr,
                       style: TextStyle(
                         fontSize: ProductDetailsDesign.sectionTitleSize,
                         fontWeight: ProductDetailsDesign.sectionTitleWeight,
@@ -197,7 +197,7 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                       const SizedBox(width: AppSpacing.xs),
                       Text(
                         '· $_selectedColor',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: AppFont.semiBold,
                           color: ProductDetailsDesign.sectionValueColor,
@@ -227,8 +227,8 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                 // Size Selection
                 Row(
                   children: [
-                    const Text(
-                      'المقاس',
+                    Text(
+                      'المقاس'.tr,
                       style: TextStyle(
                         fontSize: ProductDetailsDesign.sectionTitleSize,
                         fontWeight: ProductDetailsDesign.sectionTitleWeight,
@@ -239,7 +239,7 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                       const SizedBox(width: AppSpacing.xs),
                       Text(
                         '· $_selectedSize',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: AppFont.semiBold,
                           color: ProductDetailsDesign.sectionValueColor,
@@ -282,14 +282,14 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                           Navigator.of(context).pop();
                           showAppSnackBar(
                             context,
-                            'تمت إضافة القطعة إلى السلة',
+                            'تمت إضافة القطعة إلى السلة'.tr,
                           );
                         },
                 ),
                 label: Text(
                   atLimit
-                      ? 'وصلت للكمية المتاحة'
-                      : 'إضافة إلى السلة · ${AppFormat.price(product.price)}',
+                      ? 'وصلت للكمية المتاحة'.tr
+                      : 'إضافة إلى السلة · ${AppFormat.price(product.price)}'.tr,
                 ),
               ),
             ],

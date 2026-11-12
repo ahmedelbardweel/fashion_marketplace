@@ -1,3 +1,4 @@
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 
@@ -18,7 +19,7 @@ class ShopSalesScreen extends ConsumerWidget {
     final statsAsync = ref.watch(shopStatsProvider);
 
     return ShopScaffold(
-      title: 'المبيعات والأرباح',
+      title: 'المبيعات والأرباح'.tr,
       showBottomNav: false,
       body: statsAsync.skeletonWhen(
         placeholder: LoadingFixtures.shopStats,
@@ -34,12 +35,12 @@ class ShopSalesScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'إجمالي المبيعات',
+                      'إجمالي المبيعات'.tr,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      stats.salesTotal.toStringAsFixed(2),
+                      AppFormat.price(stats.salesTotal),
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                   ],
@@ -50,10 +51,10 @@ class ShopSalesScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('الطلبات: ${stats.orders}'),
-                    Text('طلبات قيد المعالجة: ${stats.pendingOrders}'),
-                    Text('منتجات منشورة: ${stats.publishedProducts}'),
-                    Text('وحدات المخزون: ${stats.stockUnits}'),
+                    Text('الطلبات: ${stats.orders}'.tr),
+                    Text('طلبات قيد المعالجة: ${stats.pendingOrders}'.tr),
+                    Text('منتجات منشورة: ${stats.publishedProducts}'.tr),
+                    Text('وحدات المخزون: ${stats.stockUnits}'.tr),
                   ],
                 ),
               ),

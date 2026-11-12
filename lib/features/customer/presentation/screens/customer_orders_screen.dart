@@ -30,7 +30,7 @@ class CustomerOrdersScreen extends ConsumerWidget {
     final ordersAsync = ref.watch(customerOrdersProvider);
 
     return CustomerScaffold(
-      title: 'طلباتي',
+      title: 'طلباتي'.tr,
       currentNavIndex: 3,
       showBack: false,
       body: RefreshIndicator.noSpinner(
@@ -43,9 +43,9 @@ class CustomerOrdersScreen extends ConsumerWidget {
             if (orders.isEmpty) {
               return AppEmpty(
                 icon: AppIcons.orders,
-                title: 'لا توجد طلبات سابقة',
-                message: 'عندما تشتري أي ملابس ستتمكن من تتبع شحنتها هنا فوراً',
-                actionLabel: 'تصفح الأزياء الآن',
+                title: 'لا توجد طلبات سابقة'.tr,
+                message: 'عندما تشتري أي ملابس ستتمكن من تتبع شحنتها هنا فوراً'.tr,
+                actionLabel: 'تصفح الأزياء الآن'.tr,
                 onAction: AppHaptics.action(
                   () => context.go(AppRoutes.customerCatalog),
                 ),
@@ -76,8 +76,8 @@ class CustomerOrdersScreen extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'طلب #$shortId',
-                            style: const TextStyle(
+                            'طلب #$shortId'.tr,
+                            style: TextStyle(
                               fontSize: OrdersDesign.orderNumberSize,
                               fontWeight: OrdersDesign.orderNumberWeight,
                               color: AppColors.text,
@@ -92,7 +92,7 @@ class CustomerOrdersScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.xs),
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             AppIcons.shop,
                             size: 15,
                             color: AppColors.icon,
@@ -100,7 +100,7 @@ class CustomerOrdersScreen extends ConsumerWidget {
                           const SizedBox(width: 4),
                           Text(
                             order.shopName,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: AppFont.semiBold,
                               color: AppColors.textSecondary,
@@ -111,7 +111,7 @@ class CustomerOrdersScreen extends ConsumerWidget {
                       const SizedBox(height: 2),
                       Text(
                         dateStr,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           color: OrdersDesign.dateColor,
                         ),
@@ -123,15 +123,15 @@ class CustomerOrdersScreen extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '${order.items.length} قطع',
-                            style: const TextStyle(
+                            '${order.items.length} قطع'.tr,
+                            style: TextStyle(
                               fontSize: 12,
                               color: AppColors.textSecondary,
                             ),
                           ),
                           Text(
                             AppFormat.price(order.total),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: OrdersDesign.totalSize,
                               fontWeight: OrdersDesign.totalWeight,
                               color: AppColors.text,
@@ -147,7 +147,7 @@ class CustomerOrdersScreen extends ConsumerWidget {
           },
           error: (err, _) => AppEmpty(
             icon: AppIcons.error,
-            message: 'تعذر تحميل الطلبات: $err',
+            message: 'تعذر تحميل الطلبات: $err'.tr,
           ),
         ),
       ),

@@ -45,13 +45,13 @@ class OrderDetailsScreen extends ConsumerWidget {
                 ),
               ),
               child: isCompleted
-                  ? const Icon(
+                  ? Icon(
                       AppIcons.check,
                       size: 14,
                       color: AppColors.white,
                     )
                   : (isCurrent
-                        ? const Center(
+                        ? Center(
                             child: SizedBox(
                               width: 8,
                               height: 8,
@@ -90,7 +90,7 @@ class OrderDetailsScreen extends ConsumerWidget {
               ),
               Text(
                 subtitle,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   color: AppColors.textMuted,
                 ),
@@ -111,12 +111,12 @@ class OrderDetailsScreen extends ConsumerWidget {
       placeholder: LoadingFixtures.order,
       data: (order) {
         if (order == null) {
-          return const CustomerScaffold(
-            title: 'تفاصيل الطلب',
+          return CustomerScaffold(
+            title: 'تفاصيل الطلب'.tr,
             showSearch: false,
             body: AppEmpty(
               icon: AppIcons.orders,
-              message: 'الطلب غير موجود',
+              message: 'الطلب غير موجود'.tr,
             ),
           );
         }
@@ -129,7 +129,7 @@ class OrderDetailsScreen extends ConsumerWidget {
             : order.id.toUpperCase();
 
         return CustomerScaffold(
-          title: 'طلب #$shortId',
+          title: 'طلب #$shortId'.tr,
           showSearch: false,
           body: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.md),
@@ -146,8 +146,8 @@ class OrderDetailsScreen extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              'المتجر: ${order.shopName}',
-                              style: const TextStyle(
+                              'المتجر: ${order.shopName}'.tr,
+                              style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: AppFont.bold,
                                 color: AppColors.text,
@@ -162,8 +162,8 @@ class OrderDetailsScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'تاريخ الإنشاء: $dateStr',
-                        style: const TextStyle(
+                        'تاريخ الإنشاء: $dateStr'.tr,
+                        style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,
                         ),
@@ -175,8 +175,8 @@ class OrderDetailsScreen extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.lg),
 
                 // Status Timeline Card
-                const Text(
-                  'مراحل توصيل الشحنة',
+                Text(
+                  'مراحل توصيل الشحنة'.tr,
                   style: TextStyle(
                     fontSize: SectionDesign.titleSize,
                     fontWeight: SectionDesign.titleWeight,
@@ -189,33 +189,33 @@ class OrderDetailsScreen extends ConsumerWidget {
                     children: [
                       _buildTimelineStep(
                         context: context,
-                        title: 'تم استلام الطلب',
-                        subtitle: 'تم تأكيد طلبك وإرساله للمتجر بنجاح',
+                        title: 'تم استلام الطلب'.tr,
+                        subtitle: 'تم تأكيد طلبك وإرساله للمتجر بنجاح'.tr,
                         isCompleted: currentStep > 1,
                         isCurrent: currentStep == 1,
                         isLast: false,
                       ),
                       _buildTimelineStep(
                         context: context,
-                        title: 'جاري تجهيز الملابس',
+                        title: 'جاري تجهيز الملابس'.tr,
                         subtitle:
-                            'المتجر يقوم بتجهيز وتغليف المقاسات والألوان المطلوبة',
+                            'المتجر يقوم بتجهيز وتغليف المقاسات والألوان المطلوبة'.tr,
                         isCompleted: currentStep > 2,
                         isCurrent: currentStep == 2,
                         isLast: false,
                       ),
                       _buildTimelineStep(
                         context: context,
-                        title: 'تم الشحن مع مندوب التوصيل',
-                        subtitle: 'الشحنة في طريقها إلى عنوانك المحدد',
+                        title: 'تم الشحن مع مندوب التوصيل'.tr,
+                        subtitle: 'الشحنة في طريقها إلى عنوانك المحدد'.tr,
                         isCompleted: currentStep > 3,
                         isCurrent: currentStep == 3,
                         isLast: false,
                       ),
                       _buildTimelineStep(
                         context: context,
-                        title: 'تم الاستلام والتسليم',
-                        subtitle: 'تم تسليم الملابس للمشتري بنجاح',
+                        title: 'تم الاستلام والتسليم'.tr,
+                        subtitle: 'تم تسليم الملابس للمشتري بنجاح'.tr,
                         isCompleted: currentStep >= 4,
                         isCurrent: currentStep == 4,
                         isLast: true,
@@ -228,8 +228,8 @@ class OrderDetailsScreen extends ConsumerWidget {
 
                 // Items List
                 Text(
-                  'القطع المشتراة (${order.items.length})',
-                  style: const TextStyle(
+                  'القطع المشتراة (${order.items.length})'.tr,
+                  style: TextStyle(
                     fontSize: SectionDesign.titleSize,
                     fontWeight: SectionDesign.titleWeight,
                     color: AppColors.text,
@@ -251,22 +251,22 @@ class OrderDetailsScreen extends ConsumerWidget {
                                   children: [
                                     Text(
                                       item.productName,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontWeight: AppFont.bold,
                                         color: AppColors.text,
                                       ),
                                     ),
                                     if (item.variantInfo != null)
                                       Text(
-                                        'المواصفات: ${item.variantInfo}',
-                                        style: const TextStyle(
+                                        'المواصفات: ${item.variantInfo}'.tr,
+                                        style: TextStyle(
                                           fontSize: 12,
                                           color: AppColors.textMuted,
                                         ),
                                       ),
                                     Text(
-                                      'الكمية: ${item.quantity}',
-                                      style: const TextStyle(
+                                      'الكمية: ${item.quantity}'.tr,
+                                      style: TextStyle(
                                         fontSize: 12,
                                         color: AppColors.textSecondary,
                                       ),
@@ -276,7 +276,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                               ),
                               Text(
                                 AppFormat.price(item.totalPrice),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: AppFont.bold,
                                   color: AppColors.text,
                                 ),
@@ -289,8 +289,8 @@ class OrderDetailsScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'الإجمالي المدفوع',
+                          Text(
+                            'الإجمالي المدفوع'.tr,
                             style: TextStyle(
                               fontWeight: AppFont.bold,
                               color: AppColors.text,
@@ -298,7 +298,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                           ),
                           Text(
                             AppFormat.price(order.total),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: AppFont.extraBold,
                               color: AppColors.text,
@@ -315,11 +315,11 @@ class OrderDetailsScreen extends ConsumerWidget {
         );
       },
       error: (err, _) => CustomerScaffold(
-        title: 'تفاصيل الطلب',
+        title: 'تفاصيل الطلب'.tr,
         showSearch: false,
         body: AppEmpty(
           icon: AppIcons.error,
-          message: 'تعذر تحميل تفاصيل الطلب: $err',
+          message: 'تعذر تحميل تفاصيل الطلب: $err'.tr,
         ),
       ),
     );

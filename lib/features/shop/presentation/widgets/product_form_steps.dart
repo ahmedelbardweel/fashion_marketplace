@@ -43,8 +43,8 @@ class ProductFormSteps extends StatelessWidget {
                       width: width,
                       child: Center(
                         child: Semantics(
-                          label: 'المرحلة ${i + 1}: ${labels[i]}',
-                          value: '${(progress[i] * 100).round()}٪ مكتمل',
+                          label: 'المرحلة ${i + 1}: ${labels[i]}'.tr,
+                          value: '${(progress[i] * 100).round()}٪ مكتمل'.tr,
                           selected: i == current,
                           button: true,
                           child: InkResponse(
@@ -64,14 +64,14 @@ class ProductFormSteps extends StatelessWidget {
                                   child: Center(
                                     child: ExcludeSemantics(
                                       child: value >= 1
-                                          ? const Icon(
+                                          ? Icon(
                                               AppIcons.check,
                                               size: 20,
                                               color: AppColors.icon,
                                             )
                                           : Text(
                                               '${i + 1}',
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 15,
                                                 fontWeight: AppFont.bold,
                                                 color: AppColors.text,

@@ -81,15 +81,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                             AuthDesign.logoRadius,
                           ),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           AppIcons.bag,
                           size: 42,
                           color: SplashDesign.logoIcon,
                         ),
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      const Text(
-                        'ملابسي',
+                      Text(
+                        'ملابسي'.tr,
                         style: TextStyle(
                           fontSize: 32,
                           color: SplashDesign.title,
@@ -97,7 +97,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         ),
                       ),
                       const SizedBox(height: 4),
-                      const Text(
+                      Text(
                         'MALABSI',
                         style: TextStyle(
                           fontSize: 12,

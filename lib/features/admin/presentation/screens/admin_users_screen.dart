@@ -25,23 +25,23 @@ class AdminUsersScreen extends ConsumerWidget {
     final confirmed = await AppBottomSheet.show<bool>(
       context: context,
       child: AppBottomSheetScaffold(
-        title: nextActive ? 'تفعيل الحساب' : 'تعليق الحساب',
+        title: nextActive ? 'تفعيل الحساب'.tr : 'تعليق الحساب'.tr,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
               nextActive
-                  ? 'تفعيل حساب ${user.displayName}؟'
-                  : 'تعليق حساب ${user.displayName}؟',
+                  ? 'تفعيل حساب ${user.displayName}؟'.tr
+                  : 'تعليق حساب ${user.displayName}؟'.tr,
             ),
             const SizedBox(height: AppSpacing.lg),
             AppButton(
-              label: 'تأكيد',
+              label: 'تأكيد'.tr,
               onPressed: () => Navigator.of(context).pop(true),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppButton(
-              label: 'إلغاء',
+              label: 'إلغاء'.tr,
               variant: AppButtonVariant.outlined,
               onPressed: () => Navigator.of(context).pop(false),
             ),
@@ -61,14 +61,14 @@ class AdminUsersScreen extends ConsumerWidget {
       final error = ref.read(adminActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر تحديث الحساب' : actions.errorMessage(error),
+        error == null ? 'تعذر تحديث الحساب'.tr : actions.errorMessage(error),
         isError: true,
       );
       return;
     }
     showAppSnackBar(
       context,
-      nextActive ? 'تم تفعيل الحساب' : 'تم تعليق الحساب',
+      nextActive ? 'تم تفعيل الحساب'.tr : 'تم تعليق الحساب'.tr,
     );
   }
 
@@ -78,11 +78,11 @@ class AdminUsersScreen extends ConsumerWidget {
     final busy = ref.watch(adminActionProvider).isLoading;
 
     return AdminScaffold(
-      title: 'المستخدمون والمحلات',
+      title: 'المستخدمون والمحلات'.tr,
       body: AdminAsyncBody<List<AppUser>>(
         placeholder: LoadingFixtures.users,
         value: users,
-        emptyMessage: 'لا يوجد مستخدمون بعد',
+        emptyMessage: 'لا يوجد مستخدمون بعد'.tr,
         isEmpty: (data) => data.isEmpty,
         onRetry: () => ref.invalidate(adminUsersProvider),
         builder: (items) {
@@ -103,7 +103,7 @@ class AdminUsersScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            '${user.role.labelAr} · ${user.isActive ? 'نشط' : 'موقوف'}',
+                            '${user.role.labelAr} · ${user.isActive ? 'نشط'.tr : 'موقوف'.tr}',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           const SizedBox(height: AppSpacing.xs),

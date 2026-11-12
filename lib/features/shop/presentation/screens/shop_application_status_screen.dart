@@ -20,15 +20,15 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
   String _message(Shop shop) {
     switch (shop.visibleStatus) {
       case ShopStatus.pending:
-        return 'طلب الانضمام قيد المراجعة لدى الإدارة. سيظهر القرار هنا بعد المدة المحددة في إعدادات المنصة.';
+        return 'طلب الانضمام قيد المراجعة لدى الإدارة. سيظهر القرار هنا بعد المدة المحددة في إعدادات المنصة.'.tr;
       case ShopStatus.approved:
-        return 'تمت الموافقة على المحل. يمكنك الآن إدارة منتجاتك وطلباتك.';
+        return 'تمت الموافقة على المحل. يمكنك الآن إدارة منتجاتك وطلباتك.'.tr;
       case ShopStatus.rejected:
-        return 'تم رفض طلب الانضمام. يمكنك تعديل البيانات وإعادة التقديم.';
+        return 'تم رفض طلب الانضمام. يمكنك تعديل البيانات وإعادة التقديم.'.tr;
       case ShopStatus.suspended:
-        return 'تم تعليق المحل. تواصل مع الإدارة.';
+        return 'تم تعليق المحل. تواصل مع الإدارة.'.tr;
       case ShopStatus.draft:
-        return 'أكمل بيانات المحل ثم أرسل طلب الانضمام.';
+        return 'أكمل بيانات المحل ثم أرسل طلب الانضمام.'.tr;
     }
   }
 
@@ -39,12 +39,12 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
       if (shop == null) {
         showAppSnackBar(
           context,
-          'لم يتم العثور على بيانات المحل',
+          'لم يتم العثور على بيانات المحل'.tr,
           isError: true,
         );
         return;
       }
-      showAppSnackBar(context, 'الحالة الحالية: ${shop.visibleStatus.labelAr}');
+      showAppSnackBar(context, 'الحالة الحالية: ${shop.visibleStatus.labelAr}'.tr);
     } catch (error) {
       if (!context.mounted) return;
       showAppSnackBar(
@@ -61,7 +61,7 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
     final refreshing = shopAsync.isLoading || shopAsync.isRefreshing;
 
     return ShopScaffold(
-      title: 'حالة الطلب',
+      title: 'حالة الطلب'.tr,
       showBack: false,
       showBottomNav: false,
       body: shopAsync.skeletonWhen(
@@ -77,7 +77,7 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
                 Text(ref.read(shopRepositoryProvider).mapError(error)),
                 const SizedBox(height: AppSpacing.md),
                 AppButton(
-                  label: 'إعادة المحاولة',
+                  label: 'إعادة المحاولة'.tr,
                   onPressed: () => _refresh(context, ref),
                 ),
               ],
@@ -86,7 +86,7 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
         ),
         data: (shop) {
           if (shop == null) {
-            return const Center(child: Text('لم يتم العثور على بيانات المحل'));
+            return Center(child: Text('لم يتم العثور على بيانات المحل'.tr));
           }
 
           return ListView(
@@ -97,7 +97,7 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'الحالة',
+                      'الحالة'.tr,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: AppSpacing.xs),
@@ -118,7 +118,7 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
                     if (shop.visibleRejectionReason != null) ...[
                       const SizedBox(height: AppSpacing.md),
                       Text(
-                        'سبب الرفض',
+                        'سبب الرفض'.tr,
                         style: Theme.of(context).textTheme.titleSmall,
                       ),
                       const SizedBox(height: AppSpacing.xs),
@@ -131,24 +131,24 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
               if (shop.visibleStatus == ShopStatus.rejected ||
                   shop.visibleStatus == ShopStatus.draft)
                 AppButton(
-                  label: 'تعديل البيانات وإعادة التقديم',
+                  label: 'تعديل البيانات وإعادة التقديم'.tr,
                   onPressed: () => context.go(AppRoutes.shopCompleteProfile),
                 ),
               if (shop.visibleStatus == ShopStatus.approved)
                 AppButton(
-                  label: 'الذهاب إلى لوحة المحل',
+                  label: 'الذهاب إلى لوحة المحل'.tr,
                   onPressed: () => context.go(AppRoutes.shopHome),
                 ),
               const SizedBox(height: AppSpacing.sm),
               AppButton(
-                label: 'تحديث الحالة',
+                label: 'تحديث الحالة'.tr,
                 variant: AppButtonVariant.outlined,
                 isLoading: refreshing,
                 onPressed: () => _refresh(context, ref),
               ),
               const SizedBox(height: AppSpacing.sm),
               AppButton(
-                label: 'تسجيل الخروج',
+                label: 'تسجيل الخروج'.tr,
                 variant: AppButtonVariant.outlined,
                 onPressed: () => confirmShopLogout(context, ref),
               ),

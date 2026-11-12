@@ -149,7 +149,7 @@ class _ProductGridCardState extends State<ProductGridCard> {
                           ? 1
                           : ProductCardDesign.outOfStockImageOpacity,
                       child: widget.imageUrl == null || widget.imageUrl!.isEmpty
-                          ? const Center(
+                          ? Center(
                               child: Icon(
                                 AppIcons.garment,
                                 size: 32,
@@ -161,7 +161,7 @@ class _ProductGridCardState extends State<ProductGridCard> {
                               fit: ProductCardDesign.imageFit,
                               width: double.infinity,
                               height: double.infinity,
-                              errorBuilder: (_, _, _) => const Center(
+                              errorBuilder: (_, _, _) => Center(
                                 child: Icon(
                                   AppIcons.imageBroken,
                                   size: 28,
@@ -185,9 +185,9 @@ class _ProductGridCardState extends State<ProductGridCard> {
                             color: ProductCardDesign.outOfStockBadgeBackground,
                             borderRadius: BorderRadius.circular(AppRadii.pill),
                           ),
-                          child: const Text(
+                          child: Text(
                             ProductCardDesign.outOfStockLabel,
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: ProductCardDesign.outOfStockBadgeText,
                               fontSize: 10,
                               fontWeight: AppFont.bold,
@@ -212,7 +212,7 @@ class _ProductGridCardState extends State<ProductGridCard> {
                               child: Container(
                                 width: ProductCardDesign.favoriteSize,
                                 height: ProductCardDesign.favoriteSize,
-                                decoration: const BoxDecoration(
+                                decoration: BoxDecoration(
                                   color: ProductCardDesign.favoriteBackground,
                                   shape: BoxShape.circle,
                                   boxShadow: ProductCardDesign.favoriteShadow,
@@ -250,10 +250,10 @@ class _ProductGridCardState extends State<ProductGridCard> {
                     onTap: AppHaptics.action(widget.onTap),
                     behavior: HitTestBehavior.opaque,
                     child: Text(
-                      widget.meta,
+                      AppLang.tr(widget.meta),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: ProductCardDesign.priceSize,
                         fontWeight: ProductCardDesign.priceWeight,
                         color: ProductCardDesign.priceColor,

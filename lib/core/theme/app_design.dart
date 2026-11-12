@@ -17,7 +17,9 @@
 import 'package:flutter/material.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
+import '../l10n/app_translations.dart';
 export 'package:iconsax_plus/iconsax_plus.dart';
+export '../l10n/app_translations.dart';
 
 // =============================================================================
 //  0) مكتبة الأيقونات الموحّدة  —  UNIFIED APP ICONS (Iconsax Plus)
@@ -27,9 +29,9 @@ export 'package:iconsax_plus/iconsax_plus.dart';
 // =============================================================================
 abstract final class AppIcons {
   // --- التنقل والأسهم (متوافقة مع اتجاه العربية RTL) ---
-  static const IconData back = IconsaxPlusLinear.arrow_right_1;
-  static const IconData forward = IconsaxPlusLinear.arrow_left_2;
-  static const IconData arrowForward = IconsaxPlusLinear.arrow_left;
+  static IconData get back => AppLang.isEn ? IconsaxPlusLinear.arrow_left_1 : IconsaxPlusLinear.arrow_right_1;
+  static IconData get forward => AppLang.isEn ? IconsaxPlusLinear.arrow_right_3 : IconsaxPlusLinear.arrow_left_2;
+  static IconData get arrowForward => AppLang.isEn ? IconsaxPlusLinear.arrow_right : IconsaxPlusLinear.arrow_left;
   static const IconData chevronDown = IconsaxPlusLinear.arrow_down_1;
   static const IconData arrowUp = IconsaxPlusLinear.arrow_up;
   static const IconData arrowDown = IconsaxPlusLinear.arrow_down;
@@ -171,72 +173,98 @@ abstract final class AppPalette {
 class AppColors {
   AppColors._();
 
+  /// هل الوضع الليلي مفعّل حالياً؟ يتم تحديثه تلقائياً عند تبديل الثيم.
+  static bool isDark = false;
+
   // --- اللون الرئيسي ---
-  static const Color primary = AppPalette.primary;
-  static const Color primaryDark = AppPalette.primaryDark;
-  static const Color primarySoft = AppPalette.primarySoft;
-  static const Color primaryBorder = AppPalette.primaryBorder;
+  static Color get primary =>
+      isDark ? const Color(0xFF00A3AB) : AppPalette.primary;
+  static Color get primaryDark =>
+      isDark ? const Color(0xFF38C6CE) : AppPalette.primaryDark;
+  static Color get primarySoft =>
+      isDark ? const Color(0xFF132E32) : AppPalette.primarySoft;
+  static Color get primaryBorder =>
+      isDark ? const Color(0xFF1E4E54) : AppPalette.primaryBorder;
   static const Color onPrimary = AppPalette.white;
 
   // --- الخطوط ---
-  /// لون الخط الأساسي (أسود).
-  static const Color text = AppPalette.ink;
+  /// لون الخط الأساسي.
+  static Color get text =>
+      isDark ? const Color(0xFFFFFFFF) : AppPalette.ink;
 
   /// لون الخط الثانوي (وصف، تفاصيل).
-  static const Color textSecondary = AppPalette.gray700;
+  static Color get textSecondary =>
+      isDark ? const Color(0xFFD4D4D4) : AppPalette.gray700;
 
   /// لون الخط الخافت (تلميحات، تواريخ).
-  static const Color textMuted = AppPalette.gray500;
+  static Color get textMuted =>
+      isDark ? const Color(0xFF8E8E8E) : AppPalette.gray500;
 
   // --- الأيقونات ---
-  /// لون الأيقونات الأساسي (أسود).
-  static const Color icon = AppPalette.ink;
+  /// لون الأيقونات الأساسي.
+  static Color get icon =>
+      isDark ? const Color(0xFFFFFFFF) : AppPalette.ink;
 
   /// لون الأيقونات غير النشطة.
-  static const Color iconMuted = AppPalette.gray500;
+  static Color get iconMuted =>
+      isDark ? const Color(0xFF8E8E8E) : AppPalette.gray500;
 
-  // --- الخلفيات ---
-  static const Color background = AppPalette.white;
-  static const Color surface = AppPalette.white;
+  // --- الخلفيات (أسود صافي ورمادي فحمي محايد بدون أي درجة كحلي) ---
+  static Color get background =>
+      isDark ? const Color(0xFF000000) : AppPalette.white;
+  static Color get surface =>
+      isDark ? const Color(0xFF121212) : AppPalette.white;
 
   /// خلفية ثانوية (حقول، صناديق صور، أقسام).
-  static const Color surfaceAlt = AppPalette.gray100;
+  static Color get surfaceAlt =>
+      isDark ? const Color(0xFF1C1C1C) : AppPalette.gray100;
 
   /// خلفية خافتة جداً.
-  static const Color surfaceSubtle = AppPalette.gray50;
+  static Color get surfaceSubtle =>
+      isDark ? const Color(0xFF0A0A0A) : AppPalette.gray50;
 
   // --- الحدود ---
   /// البوردر الموحد لكل التطبيق.
-  static const Color border = AppPalette.gray200;
-  static const Color borderStrong = AppPalette.gray300;
-  static const Color divider = AppPalette.gray200;
+  static Color get border =>
+      isDark ? const Color(0xFF262626) : AppPalette.gray200;
+  static Color get borderStrong =>
+      isDark ? const Color(0xFF383838) : AppPalette.gray300;
+  static Color get divider =>
+      isDark ? const Color(0xFF222222) : AppPalette.gray200;
 
   // --- الحالات ---
-  static const Color error = AppPalette.red;
-  static const Color errorSoft = AppPalette.redSoft;
-  static const Color success = AppPalette.green;
-  static const Color successSoft = AppPalette.greenSoft;
-  static const Color warning = AppPalette.amber;
-  static const Color warningSoft = AppPalette.amberSoft;
+  static Color get error =>
+      isDark ? const Color(0xFFF97066) : AppPalette.red;
+  static Color get errorSoft =>
+      isDark ? const Color(0xFF3A1818) : AppPalette.redSoft;
+  static Color get success =>
+      isDark ? const Color(0xFF32D583) : AppPalette.green;
+  static Color get successSoft =>
+      isDark ? const Color(0xFF113222) : AppPalette.greenSoft;
+  static Color get warning =>
+      isDark ? const Color(0xFFFDB022) : AppPalette.amber;
+  static Color get warningSoft =>
+      isDark ? const Color(0xFF36260E) : AppPalette.amberSoft;
 
   /// لون نجوم التقييم.
-  static const Color rating = AppPalette.ink;
+  static Color get rating =>
+      isDark ? const Color(0xFFFDB022) : AppPalette.ink;
 
   /// طبقة التعتيم خلف النوافذ المنبثقة.
   static const Color scrim = Color(0x73000000);
 
   // --- أسماء قديمة (متوافقة مع الكود الحالي) ---
-  /// أسود حقيقي للخطوط والأيقونات.
-  static const Color black = AppPalette.ink;
-  static const Color white = AppPalette.white;
-  static const Color gray900 = AppPalette.gray900;
-  static const Color gray700 = AppPalette.gray700;
-  static const Color gray500 = AppPalette.gray500;
-  static const Color gray300 = AppPalette.gray300;
-  static const Color gray100 = AppPalette.gray100;
-  static const Color onBackground = text;
-  static const Color onSurface = text;
-  static const Color secondary = AppPalette.gray700;
+  static Color get black => text;
+  static Color get white => surface;
+  static Color get gray900 =>
+      isDark ? const Color(0xFFFFFFFF) : AppPalette.gray900;
+  static Color get gray700 => textSecondary;
+  static Color get gray500 => textMuted;
+  static Color get gray300 => borderStrong;
+  static Color get gray100 => surfaceAlt;
+  static Color get onBackground => text;
+  static Color get onSurface => text;
+  static Color get secondary => textSecondary;
 }
 
 // =============================================================================
@@ -319,8 +347,8 @@ abstract final class AppBorders {
   static const double widthStrong = 1.5;
   static const double widthSelected = 1.6;
 
-  static const BorderSide side = BorderSide(color: AppColors.border, width: width);
-  static const BorderSide selected = BorderSide(
+  static BorderSide get side => BorderSide(color: AppColors.border, width: width);
+  static BorderSide get selected => BorderSide(
     color: AppColors.primary,
     width: widthSelected,
   );
@@ -389,8 +417,8 @@ abstract final class AppMotion {
 //  9) العملة والأرقام
 // =============================================================================
 abstract final class AppFormat {
-  static const String currency = 'ر.س';
-  static String price(num value) => '${value.toStringAsFixed(2)} $currency';
+  static String get currency => '₪';
+  static String price(num value) => AppLang.isEn ? '₪${value.toStringAsFixed(2)}' : '${value.toStringAsFixed(2)} ₪';
 }
 
 // #############################################################################
@@ -402,49 +430,49 @@ abstract final class AppFormat {
 // -----------------------------------------------------------------------------
 abstract final class AppBarDesign {
   static const double height = 64;
-  static const Color background = AppColors.white;
-  static const Color iconColor = AppColors.icon;
+  static Color get background => AppColors.white;
+  static Color get iconColor => AppColors.icon;
   static const double iconSize = 24;
-  static const Color titleColor = AppColors.text;
+  static Color get titleColor => AppColors.text;
   static const double titleSize = 18;
   static const FontWeight titleWeight = AppFont.bold;
   static const bool showBottomBorder = true;
-  static const Color borderColor = AppColors.border;
+  static Color get borderColor => AppColors.border;
 
   // البحث داخل الشريط
   static const double searchHeight = 44;
-  static const Color searchBackground = AppColors.surfaceAlt;
+  static Color get searchBackground => AppColors.surfaceAlt;
   static const Color searchBorder = Colors.transparent;
   static const double searchRadius = AppRadii.pill;
-  static const Color searchIcon = AppColors.icon;
-  static const Color searchHint = AppColors.textMuted;
-  static const String searchHintText = 'ابحث عن قميص، فستان، هودي...';
+  static Color get searchIcon => AppColors.icon;
+  static Color get searchHint => AppColors.textMuted;
+  static String get searchHintText => AppLang.isEn ? 'Search shirts, dresses, hoodies...' : 'ابحث عن قميص، فستان، هودي...';
 
   // الشارة فوق أيقونة السلة
-  static const Color badgeBackground = AppColors.primary;
-  static const Color badgeText = AppColors.onPrimary;
+  static Color get badgeBackground => AppColors.primary;
+  static Color get badgeText => AppColors.onPrimary;
 }
 
 // -----------------------------------------------------------------------------
 //  الشريط السفلي للتنقل  —  BOTTOM NAVIGATION
 // -----------------------------------------------------------------------------
 abstract final class BottomNavDesign {
-  static const Color background = AppColors.white;
-  static const Color borderColor = AppColors.border;
+  static Color get background => AppColors.white;
+  static Color get borderColor => AppColors.border;
   static const double topRadius = 0;
   static const double height = 68;
   static const double iconSize = 22;
-  static const Color selectedIcon = AppColors.icon;
-  static const Color unselectedIcon = AppColors.iconMuted;
-  static const Color selectedLabel = AppColors.text;
-  static const Color unselectedLabel = AppColors.textMuted;
+  static Color get selectedIcon => AppColors.icon;
+  static Color get unselectedIcon => AppColors.iconMuted;
+  static Color get selectedLabel => AppColors.text;
+  static Color get unselectedLabel => AppColors.textMuted;
   static const double labelSize = 11;
   static const FontWeight selectedWeight = AppFont.bold;
   static const FontWeight unselectedWeight = AppFont.medium;
 
   /// الخلفية خلف الأيقونة والنص للعنصر المحدد.
-  static const Color indicator = AppColors.primarySoft;
-  static const double indicatorWidth = 72;
+  static Color get indicator => AppColors.primarySoft;
+  static const double indicatorWidth = 64;
   static const double indicatorHeight = 52;
   static const double indicatorRadius = 20;
 }
@@ -460,22 +488,22 @@ abstract final class ButtonDesign {
   static const FontWeight textWeight = AppFont.bold;
 
   // الزر الرئيسي
-  static const Color primaryBackground = AppColors.primary;
-  static const Color primaryForeground = AppColors.onPrimary;
-  static const Color disabledBackground = AppPalette.gray200;
-  static const Color disabledForeground = AppPalette.gray500;
+  static Color get primaryBackground => AppColors.primary;
+  static Color get primaryForeground => AppColors.onPrimary;
+  static Color get disabledBackground => AppPalette.gray200;
+  static Color get disabledForeground => AppPalette.gray500;
 
   // الزر المحدد بحدود
-  static const Color outlinedForeground = AppColors.text;
-  static const Color outlinedBorder = AppColors.borderStrong;
-  static const Color outlinedBackground = AppColors.white;
+  static Color get outlinedForeground => AppColors.text;
+  static Color get outlinedBorder => AppColors.borderStrong;
+  static Color get outlinedBackground => AppColors.white;
 
   // الزر النصي
-  static const Color textForeground = AppColors.text;
+  static Color get textForeground => AppColors.text;
 
   // زر الأيقونة
-  static const Color iconButtonColor = AppColors.icon;
-  static const Color iconButtonBorder = AppColors.border;
+  static Color get iconButtonColor => AppColors.icon;
+  static Color get iconButtonBorder => AppColors.border;
   static const double iconButtonRadius = AppRadii.pill;
 }
 
@@ -483,10 +511,10 @@ abstract final class ButtonDesign {
 //  حقول الإدخال  —  INPUTS
 // -----------------------------------------------------------------------------
 abstract final class InputDesign {
-  static const Color fill = AppColors.surfaceAlt;
+  static Color get fill => AppColors.surfaceAlt;
   static const Color border = Colors.transparent;
-  static const Color focusedBorder = AppColors.primary;
-  static const Color errorBorder = AppColors.error;
+  static Color get focusedBorder => AppColors.primary;
+  static Color get errorBorder => AppColors.error;
   static const double borderWidth = 1;
   static const double focusedBorderWidth = 1.5;
   static const double radius = AppRadii.input;
@@ -494,12 +522,12 @@ abstract final class InputDesign {
     horizontal: 16,
     vertical: 15,
   );
-  static const Color text = AppColors.text;
-  static const Color hint = AppColors.textMuted;
-  static const Color label = AppColors.text;
+  static Color get text => AppColors.text;
+  static Color get hint => AppColors.textMuted;
+  static Color get label => AppColors.text;
   static const FontWeight labelWeight = AppFont.semiBold;
-  static const Color prefixIcon = AppColors.icon;
-  static const Color cursor = AppColors.primary;
+  static Color get prefixIcon => AppColors.icon;
+  static Color get cursor => AppColors.primary;
 }
 
 // -----------------------------------------------------------------------------
@@ -509,13 +537,13 @@ abstract final class ChipDesign {
   static const double height = 38;
   static const double radius = AppRadii.pill;
   static const EdgeInsets padding = EdgeInsets.symmetric(horizontal: 16);
-  static const Color background = AppColors.surfaceAlt;
+  static Color get background => AppColors.surfaceAlt;
   static const Color border = Colors.transparent;
-  static const Color text = AppColors.text;
+  static Color get text => AppColors.text;
   static const FontWeight textWeight = AppFont.semiBold;
-  static const Color selectedBackground = AppColors.primary;
-  static const Color selectedBorder = AppColors.primary;
-  static const Color selectedText = AppColors.onPrimary;
+  static Color get selectedBackground => AppColors.primary;
+  static Color get selectedBorder => AppColors.primary;
+  static Color get selectedText => AppColors.onPrimary;
   static const FontWeight selectedWeight = AppFont.bold;
   static const double textSize = 13;
 }
@@ -524,8 +552,8 @@ abstract final class ChipDesign {
 //  البطاقات العامة  —  GENERIC CARD (AppCard)
 // -----------------------------------------------------------------------------
 abstract final class CardDesign {
-  static const Color background = AppColors.white;
-  static const Color border = AppColors.border;
+  static Color get background => AppColors.white;
+  static Color get border => AppColors.border;
   static const double borderWidth = AppBorders.width;
   static const double radius = AppRadii.card;
   static const EdgeInsets padding = EdgeInsets.all(16);
@@ -543,26 +571,26 @@ abstract final class BadgeDesign {
   );
   static const double textSize = 12;
   static const FontWeight textWeight = AppFont.bold;
-  static const Color neutralBackground = AppColors.surfaceAlt;
-  static const Color neutralText = AppColors.text;
-  static const Color primaryBackground = AppColors.primarySoft;
-  static const Color primaryText = AppColors.primaryDark;
-  static const Color successBackground = AppColors.successSoft;
-  static const Color successText = AppColors.success;
-  static const Color warningBackground = AppColors.warningSoft;
-  static const Color warningText = AppColors.warning;
-  static const Color errorBackground = AppColors.errorSoft;
-  static const Color errorText = AppColors.error;
+  static Color get neutralBackground => AppColors.surfaceAlt;
+  static Color get neutralText => AppColors.text;
+  static Color get primaryBackground => AppColors.primarySoft;
+  static Color get primaryText => AppColors.primaryDark;
+  static Color get successBackground => AppColors.successSoft;
+  static Color get successText => AppColors.success;
+  static Color get warningBackground => AppColors.warningSoft;
+  static Color get warningText => AppColors.warning;
+  static Color get errorBackground => AppColors.errorSoft;
+  static Color get errorText => AppColors.error;
 }
 
 // -----------------------------------------------------------------------------
 //  النافذة السفلية  —  BOTTOM SHEET
 // -----------------------------------------------------------------------------
 abstract final class SheetDesign {
-  static const Color background = AppColors.white;
+  static Color get background => AppColors.white;
   static const double topRadius = AppRadii.bottomSheet;
-  static const Color scrim = AppColors.scrim;
-  static const Color handle = AppPalette.gray300;
+  static Color get scrim => AppColors.scrim;
+  static Color get handle => AppPalette.gray300;
   static const double handleWidth = 40;
   static const double handleHeight = 4;
   static const double maxHeightFactor = 0.92;
@@ -576,7 +604,7 @@ abstract final class SheetDesign {
 abstract final class SnackBarDesign {
   static const Color background = AppPalette.ink;
   static const Color errorBackground = AppPalette.red;
-  static const Color text = AppColors.white;
+  static const Color text = AppPalette.white;
   static const Color action = AppPalette.primarySoft;
   static const double radius = AppRadii.md;
 }
@@ -585,8 +613,8 @@ abstract final class SnackBarDesign {
 //  هيكل التحميل  —  SKELETON
 // -----------------------------------------------------------------------------
 abstract final class SkeletonDesign {
-  static const Color base = Color(0xFFE9E9E9);
-  static const Color highlight = Color(0xFFF7F7F7);
+  static Color get base => AppColors.isDark ? const Color(0xFF1C1C1C) : const Color(0xFFE9E9E9);
+  static Color get highlight => AppColors.isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF7F7F7);
   static const Duration duration = Duration(milliseconds: 1400);
 }
 
@@ -595,13 +623,13 @@ abstract final class SkeletonDesign {
 // -----------------------------------------------------------------------------
 abstract final class EmptyStateDesign {
   static const double iconCircleSize = 88;
-  static const Color iconCircleBackground = AppColors.surfaceAlt;
+  static Color get iconCircleBackground => AppColors.surfaceAlt;
   static const double iconSize = 38;
-  static const Color iconColor = AppColors.icon;
+  static Color get iconColor => AppColors.icon;
   static const double titleSize = 17;
   static const FontWeight titleWeight = AppFont.bold;
-  static const Color titleColor = AppColors.text;
-  static const Color messageColor = AppColors.textMuted;
+  static Color get titleColor => AppColors.text;
+  static Color get messageColor => AppColors.textMuted;
 }
 
 // -----------------------------------------------------------------------------
@@ -610,12 +638,12 @@ abstract final class EmptyStateDesign {
 abstract final class SectionDesign {
   static const double titleSize = 18;
   static const FontWeight titleWeight = AppFont.extraBold;
-  static const Color titleColor = AppColors.text;
+  static Color get titleColor => AppColors.text;
   static const double actionSize = 13;
   static const FontWeight actionWeight = AppFont.bold;
-  static const Color actionColor = AppColors.primaryDark;
-  static const double spacingBelow = 12;
-  static const double spacingBetweenSections = 28;
+  static Color get actionColor => AppColors.primaryDark;
+  static const double spacingBelow = 8;
+  static const double spacingBetweenSections = 12;
 }
 
 // #############################################################################
@@ -631,11 +659,11 @@ abstract final class ProductCardDesign {
   /// نسبة العرض إلى الارتفاع (أقل من 1 = صورة طولية).
   static const double imageAspectRatio = 0.78;
   static const double imageRadius = AppRadii.image;
-  static const Color imageBackground = AppColors.surfaceAlt;
-  static const Color imageBorderColor = AppColors.border;
+  static Color get imageBackground => AppColors.surfaceAlt;
+  static Color get imageBorderColor => AppColors.border;
   static const double imageBorderWidth = 1;
   static const BoxFit imageFit = BoxFit.cover;
-  static const Color placeholderIcon = AppColors.iconMuted;
+  static Color get placeholderIcon => AppColors.iconMuted;
 
   // --- البطاقة ---
   static const Color cardBackground = Colors.transparent;
@@ -651,34 +679,34 @@ abstract final class ProductCardDesign {
   static const double favoriteInset = 8;
   static const double favoriteSize = 34;
   static const double favoriteIconSize = 18;
-  static const Color favoriteBackground = Color(0xF2FFFFFF);
-  static const Color favoriteIcon = AppColors.icon;
-  static const Color favoriteActiveIcon = AppColors.icon;
+  static Color get favoriteBackground => AppColors.isDark ? const Color(0xE6141414) : const Color(0xF2FFFFFF);
+  static Color get favoriteIcon => AppColors.icon;
+  static Color get favoriteActiveIcon => AppColors.icon;
   static const List<BoxShadow> favoriteShadow = AppShadows.soft;
 
   // --- السعر ---
-  static const double infoTopSpacing = 10;
+  static const double infoTopSpacing = 6;
   static const double priceSize = 15;
   static const FontWeight priceWeight = AppFont.extraBold;
-  static const Color priceColor = AppColors.text;
+  static Color get priceColor => AppColors.text;
 
   // --- زر الإضافة للسلة ---
   static const double cartButtonSize = 38;
   static const double cartButtonRadius = AppRadii.pill;
   static const double cartIconSize = 19;
-  static const Color cartButtonBackground = AppColors.primary;
-  static const Color cartButtonIcon = AppColors.onPrimary;
-  static const Color cartButtonDisabledBackground = AppPalette.gray200;
-  static const Color cartButtonDisabledIcon = AppPalette.gray500;
+  static Color get cartButtonBackground => AppColors.primary;
+  static Color get cartButtonIcon => AppColors.onPrimary;
+  static Color get cartButtonDisabledBackground => AppPalette.gray200;
+  static Color get cartButtonDisabledIcon => AppPalette.gray500;
 
   // --- نفاد الكمية ---
   static const double outOfStockImageOpacity = 0.55;
   static const Color outOfStockBadgeBackground = AppPalette.ink;
-  static const Color outOfStockBadgeText = AppColors.white;
-  static const String outOfStockLabel = 'نفدت الكمية';
+  static const Color outOfStockBadgeText = AppPalette.white;
+  static String get outOfStockLabel => AppLang.isEn ? 'Out of stock' : 'نفدت الكمية';
 
   /// ارتفاع منطقة السعر والزر أسفل الصورة (لحساب الشبكة).
-  static const double infoHeight = 48;
+  static const double infoHeight = 44;
 }
 
 // -----------------------------------------------------------------------------
@@ -688,77 +716,77 @@ abstract final class ProductGridDesign {
   static const double minCardWidth = 160;
   static const int minColumns = 2;
   static const int maxColumns = 6;
-  static const double crossSpacing = 12;
-  static const double mainSpacing = 20;
+  static const double crossSpacing = 10;
+  static const double mainSpacing = 12;
 }
 
 // -----------------------------------------------------------------------------
 //  صفحة تفاصيل المنتج  —  PRODUCT DETAILS
 // -----------------------------------------------------------------------------
 abstract final class ProductDetailsDesign {
-  static const Color pageBackground = AppColors.white;
+  static Color get pageBackground => AppColors.white;
 
   // --- معرض الصور العلوي (مختلف عن صورة البطاقة: كامل العرض وطولي) ---
   /// نسبة ارتفاع المعرض من ارتفاع الشاشة.
   static const double galleryHeightFactor = 0.6;
   static const double galleryMinHeight = 360;
   static const double galleryMaxHeight = 640;
-  static const Color galleryBackground = AppColors.surfaceSubtle;
+  static Color get galleryBackground => AppColors.surfaceSubtle;
   static const BoxFit galleryImageFit = BoxFit.cover;
 
   // --- الأزرار العائمة فوق المعرض ---
   static const double floatingButtonSize = 42;
   static const double floatingIconSize = 21;
-  static const Color floatingButtonBackground = Color(0xF2FFFFFF);
-  static const Color floatingButtonIcon = AppColors.icon;
+  static Color get floatingButtonBackground => AppColors.isDark ? const Color(0xE6141414) : const Color(0xF2FFFFFF);
+  static Color get floatingButtonIcon => AppColors.icon;
   static const List<BoxShadow> floatingButtonShadow = AppShadows.floating;
 
   // --- عداد الصور (1/4) ---
   static const Color counterBackground = Color(0x99000000);
-  static const Color counterText = AppColors.white;
+  static const Color counterText = AppPalette.white;
   static const double counterTextSize = 12;
 
   // --- زر التجربة الافتراضية فوق الصورة ---
-  static const Color tryOnPillBackground = AppColors.white;
-  static const Color tryOnPillText = AppColors.text;
-  static const Color tryOnPillIcon = AppColors.primary;
+  static Color get tryOnPillBackground => AppColors.white;
+  static Color get tryOnPillText => AppColors.text;
+  static Color get tryOnPillIcon => AppColors.primary;
   static const double tryOnPillHeight = 38;
 
   // --- الصور المصغرة ---
   static const double thumbSize = 58;
   static const double thumbRadius = AppRadii.sm;
-  static const Color thumbBorder = AppColors.border;
-  static const Color thumbActiveBorder = AppColors.primary;
+  static Color get thumbBorder => AppColors.border;
+  static Color get thumbActiveBorder => AppColors.primary;
   static const double thumbActiveBorderWidth = 2;
   static const double thumbSpacing = 8;
 
   // --- ورقة المحتوى المتداخلة مع الصورة ---
   static const double contentOverlap = 22;
   static const double contentRadius = 26;
-  static const Color contentBackground = AppColors.white;
+  static Color get contentBackground => AppColors.white;
   static const EdgeInsets contentPadding = EdgeInsets.fromLTRB(20, 22, 20, 0);
 
   // --- المتجر والعنوان والسعر ---
   static const double shopNameSize = 13;
   static const FontWeight shopNameWeight = AppFont.bold;
-  static const Color shopNameColor = AppColors.primaryDark;
+  static Color get shopNameColor => AppColors.primaryDark;
   static const double titleSize = 21;
   static const FontWeight titleWeight = AppFont.bold;
-  static const Color titleColor = AppColors.text;
+  static Color get titleColor => AppColors.text;
   static const double priceSize = 24;
   static const FontWeight priceWeight = AppFont.extraBold;
-  static const Color priceColor = AppColors.text;
+  static Color get priceColor => AppColors.text;
 
   // --- التقييم المختصر ---
   static const double ratingStarSize = 16;
-  static const Color ratingStar = AppColors.rating;
-  static const Color ratingStarEmpty = AppPalette.gray300;
+  static Color get ratingStar => AppColors.rating;
+  static Color get ratingStarEmpty => AppPalette.gray300;
   static const double ratingTextSize = 13;
 
   // --- عنوان كل قسم ---
   static const double sectionTitleSize = 15;
   static const FontWeight sectionTitleWeight = AppFont.bold;
-  static const Color sectionValueColor = AppColors.textMuted;
+  static Color get sectionValueColor => AppColors.textMuted;
   static const double sectionSpacing = 24;
 
   // --- خيارات اللون والمقاس ---
@@ -766,68 +794,68 @@ abstract final class ProductDetailsDesign {
   static const double optionMinWidth = 52;
   static const double optionRadius = AppRadii.chip;
   static const EdgeInsets optionPadding = EdgeInsets.symmetric(horizontal: 16);
-  static const Color optionBackground = AppColors.white;
-  static const Color optionBorder = AppColors.borderStrong;
+  static Color get optionBackground => AppColors.white;
+  static Color get optionBorder => AppColors.borderStrong;
   static const double optionBorderWidth = 1;
-  static const Color optionText = AppColors.text;
+  static Color get optionText => AppColors.text;
   static const FontWeight optionWeight = AppFont.semiBold;
-  static const Color optionSelectedBackground = AppColors.primarySoft;
-  static const Color optionSelectedBorder = AppColors.primary;
+  static Color get optionSelectedBackground => AppColors.primarySoft;
+  static Color get optionSelectedBorder => AppColors.primary;
   static const double optionSelectedBorderWidth = 1.8;
-  static const Color optionSelectedText = AppColors.text;
+  static Color get optionSelectedText => AppColors.text;
   static const FontWeight optionSelectedWeight = AppFont.extraBold;
-  static const Color optionDisabledText = AppPalette.gray400;
-  static const Color optionDisabledBackground = AppColors.surfaceSubtle;
+  static Color get optionDisabledText => AppPalette.gray400;
+  static Color get optionDisabledBackground => AppColors.surfaceSubtle;
 
   // --- حالة المخزون ---
   static const int lowStockThreshold = 5;
-  static const Color inStockColor = AppColors.success;
-  static const Color lowStockColor = AppColors.warning;
-  static const Color outOfStockColor = AppColors.error;
+  static Color get inStockColor => AppColors.success;
+  static Color get lowStockColor => AppColors.warning;
+  static Color get outOfStockColor => AppColors.error;
 
   // --- بطاقة التجربة الافتراضية ---
-  static const Color tryOnCardBackground = AppColors.primarySoft;
-  static const Color tryOnCardBorder = AppColors.primaryBorder;
+  static Color get tryOnCardBackground => AppColors.primarySoft;
+  static Color get tryOnCardBorder => AppColors.primaryBorder;
   static const double tryOnCardRadius = AppRadii.card;
-  static const Color tryOnIconBackground = AppColors.primary;
-  static const Color tryOnIcon = AppColors.onPrimary;
+  static Color get tryOnIconBackground => AppColors.primary;
+  static Color get tryOnIcon => AppColors.onPrimary;
 
   // --- بطاقة المتجر ---
   static const double shopLogoSize = 46;
   static const double shopLogoRadius = AppRadii.pill;
-  static const Color shopCardBorder = AppColors.border;
+  static Color get shopCardBorder => AppColors.border;
   static const double shopCardRadius = AppRadii.card;
 
   // --- الأقسام القابلة للطي (الوصف، التفاصيل، التقييمات) ---
-  static const Color expandableDivider = AppColors.divider;
-  static const Color expandableIcon = AppColors.icon;
+  static Color get expandableDivider => AppColors.divider;
+  static Color get expandableIcon => AppColors.icon;
   static const double expandableTitleSize = 15;
   static const FontWeight expandableTitleWeight = AppFont.bold;
-  static const Color bodyTextColor = AppColors.textSecondary;
+  static Color get bodyTextColor => AppColors.textSecondary;
   static const double bodyTextSize = 14;
-  static const Color specLabelColor = AppColors.textMuted;
-  static const Color specValueColor = AppColors.text;
+  static Color get specLabelColor => AppColors.textMuted;
+  static Color get specValueColor => AppColors.text;
   static const FontWeight specValueWeight = AppFont.semiBold;
 
   // --- التقييمات ---
   static const double reviewAvatarSize = 38;
-  static const Color reviewAvatarBackground = AppColors.surfaceAlt;
-  static const Color reviewAvatarText = AppColors.text;
+  static Color get reviewAvatarBackground => AppColors.surfaceAlt;
+  static Color get reviewAvatarText => AppColors.text;
   static const double reviewStarSize = 14;
   static const double reviewPickerStarSize = 34;
-  static const Color reviewCardBorder = AppColors.border;
+  static Color get reviewCardBorder => AppColors.border;
   static const double reviewCardRadius = AppRadii.card;
 
   // --- الشريط السفلي الثابت (الكمية + أضف للسلة) ---
-  static const Color bottomBarBackground = AppColors.white;
-  static const Color bottomBarBorder = AppColors.border;
+  static Color get bottomBarBackground => AppColors.white;
+  static Color get bottomBarBorder => AppColors.border;
   static const List<BoxShadow> bottomBarShadow = AppShadows.bar;
   static const EdgeInsets bottomBarPadding = EdgeInsets.fromLTRB(16, 12, 16, 12);
   static const double bottomBarButtonHeight = 54;
   static const double stepperWidth = 120;
-  static const Color stepperBackground = AppColors.surfaceAlt;
-  static const Color stepperIcon = AppColors.icon;
-  static const Color stepperIconDisabled = AppPalette.gray400;
+  static Color get stepperBackground => AppColors.surfaceAlt;
+  static Color get stepperIcon => AppColors.icon;
+  static Color get stepperIconDisabled => AppPalette.gray400;
   static const double stepperRadius = AppRadii.button;
   static const double stepperValueSize = 16;
 
@@ -839,11 +867,11 @@ abstract final class ProductDetailsDesign {
 //  عارض الصور بملء الشاشة  —  FULLSCREEN GALLERY
 // -----------------------------------------------------------------------------
 abstract final class GalleryViewerDesign {
-  static const Color background = AppColors.white;
-  static const Color closeIcon = AppColors.icon;
-  static const Color closeBackground = AppColors.surfaceAlt;
-  static const Color indicatorActive = AppColors.text;
-  static const Color indicatorInactive = AppPalette.gray300;
+  static Color get background => AppColors.white;
+  static Color get closeIcon => AppColors.icon;
+  static Color get closeBackground => AppColors.surfaceAlt;
+  static Color get indicatorActive => AppColors.text;
+  static Color get indicatorInactive => AppPalette.gray300;
   static const double maxZoom = 4;
 }
 
@@ -851,7 +879,7 @@ abstract final class GalleryViewerDesign {
 //  الصفحة الرئيسية  —  HOME
 // -----------------------------------------------------------------------------
 abstract final class HomeDesign {
-  static const Color pageBackground = AppColors.white;
+  static Color get pageBackground => AppColors.white;
 
   // --- البانرات ---
   static const double bannerHeight = 196;
@@ -859,44 +887,44 @@ abstract final class HomeDesign {
   /// مقدار تضييق عرض بطاقة البانر من الأسفل من كل جهة (يزداد العرض كلما اتجهنا للأعلى).
   static const double bannerBottomInset = 18;
   static const double bannerViewportFraction = 0.9;
-  static const Color bannerBackground = AppColors.primary;
-  static const Color bannerTitle = AppColors.white;
+  static Color get bannerBackground => AppColors.primary;
+  static const Color bannerTitle = AppPalette.white;
   static const double bannerTitleSize = 21;
   static const FontWeight bannerTitleWeight = AppFont.extraBold;
   static const Color bannerSubtitle = Color(0xE6FFFFFF);
-  static const Color bannerButtonBackground = AppColors.white;
-  static const Color bannerButtonText = AppColors.text;
+  static const Color bannerButtonBackground = AppPalette.white;
+  static const Color bannerButtonText = AppPalette.ink;
   static const Color bannerImageOverlay = Color(0x66000000);
   static const Duration bannerAutoPlay = Duration(seconds: 5);
-  static const Color bannerDotActive = AppColors.text;
-  static const Color bannerDotInactive = AppPalette.gray300;
+  static Color get bannerDotActive => AppColors.text;
+  static Color get bannerDotInactive => AppPalette.gray300;
 
   // --- التصنيفات ---
-  static const double categoryHeight = 40;
+  static const double categoryHeight = 36;
 
   // --- المحلات (دوائر مثل القصص) ---
-  static const double shopAvatarSize = 66;
-  static const Color shopAvatarBorder = AppColors.primary;
+  static const double shopAvatarSize = 62;
+  static Color get shopAvatarBorder => AppColors.primary;
   static const double shopAvatarBorderWidth = 2;
-  static const Color shopAvatarBackground = AppColors.surfaceAlt;
-  static const Color shopAvatarIcon = AppColors.icon;
+  static Color get shopAvatarBackground => AppColors.surfaceAlt;
+  static Color get shopAvatarIcon => AppColors.icon;
   static const double shopNameSize = 12;
   static const FontWeight shopNameWeight = AppFont.semiBold;
-  static const double shopItemWidth = 78;
+  static const double shopItemWidth = 68;
 }
 
 // -----------------------------------------------------------------------------
 //  صفحة المنتجات (الكتالوج والفلترة)  —  CATALOG
 // -----------------------------------------------------------------------------
 abstract final class CatalogDesign {
-  static const Color pageBackground = AppColors.white;
-  static const Color toolbarBackground = AppColors.white;
-  static const Color toolbarBorder = AppColors.border;
-  static const Color resultCountColor = AppColors.textMuted;
+  static Color get pageBackground => AppColors.white;
+  static Color get toolbarBackground => AppColors.white;
+  static Color get toolbarBorder => AppColors.border;
+  static Color get resultCountColor => AppColors.textMuted;
   static const double resultCountSize = 13;
-  static const Color filterButtonBackground = AppColors.surfaceAlt;
-  static const Color filterButtonIcon = AppColors.icon;
-  static const Color filterActiveDot = AppColors.primary;
+  static Color get filterButtonBackground => AppColors.surfaceAlt;
+  static Color get filterButtonIcon => AppColors.icon;
+  static Color get filterActiveDot => AppColors.primary;
   static const double filterButtonRadius = AppRadii.pill;
 }
 
@@ -904,7 +932,7 @@ abstract final class CatalogDesign {
 //  صفحة المفضلة  —  FAVORITES
 // -----------------------------------------------------------------------------
 abstract final class FavoritesDesign {
-  static const Color pageBackground = AppColors.white;
+  static Color get pageBackground => AppColors.white;
   static const IconData emptyIcon = AppIcons.heart;
 }
 
@@ -912,25 +940,25 @@ abstract final class FavoritesDesign {
 //  سلة المشتريات  —  CART
 // -----------------------------------------------------------------------------
 abstract final class CartDesign {
-  static const Color pageBackground = AppColors.white;
+  static Color get pageBackground => AppColors.white;
   static const double itemImageWidth = 92;
   static const double itemImageHeight = 116;
   static const double itemImageRadius = AppRadii.image;
-  static const Color itemImageBackground = AppColors.surfaceAlt;
-  static const Color itemImageBorder = AppColors.border;
-  static const Color itemDivider = AppColors.divider;
+  static Color get itemImageBackground => AppColors.surfaceAlt;
+  static Color get itemImageBorder => AppColors.border;
+  static Color get itemDivider => AppColors.divider;
   static const double itemTitleSize = 14;
   static const FontWeight itemTitleWeight = AppFont.bold;
-  static const Color itemMetaColor = AppColors.textMuted;
+  static Color get itemMetaColor => AppColors.textMuted;
   static const double itemPriceSize = 15;
   static const FontWeight itemPriceWeight = AppFont.extraBold;
-  static const Color removeIcon = AppColors.icon;
-  static const Color stepperBackground = AppColors.surfaceAlt;
+  static Color get removeIcon => AppColors.icon;
+  static Color get stepperBackground => AppColors.surfaceAlt;
   static const double stepperRadius = AppRadii.pill;
-  static const Color summaryBackground = AppColors.white;
-  static const Color summaryBorder = AppColors.border;
+  static Color get summaryBackground => AppColors.white;
+  static Color get summaryBorder => AppColors.border;
   static const List<BoxShadow> summaryShadow = AppShadows.bar;
-  static const Color summaryLabel = AppColors.textSecondary;
+  static Color get summaryLabel => AppColors.textSecondary;
   static const double totalSize = 18;
   static const FontWeight totalWeight = AppFont.extraBold;
 }
@@ -939,14 +967,14 @@ abstract final class CartDesign {
 //  إتمام الطلب  —  CHECKOUT
 // -----------------------------------------------------------------------------
 abstract final class CheckoutDesign {
-  static const Color pageBackground = AppColors.white;
-  static const Color sectionBackground = AppColors.white;
-  static const Color sectionBorder = AppColors.border;
+  static Color get pageBackground => AppColors.white;
+  static Color get sectionBackground => AppColors.white;
+  static Color get sectionBorder => AppColors.border;
   static const double sectionRadius = AppRadii.card;
-  static const Color optionSelectedBorder = AppColors.primary;
-  static const Color optionSelectedBackground = AppColors.primarySoft;
-  static const Color successIconBackground = AppColors.primarySoft;
-  static const Color successIcon = AppColors.primary;
+  static Color get optionSelectedBorder => AppColors.primary;
+  static Color get optionSelectedBackground => AppColors.primarySoft;
+  static Color get successIconBackground => AppColors.primarySoft;
+  static Color get successIcon => AppColors.primary;
   static const double successIconSize = 44;
 }
 
@@ -954,12 +982,12 @@ abstract final class CheckoutDesign {
 //  طلباتي  —  ORDERS
 // -----------------------------------------------------------------------------
 abstract final class OrdersDesign {
-  static const Color pageBackground = AppColors.white;
-  static const Color cardBorder = AppColors.border;
+  static Color get pageBackground => AppColors.white;
+  static Color get cardBorder => AppColors.border;
   static const double cardRadius = AppRadii.card;
   static const double orderNumberSize = 15;
   static const FontWeight orderNumberWeight = AppFont.bold;
-  static const Color dateColor = AppColors.textMuted;
+  static Color get dateColor => AppColors.textMuted;
   static const double totalSize = 16;
   static const FontWeight totalWeight = AppFont.extraBold;
 }
@@ -968,11 +996,11 @@ abstract final class OrdersDesign {
 //  تفاصيل الطلب  —  ORDER DETAILS
 // -----------------------------------------------------------------------------
 abstract final class OrderDetailsDesign {
-  static const Color pageBackground = AppColors.white;
-  static const Color timelineActive = AppColors.primary;
-  static const Color timelineInactive = AppPalette.gray300;
+  static Color get pageBackground => AppColors.white;
+  static Color get timelineActive => AppColors.primary;
+  static Color get timelineInactive => AppPalette.gray300;
   static const double timelineDotSize = 14;
-  static const Color sectionBorder = AppColors.border;
+  static Color get sectionBorder => AppColors.border;
   static const double sectionRadius = AppRadii.card;
 }
 
@@ -980,47 +1008,47 @@ abstract final class OrderDetailsDesign {
 //  الملف الشخصي  —  PROFILE
 // -----------------------------------------------------------------------------
 abstract final class ProfileDesign {
-  static const Color pageBackground = AppColors.white;
+  static Color get pageBackground => AppColors.white;
   static const double avatarSize = 72;
-  static const Color avatarBackground = AppColors.primarySoft;
-  static const Color avatarText = AppColors.primaryDark;
+  static Color get avatarBackground => AppColors.primarySoft;
+  static Color get avatarText => AppColors.primaryDark;
   static const double nameSize = 19;
   static const FontWeight nameWeight = AppFont.extraBold;
-  static const Color menuIcon = AppColors.icon;
-  static const Color menuIconBackground = AppColors.surfaceAlt;
+  static Color get menuIcon => AppColors.icon;
+  static Color get menuIconBackground => AppColors.surfaceAlt;
   static const double menuIconBoxSize = 40;
-  static const Color menuChevron = AppColors.iconMuted;
-  static const Color menuDivider = AppColors.divider;
-  static const Color logoutColor = AppColors.error;
+  static Color get menuChevron => AppColors.iconMuted;
+  static Color get menuDivider => AppColors.divider;
+  static Color get logoutColor => AppColors.error;
 }
 
 // -----------------------------------------------------------------------------
 //  الإشعارات  —  NOTIFICATIONS
 // -----------------------------------------------------------------------------
 abstract final class NotificationsDesign {
-  static const Color pageBackground = AppColors.white;
-  static const Color iconBackground = AppColors.primarySoft;
-  static const Color icon = AppColors.icon;
+  static Color get pageBackground => AppColors.white;
+  static Color get iconBackground => AppColors.primarySoft;
+  static Color get icon => AppColors.icon;
   static const double iconBoxSize = 44;
-  static const Color unreadDot = AppColors.primary;
-  static const Color divider = AppColors.divider;
+  static Color get unreadDot => AppColors.primary;
+  static Color get divider => AppColors.divider;
 }
 
 // -----------------------------------------------------------------------------
 //  المحلات وصفحة المتجر  —  SHOPS & SHOP PROFILE
 // -----------------------------------------------------------------------------
 abstract final class ShopProfileDesign {
-  static const Color pageBackground = AppColors.white;
+  static Color get pageBackground => AppColors.white;
   static const double coverHeight = 170;
-  static const Color coverBackground = AppColors.primarySoft;
+  static Color get coverBackground => AppColors.primarySoft;
   static const double logoSize = 84;
-  static const Color logoBorder = AppColors.white;
+  static Color get logoBorder => AppColors.white;
   static const double logoBorderWidth = 3;
-  static const Color logoBackground = AppColors.surfaceAlt;
+  static Color get logoBackground => AppColors.surfaceAlt;
   static const double nameSize = 20;
   static const FontWeight nameWeight = AppFont.extraBold;
-  static const Color metaColor = AppColors.textMuted;
-  static const Color listCardBorder = AppColors.border;
+  static Color get metaColor => AppColors.textMuted;
+  static Color get listCardBorder => AppColors.border;
   static const double listCardRadius = AppRadii.card;
   static const double listLogoSize = 56;
 }
@@ -1029,31 +1057,31 @@ abstract final class ShopProfileDesign {
 //  مقارنة المنتجات  —  COMPARE
 // -----------------------------------------------------------------------------
 abstract final class CompareDesign {
-  static const Color pageBackground = AppColors.white;
+  static Color get pageBackground => AppColors.white;
   static const double columnWidth = 160;
   static const double imageHeight = 190;
   static const double imageRadius = AppRadii.image;
-  static const Color imageBackground = AppColors.surfaceAlt;
-  static const Color rowLabelColor = AppColors.textMuted;
-  static const Color rowDivider = AppColors.divider;
+  static Color get imageBackground => AppColors.surfaceAlt;
+  static Color get rowLabelColor => AppColors.textMuted;
+  static Color get rowDivider => AppColors.divider;
 }
 
 // -----------------------------------------------------------------------------
 //  تسجيل الدخول والتسجيل  —  AUTH
 // -----------------------------------------------------------------------------
 abstract final class AuthDesign {
-  static const Color pageBackground = AppColors.white;
+  static Color get pageBackground => AppColors.white;
   static const double logoSize = 76;
-  static const Color logoBackground = AppColors.primary;
-  static const Color logoIcon = AppColors.onPrimary;
+  static Color get logoBackground => AppColors.primary;
+  static Color get logoIcon => AppColors.onPrimary;
   static const double logoRadius = 22;
   static const double titleSize = 26;
   static const FontWeight titleWeight = AppFont.extraBold;
-  static const Color subtitleColor = AppColors.textMuted;
+  static Color get subtitleColor => AppColors.textMuted;
   static const double maxFormWidth = 460;
-  static const Color linkColor = AppColors.primaryDark;
-  static const Color choiceCardBorder = AppColors.border;
-  static const Color choiceCardSelectedBorder = AppColors.primary;
+  static Color get linkColor => AppColors.primaryDark;
+  static Color get choiceCardBorder => AppColors.border;
+  static Color get choiceCardSelectedBorder => AppColors.primary;
   static const double choiceCardRadius = AppRadii.card;
 }
 
@@ -1061,52 +1089,52 @@ abstract final class AuthDesign {
 //  شاشة البداية  —  SPLASH
 // -----------------------------------------------------------------------------
 abstract final class SplashDesign {
-  static const Color background = AppColors.white;
-  static const Color logoBackground = AppColors.primary;
-  static const Color logoIcon = AppColors.onPrimary;
+  static Color get background => AppColors.white;
+  static Color get logoBackground => AppColors.primary;
+  static Color get logoIcon => AppColors.onPrimary;
   static const double logoSize = 88;
-  static const Color title = AppColors.text;
-  static const Color indicator = AppColors.primary;
+  static Color get title => AppColors.text;
+  static Color get indicator => AppColors.primary;
 }
 
 // -----------------------------------------------------------------------------
 //  لوحة المتجر (البائع)  —  SELLER
 // -----------------------------------------------------------------------------
 abstract final class SellerDesign {
-  static const Color pageBackground = AppColors.surfaceSubtle;
-  static const Color appBarBackground = AppColors.white;
-  static const Color statCardBackground = AppColors.white;
-  static const Color statCardBorder = AppColors.border;
+  static Color get pageBackground => AppColors.surfaceSubtle;
+  static Color get appBarBackground => AppColors.white;
+  static Color get statCardBackground => AppColors.white;
+  static Color get statCardBorder => AppColors.border;
   static const double statCardRadius = AppRadii.card;
-  static const Color statIconBackground = AppColors.primarySoft;
-  static const Color statIcon = AppColors.icon;
+  static Color get statIconBackground => AppColors.primarySoft;
+  static Color get statIcon => AppColors.icon;
   static const double statValueSize = 22;
   static const FontWeight statValueWeight = AppFont.extraBold;
-  static const Color navSelectedBackground = AppColors.primarySoft;
-  static const Color navSelectedIcon = AppColors.icon;
-  static const Color navUnselectedIcon = AppColors.iconMuted;
-  static const Color stepActive = AppColors.primary;
-  static const Color stepInactive = AppPalette.gray300;
-  static const Color uploadBoxBorder = AppPalette.gray300;
-  static const Color uploadBoxBackground = AppColors.surfaceSubtle;
+  static Color get navSelectedBackground => AppColors.primarySoft;
+  static Color get navSelectedIcon => AppColors.icon;
+  static Color get navUnselectedIcon => AppColors.iconMuted;
+  static Color get stepActive => AppColors.primary;
+  static Color get stepInactive => AppPalette.gray300;
+  static Color get uploadBoxBorder => AppPalette.gray300;
+  static Color get uploadBoxBackground => AppColors.surfaceSubtle;
 }
 
 // -----------------------------------------------------------------------------
 //  لوحة الإدارة  —  ADMIN
 // -----------------------------------------------------------------------------
 abstract final class AdminDesign {
-  static const Color pageBackground = AppColors.surfaceSubtle;
-  static const Color appBarBackground = AppColors.white;
-  static const Color cardBackground = AppColors.white;
-  static const Color cardBorder = AppColors.border;
+  static Color get pageBackground => AppColors.surfaceSubtle;
+  static Color get appBarBackground => AppColors.white;
+  static Color get cardBackground => AppColors.white;
+  static Color get cardBorder => AppColors.border;
   static const double cardRadius = AppRadii.card;
-  static const Color statIconBackground = AppColors.primarySoft;
-  static const Color statIcon = AppColors.icon;
+  static Color get statIconBackground => AppColors.primarySoft;
+  static Color get statIcon => AppColors.icon;
   static const double statValueSize = 22;
   static const FontWeight statValueWeight = AppFont.extraBold;
-  static const Color navSelectedBackground = AppColors.primarySoft;
-  static const Color navSelectedIcon = AppColors.icon;
-  static const Color navUnselectedIcon = AppColors.iconMuted;
+  static Color get navSelectedBackground => AppColors.primarySoft;
+  static Color get navSelectedIcon => AppColors.icon;
+  static Color get navUnselectedIcon => AppColors.iconMuted;
 }
 
 // -----------------------------------------------------------------------------
@@ -1114,12 +1142,12 @@ abstract final class AdminDesign {
 // -----------------------------------------------------------------------------
 abstract final class TryOnDesign {
   static const Color cameraBackground = Color(0xFF000000);
-  static const Color overlayText = AppColors.white;
+  static const Color overlayText = AppPalette.white;
   static const Color overlayPanel = Color(0xB3000000);
-  static const Color guideStroke = AppColors.primary;
-  static const Color detectedStroke = AppColors.primary;
-  static const Color controlBackground = AppColors.white;
-  static const Color controlIcon = AppColors.icon;
-  static const Color stepActive = AppColors.primary;
-  static const Color stepInactive = AppPalette.gray300;
+  static Color get guideStroke => AppColors.primary;
+  static Color get detectedStroke => AppColors.primary;
+  static Color get controlBackground => AppColors.white;
+  static Color get controlIcon => AppColors.icon;
+  static Color get stepActive => AppColors.primary;
+  static Color get stepInactive => AppPalette.gray300;
 }

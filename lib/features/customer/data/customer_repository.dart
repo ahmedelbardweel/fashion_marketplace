@@ -63,6 +63,20 @@ class CustomerRepository {
     return AppUser.fromMap(asStringMap(updated));
   }
 
+  // Delete / deactivate customer account
+  Future<void> deleteAccount() async {
+    final userId = currentUserId;
+    if (userId == null) throw StateError('يجب تسجيل الدخول');
+
+    await _client
+        .from('profiles')
+        .update({
+          'is_active': false,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
+        .eq('id', userId);
+  }
+
   // Fetch Banners
   Future<List<AdminBanner>> getBanners() async {
     try {

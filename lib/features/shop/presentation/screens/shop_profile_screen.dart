@@ -93,7 +93,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
       if (!mounted) return;
       showAppSnackBar(
         context,
-        ok ? 'تم تحديث الشعار' : 'تعذر تحديث الشعار',
+        ok ? 'تم تحديث الشعار'.tr : 'تعذر تحديث الشعار'.tr,
         isError: !ok,
       );
     } catch (error) {
@@ -128,7 +128,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
       if (!mounted) return;
       showAppSnackBar(
         context,
-        ok ? 'تم تحديث صورة الغلاف' : 'تعذر التحديث',
+        ok ? 'تم تحديث صورة الغلاف'.tr : 'تعذر التحديث'.tr,
         isError: !ok,
       );
     } catch (error) {
@@ -163,7 +163,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
       if (!mounted) return;
       showAppSnackBar(
         context,
-        ok ? 'تم رفع صورة المحل' : 'تعذر الرفع',
+        ok ? 'تم رفع صورة المحل'.tr : 'تعذر الرفع'.tr,
         isError: !ok,
       );
     } catch (error) {
@@ -194,11 +194,11 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
           );
       final ok = await ref
           .read(shopCatalogActionProvider.notifier)
-          .addDocument(docType: 'إثبات محل', path: path);
+          .addDocument(docType: 'إثبات محل'.tr, path: path);
       if (!mounted) return;
       showAppSnackBar(
         context,
-        ok ? 'تم رفع المستند' : 'تعذر رفع المستند',
+        ok ? 'تم رفع المستند'.tr : 'تعذر رفع المستند'.tr,
         isError: !ok,
       );
     } catch (error) {
@@ -230,12 +230,12 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
       final error = ref.read(shopCatalogActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر الحفظ' : actions.errorMessage(error),
+        error == null ? 'تعذر الحفظ'.tr : actions.errorMessage(error),
         isError: true,
       );
       return;
     }
-    showAppSnackBar(context, 'تم تحديث ملف المحل');
+    showAppSnackBar(context, 'تم تحديث ملف المحل'.tr);
   }
 
   @override
@@ -249,7 +249,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     _seed(shopAsync.asData?.value);
 
     return ShopScaffold(
-      title: 'ملف المحل',
+      title: 'ملف المحل'.tr,
       showBack: false,
       body: shopAsync.skeletonWhen(
         placeholder: LoadingFixtures.shop,
@@ -269,13 +269,13 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'الحالة: ${shop?.visibleStatus.labelAr ?? '-'}',
+                          'الحالة: ${shop?.visibleStatus.labelAr ?? '.tr-'}',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
                         if (shop?.logoPath != null) ...[
                           const SizedBox(height: AppSpacing.sm),
                           Text(
-                            'الشعار مرفوع',
+                            'الشعار مرفوع'.tr,
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -284,93 +284,93 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppButton(
-                    label: 'رفع الشعار',
+                    label: 'رفع الشعار'.tr,
                     variant: AppButtonVariant.outlined,
                     isLoading: _uploading,
                     onPressed: _uploadLogo,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   AppButton(
-                    label: 'رفع صورة الغلاف',
+                    label: 'رفع صورة الغلاف'.tr,
                     variant: AppButtonVariant.outlined,
                     isLoading: _uploading,
                     onPressed: _uploadCover,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   AppButton(
-                    label: 'رفع صور المحل',
+                    label: 'رفع صور المحل'.tr,
                     variant: AppButtonVariant.outlined,
                     isLoading: _uploading,
                     onPressed: _uploadGallery,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   AppButton(
-                    label: 'رفع مستند إثبات',
+                    label: 'رفع مستند إثبات'.tr,
                     variant: AppButtonVariant.outlined,
                     isLoading: _uploading,
                     onPressed: _uploadDocument,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'صور مرفوعة: ${images.length} · مستندات: ${docs.length}',
+                    'صور مرفوعة: ${images.length} · مستندات: ${docs.length}'.tr,
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   AppTextField(
                     controller: _shopName,
-                    label: 'اسم المحل',
+                    label: 'اسم المحل'.tr,
                     validator: Validators.shopName,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _description,
-                    label: 'الوصف',
+                    label: 'الوصف'.tr,
                     maxLines: 3,
                     validator: (value) =>
-                        Validators.required(value, field: 'الوصف'),
+                        Validators.required(value, field: 'الوصف'.tr),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _city,
-                    label: 'المدينة',
+                    label: 'المدينة'.tr,
                     validator: (value) =>
-                        Validators.required(value, field: 'المدينة'),
+                        Validators.required(value, field: 'المدينة'.tr),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _address,
-                    label: 'العنوان',
+                    label: 'العنوان'.tr,
                     validator: (value) =>
-                        Validators.required(value, field: 'العنوان'),
+                        Validators.required(value, field: 'العنوان'.tr),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _register,
-                    label: 'السجل التجاري',
+                    label: 'السجل التجاري'.tr,
                     validator: (value) =>
-                        Validators.required(value, field: 'السجل التجاري'),
+                        Validators.required(value, field: 'السجل التجاري'.tr),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _ownerName,
-                    label: 'اسم المسؤول',
+                    label: 'اسم المسؤول'.tr,
                     validator: Validators.fullName,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _phone,
-                    label: 'الهاتف',
+                    label: 'الهاتف'.tr,
                     keyboardType: TextInputType.phone,
                     validator: Validators.phone,
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   AppButton(
-                    label: 'حفظ التعديلات',
+                    label: 'حفظ التعديلات'.tr,
                     isLoading: busy,
                     onPressed: _save,
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   AppButton(
-                    label: 'تسجيل الخروج',
+                    label: 'تسجيل الخروج'.tr,
                     variant: AppButtonVariant.outlined,
                     onPressed: () => confirmShopLogout(context, ref),
                   ),

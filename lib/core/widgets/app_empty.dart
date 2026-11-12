@@ -34,7 +34,7 @@ class AppEmpty extends StatelessWidget {
             Container(
               width: EmptyStateDesign.iconCircleSize,
               height: EmptyStateDesign.iconCircleSize,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: EmptyStateDesign.iconCircleBackground,
                 shape: BoxShape.circle,
               ),
@@ -47,7 +47,7 @@ class AppEmpty extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             if (title != null) ...[
               Text(
-                title!,
+                AppLang.tr(title!),
                 textAlign: TextAlign.center,
                 style: theme.titleMedium?.copyWith(
                   fontSize: EmptyStateDesign.titleSize,
@@ -58,7 +58,7 @@ class AppEmpty extends StatelessWidget {
               const SizedBox(height: AppSpacing.xs),
             ],
             Text(
-              message,
+              AppLang.tr(message),
               textAlign: TextAlign.center,
               style: theme.bodyMedium?.copyWith(
                 color: title == null
@@ -73,7 +73,7 @@ class AppEmpty extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(180, ButtonDesign.height),
                 ),
-                child: Text(actionLabel!),
+                child: Text(AppLang.tr(actionLabel!)),
               ),
             ],
           ],
@@ -106,8 +106,8 @@ class AppSectionHeader extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              title,
-              style: const TextStyle(
+              AppLang.tr(title),
+              style: TextStyle(
                 fontSize: SectionDesign.titleSize,
                 fontWeight: SectionDesign.titleWeight,
                 color: SectionDesign.titleColor,
@@ -119,11 +119,15 @@ class AppSectionHeader extends StatelessWidget {
               onPressed: onAction,
               style: TextButton.styleFrom(
                 foregroundColor: SectionDesign.actionColor,
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                minimumSize: const Size(0, 36),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.xs,
+                  vertical: 2,
+                ),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: Text(
-                actionLabel!,
+                AppLang.tr(actionLabel!),
                 style: const TextStyle(
                   fontSize: SectionDesign.actionSize,
                   fontWeight: SectionDesign.actionWeight,
@@ -178,7 +182,7 @@ class AppStatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(BadgeDesign.radius),
       ),
       child: Text(
-        label,
+        AppLang.tr(label),
         style: TextStyle(
           color: fg,
           fontSize: BadgeDesign.textSize,

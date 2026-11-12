@@ -1,3 +1,4 @@
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 
 import 'package:flutter/material.dart';
@@ -29,25 +30,25 @@ class AdminProductsScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'المحل: ${product.shopName ?? '-'}\nالتصنيف: ${product.categoryName ?? '-'}\nالحالة: ${product.statusLabel}',
+              'المحل: ${product.shopName ?? '-'}\nالتصنيف: ${product.categoryName ?? '-'}\nالحالة: ${product.statusLabel}'.tr,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: AppSpacing.lg),
             if (product.status != 'hidden')
               AppButton(
-                label: 'إخفاء المنتج',
+                label: 'إخفاء المنتج'.tr,
                 onPressed: () => Navigator.of(context).pop('hidden'),
               ),
             if (product.status == 'hidden') ...[
               AppButton(
-                label: 'إعادة النشر',
+                label: 'إعادة النشر'.tr,
                 onPressed: () => Navigator.of(context).pop('published'),
               ),
               const SizedBox(height: AppSpacing.sm),
             ] else
               const SizedBox(height: AppSpacing.sm),
             AppButton(
-              label: 'حذف المنتج',
+              label: 'حذف المنتج'.tr,
               variant: AppButtonVariant.outlined,
               onPressed: () => Navigator.of(context).pop('deleted'),
             ),
@@ -67,12 +68,12 @@ class AdminProductsScreen extends ConsumerWidget {
       final error = ref.read(adminActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر تحديث المنتج' : actions.errorMessage(error),
+        error == null ? 'تعذر تحديث المنتج'.tr : actions.errorMessage(error),
         isError: true,
       );
       return;
     }
-    showAppSnackBar(context, 'تم تحديث حالة المنتج');
+    showAppSnackBar(context, 'تم تحديث حالة المنتج'.tr);
   }
 
   @override
@@ -81,11 +82,11 @@ class AdminProductsScreen extends ConsumerWidget {
     final busy = ref.watch(adminActionProvider).isLoading;
 
     return AdminScaffold(
-      title: 'المنتجات',
+      title: 'المنتجات'.tr,
       body: AdminAsyncBody<List<AdminProduct>>(
         placeholder: LoadingFixtures.adminProducts,
         value: products,
-        emptyMessage: 'لا توجد منتجات بعد',
+        emptyMessage: 'لا توجد منتجات بعد'.tr,
         isEmpty: (data) => data.isEmpty,
         onRetry: () => ref.invalidate(adminProductsProvider),
         builder: (items) {
@@ -106,12 +107,12 @@ class AdminProductsScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            '${item.shopName ?? '-'} · ${item.statusLabel}',
+                            '${item.shopName ?? '-'} · ${item.statusLabel.tr}',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           Text(
-                            item.price.toStringAsFixed(2),
+                            AppFormat.price(item.price),
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ],

@@ -14,15 +14,15 @@ class RegisterChoiceScreen extends StatelessWidget {
   void _openInfo(BuildContext context) {
     AppBottomSheet.show(
       context: context,
-      child: const AppBottomSheetScaffold(
-        title: 'أنواع الحسابات',
+      child: AppBottomSheetScaffold(
+        title: 'أنواع الحسابات'.tr,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('حساب المتسوق يتيح التصفح والشراء وتجربة الملابس افتراضياً.'),
+            Text('حساب المتسوق يتيح التصفح والشراء وتجربة الملابس افتراضياً.'.tr),
             SizedBox(height: AppSpacing.md),
             Text(
-              'حساب المتجر يتيح التسجيل وإرسال طلب انضمام للإدارة لعرض وبيع منتجاتك.',
+              'حساب المتجر يتيح التسجيل وإرسال طلب انضمام للإدارة لعرض وبيع منتجاتك.'.tr,
             ),
           ],
         ),
@@ -35,12 +35,12 @@ class RegisterChoiceScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AuthDesign.pageBackground,
       appBar: AppBar(
-        title: const Text('إنشاء حساب'),
+        title: Text('إنشاء حساب'.tr),
         actions: [
           IconButton(
-            tooltip: 'معلومات الحسابات',
+            tooltip: 'معلومات الحسابات'.tr,
             onPressed: AppHaptics.action(() => _openInfo(context)),
-            icon: const Icon(AppIcons.info, color: AppColors.icon),
+            icon: Icon(AppIcons.info, color: AppColors.icon),
           ),
         ],
       ),
@@ -50,8 +50,8 @@ class RegisterChoiceScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'اختر نوع الحساب',
+              Text(
+                'اختر نوع الحساب'.tr,
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: AppFont.bold,
@@ -59,8 +59,8 @@ class RegisterChoiceScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              const Text(
-                'حدد طريقة استخدامك للتطبيق للمتابعة',
+              Text(
+                'حدد طريقة استخدامك للتطبيق للمتابعة'.tr,
                 style: TextStyle(
                   fontSize: 14,
                   color: AuthDesign.subtitleColor,
@@ -78,18 +78,18 @@ class RegisterChoiceScreen extends StatelessWidget {
                         color: AppColors.primarySoft,
                         borderRadius: BorderRadius.circular(AppRadii.md),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         AppIcons.user,
                         color: AppColors.icon,
                       ),
                     ),
                     const SizedBox(width: AppSpacing.md),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'حساب متسوق',
+                            'حساب متسوق'.tr,
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: AppFont.bold,
@@ -98,7 +98,7 @@ class RegisterChoiceScreen extends StatelessWidget {
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'تصفح الأزياء وتجربة الملابس والشراء',
+                            'تصفح الأزياء وتجربة الملابس والشراء'.tr,
                             style: TextStyle(
                               fontSize: 13,
                               color: AppColors.textSecondary,
@@ -107,7 +107,7 @@ class RegisterChoiceScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const Icon(
+                    Icon(
                       AppIcons.forward,
                       color: AppColors.icon,
                     ),
@@ -126,18 +126,18 @@ class RegisterChoiceScreen extends StatelessWidget {
                         color: AppColors.primarySoft,
                         borderRadius: BorderRadius.circular(AppRadii.md),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         AppIcons.shop,
                         color: AppColors.icon,
                       ),
                     ),
                     const SizedBox(width: AppSpacing.md),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'حساب متجر أزياء',
+                            'حساب متجر أزياء'.tr,
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: AppFont.bold,
@@ -146,7 +146,7 @@ class RegisterChoiceScreen extends StatelessWidget {
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'تسجيل متجرك وعرض منتجاتك واستقبال الطلبات',
+                            'تسجيل متجرك وعرض منتجاتك واستقبال الطلبات'.tr,
                             style: TextStyle(
                               fontSize: 13,
                               color: AppColors.textSecondary,
@@ -155,7 +155,7 @@ class RegisterChoiceScreen extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const Icon(
+                    Icon(
                       AppIcons.forward,
                       color: AppColors.icon,
                     ),
@@ -164,7 +164,7 @@ class RegisterChoiceScreen extends StatelessWidget {
               ),
               const Spacer(),
               AppButton(
-                label: 'لدي حساب بالفعل · تسجيل الدخول',
+                label: 'لدي حساب بالفعل · تسجيل الدخول'.tr,
                 variant: AppButtonVariant.text,
                 onPressed: () => context.go(AppRoutes.login),
               ),

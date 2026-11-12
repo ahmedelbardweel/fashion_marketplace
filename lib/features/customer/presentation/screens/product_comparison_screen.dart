@@ -19,7 +19,7 @@ class ProductComparisonScreen extends ConsumerWidget {
     final products = ref.watch(productComparisonProvider);
 
     return CustomerScaffold(
-      title: 'مقارنة المنتجات',
+      title: 'مقارنة المنتجات'.tr,
       showSearch: false,
       actions: [
         if (products.isNotEmpty)
@@ -27,16 +27,16 @@ class ProductComparisonScreen extends ConsumerWidget {
             onPressed: AppHaptics.action(() {
               ref.read(productComparisonProvider.notifier).clear();
             }),
-            child: const Text('مسح الكل'),
+            child: Text('مسح الكل'.tr),
           ),
       ],
       body: products.isEmpty
           ? AppEmpty(
               icon: AppIcons.compare,
-              title: 'قائمة المقارنة فارغة',
+              title: 'قائمة المقارنة فارغة'.tr,
               message:
-                  'أضف منتجين أو أكثر من صفحة المنتج للمقارنة جنباً إلى جنب',
-              actionLabel: 'تصفح المنتجات',
+                  'أضف منتجين أو أكثر من صفحة المنتج للمقارنة جنباً إلى جنب'.tr,
+              actionLabel: 'تصفح المنتجات'.tr,
               onAction: AppHaptics.action(
                 () => context.go(AppRoutes.customerCatalog),
               ),
@@ -79,7 +79,7 @@ class ProductComparisonScreen extends ConsumerWidget {
                                       product.coverImage!,
                                       fit: BoxFit.cover,
                                     )
-                                  : const Icon(
+                                  : Icon(
                                       AppIcons.garment,
                                       color: AppColors.iconMuted,
                                     ),
@@ -99,7 +99,7 @@ class ProductComparisonScreen extends ConsumerWidget {
                                         )
                                         .removeProduct(product.id);
                                   }),
-                                  child: const Padding(
+                                  child: Padding(
                                     padding: EdgeInsets.all(6),
                                     child: Icon(
                                       AppIcons.close,
@@ -120,7 +120,7 @@ class ProductComparisonScreen extends ConsumerWidget {
                           product.name,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: AppFont.bold,
                             color: AppColors.text,
@@ -132,7 +132,7 @@ class ProductComparisonScreen extends ConsumerWidget {
                         // Shop
                         Text(
                           product.shopName,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             color: AppColors.primaryDark,
                             fontWeight: AppFont.semiBold,
@@ -144,7 +144,7 @@ class ProductComparisonScreen extends ConsumerWidget {
                         // Price
                         Text(
                           AppFormat.price(product.price),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 18,
                             fontWeight: AppFont.extraBold,
                             color: AppColors.text,
@@ -158,15 +158,15 @@ class ProductComparisonScreen extends ConsumerWidget {
                         // Rating
                         Row(
                           children: [
-                            const Icon(
+                            Icon(
                               AppIcons.starFilled,
                               color: AppColors.rating,
                               size: 17,
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              '${product.ratingAvg.toStringAsFixed(1)} (${product.ratingCount} تقييم)',
-                              style: const TextStyle(
+                              '${product.ratingAvg.toStringAsFixed(1)} (${product.ratingCount} تقييم)'.tr,
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: AppFont.semiBold,
                                 color: AppColors.text,
@@ -178,8 +178,8 @@ class ProductComparisonScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.sm),
 
                         // Colors
-                        const Text(
-                          'الألوان المتاحة',
+                        Text(
+                          'الألوان المتاحة'.tr,
                           style: TextStyle(
                             fontSize: 11,
                             color: CompareDesign.rowLabelColor,
@@ -187,9 +187,9 @@ class ProductComparisonScreen extends ConsumerWidget {
                         ),
                         Text(
                           product.availableColors.isEmpty
-                              ? 'قياسي'
-                              : product.availableColors.join(' ، '),
-                          style: const TextStyle(
+                              ? 'قياسي'.tr
+                              : product.availableColors.join(' ، '.tr),
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: AppFont.semiBold,
                             color: AppColors.text,
@@ -199,8 +199,8 @@ class ProductComparisonScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.sm),
 
                         // Sizes
-                        const Text(
-                          'المقاسات المتاحة',
+                        Text(
+                          'المقاسات المتاحة'.tr,
                           style: TextStyle(
                             fontSize: 11,
                             color: CompareDesign.rowLabelColor,
@@ -208,9 +208,9 @@ class ProductComparisonScreen extends ConsumerWidget {
                         ),
                         Text(
                           product.availableSizes.isEmpty
-                              ? 'قياسي'
-                              : product.availableSizes.join(' ، '),
-                          style: const TextStyle(
+                              ? 'قياسي'.tr
+                              : product.availableSizes.join(' ، '.tr),
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: AppFont.semiBold,
                             color: AppColors.text,
@@ -220,16 +220,16 @@ class ProductComparisonScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.sm),
 
                         // Stock
-                        const Text(
-                          'المخزون',
+                        Text(
+                          'المخزون'.tr,
                           style: TextStyle(
                             fontSize: 11,
                             color: CompareDesign.rowLabelColor,
                           ),
                         ),
                         Text(
-                          '${product.totalStock} قطعة',
-                          style: const TextStyle(
+                          '${product.totalStock} قطعة'.tr,
+                          style: TextStyle(
                             fontSize: 13,
                             fontWeight: AppFont.semiBold,
                             color: AppColors.text,
@@ -240,7 +240,7 @@ class ProductComparisonScreen extends ConsumerWidget {
 
                         // Action button
                         AppButton(
-                          label: 'عرض التفاصيل',
+                          label: 'عرض التفاصيل'.tr,
                           onPressed: () => context.push(
                             AppRoutes.customerProductDetailsPath(product.id),
                           ),

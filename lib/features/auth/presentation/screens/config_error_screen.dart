@@ -23,7 +23,7 @@ class ConfigErrorScreen extends StatelessWidget {
               children: [
                 const SizedBox(height: AppSpacing.xl),
                 Text(
-                  'إعداد التطبيق',
+                  'إعداد التطبيق'.tr,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         color: AppColors.black,
                         fontWeight: FontWeight.w700,
@@ -33,15 +33,15 @@ class ConfigErrorScreen extends StatelessWidget {
                 AppCard(
                   child: Text(
                     message,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.black,
                       height: 1.5,
                     ),
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                const Text(
-                  'انسخ .env.example إلى .env وضع SUPABASE_URL و SUPABASE_ANON_KEY من لوحة Supabase، ثم نفّذ SQL الموجود في supabase/migrations/001_auth_profiles.sql',
+                Text(
+                  'انسخ .env.example إلى .env وضع SUPABASE_URL و SUPABASE_ANON_KEY من لوحة Supabase، ثم نفّذ SQL الموجود في supabase/migrations/001_auth_profiles.sql'.tr,
                   style: TextStyle(color: AppColors.gray700, height: 1.5),
                 ),
               ],

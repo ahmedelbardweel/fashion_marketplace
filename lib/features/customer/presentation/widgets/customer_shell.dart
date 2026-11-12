@@ -110,7 +110,7 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
       color: AppBarDesign.background,
       elevation: 0,
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppBarDesign.background,
           border: Border(
             bottom: BorderSide(color: AppBarDesign.borderColor),
@@ -145,19 +145,19 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                     onPressed: AppHaptics.action(
                                       () => Navigator.of(context).maybePop(),
                                     ),
-                                    icon: const Icon(
+                                    icon: Icon(
                                       AppIcons.back,
                                       color: AppBarDesign.iconColor,
                                     ),
-                                    tooltip: 'رجوع',
+                                    tooltip: 'رجوع'.tr,
                                   ),
                                 if (!widget.showSearch) ...[
                                   Expanded(
                                     child: Text(
-                                      widget.title,
+                                      AppLang.tr(widget.title),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: AppBarDesign.titleSize,
                                         fontWeight: AppBarDesign.titleWeight,
                                         color: AppBarDesign.titleColor,
@@ -185,7 +185,7 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                         ),
                                         child: Row(
                                           children: [
-                                            const Icon(
+                                            Icon(
                                               AppIcons.search,
                                               size: 20,
                                               color: AppBarDesign.searchIcon,
@@ -216,13 +216,13 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                 ...?widget.actions,
                                 if (compareCount > 0)
                                   IconButton(
-                                    tooltip: 'مقارنة المنتجات',
+                                    tooltip: 'مقارنة المنتجات'.tr,
                                     icon: Badge(
                                       label: Text('$compareCount'),
                                       backgroundColor:
                                           AppBarDesign.badgeBackground,
                                       textColor: AppBarDesign.badgeText,
-                                      child: const Icon(
+                                      child: Icon(
                                         AppIcons.compare,
                                         color: AppBarDesign.iconColor,
                                       ),
@@ -234,8 +234,8 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                     ),
                                   ),
                                 IconButton(
-                                  tooltip: 'الإشعارات',
-                                  icon: const Icon(
+                                  tooltip: 'الإشعارات'.tr,
+                                  icon: Icon(
                                     AppIcons.bell,
                                     color: AppBarDesign.iconColor,
                                   ),
@@ -246,19 +246,19 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                   ),
                                 ),
                                 IconButton(
-                                  tooltip: 'سلة المشتريات',
+                                  tooltip: 'سلة المشتريات'.tr,
                                   icon: cartCount > 0
                                       ? Badge(
                                           label: Text('$cartCount'),
                                           backgroundColor:
                                               AppBarDesign.badgeBackground,
                                           textColor: AppBarDesign.badgeText,
-                                          child: const Icon(
+                                          child: Icon(
                                             AppIcons.bag,
                                             color: AppBarDesign.iconColor,
                                           ),
                                         )
-                                      : const Icon(
+                                      : Icon(
                                           AppIcons.bag,
                                           color: AppBarDesign.iconColor,
                                         ),
@@ -266,19 +266,7 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                     () => context.push(AppRoutes.customerCart),
                                   ),
                                 ),
-                                if (widget.showProfile)
-                                  IconButton(
-                                    tooltip: 'الملف الشخصي',
-                                    icon: const Icon(
-                                      AppIcons.user,
-                                      color: AppBarDesign.iconColor,
-                                    ),
-                                    onPressed: AppHaptics.action(
-                                      () => context.push(
-                                        AppRoutes.customerProfile,
-                                      ),
-                                    ),
-                                  ),
+
                               ],
                             ),
                           ),
@@ -311,12 +299,12 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                               child: Row(
                                 children: [
                                   IconButton(
-                                    icon: const Icon(
+                                    icon: Icon(
                                       AppIcons.back,
                                       color: AppBarDesign.iconColor,
                                       size: 20,
                                     ),
-                                    tooltip: 'إغلاق البحث',
+                                    tooltip: 'إغلاق البحث'.tr,
                                     onPressed: AppHaptics.action(_closeSearch),
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(
@@ -366,12 +354,12 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                   ),
                                   if (_searchController.text.isNotEmpty)
                                     IconButton(
-                                      icon: const Icon(
+                                      icon: Icon(
                                         AppIcons.close,
                                         size: 18,
                                         color: AppColors.iconMuted,
                                       ),
-                                      tooltip: 'مسح',
+                                      tooltip: 'مسح'.tr,
                                       onPressed: AppHaptics.action(() {
                                         _searchController.clear();
                                         setState(() {});
@@ -383,12 +371,12 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                       ),
                                     ),
                                   IconButton(
-                                    icon: const Icon(
+                                    icon: Icon(
                                       AppIcons.search,
                                       color: AppBarDesign.iconColor,
                                       size: 20,
                                     ),
-                                    tooltip: 'بحث',
+                                    tooltip: 'بحث'.tr,
                                     onPressed: AppHaptics.action(
                                       () =>
                                           _submitSearch(_searchController.text),
@@ -424,6 +412,7 @@ class CustomerBottomNav extends StatelessWidget {
 
   int _indexFor(String location) {
     if (currentIndex != null) return currentIndex!;
+    if (location.startsWith(AppRoutes.customerProfile)) return 4;
     if (location.startsWith(AppRoutes.customerOrders)) return 3;
     if (location.startsWith(AppRoutes.customerFavorites)) return 2;
     if (location.startsWith(AppRoutes.customerCatalog) ||
@@ -441,7 +430,7 @@ class CustomerBottomNav extends StatelessWidget {
     return Material(
       color: BottomNavDesign.background,
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: BottomNavDesign.background,
           border: Border(top: BorderSide(color: BottomNavDesign.borderColor)),
         ),
@@ -452,32 +441,39 @@ class CustomerBottomNav extends StatelessWidget {
             child: Row(
               children: [
                 _CustomerNavItem(
-                  label: 'الرئيسية',
+                  label: 'الرئيسية'.tr,
                   icon: AppIcons.home,
                   activeIcon: AppIcons.homeActive,
                   selected: current == 0,
                   onTap: () => context.go(AppRoutes.customerHome),
                 ),
                 _CustomerNavItem(
-                  label: 'المنتجات',
+                  label: 'المنتجات'.tr,
                   icon: AppIcons.grid,
                   activeIcon: AppIcons.gridActive,
                   selected: current == 1,
                   onTap: () => context.go(AppRoutes.customerCatalog),
                 ),
                 _CustomerNavItem(
-                  label: 'المفضلة',
+                  label: 'المفضلة'.tr,
                   icon: AppIcons.heart,
                   activeIcon: AppIcons.heartFilled,
                   selected: current == 2,
                   onTap: () => context.go(AppRoutes.customerFavorites),
                 ),
                 _CustomerNavItem(
-                  label: 'طلباتي',
+                  label: 'طلباتي'.tr,
                   icon: AppIcons.orders,
                   activeIcon: AppIcons.ordersActive,
                   selected: current == 3,
                   onTap: () => context.go(AppRoutes.customerOrders),
+                ),
+                _CustomerNavItem(
+                  label: 'حسابي'.tr,
+                  icon: AppIcons.user,
+                  activeIcon: AppIcons.userActive,
+                  selected: current == 4,
+                  onTap: () => context.go(AppRoutes.customerProfile),
                 ),
               ],
             ),
@@ -516,7 +512,7 @@ class _CustomerNavItem extends StatelessWidget {
               minHeight: BottomNavDesign.indicatorHeight,
             ),
             padding: const EdgeInsets.symmetric(
-              horizontal: 14,
+              horizontal: 10,
               vertical: 6,
             ),
             decoration: BoxDecoration(
@@ -540,7 +536,7 @@ class _CustomerNavItem extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  label,
+                  AppLang.tr(label),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

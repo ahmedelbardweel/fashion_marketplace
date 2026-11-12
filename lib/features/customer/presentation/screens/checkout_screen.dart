@@ -53,7 +53,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     if (address.isEmpty || phone.isEmpty) {
       showAppSnackBar(
         context,
-        'يرجى إدخال عنوان التوصيل ورقم الهاتف',
+        'يرجى إدخال عنوان التوصيل ورقم الهاتف'.tr,
         isError: true,
       );
       return;
@@ -61,7 +61,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     final itemsByShop = ref.read(cartProvider.notifier).itemsByShop;
     if (itemsByShop.isEmpty) {
-      showAppSnackBar(context, 'السلة فارغة', isError: true);
+      showAppSnackBar(context, 'السلة فارغة'.tr, isError: true);
       return;
     }
 
@@ -97,11 +97,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   const SizedBox(height: AppSpacing.md),
                   Container(
                     padding: const EdgeInsets.all(AppSpacing.md),
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: CheckoutDesign.successIconBackground,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       AppIcons.checkCircleFilled,
                       color: CheckoutDesign.successIcon,
                       size: CheckoutDesign.successIconSize,
@@ -109,7 +109,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    'تم تأكيد طلبك بنجاح',
+                    'تم تأكيد طلبك بنجاح'.tr,
                     style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
                       fontWeight: AppFont.bold,
                     ),
@@ -117,7 +117,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    'سيتولى المتجر تجهيز ملابسك وشحنها إلى عنوانك في أقرب وقت.',
+                    'سيتولى المتجر تجهيز ملابسك وشحنها إلى عنوانك في أقرب وقت.'.tr,
                     style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
                       color: AppColors.textMuted,
                     ),
@@ -125,7 +125,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
                   AppButton(
-                    label: 'متابعة تفاصيل الطلب',
+                    label: 'متابعة تفاصيل الطلب'.tr,
                     onPressed: () {
                       Navigator.of(ctx).pop();
                       context.go(AppRoutes.customerOrders);
@@ -155,7 +155,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final totalAmount = ref.watch(cartProvider.notifier).totalAmount;
 
     return CustomerScaffold(
-      title: 'إتمام الشراء',
+      title: 'إتمام الشراء'.tr,
       showSearch: false,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.md),
@@ -163,8 +163,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Delivery Information Card
-            const Text(
-              'عنوان التوصيل والتواصل',
+            Text(
+              'عنوان التوصيل والتواصل'.tr,
               style: TextStyle(
                 fontSize: SectionDesign.titleSize,
                 fontWeight: SectionDesign.titleWeight,
@@ -177,20 +177,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 children: [
                   AppTextField(
                     controller: _addressController,
-                    label: 'عنوان التوصيل التفصيلي (المدينة، الحي، الشارع)',
+                    label: 'عنوان التوصيل التفصيلي (المدينة، الحي، الشارع)'.tr,
                     prefixIcon: AppIcons.location,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _phoneController,
-                    label: 'رقم هاتف المستلم',
+                    label: 'رقم هاتف المستلم'.tr,
                     keyboardType: TextInputType.phone,
                     prefixIcon: AppIcons.phone,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _notesController,
-                    label: 'ملاحظات إضافية للتوصيل (اختياري)',
+                    label: 'ملاحظات إضافية للتوصيل (اختياري)'.tr,
                     prefixIcon: AppIcons.notes,
                   ),
                 ],
@@ -200,8 +200,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             const SizedBox(height: AppSpacing.lg),
 
             // Payment Method
-            const Text(
-              'طريقة الدفع',
+            Text(
+              'طريقة الدفع'.tr,
               style: TextStyle(
                 fontSize: SectionDesign.titleSize,
                 fontWeight: SectionDesign.titleWeight,
@@ -212,7 +212,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             AppCard(
               borderColor: CheckoutDesign.optionSelectedBorder,
               backgroundColor: CheckoutDesign.optionSelectedBackground,
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(AppIcons.payment, color: AppColors.icon),
                   SizedBox(width: AppSpacing.md),
@@ -221,7 +221,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'الدفع عند الاستلام',
+                          'الدفع عند الاستلام'.tr,
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: AppFont.bold,
@@ -230,7 +230,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'ادفع نقداً أو عبر البطاقة عند استلام طلبك',
+                          'ادفع نقداً أو عبر البطاقة عند استلام طلبك'.tr,
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
@@ -248,8 +248,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
             // Order Summary
             Text(
-              'ملخص الطلب (${cartItems.length})',
-              style: const TextStyle(
+              'ملخص الطلب (${cartItems.length})'.tr,
+              style: TextStyle(
                 fontSize: SectionDesign.titleSize,
                 fontWeight: SectionDesign.titleWeight,
                 color: AppColors.text,
@@ -270,7 +270,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               '${item.productName} (${item.variantDescription}) × ${item.quantity}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 13,
                                 color: AppColors.textSecondary,
                               ),
@@ -279,7 +279,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           const SizedBox(width: AppSpacing.sm),
                           Text(
                             AppFormat.price(item.totalPrice),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: AppFont.bold,
                               color: AppColors.text,
                             ),
@@ -289,12 +289,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     );
                   }),
                   const Divider(height: AppSpacing.lg),
-                  const Row(
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('الشحن والتوصيل'),
+                      Text('الشحن والتوصيل'.tr),
                       Text(
-                        'مجاناً',
+                        'مجاناً'.tr,
                         style: TextStyle(
                           color: AppColors.primaryDark,
                           fontWeight: AppFont.bold,
@@ -306,8 +306,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'المبلغ المطلوب دفعه',
+                      Text(
+                        'المبلغ المطلوب دفعه'.tr,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: AppFont.bold,
@@ -316,7 +316,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       ),
                       Text(
                         AppFormat.price(totalAmount),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: AppFont.extraBold,
                           color: AppColors.text,
@@ -332,7 +332,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
             // Confirm Button
             AppButton(
-              label: 'تأكيد الطلب الآن',
+              label: 'تأكيد الطلب الآن'.tr,
               isLoading: _isSubmitting,
               onPressed: _isSubmitting ? null : _submitOrder,
             ),

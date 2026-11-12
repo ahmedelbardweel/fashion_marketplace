@@ -18,31 +18,31 @@ class AdminStatsScreen extends ConsumerWidget {
     final stats = ref.watch(adminStatsProvider);
 
     return AdminScaffold(
-      title: 'إحصائيات التطبيق',
+      title: 'إحصائيات التطبيق'.tr,
       body: AdminAsyncBody<AdminStats>(
         placeholder: LoadingFixtures.stats,
         value: stats,
         onRetry: () => ref.invalidate(adminStatsProvider),
         builder: (data) {
           final items = [
-            ('المستخدمون', data.customers),
-            ('المحلات', data.shops),
-            ('طلبات معلقة', data.pendingShops),
-            ('محلات معتمدة', data.approvedShops),
-            ('محلات معلقة', data.suspendedShops),
-            ('المنتجات', data.products),
-            ('منتجات مخفية', data.hiddenProducts),
-            ('الطلبات', data.orders),
-            ('التصنيفات', data.categories),
-            ('البنرات', data.banners),
-            ('الإشعارات', data.notifications),
+            ('المستخدمون'.tr, data.customers),
+            ('المحلات'.tr, data.shops),
+            ('طلبات معلقة'.tr, data.pendingShops),
+            ('محلات معتمدة'.tr, data.approvedShops),
+            ('محلات معلقة'.tr, data.suspendedShops),
+            ('المنتجات'.tr, data.products),
+            ('منتجات مخفية'.tr, data.hiddenProducts),
+            ('الطلبات'.tr, data.orders),
+            ('التصنيفات'.tr, data.categories),
+            ('البنرات'.tr, data.banners),
+            ('الإشعارات'.tr, data.notifications),
           ];
 
           return ListView(
             padding: AppSpacing.page,
             children: [
               Text(
-                'نظرة عامة من قاعدة البيانات مباشرة',
+                'نظرة عامة من قاعدة البيانات مباشرة'.tr,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: AppSpacing.md),
