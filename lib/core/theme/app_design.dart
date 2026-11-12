@@ -432,8 +432,8 @@ abstract final class BottomNavDesign {
   static const Color background = AppColors.white;
   static const Color borderColor = AppColors.border;
   static const double topRadius = 0;
-  static const double height = 64;
-  static const double iconSize = 24;
+  static const double height = 68;
+  static const double iconSize = 22;
   static const Color selectedIcon = AppColors.icon;
   static const Color unselectedIcon = AppColors.iconMuted;
   static const Color selectedLabel = AppColors.text;
@@ -442,11 +442,11 @@ abstract final class BottomNavDesign {
   static const FontWeight selectedWeight = AppFont.bold;
   static const FontWeight unselectedWeight = AppFont.medium;
 
-  /// الخلفية خلف الأيقونة المحددة.
+  /// الخلفية خلف الأيقونة والنص للعنصر المحدد.
   static const Color indicator = AppColors.primarySoft;
-  static const double indicatorWidth = 56;
-  static const double indicatorHeight = 30;
-  static const double indicatorRadius = AppRadii.pill;
+  static const double indicatorWidth = 72;
+  static const double indicatorHeight = 52;
+  static const double indicatorRadius = 20;
 }
 
 // -----------------------------------------------------------------------------
@@ -856,6 +856,8 @@ abstract final class HomeDesign {
   // --- البانرات ---
   static const double bannerHeight = 196;
   static const double bannerRadius = AppRadii.lg;
+  /// مقدار تضييق عرض بطاقة البانر من الأسفل من كل جهة (يزداد العرض كلما اتجهنا للأعلى).
+  static const double bannerBottomInset = 18;
   static const double bannerViewportFraction = 0.9;
   static const Color bannerBackground = AppColors.primary;
   static const Color bannerTitle = AppColors.white;

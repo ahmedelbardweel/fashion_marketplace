@@ -149,44 +149,54 @@ class _Item extends StatelessWidget {
     return Expanded(
       child: InkWell(
         onTap: AppHaptics.action(onTap),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedContainer(
-              duration: AppMotion.fast,
-              width: BottomNavDesign.indicatorWidth,
-              height: BottomNavDesign.indicatorHeight,
-              decoration: BoxDecoration(
-                color: selected
-                    ? SellerDesign.navSelectedBackground
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(
-                  BottomNavDesign.indicatorRadius,
+        child: Center(
+          child: AnimatedContainer(
+            duration: AppMotion.fast,
+            constraints: const BoxConstraints(
+              minWidth: BottomNavDesign.indicatorWidth,
+              minHeight: BottomNavDesign.indicatorHeight,
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 6,
+            ),
+            decoration: BoxDecoration(
+              color: selected
+                  ? SellerDesign.navSelectedBackground
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(
+                BottomNavDesign.indicatorRadius,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  selected ? activeIcon : icon,
+                  size: BottomNavDesign.iconSize,
+                  color: selected
+                      ? SellerDesign.navSelectedIcon
+                      : SellerDesign.navUnselectedIcon,
                 ),
-              ),
-              alignment: Alignment.center,
-              child: Icon(
-                selected ? activeIcon : icon,
-                size: BottomNavDesign.iconSize,
-                color: selected
-                    ? SellerDesign.navSelectedIcon
-                    : SellerDesign.navUnselectedIcon,
-              ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: BottomNavDesign.labelSize,
+                    color: selected
+                        ? BottomNavDesign.selectedLabel
+                        : BottomNavDesign.unselectedLabel,
+                    fontWeight: selected
+                        ? BottomNavDesign.selectedWeight
+                        : BottomNavDesign.unselectedWeight,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: BottomNavDesign.labelSize,
-                color: selected
-                    ? BottomNavDesign.selectedLabel
-                    : BottomNavDesign.unselectedLabel,
-                fontWeight: selected
-                    ? BottomNavDesign.selectedWeight
-                    : BottomNavDesign.unselectedWeight,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

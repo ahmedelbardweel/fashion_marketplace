@@ -345,21 +345,21 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
               final b = widget.banners[index];
               final hasImage =
                   b.imagePath != null && b.imagePath!.trim().isNotEmpty;
+              const bannerShape = _TaperedBannerBorder(
+                radius: HomeDesign.bannerRadius,
+                bottomInset: HomeDesign.bannerBottomInset,
+              );
               return Padding(
                 padding: AppSpacing.pageHorizontal,
-                child: InkWell(
-                  onTap: AppHaptics.action(
-                    () => context.push(AppRoutes.customerCatalog),
-                  ),
-                  borderRadius: BorderRadius.circular(HomeDesign.bannerRadius),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: HomeDesign.bannerBackground,
-                      borderRadius: BorderRadius.circular(
-                        HomeDesign.bannerRadius,
-                      ),
+                child: Material(
+                  color: HomeDesign.bannerBackground,
+                  shape: bannerShape,
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: AppHaptics.action(
+                      () => context.push(AppRoutes.customerCatalog),
                     ),
-                    clipBehavior: Clip.antiAlias,
+                    customBorder: bannerShape,
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
@@ -409,7 +409,8 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
                         ],
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
+                            horizontal:
+                                AppSpacing.lg + HomeDesign.bannerBottomInset,
                             vertical: AppSpacing.md,
                           ),
                           child: Column(
@@ -549,6 +550,95 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// شكل بطاقة البانر: عرض أوسع من الأعلى ويضيق تدريجياً نحو الأسفل مع زوايا دائرية ناعمة.
+class _TaperedBannerBorder extends OutlinedBorder {
+  const _TaperedBannerBorder({
+    this.radius = 18,
+    this.bottomInset = 18,
+    super.side,
+  });
+
+  final double radius;
+  final double bottomInset;
+
+  @override
+  OutlinedBorder copyWith({
+    BorderSide? side,
+    double? radius,
+    double? bottomInset,
+  }) {
+    return _TaperedBannerBorder(
+      side: side ?? this.side,
+      radius: radius ?? this.radius,
+      bottomInset: bottomInset ?? this.bottomInset,
+    );
+  }
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) {
+    return _buildPath(rect.deflate(side.strokeInset));
+  }
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
+    return _buildPath(rect);
+  }
+
+  Path _buildPath(Rect rect) {
+    final inset = bottomInset.clamp(0.0, rect.width * 0.25);
+    final r = radius.clamp(0.0, rect.height * 0.35);
+
+    final tl = Offset(rect.left, rect.top);
+    final tr = Offset(rect.right, rect.top);
+    final br = Offset(rect.right - inset, rect.bottom);
+    final bl = Offset(rect.left + inset, rect.bottom);
+
+    final vertices = [tl, tr, br, bl];
+    final path = Path();
+
+    for (var i = 0; i < vertices.length; i++) {
+      final prev = vertices[(i - 1 + vertices.length) % vertices.length];
+      final curr = vertices[i];
+      final next = vertices[(i + 1) % vertices.length];
+
+      final toPrev = prev - curr;
+      final toNext = next - curr;
+      final prevLen = toPrev.distance;
+      final nextLen = toNext.distance;
+
+      final minSide = prevLen < nextLen ? prevLen : nextLen;
+      final cornerOffset = r.clamp(0.0, minSide * 0.45);
+      final pStart = curr + (toPrev / prevLen) * cornerOffset;
+      final pEnd = curr + (toNext / nextLen) * cornerOffset;
+
+      if (i == 0) {
+        path.moveTo(pStart.dx, pStart.dy);
+      } else {
+        path.lineTo(pStart.dx, pStart.dy);
+      }
+      path.quadraticBezierTo(curr.dx, curr.dy, pEnd.dx, pEnd.dy);
+    }
+
+    path.close();
+    return path;
+  }
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
+    if (side.style == BorderStyle.none || side.width <= 0) return;
+    canvas.drawPath(getOuterPath(rect), side.toPaint());
+  }
+
+  @override
+  ShapeBorder scale(double t) {
+    return _TaperedBannerBorder(
+      side: side.scale(t),
+      radius: radius * t,
+      bottomInset: bottomInset * t,
     );
   }
 }
