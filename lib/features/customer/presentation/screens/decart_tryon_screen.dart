@@ -139,7 +139,12 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       _videoBinding?.attach(null);
       _videoBinding?.dispose();
       _localRenderer.srcObject = null;
-      unawaited(_controller.suspend());
+      final controller = _controller;
+      Future(() {
+        if (controller.mounted) {
+          unawaited(controller.suspend());
+        }
+      });
     }
     unawaited(
       _rendererInitialization

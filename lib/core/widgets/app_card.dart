@@ -35,7 +35,10 @@ class AppCard extends StatelessWidget {
           width: CardDesign.borderWidth,
         ),
       ),
-      child: child,
+      child: Material(
+        type: MaterialType.transparency,
+        child: child,
+      ),
     );
 
     if (onTap == null) return content;

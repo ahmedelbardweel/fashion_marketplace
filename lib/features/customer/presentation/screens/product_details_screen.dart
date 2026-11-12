@@ -1782,9 +1782,11 @@ class _DetailAccordion extends StatelessWidget {
           bottom: BorderSide(color: ProductDetailsDesign.expandableDivider),
         ),
       ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
+      child: Material(
+        type: MaterialType.transparency,
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
           initiallyExpanded: initiallyExpanded,
           tilePadding: EdgeInsets.zero,
           childrenPadding: const EdgeInsets.only(bottom: AppSpacing.md),
@@ -1802,6 +1804,7 @@ class _DetailAccordion extends StatelessWidget {
           children: [
             Align(alignment: AlignmentDirectional.centerStart, child: child),
           ],
+        ),
         ),
       ),
     );

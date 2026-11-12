@@ -854,7 +854,7 @@ abstract final class HomeDesign {
   static const Color pageBackground = AppColors.white;
 
   // --- البانرات ---
-  static const double bannerHeight = 168;
+  static const double bannerHeight = 196;
   static const double bannerRadius = AppRadii.lg;
   static const double bannerViewportFraction = 0.9;
   static const Color bannerBackground = AppColors.primary;

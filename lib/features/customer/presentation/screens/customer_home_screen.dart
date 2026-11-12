@@ -408,60 +408,76 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
                           ),
                         ],
                         Padding(
-                          padding: const EdgeInsets.all(AppSpacing.lg),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.lg,
+                            vertical: AppSpacing.md,
+                          ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppPalette.white.withValues(
-                                    alpha: 0.18,
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    AppRadii.pill,
-                                  ),
-                                ),
-                                child: const Text(
-                                  'عرض خاص',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: AppFont.bold,
-                                    color: HomeDesign.bannerTitle,
-                                  ),
+                              Flexible(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppPalette.white.withValues(
+                                          alpha: 0.18,
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          AppRadii.pill,
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'عرض خاص',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: AppFont.bold,
+                                          color: HomeDesign.bannerTitle,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: AppSpacing.xs),
+                                    Flexible(
+                                      child: Text(
+                                        b.title,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          fontSize: HomeDesign.bannerTitleSize,
+                                          fontWeight:
+                                              HomeDesign.bannerTitleWeight,
+                                          color: HomeDesign.bannerTitle,
+                                          height: 1.2,
+                                        ),
+                                      ),
+                                    ),
+                                    if (b.subtitle != null &&
+                                        b.subtitle!.trim().isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Flexible(
+                                        child: Text(
+                                          b.subtitle!,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: AppFont.medium,
+                                            color: HomeDesign.bannerSubtitle,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
                               const SizedBox(height: AppSpacing.xs),
-                              Text(
-                                b.title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: HomeDesign.bannerTitleSize,
-                                  fontWeight: HomeDesign.bannerTitleWeight,
-                                  color: HomeDesign.bannerTitle,
-                                  height: 1.25,
-                                ),
-                              ),
-                              if (b.subtitle != null &&
-                                  b.subtitle!.trim().isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  b.subtitle!,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: AppFont.medium,
-                                    color: HomeDesign.bannerSubtitle,
-                                  ),
-                                ),
-                              ],
-                              const Spacer(),
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 14,
