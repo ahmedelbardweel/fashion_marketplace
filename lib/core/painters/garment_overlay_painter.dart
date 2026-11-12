@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../services/garment_fitter.dart';
+import '../theme/app_design.dart';
 
 /// Paints the garment fitted to the detected body with realistic 3D perspective.
 /// Stays completely invisible until a valid body pose is detected.
@@ -91,7 +92,7 @@ class GarmentOverlayPainter extends CustomPainter {
 
   void _drawDebug(Canvas canvas, Size size, Offset center) {
     final linePaint = Paint()
-      ..color = const Color(0xFF00E676)
+      ..color = TryOnDesign.detectedStroke
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
     canvas.drawLine(transform.leftShoulder, transform.rightShoulder, linePaint);

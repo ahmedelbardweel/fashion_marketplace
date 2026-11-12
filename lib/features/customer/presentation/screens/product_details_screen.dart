@@ -1,25 +1,21 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
-import '../widgets/product_cart_sheet.dart';
-import '../../../../core/widgets/product_grid_skeleton.dart';
-import '../../../../core/widgets/app_skeleton.dart';
-import '../../../../core/widgets/loading_fixtures.dart';
-import '../../../../core/widgets/app_bottom_sheet.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radii.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
-import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_bottom_sheet.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/product_grid_card.dart';
+import '../../../../core/widgets/product_grid_skeleton.dart';
 import '../../../../router/routes.dart';
 import '../../domain/models/customer_product.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
+import '../widgets/product_cart_sheet.dart';
 
 class ProductDetailsScreen extends ConsumerStatefulWidget {
   const ProductDetailsScreen({super.key, required this.productId});
@@ -33,6 +29,7 @@ class ProductDetailsScreen extends ConsumerStatefulWidget {
 
 class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   final ScrollController _scrollController = ScrollController();
+  late final PageController _galleryController = PageController();
   final List<CustomerProduct> _recommendedProducts = [];
   bool _loadingMore = false;
   bool _hasMore = true;
@@ -57,6 +54,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _galleryController.dispose();
     super.dispose();
   }
 
@@ -93,6 +91,29 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     }
   }
 
+  Future<void> _toggleFavorite(String productId) async {
+    await ref.read(customerRepositoryProvider).toggleFavorite(productId);
+    ref.invalidate(customerProductDetailsProvider(productId));
+    ref.invalidate(customerFavoritesProvider);
+    ref.invalidate(customerProductsProvider);
+  }
+
+  void _openFullScreenGallery(
+    BuildContext context,
+    List<ProductImage> images,
+    int initialIndex,
+  ) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => _FullscreenGalleryPage(
+          images: images,
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
+  }
+
   void _openFullReviewsBottomSheet(
     BuildContext context,
     CustomerProduct product,
@@ -124,11 +145,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       // Handle & Header
                       Container(
                         margin: const EdgeInsets.only(top: AppSpacing.sm),
-                        width: 44,
-                        height: 4,
+                        width: SheetDesign.handleWidth,
+                        height: SheetDesign.handleHeight,
                         decoration: BoxDecoration(
-                          color: AppColors.gray300,
-                          borderRadius: BorderRadius.circular(2),
+                          color: SheetDesign.handle,
+                          borderRadius: BorderRadius.circular(AppRadii.pill),
                         ),
                       ),
                       Padding(
@@ -142,20 +163,27 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             Row(
                               children: [
                                 const Icon(
-                                  Icons.rate_review_outlined,
+                                  AppIcons.rateReview,
                                   size: 20,
-                                  color: AppColors.black,
+                                  color: AppColors.icon,
                                 ),
                                 const SizedBox(width: AppSpacing.xs),
                                 Text(
                                   'تقييمات وآراء المشترين (${currentReviews.length})',
-                                  style: Theme.of(ctx).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: AppFont.bold,
+                                    color: AppColors.text,
+                                  ),
                                 ),
                               ],
                             ),
                             IconButton(
-                              icon: const Icon(Icons.close, size: 20),
+                              icon: const Icon(
+                                AppIcons.close,
+                                size: 22,
+                                color: AppColors.icon,
+                              ),
                               onPressed: AppHaptics.action(
                                 () => Navigator.of(ctx).pop(),
                               ),
@@ -174,22 +202,24 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             Container(
                               padding: const EdgeInsets.all(AppSpacing.md),
                               decoration: BoxDecoration(
-                                color: AppColors.gray100,
+                                color: AppColors.surfaceSubtle,
                                 borderRadius: BorderRadius.circular(
-                                  AppRadii.card,
+                                  ProductDetailsDesign.reviewCardRadius,
                                 ),
                                 border: Border.all(
-                                  color: AppColors.border,
-                                  width: 1,
+                                  color: ProductDetailsDesign.reviewCardBorder,
                                 ),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'أضف تقييمك ورأيك في القطعة',
-                                    style: Theme.of(ctx).textTheme.titleSmall
-                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: AppFont.bold,
+                                      color: AppColors.text,
+                                    ),
                                   ),
                                   const SizedBox(height: AppSpacing.xs),
                                   // Stars Picker
@@ -202,14 +232,22 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                             () => rating = starNum,
                                           ),
                                         ),
+                                        borderRadius: BorderRadius.circular(
+                                          AppRadii.sm,
+                                        ),
                                         child: Padding(
                                           padding: const EdgeInsets.all(4.0),
                                           child: Icon(
                                             starNum <= rating
-                                                ? Icons.star
-                                                : Icons.star_border,
-                                            color: AppColors.black,
-                                            size: 28,
+                                                ? AppIcons.starFilled
+                                                : AppIcons.star,
+                                            color: starNum <= rating
+                                                ? ProductDetailsDesign
+                                                      .ratingStar
+                                                : ProductDetailsDesign
+                                                      .ratingStarEmpty,
+                                            size: ProductDetailsDesign
+                                                .reviewPickerStarSize,
                                           ),
                                         ),
                                       );
@@ -219,14 +257,16 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                   TextField(
                                     controller: commentController,
                                     maxLines: 3,
-                                    style: Theme.of(ctx).textTheme.bodyMedium,
+                                    style: Theme.of(ctx).textTheme.bodyMedium
+                                        ?.copyWith(color: AppColors.text),
                                     decoration: InputDecoration(
-                                      hintText: 'اكتب رأيك وتجربتك مع المقاس والجودة والخامة...',
+                                      hintText:
+                                          'اكتب رأيك وتجربتك مع المقاس والجودة والخامة...',
                                       filled: true,
                                       fillColor: AppColors.white,
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(
-                                          AppRadii.input,
+                                          InputDesign.radius,
                                         ),
                                         borderSide: const BorderSide(
                                           color: AppColors.border,
@@ -234,7 +274,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                       ),
                                       enabledBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(
-                                          AppRadii.input,
+                                          InputDesign.radius,
                                         ),
                                         borderSide: const BorderSide(
                                           color: AppColors.border,
@@ -242,10 +282,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                       ),
                                       focusedBorder: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(
-                                          AppRadii.input,
+                                          InputDesign.radius,
                                         ),
                                         borderSide: const BorderSide(
-                                          color: AppColors.black,
+                                          color: AppColors.primary,
+                                          width: 1.5,
                                         ),
                                       ),
                                       contentPadding: const EdgeInsets.all(
@@ -257,16 +298,6 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                   SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: AppColors.black,
-                                        foregroundColor: AppColors.white,
-                                        minimumSize: const Size(0, 46),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            AppRadii.button,
-                                          ),
-                                        ),
-                                      ),
                                       onPressed: AppHaptics.action(
                                         isSubmitting
                                             ? null
@@ -305,7 +336,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                                   if (context.mounted) {
                                                     showAppSnackBar(
                                                       context,
-                                                      'تمت إضافة تقييمك بنجاح ⭐',
+                                                      'تمت إضافة تقييمك بنجاح',
                                                     );
                                                   }
                                                 } catch (e) {
@@ -335,73 +366,30 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             const SizedBox(height: AppSpacing.lg),
 
                             // Existing Reviews
-                            Text(
+                            const Text(
                               'آراء العملاء السابقة',
-                              style: Theme.of(ctx).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: AppFont.bold,
+                                color: AppColors.text,
+                              ),
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             if (currentReviews.isEmpty)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(
-                                  vertical: AppSpacing.lg,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    'لا توجد تقييمات لهذا المنتج بعد. كن أول من يقيّمه!',
-                                    style: TextStyle(color: AppColors.gray500),
-                                  ),
-                                ),
+                              const AppEmpty(
+                                icon: AppIcons.reviews,
+                                message:
+                                    'لا توجد تقييمات لهذا المنتج بعد. كن أول من يقيّمه.',
                               )
                             else
-                              ...currentReviews.map((rev) {
-                                return Padding(
+                              ...currentReviews.map(
+                                (rev) => Padding(
                                   padding: const EdgeInsets.only(
                                     bottom: AppSpacing.sm,
                                   ),
-                                  child: AppCard(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              rev.customerName,
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            Row(
-                                              children: List.generate(5, (i) {
-                                                return Icon(
-                                                  i < rev.rating
-                                                      ? Icons.star
-                                                      : Icons.star_border,
-                                                  color: AppColors.black,
-                                                  size: 15,
-                                                );
-                                              }),
-                                            ),
-                                          ],
-                                        ),
-                                        if (rev.comment != null &&
-                                            rev.comment!.isNotEmpty) ...[
-                                          const SizedBox(height: AppSpacing.xs),
-                                          Text(
-                                            rev.comment!,
-                                            style: Theme.of(ctx)
-                                                .textTheme
-                                                .bodyMedium,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }),
+                                  child: _ReviewTile(review: rev),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -423,6 +411,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     );
     final reviewsAsync = ref.watch(productReviewsProvider(widget.productId));
     final compareList = ref.watch(productComparisonProvider);
+    final cartCount = ref.watch(cartProvider.notifier).totalItemCount;
 
     return productAsync.skeletonWhen(
       placeholder: LoadingFixtures.product,
@@ -431,7 +420,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           return const CustomerScaffold(
             showBottomNav: false,
             title: 'تفاصيل المنتج',
-            body: Center(child: Text('المنتج غير موجود')),
+            body: AppEmpty(
+              icon: AppIcons.garment,
+              message: 'المنتج غير موجود',
+            ),
           );
         }
 
@@ -442,6 +434,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           _selectedColor = product.availableColors.first;
         }
 
+        final allSizes = product.variants.map((v) => v.size).toSet().toList();
         final matchingSizes = product.variants
             .where((v) => v.color == _selectedColor && v.stock > 0)
             .map((v) => v.size)
@@ -462,762 +455,1143 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
             );
 
         final currentStock = currentVariant?.stock ?? 0;
+        if (_quantity > currentStock && currentStock > 0) {
+          _quantity = currentStock;
+        }
         final isInCompare = compareList.any((p) => p.id == product.id);
+        final reviews = reviewsAsync.value ?? const <ProductReview>[];
+        final screenHeight = MediaQuery.of(context).size.height;
+        final galleryHeight =
+            (screenHeight * ProductDetailsDesign.galleryHeightFactor).clamp(
+              ProductDetailsDesign.galleryMinHeight,
+              ProductDetailsDesign.galleryMaxHeight,
+            );
 
-        return CustomerScaffold(
-          showBottomNav: false,
-          title: product.name,
-          actions: [
-            // Favorite Button
-            IconButton(
-              icon: Icon(
-                product.isFavorite ? Icons.favorite : Icons.favorite_border,
-                color: AppColors.black,
-              ),
-              onPressed: AppHaptics.action(
-                _togglingFavorite
-                    ? null
-                    : () async {
-                        setState(() => _togglingFavorite = true);
-                        await ref
-                            .read(customerRepositoryProvider)
-                            .toggleFavorite(product.id);
-                        ref.invalidate(
-                          customerProductDetailsProvider(widget.productId),
-                        );
-                        ref.invalidate(customerFavoritesProvider);
-                        setState(() => _togglingFavorite = false);
-                      },
-              ),
-            ),
-          ],
-          body: SingleChildScrollView(
-            controller: _scrollController,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Image Gallery
-                if (product.images.isNotEmpty) ...[
-                  SizedBox(
-                    height: 260,
-                    child: PageView.builder(
-                      itemCount: product.images.length,
-                      onPageChanged: (index) =>
-                          setState(() => _currentImageIndex = index),
-                      itemBuilder: (context, index) {
-                        final img = product.images[index];
-                        return Container(
-                          color: AppColors.gray100,
-                          child: AppNetworkImage(
-                            img.filePath,
-                            fit: BoxFit.contain,
-                            errorBuilder: (ctx, err, st) =>
-                                const Center(child: Text('تعذر تحميل الصورة')),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  if (product.images.length > 1) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(product.images.length, (idx) {
-                        final active = idx == _currentImageIndex;
-                        return Container(
-                          width: active ? 16 : 6,
-                          height: 6,
-                          margin: const EdgeInsets.symmetric(horizontal: 2),
-                          decoration: BoxDecoration(
-                            color: active ? AppColors.black : AppColors.gray300,
-                            borderRadius: BorderRadius.circular(AppRadii.sm),
-                          ),
-                        );
-                      }),
-                    ),
-                  ],
-                ] else
-                  Container(
-                    height: 250,
-                    color: AppColors.gray100,
-                    alignment: Alignment.center,
-                    child: const Text('بدون صورة'),
-                  ),
+        final specFields = <MapEntry<String, String>>[];
+        if (product.categoryName != null &&
+            product.categoryName!.trim().isNotEmpty) {
+          specFields.add(MapEntry('التصنيف', product.categoryName!));
+        }
+        for (final field in const {
+          'brand': 'الماركة',
+          'material': 'الخامة',
+          'care': 'طريقة العناية',
+          'fit': 'القَصّة',
+          'origin': 'بلد الصنع',
+        }.entries) {
+          final val = product.details[field.key]?.toString().trim() ?? '';
+          if (val.isNotEmpty) {
+            specFields.add(MapEntry(field.value, val));
+          }
+        }
 
-                Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Shop Link
-                      InkWell(
-                        onTap: AppHaptics.action(
-                          () => context.push(
-                            AppRoutes.customerShopProfilePath(product.shopId),
-                          ),
-                        ),
-                        child: Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.storefront_outlined,
-                              size: 18,
-                              color: AppColors.gray700,
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Text(
-                              'يباع بواسطة',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.gray500),
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Text(
-                              product.shopName,
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    decoration: TextDecoration.underline,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: AppSpacing.sm),
-
-                      // Title
-                      Text(
-                        product.name,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-
-                      if (product.description?.trim().isNotEmpty ?? false) ...[
-                        const SizedBox(height: AppSpacing.sm),
-                        Text(
-                          product.description!,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(height: 1.6, color: AppColors.gray700),
-                        ),
-                      ],
-                      for (final field in const {
-                        'brand': 'الماركة',
-                        'material': 'الخامة',
-                        'care': 'العناية',
-                      }.entries)
-                        if (product.details[field.key]
-                                ?.toString()
-                                .trim()
-                                .isNotEmpty ??
-                            false)
-                          Padding(
-                            padding: const EdgeInsets.only(top: AppSpacing.sm),
-                            child: Text(
-                              '${field.value}: ${product.details[field.key]}',
-                            ),
-                          ),
-                      const SizedBox(height: AppSpacing.md),
-
-                      // Price and rating share a row, aligned to opposite edges.
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return Scaffold(
+          backgroundColor: ProductDetailsDesign.pageBackground,
+          body: Stack(
+            children: [
+              // 1) Main Scrollable Content (Editorial Hero Gallery + Overlapping Sheet)
+              SingleChildScrollView(
+                controller: _scrollController,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Editorial Portrait Gallery — Distinct from grid cards:
+                    // edge-to-edge, tall portrait ratio, interactive zoom on tap,
+                    // floating virtual try-on pill, and thumbnail strip below.
+                    SizedBox(
+                      height: galleryHeight,
+                      child: Stack(
+                        fit: StackFit.expand,
                         children: [
-                          Flexible(
-                            child: Text(
-                              '${product.price.toStringAsFixed(2)} ر.س',
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.black,
+                          if (product.images.isNotEmpty)
+                            PageView.builder(
+                              controller: _galleryController,
+                              itemCount: product.images.length,
+                              onPageChanged: (index) =>
+                                  setState(() => _currentImageIndex = index),
+                              itemBuilder: (context, index) {
+                                final img = product.images[index];
+                                return GestureDetector(
+                                  onTap: AppHaptics.action(
+                                    () => _openFullScreenGallery(
+                                      context,
+                                      product.images,
+                                      index,
+                                    ),
                                   ),
+                                  child: ColoredBox(
+                                    color:
+                                        ProductDetailsDesign.galleryBackground,
+                                    child: AppNetworkImage(
+                                      img.filePath,
+                                      fit: ProductDetailsDesign.galleryImageFit,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      errorBuilder: (_, _, _) => const Center(
+                                        child: Icon(
+                                          AppIcons.garment,
+                                          size: 48,
+                                          color: AppColors.iconMuted,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                          else
+                            const ColoredBox(
+                              color: ProductDetailsDesign.galleryBackground,
+                              child: Center(
+                                child: Icon(
+                                  AppIcons.garment,
+                                  size: 54,
+                                  color: AppColors.iconMuted,
+                                ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.star,
-                                color: Colors.amber,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${product.ratingAvg.toStringAsFixed(1)} (${product.ratingCount})',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            ],
+
+                          // Bottom controls over gallery: image counter + Try-On pill + Zoom button
+                          PositionedDirectional(
+                            start: AppSpacing.md,
+                            end: AppSpacing.md,
+                            bottom: ProductDetailsDesign.contentOverlap + 14,
+                            child: Row(
+                              children: [
+                                // Virtual Try-On quick pill on gallery
+                                Material(
+                                  color: ProductDetailsDesign
+                                      .tryOnPillBackground,
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadii.pill,
+                                  ),
+                                  elevation: 0,
+                                  child: InkWell(
+                                    onTap: AppHaptics.action(
+                                      () => context.push(
+                                        AppRoutes.customerRealtimeTryonPath(
+                                          product.id,
+                                        ),
+                                      ),
+                                    ),
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadii.pill,
+                                    ),
+                                    child: Container(
+                                      height:
+                                          ProductDetailsDesign.tryOnPillHeight,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(
+                                          AppRadii.pill,
+                                        ),
+                                        boxShadow: ProductDetailsDesign
+                                            .floatingButtonShadow,
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            AppIcons.tryOn,
+                                            size: 18,
+                                            color: ProductDetailsDesign
+                                                .tryOnPillIcon,
+                                          ),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'جرّبها عليك الآن',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: AppFont.bold,
+                                              color: ProductDetailsDesign
+                                                  .tryOnPillText,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                if (product.images.length > 1)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: ProductDetailsDesign
+                                          .counterBackground,
+                                      borderRadius: BorderRadius.circular(
+                                        AppRadii.pill,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '${_currentImageIndex + 1} / ${product.images.length}',
+                                      style: const TextStyle(
+                                        color:
+                                            ProductDetailsDesign.counterText,
+                                        fontSize: ProductDetailsDesign
+                                            .counterTextSize,
+                                        fontWeight: AppFont.bold,
+                                      ),
+                                    ),
+                                  ),
+                                if (product.images.isNotEmpty) ...[
+                                  const SizedBox(width: AppSpacing.xs),
+                                  _FloatingCircleButton(
+                                    icon: AppIcons.fullscreen,
+                                    tooltip: 'تكبير الصورة',
+                                    onTap: () => _openFullScreenGallery(
+                                      context,
+                                      product.images,
+                                      _currentImageIndex,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         ],
                       ),
+                    ),
 
-                      const SizedBox(height: AppSpacing.md),
-                      const Divider(height: 1),
-                      const SizedBox(height: AppSpacing.md),
-
-                      // Colors Selection
-                      Text(
-                        'الألوان المتاحة',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                    // Overlapping Editorial Content Sheet
+                    Transform.translate(
+                      offset: const Offset(
+                        0,
+                        -ProductDetailsDesign.contentOverlap,
                       ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Wrap(
-                        spacing: AppSpacing.xs,
-                        runSpacing: AppSpacing.xs,
-                        children: product.availableColors.map((clr) {
-                          final isSelected = _selectedColor == clr;
-                          return InkWell(
-                            onTap: AppHaptics.action(() {
-                              setState(() {
-                                _selectedColor = clr;
-                                _selectedSize = null;
-                              });
-                            }),
-                            borderRadius: BorderRadius.circular(AppRadii.sm),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.md,
-                                vertical: AppSpacing.xs + 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppColors.black
-                                    : AppColors.white,
-                                borderRadius: BorderRadius.circular(
-                                  AppRadii.sm,
-                                ),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? AppColors.black
-                                      : AppColors.border,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Text(
-                                clr,
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? AppColors.white
-                                      : AppColors.black,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                  fontSize: 13,
-                                ),
-                              ),
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: ProductDetailsDesign.contentBackground,
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(
+                              ProductDetailsDesign.contentRadius,
                             ),
-                          );
-                        }).toList(),
-                      ),
-
-                      const SizedBox(height: AppSpacing.md),
-
-                      // Sizes Selection
-                      Text(
-                        'المقاسات المتاحة',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Wrap(
-                        spacing: AppSpacing.xs,
-                        runSpacing: AppSpacing.xs,
-                        children: matchingSizes.map((sz) {
-                          final isSelected = _selectedSize == sz;
-                          return InkWell(
-                            onTap: AppHaptics.action(
-                              () => setState(() => _selectedSize = sz),
-                            ),
-                            borderRadius: BorderRadius.circular(AppRadii.sm),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.md,
-                                vertical: AppSpacing.xs + 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppColors.black
-                                    : AppColors.white,
-                                borderRadius: BorderRadius.circular(
-                                  AppRadii.sm,
-                                ),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? AppColors.black
-                                      : AppColors.border,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Text(
-                                sz,
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? AppColors.white
-                                      : AppColors.black,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-
-                      const SizedBox(height: AppSpacing.md),
-
-                      // Stock status badge
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm,
-                          vertical: AppSpacing.xs,
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: AppColors.gray100,
-                          borderRadius: BorderRadius.circular(AppRadii.sm),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                        padding: ProductDetailsDesign.contentPadding,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              currentStock > 0
-                                  ? Icons.check_circle_outline
-                                  : Icons.cancel_outlined,
-                              size: 15,
-                              color: AppColors.black,
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Flexible(
-                              child: Text(
-                                currentStock > 0
-                                    ? 'متوفر في المخزون ($currentStock قطعة)'
-                                    : 'نفذت الكمية لهذا المقاس',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: AppColors.black,
-                                      fontWeight: FontWeight.w600,
+                            // Thumbnail Strip (when multiple images exist)
+                            if (product.images.length > 1) ...[
+                              SizedBox(
+                                height: ProductDetailsDesign.thumbSize,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  itemCount: product.images.length,
+                                  separatorBuilder: (_, _) => const SizedBox(
+                                    width: ProductDetailsDesign.thumbSpacing,
+                                  ),
+                                  itemBuilder: (context, idx) {
+                                    final active = idx == _currentImageIndex;
+                                    return GestureDetector(
+                                      onTap: AppHaptics.action(() {
+                                        setState(
+                                          () => _currentImageIndex = idx,
+                                        );
+                                        _galleryController.animateToPage(
+                                          idx,
+                                          duration: AppMotion.normal,
+                                          curve: AppMotion.curve,
+                                        );
+                                      }),
+                                      child: AnimatedContainer(
+                                        duration: AppMotion.fast,
+                                        width: ProductDetailsDesign.thumbSize,
+                                        height: ProductDetailsDesign.thumbSize,
+                                        decoration: BoxDecoration(
+                                          color: ProductDetailsDesign
+                                              .galleryBackground,
+                                          borderRadius: BorderRadius.circular(
+                                            ProductDetailsDesign.thumbRadius,
+                                          ),
+                                          border: Border.all(
+                                            color: active
+                                                ? ProductDetailsDesign
+                                                      .thumbActiveBorder
+                                                : ProductDetailsDesign
+                                                      .thumbBorder,
+                                            width: active
+                                                ? ProductDetailsDesign
+                                                      .thumbActiveBorderWidth
+                                                : 1,
+                                          ),
+                                        ),
+                                        clipBehavior: Clip.antiAlias,
+                                        child: AppNetworkImage(
+                                          product.images[idx].filePath,
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                            ],
+
+                            // Brand / Shop Row + Rating Pill
+                            Row(
+                              children: [
+                                InkWell(
+                                  onTap: AppHaptics.action(
+                                    () => context.push(
+                                      AppRoutes.customerShopProfilePath(
+                                        product.shopId,
+                                      ),
                                     ),
+                                  ),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadii.xs,
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 2,
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          AppIcons.shop,
+                                          size: 16,
+                                          color: AppColors.icon,
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          product.shopName,
+                                          style: const TextStyle(
+                                            fontSize: ProductDetailsDesign
+                                                .shopNameSize,
+                                            fontWeight: ProductDetailsDesign
+                                                .shopNameWeight,
+                                            color: ProductDetailsDesign
+                                                .shopNameColor,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 2),
+                                        const Icon(
+                                          AppIcons.forward,
+                                          size: 16,
+                                          color: ProductDetailsDesign
+                                              .shopNameColor,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const Spacer(),
+                                InkWell(
+                                  onTap: AppHaptics.action(
+                                    () => _openFullReviewsBottomSheet(
+                                      context,
+                                      product,
+                                      reviews,
+                                    ),
+                                  ),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadii.pill,
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surfaceAlt,
+                                      borderRadius: BorderRadius.circular(
+                                        AppRadii.pill,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          AppIcons.starFilled,
+                                          size: ProductDetailsDesign
+                                              .ratingStarSize,
+                                          color: ProductDetailsDesign
+                                              .ratingStar,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          product.ratingAvg.toStringAsFixed(1),
+                                          style: const TextStyle(
+                                            fontSize: ProductDetailsDesign
+                                                .ratingTextSize,
+                                            fontWeight: AppFont.bold,
+                                            color: AppColors.text,
+                                          ),
+                                        ),
+                                        Text(
+                                          ' (${product.ratingCount})',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textMuted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: AppSpacing.xs),
+
+                            // Product Title
+                            Text(
+                              product.name,
+                              style: const TextStyle(
+                                fontSize: ProductDetailsDesign.titleSize,
+                                fontWeight: ProductDetailsDesign.titleWeight,
+                                color: ProductDetailsDesign.titleColor,
+                                height: 1.35,
                               ),
                             ),
-                          ],
-                        ),
-                      ),
 
-                      const SizedBox(height: AppSpacing.md),
-                      const Divider(),
-                      const SizedBox(height: AppSpacing.md),
+                            const SizedBox(height: AppSpacing.sm),
 
-                      // Reviews Summary Box (Opens full-height bottom sheet on tap)
-                      InkWell(
-                        onTap: AppHaptics.action(
-                          () => _openFullReviewsBottomSheet(
-                            context,
-                            product,
-                            reviewsAsync.value ?? [],
-                          ),
-                        ),
-                        borderRadius: BorderRadius.circular(AppRadii.card),
-                        child: Container(
-                          padding: const EdgeInsets.all(AppSpacing.md),
-                          decoration: BoxDecoration(
-                            color: AppColors.white,
-                            borderRadius: BorderRadius.circular(AppRadii.card),
-                            border: Border.all(
-                              color: AppColors.border,
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.gray100,
-                                  borderRadius: BorderRadius.circular(
-                                    AppRadii.sm,
+                            // Price + Stock Status Pill
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Text(
+                                  AppFormat.price(product.price),
+                                  style: const TextStyle(
+                                    fontSize: ProductDetailsDesign.priceSize,
+                                    fontWeight:
+                                        ProductDetailsDesign.priceWeight,
+                                    color: ProductDetailsDesign.priceColor,
                                   ),
-                                  border: Border.all(color: AppColors.border),
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                _StockBadge(stock: currentStock),
+                              ],
+                            ),
+
+                            const SizedBox(
+                              height: ProductDetailsDesign.sectionSpacing,
+                            ),
+                            const Divider(height: 1),
+                            const SizedBox(
+                              height: ProductDetailsDesign.sectionSpacing,
+                            ),
+
+                            // Color Selection
+                            if (product.availableColors.isNotEmpty) ...[
+                              Row(
+                                children: [
+                                  const Text(
+                                    'اللون',
+                                    style: TextStyle(
+                                      fontSize:
+                                          ProductDetailsDesign.sectionTitleSize,
+                                      fontWeight: ProductDetailsDesign
+                                          .sectionTitleWeight,
+                                      color: AppColors.text,
+                                    ),
+                                  ),
+                                  if (_selectedColor != null) ...[
+                                    const SizedBox(width: AppSpacing.xs),
+                                    Text(
+                                      '· $_selectedColor',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: AppFont.semiBold,
+                                        color: ProductDetailsDesign
+                                            .sectionValueColor,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: AppSpacing.sm),
+                              Wrap(
+                                spacing: AppSpacing.sm,
+                                runSpacing: AppSpacing.sm,
+                                children: product.availableColors.map((clr) {
+                                  final isSelected = _selectedColor == clr;
+                                  return _SelectorChip(
+                                    label: clr,
+                                    selected: isSelected,
+                                    enabled: true,
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedColor = clr;
+                                        _selectedSize = null;
+                                      });
+                                    },
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: AppSpacing.md),
+                            ],
+
+                            // Size Selection
+                            if (allSizes.isNotEmpty) ...[
+                              Row(
+                                children: [
+                                  const Text(
+                                    'المقاس',
+                                    style: TextStyle(
+                                      fontSize:
+                                          ProductDetailsDesign.sectionTitleSize,
+                                      fontWeight: ProductDetailsDesign
+                                          .sectionTitleWeight,
+                                      color: AppColors.text,
+                                    ),
+                                  ),
+                                  if (_selectedSize != null) ...[
+                                    const SizedBox(width: AppSpacing.xs),
+                                    Text(
+                                      '· $_selectedSize',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: AppFont.semiBold,
+                                        color: ProductDetailsDesign
+                                            .sectionValueColor,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: AppSpacing.sm),
+                              Wrap(
+                                spacing: AppSpacing.sm,
+                                runSpacing: AppSpacing.sm,
+                                children: allSizes.map((sz) {
+                                  final available = matchingSizes.contains(sz);
+                                  final isSelected = _selectedSize == sz;
+                                  return _SelectorChip(
+                                    label: sz,
+                                    selected: isSelected,
+                                    enabled: available,
+                                    onTap: available
+                                        ? () =>
+                                              setState(() => _selectedSize = sz)
+                                        : null,
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(
+                                height: ProductDetailsDesign.sectionSpacing,
+                              ),
+                            ],
+
+                            // Virtual Try-On Feature Banner
+                            InkWell(
+                              onTap: AppHaptics.action(
+                                () => context.push(
+                                  AppRoutes.customerRealtimeTryonPath(
+                                    product.id,
+                                  ),
+                                ),
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                ProductDetailsDesign.tryOnCardRadius,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.all(AppSpacing.md),
+                                decoration: BoxDecoration(
+                                  color: ProductDetailsDesign
+                                      .tryOnCardBackground,
+                                  borderRadius: BorderRadius.circular(
+                                    ProductDetailsDesign.tryOnCardRadius,
+                                  ),
+                                  border: Border.all(
+                                    color: ProductDetailsDesign.tryOnCardBorder,
+                                  ),
                                 ),
                                 child: Row(
-                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(
-                                      Icons.star,
-                                      color: AppColors.black,
-                                      size: 18,
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        color: ProductDetailsDesign
+                                            .tryOnIconBackground,
+                                        borderRadius: BorderRadius.circular(
+                                          AppRadii.md,
+                                        ),
+                                      ),
+                                      child: const Icon(
+                                        AppIcons.tryOn,
+                                        color: ProductDetailsDesign.tryOnIcon,
+                                        size: 22,
+                                      ),
                                     ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      product.ratingAvg.toStringAsFixed(1),
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
+                                    const SizedBox(width: AppSpacing.md),
+                                    const Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'غرفة القياس الافتراضية المباشرة',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: AppFont.bold,
+                                              color: AppColors.text,
+                                            ),
+                                          ),
+                                          SizedBox(height: 2),
+                                          Text(
+                                            'شاهد كيف تبدو هذه القطعة عليك بالكاميرا مباشرة قبل الشراء',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: AppColors.textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(
+                                      AppIcons.forward,
+                                      size: 16,
+                                      color: AppColors.icon,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: AppSpacing.lg),
+
+                            // Accordion Sections: Description & Specifications
+                            const Divider(height: 1),
+                            if (product.description?.trim().isNotEmpty ?? false)
+                              _DetailAccordion(
+                                title: 'وصف القطعة',
+                                icon: AppIcons.notes,
+                                initiallyExpanded: true,
+                                child: Text(
+                                  product.description!,
+                                  style: const TextStyle(
+                                    fontSize: ProductDetailsDesign.bodyTextSize,
+                                    color: ProductDetailsDesign.bodyTextColor,
+                                    height: 1.65,
+                                  ),
+                                ),
+                              ),
+                            if (specFields.isNotEmpty)
+                              _DetailAccordion(
+                                title: 'المواصفات والخامة والعناية',
+                                icon: AppIcons.ruler,
+                                initiallyExpanded:
+                                    product.description?.trim().isEmpty ?? true,
+                                child: Column(
+                                  children: [
+                                    for (final entry in specFields)
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 6,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            SizedBox(
+                                              width: 110,
+                                              child: Text(
+                                                entry.key,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: ProductDetailsDesign
+                                                      .specLabelColor,
+                                                ),
+                                              ),
+                                            ),
+                                            Expanded(
+                                              child: Text(
+                                                entry.value,
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight:
+                                                      ProductDetailsDesign
+                                                          .specValueWeight,
+                                                  color: ProductDetailsDesign
+                                                      .specValueColor,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+
+                            const SizedBox(height: AppSpacing.lg),
+
+                            // Seller Card
+                            InkWell(
+                              onTap: AppHaptics.action(
+                                () => context.push(
+                                  AppRoutes.customerShopProfilePath(
+                                    product.shopId,
+                                  ),
+                                ),
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                ProductDetailsDesign.shopCardRadius,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.all(AppSpacing.md),
+                                decoration: BoxDecoration(
+                                  color: AppColors.white,
+                                  borderRadius: BorderRadius.circular(
+                                    ProductDetailsDesign.shopCardRadius,
+                                  ),
+                                  border: Border.all(
+                                    color: ProductDetailsDesign.shopCardBorder,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: ProductDetailsDesign.shopLogoSize,
+                                      height: ProductDetailsDesign.shopLogoSize,
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.surfaceAlt,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        AppIcons.shopActive,
+                                        color: AppColors.icon,
+                                        size: 22,
+                                      ),
+                                    ),
+                                    const SizedBox(width: AppSpacing.md),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'يباع بواسطة',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.textMuted,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            product.shopName,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: AppFont.bold,
+                                              color: AppColors.text,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surfaceAlt,
+                                        borderRadius: BorderRadius.circular(
+                                          AppRadii.pill,
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'زيارة المتجر',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: AppFont.bold,
+                                          color: AppColors.text,
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: AppSpacing.md),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                            ),
+
+                            const SizedBox(
+                              height: ProductDetailsDesign.sectionSpacing,
+                            ),
+
+                            // Customer Reviews Section (with inline preview + full sheet)
+                            AppSectionHeader(
+                              padding: EdgeInsets.zero,
+                              title:
+                                  'تقييمات المشترين (${product.ratingCount})',
+                              actionLabel: 'عرض الكل وإضافة تقييم',
+                              onAction: AppHaptics.action(
+                                () => _openFullReviewsBottomSheet(
+                                  context,
+                                  product,
+                                  reviews,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            InkWell(
+                              onTap: AppHaptics.action(
+                                () => _openFullReviewsBottomSheet(
+                                  context,
+                                  product,
+                                  reviews,
+                                ),
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                ProductDetailsDesign.reviewCardRadius,
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.all(AppSpacing.md),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceSubtle,
+                                  borderRadius: BorderRadius.circular(
+                                    ProductDetailsDesign.reviewCardRadius,
+                                  ),
+                                  border: Border.all(
+                                    color:
+                                        ProductDetailsDesign.reviewCardBorder,
+                                  ),
+                                ),
+                                child: Row(
                                   children: [
-                                    Text(
-                                      'آراء وتقييمات المشترين',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          product.ratingAvg.toStringAsFixed(1),
+                                          style: const TextStyle(
+                                            fontSize: 28,
+                                            fontWeight: AppFont.extraBold,
+                                            color: AppColors.text,
                                           ),
+                                        ),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: List.generate(5, (i) {
+                                            return Icon(
+                                              i < product.ratingAvg.round()
+                                                  ? AppIcons.starFilled
+                                                  : AppIcons.star,
+                                              size: 15,
+                                              color: ProductDetailsDesign
+                                                  .ratingStar,
+                                            );
+                                          }),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      product.ratingCount > 0
-                                          ? '${product.ratingCount} تقييم • اضغط لقراءة الآراء وإضافة تقييمك'
-                                          : 'لا توجد تقييمات بعد • اضغط لتكون أول من يقيّم',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(color: AppColors.gray500),
+                                    const SizedBox(width: AppSpacing.md),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'شاركنا تجربتك مع القطعة',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: AppFont.bold,
+                                              color: AppColors.text,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            product.ratingCount > 0
+                                                ? 'اضغط لقراءة ${product.ratingCount} تقييم أو كتابة تقييمك'
+                                                : 'لا توجد تقييمات بعد · كن أول من يقيّم هذه القطعة',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: AppColors.textMuted,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(
+                                      AppIcons.forward,
+                                      color: AppColors.icon,
                                     ),
                                   ],
                                 ),
                               ),
+                            ),
+                            if (reviews.isNotEmpty) ...[
+                              const SizedBox(height: AppSpacing.sm),
+                              for (final rev in reviews.take(2))
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: AppSpacing.sm,
+                                  ),
+                                  child: _ReviewTile(review: rev),
+                                ),
                             ],
-                          ),
+
+                            const SizedBox(
+                              height: ProductDetailsDesign
+                                  .recommendationsTopSpacing,
+                            ),
+
+                            // Infinite Recommendations Section
+                            const AppSectionHeader(
+                              padding: EdgeInsets.zero,
+                              title: 'منتجات قد تعجبك',
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+
+                            if (_recommendedProducts.isEmpty && _loadingMore)
+                              const ProductGridSkeleton()
+                            else if (_recommendedProducts.isNotEmpty) ...[
+                              GridView.builder(
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate: ProductGridDelegate(
+                                  textScale:
+                                      MediaQuery.textScalerOf(
+                                        context,
+                                      ).scale(14) /
+                                      14,
+                                ),
+                                itemCount: _recommendedProducts.length,
+                                itemBuilder: (context, index) {
+                                  final recProduct =
+                                      _recommendedProducts[index];
+                                  return ProductGridCard(
+                                    imageUrl: recProduct.coverImage,
+                                    meta: AppFormat.price(recProduct.price),
+                                    inStock: recProduct.totalStock > 0,
+                                    isFavorite: recProduct.isFavorite,
+                                    onToggleFavorite: () =>
+                                        _toggleFavorite(recProduct.id),
+                                    onAddToCart: () => showProductCartSheet(
+                                      context,
+                                      recProduct.id,
+                                    ),
+                                    onTap: () => context.push(
+                                      AppRoutes.customerProductDetailsPath(
+                                        recProduct.id,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              if (_loadingMore) const ProductGridSkeleton(),
+                            ],
+                            const SizedBox(height: AppSpacing.lg),
+                          ],
                         ),
                       ),
+                    ),
+                  ],
+                ),
+              ),
 
-                      const SizedBox(height: AppSpacing.xl),
-                      const Divider(),
-                      const SizedBox(height: AppSpacing.md),
-
-                      // Infinite Recommendations Section (Loads 6 by 6)
-                      Row(
-                        children: [
-                          Text(
-                            'منتجات قد تعجبك',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-
-                      if (_recommendedProducts.isEmpty && _loadingMore) ...[
-                        const ProductGridSkeleton(),
-                      ] else if (_recommendedProducts.isNotEmpty) ...[
-                        GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: ProductGridDelegate(
-                            textScale:
-                                MediaQuery.textScalerOf(context).scale(14) / 14,
-                          ),
-                          itemCount: _recommendedProducts.length,
-                          itemBuilder: (context, index) {
-                            final recProduct = _recommendedProducts[index];
-                            final primaryImg = recProduct.images.isNotEmpty
-                                ? recProduct.images.first.filePath
-                                : null;
-                            return ProductGridCard(
-                              onAddToCart: () =>
-                                  showProductCartSheet(context, recProduct.id),
-                              inStock: recProduct.totalStock > 0,
-                              title: recProduct.name,
-                              subtitle: recProduct.shopName,
-                              meta:
-                                  '${recProduct.price.toStringAsFixed(2)} ر.س',
-                              imageUrl: primaryImg,
-                              onTap: () => context.push(
-                                AppRoutes.customerProductDetailsPath(
-                                  recProduct.id,
-                                ),
-                              ),
+              // 2) Floating Top Bar over the Gallery (Back, Compare, Favorite, Cart)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
+                    ),
+                    child: Row(
+                      children: [
+                        _FloatingCircleButton(
+                          icon: AppIcons.back,
+                          tooltip: 'رجوع',
+                          onTap: () => Navigator.of(context).maybePop(),
+                        ),
+                        const Spacer(),
+                        _FloatingCircleButton(
+                          icon: AppIcons.compare,
+                          tooltip: isInCompare
+                              ? 'إزالة من المقارنة'
+                              : 'إضافة للمقارنة',
+                          selected: isInCompare,
+                          onTap: () {
+                            final notifier = ref.read(
+                              productComparisonProvider.notifier,
                             );
+                            if (isInCompare) {
+                              notifier.removeProduct(product.id);
+                              showAppSnackBar(
+                                context,
+                                'تمت الإزالة من المقارنة',
+                              );
+                            } else {
+                              final added = notifier.addProduct(product);
+                              if (added) {
+                                showAppSnackBar(
+                                  context,
+                                  'تمت الإضافة للمقارنة',
+                                  actionLabel: 'عرض المقارنة',
+                                  onAction: () =>
+                                      context.push(AppRoutes.customerCompare),
+                                );
+                              } else {
+                                showAppSnackBar(
+                                  context,
+                                  'الحد الأقصى للمقارنة هو 3 منتجات',
+                                  isError: true,
+                                );
+                              }
+                            }
                           },
                         ),
-                        if (_loadingMore) ...[const ProductGridSkeleton()],
-                        if (!_hasMore) ...[
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: AppSpacing.lg,
-                            ),
-                            child: Center(
-                              child: Text(
-                                'وصلت إلى نهاية التوصيات',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: AppColors.gray500),
-                              ),
-                            ),
-                          ),
-                        ],
+                        const SizedBox(width: AppSpacing.xs),
+                        _FloatingCircleButton(
+                          icon: product.isFavorite
+                              ? AppIcons.heartFilled
+                              : AppIcons.heart,
+                          tooltip: 'المفضلة',
+                          onTap: _togglingFavorite
+                              ? null
+                              : () async {
+                                  setState(() => _togglingFavorite = true);
+                                  try {
+                                    await _toggleFavorite(product.id);
+                                  } finally {
+                                    if (mounted) {
+                                      setState(() => _togglingFavorite = false);
+                                    }
+                                  }
+                                },
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        _FloatingCircleButton(
+                          icon: AppIcons.bag,
+                          tooltip: 'سلة المشتريات',
+                          badgeCount: cartCount,
+                          onTap: () => context.push(AppRoutes.customerCart),
+                        ),
                       ],
-                      const SizedBox(height: AppSpacing.xxl),
-                    ],
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+
+          // 3) Sticky Bottom Action Bar: Quantity Stepper + Primary Add to Cart CTA
           bottomNavigationBar: Container(
             decoration: const BoxDecoration(
-              color: AppColors.white,
+              color: ProductDetailsDesign.bottomBarBackground,
+              boxShadow: ProductDetailsDesign.bottomBarShadow,
               border: Border(
-                top: BorderSide(color: AppColors.border, width: 1),
+                top: BorderSide(color: ProductDetailsDesign.bottomBarBorder),
               ),
             ),
             child: SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                padding: ProductDetailsDesign.bottomBarPadding,
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF00E676),
-                              foregroundColor: AppColors.black,
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppRadii.button,
-                                ),
-                              ),
-                              minimumSize: const Size(double.infinity, 44),
-                            ),
+                    // Quantity Stepper
+                    Container(
+                      height: ProductDetailsDesign.bottomBarButtonHeight,
+                      width: ProductDetailsDesign.stepperWidth,
+                      decoration: BoxDecoration(
+                        color: ProductDetailsDesign.stepperBackground,
+                        borderRadius: BorderRadius.circular(
+                          ProductDetailsDesign.stepperRadius,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
                             onPressed: AppHaptics.action(
-                              () => context.push(
-                                AppRoutes.customerRealtimeTryonPath(product.id),
-                              ),
-                            ),
-                            child: const Text(
-                              'تجربة الملابس',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: isInCompare
-                                  ? AppColors.white
-                                  : AppColors.black,
-                              backgroundColor: isInCompare
-                                  ? AppColors.black
-                                  : AppColors.white,
-                              side: BorderSide(
-                                color: isInCompare
-                                    ? AppColors.black
-                                    : AppColors.border,
-                                width: 1,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppRadii.button,
-                                ),
-                              ),
-                              minimumSize: const Size(0, 44),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.sm,
-                              ),
-                            ),
-                            label: Text(
-                              isInCompare ? 'في المقارنة' : 'مقارنة القطعة',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            onPressed: AppHaptics.action(() {
-                              final notifier = ref.read(
-                                productComparisonProvider.notifier,
-                              );
-                              if (isInCompare) {
-                                notifier.removeProduct(product.id);
-                                showAppSnackBar(
-                                  context,
-                                  'تمت الإزالة من المقارنة',
-                                );
-                              } else {
-                                final added = notifier.addProduct(product);
-                                if (added) {
-                                  showAppSnackBar(
-                                    context,
-                                    'تمت الإضافة للمقارنة (بحد أقصى 3 منتجات)',
-                                  );
-                                } else {
-                                  showAppSnackBar(
-                                    context,
-                                    'الحد الأقصى للمقارنة هو 3 منتجات',
-                                    isError: true,
-                                  );
-                                }
-                              }
-                            }),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-
-                    // Row 2: Quantity Stepper & Add to Cart side-by-side
-                    Row(
-                      children: [
-                        // Quantity Stepper
-                        Container(
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: AppColors.gray100,
-                            borderRadius: BorderRadius.circular(
-                              AppRadii.button,
-                            ),
-                            border: Border.all(
-                              color: AppColors.border,
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              InkWell(
-                                onTap: AppHaptics.action(
-                                  _quantity > 1
-                                      ? () => setState(() => _quantity--)
-                                      : null,
-                                ),
-                                borderRadius: const BorderRadius.horizontal(
-                                  right: Radius.circular(AppRadii.button),
-                                ),
-                                child: Container(
-                                  width: 36,
-                                  height: 48,
-                                  alignment: Alignment.center,
-                                  child: Icon(
-                                    Icons.remove,
-                                    size: 16,
-                                    color: _quantity > 1
-                                        ? AppColors.black
-                                        : AppColors.gray500,
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                width: 36,
-                                height: 48,
-                                alignment: Alignment.center,
-                                decoration: const BoxDecoration(
-                                  border: Border.symmetric(
-                                    vertical: BorderSide(
-                                      color: AppColors.border,
-                                      width: 1,
-                                    ),
-                                  ),
-                                ),
-                                child: Text(
-                                  '$_quantity',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                    color: AppColors.black,
-                                  ),
-                                ),
-                              ),
-                              InkWell(
-                                onTap: AppHaptics.action(
-                                  _quantity < currentStock
-                                      ? () => setState(() => _quantity++)
-                                      : null,
-                                ),
-                                borderRadius: const BorderRadius.horizontal(
-                                  left: Radius.circular(AppRadii.button),
-                                ),
-                                child: Container(
-                                  width: 36,
-                                  height: 48,
-                                  alignment: Alignment.center,
-                                  child: Icon(
-                                    Icons.add,
-                                    size: 16,
-                                    color: _quantity < currentStock
-                                        ? AppColors.black
-                                        : AppColors.gray500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-
-                        // Add to Cart Primary Button
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.black,
-                              foregroundColor: AppColors.white,
-                              disabledBackgroundColor: AppColors.gray300,
-                              disabledForegroundColor: AppColors.gray500,
-                              minimumSize: const Size(0, 48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppRadii.button,
-                                ),
-                              ),
-                            ),
-                            icon: const Icon(
-                              Icons.shopping_bag_outlined,
-                              size: 20,
-                            ),
-                            label: Text(
-                              currentStock > 0
-                                  ? 'إضافة إلى السلة • ${(product.price * _quantity).toStringAsFixed(2)} ر.س'
-                                  : 'نفذت الكمية',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                            onPressed: AppHaptics.action(
-                              currentStock > 0 &&
-                                      _selectedColor != null &&
-                                      _selectedSize != null
-                                  ? () {
-                                      ref
-                                          .read(cartProvider.notifier)
-                                          .addItem(
-                                            product: product,
-                                            variantId: currentVariant?.id,
-                                            color: _selectedColor!,
-                                            size: _selectedSize!,
-                                            quantity: _quantity,
-                                            maxStock: currentStock,
-                                          );
-                                      showAppSnackBar(
-                                        context,
-                                        'تمت إضافة القطعة إلى سلة المشتريات 🛍️',
-                                      );
-                                    }
+                              _quantity > 1
+                                  ? () => setState(() => _quantity--)
                                   : null,
                             ),
+                            icon: Icon(
+                              AppIcons.remove,
+                              size: 18,
+                              color: _quantity > 1
+                                  ? ProductDetailsDesign.stepperIcon
+                                  : ProductDetailsDesign.stepperIconDisabled,
+                            ),
+                          ),
+                          Text(
+                            '$_quantity',
+                            style: const TextStyle(
+                              fontSize: ProductDetailsDesign.stepperValueSize,
+                              fontWeight: AppFont.extraBold,
+                              color: AppColors.text,
+                            ),
+                          ),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            onPressed: AppHaptics.action(
+                              _quantity < currentStock
+                                  ? () => setState(() => _quantity++)
+                                  : null,
+                            ),
+                            icon: Icon(
+                              AppIcons.add,
+                              size: 18,
+                              color: _quantity < currentStock
+                                  ? ProductDetailsDesign.stepperIcon
+                                  : ProductDetailsDesign.stepperIconDisabled,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+
+                    // Primary Add to Cart Button
+                    Expanded(
+                      child: SizedBox(
+                        height: ProductDetailsDesign.bottomBarButtonHeight,
+                        child: ElevatedButton.icon(
+                          icon: const Icon(
+                            AppIcons.bag,
+                            size: 20,
+                          ),
+                          label: Text(
+                            currentStock > 0
+                                ? 'إضافة إلى السلة · ${AppFormat.price(product.price * _quantity)}'
+                                : 'نفدت الكمية',
+                          ),
+                          onPressed: AppHaptics.action(
+                            currentStock > 0 &&
+                                    _selectedColor != null &&
+                                    _selectedSize != null
+                                ? () {
+                                    ref
+                                        .read(cartProvider.notifier)
+                                        .addItem(
+                                          product: product,
+                                          variantId: currentVariant?.id,
+                                          color: _selectedColor!,
+                                          size: _selectedSize!,
+                                          quantity: _quantity,
+                                          maxStock: currentStock,
+                                        );
+                                    showAppSnackBar(
+                                      context,
+                                      'تمت إضافة القطعة إلى سلة المشتريات',
+                                      actionLabel: 'عرض السلة',
+                                      onAction: () =>
+                                          context.push(AppRoutes.customerCart),
+                                    );
+                                  }
+                                : null,
                           ),
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -1228,8 +1602,385 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
       },
       error: (err, _) => CustomerScaffold(
         showBottomNav: false,
-        title: 'خطأ',
-        body: Center(child: Text('تعذر تحميل تفاصيل المنتج: $err')),
+        title: 'تفاصيل المنتج',
+        body: AppEmpty(
+          icon: AppIcons.error,
+          title: 'تعذر تحميل تفاصيل المنتج',
+          message: '$err',
+        ),
+      ),
+    );
+  }
+}
+
+class _FloatingCircleButton extends StatelessWidget {
+  const _FloatingCircleButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.badgeCount = 0,
+    this.selected = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final int badgeCount;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconWidget = Icon(
+      icon,
+      size: ProductDetailsDesign.floatingIconSize,
+      color: selected
+          ? AppColors.onPrimary
+          : ProductDetailsDesign.floatingButtonIcon,
+    );
+
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: AppHaptics.action(onTap),
+          customBorder: const CircleBorder(),
+          child: Container(
+            width: ProductDetailsDesign.floatingButtonSize,
+            height: ProductDetailsDesign.floatingButtonSize,
+            decoration: BoxDecoration(
+              color: selected
+                  ? AppColors.primary
+                  : ProductDetailsDesign.floatingButtonBackground,
+              shape: BoxShape.circle,
+              boxShadow: ProductDetailsDesign.floatingButtonShadow,
+            ),
+            alignment: Alignment.center,
+            child: badgeCount > 0
+                ? Badge(
+                    label: Text('$badgeCount'),
+                    backgroundColor: AppBarDesign.badgeBackground,
+                    textColor: AppBarDesign.badgeText,
+                    child: iconWidget,
+                  )
+                : iconWidget,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectorChip extends StatelessWidget {
+  const _SelectorChip({
+    required this.label,
+    required this.selected,
+    required this.enabled,
+    this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: enabled ? AppHaptics.action(onTap) : null,
+      borderRadius: BorderRadius.circular(ProductDetailsDesign.optionRadius),
+      child: AnimatedContainer(
+        duration: AppMotion.fast,
+        constraints: const BoxConstraints(
+          minWidth: ProductDetailsDesign.optionMinWidth,
+          minHeight: ProductDetailsDesign.optionHeight,
+        ),
+        padding: ProductDetailsDesign.optionPadding,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: !enabled
+              ? ProductDetailsDesign.optionDisabledBackground
+              : selected
+              ? ProductDetailsDesign.optionSelectedBackground
+              : ProductDetailsDesign.optionBackground,
+          borderRadius: BorderRadius.circular(
+            ProductDetailsDesign.optionRadius,
+          ),
+          border: Border.all(
+            color: selected
+                ? ProductDetailsDesign.optionSelectedBorder
+                : ProductDetailsDesign.optionBorder,
+            width: selected
+                ? ProductDetailsDesign.optionSelectedBorderWidth
+                : ProductDetailsDesign.optionBorderWidth,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: !enabled
+                ? ProductDetailsDesign.optionDisabledText
+                : selected
+                ? ProductDetailsDesign.optionSelectedText
+                : ProductDetailsDesign.optionText,
+            fontWeight: selected
+                ? ProductDetailsDesign.optionSelectedWeight
+                : ProductDetailsDesign.optionWeight,
+            decoration: enabled ? null : TextDecoration.lineThrough,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StockBadge extends StatelessWidget {
+  const _StockBadge({required this.stock});
+
+  final int stock;
+
+  @override
+  Widget build(BuildContext context) {
+    if (stock <= 0) {
+      return const AppStatusBadge(
+        label: 'نفدت الكمية',
+        tone: BadgeTone.error,
+      );
+    }
+    if (stock <= ProductDetailsDesign.lowStockThreshold) {
+      return AppStatusBadge(
+        label: 'متبقي $stock فقط',
+        tone: BadgeTone.warning,
+      );
+    }
+    return const AppStatusBadge(
+      label: 'متوفر في المخزون',
+      tone: BadgeTone.primary,
+    );
+  }
+}
+
+class _DetailAccordion extends StatelessWidget {
+  const _DetailAccordion({
+    required this.title,
+    required this.icon,
+    required this.child,
+    this.initiallyExpanded = false,
+  });
+
+  final String title;
+  final IconData icon;
+  final Widget child;
+  final bool initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: ProductDetailsDesign.expandableDivider),
+        ),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: initiallyExpanded,
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(bottom: AppSpacing.md),
+          iconColor: ProductDetailsDesign.expandableIcon,
+          collapsedIconColor: ProductDetailsDesign.expandableIcon,
+          leading: Icon(icon, size: 20, color: AppColors.icon),
+          title: Text(
+            title,
+            style: const TextStyle(
+              fontSize: ProductDetailsDesign.expandableTitleSize,
+              fontWeight: ProductDetailsDesign.expandableTitleWeight,
+              color: AppColors.text,
+            ),
+          ),
+          children: [
+            Align(alignment: AlignmentDirectional.centerStart, child: child),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewTile extends StatelessWidget {
+  const _ReviewTile({required this.review});
+
+  final ProductReview review;
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = review.customerName.trim().isNotEmpty
+        ? review.customerName.trim().characters.first
+        : 'ع';
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(
+          ProductDetailsDesign.reviewCardRadius,
+        ),
+        border: Border.all(color: ProductDetailsDesign.reviewCardBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: ProductDetailsDesign.reviewAvatarSize,
+                height: ProductDetailsDesign.reviewAvatarSize,
+                decoration: const BoxDecoration(
+                  color: ProductDetailsDesign.reviewAvatarBackground,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    fontWeight: AppFont.bold,
+                    color: ProductDetailsDesign.reviewAvatarText,
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  review.customerName,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: AppFont.bold,
+                    color: AppColors.text,
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(5, (i) {
+                  return Icon(
+                    i < review.rating
+                        ? AppIcons.starFilled
+                        : AppIcons.star,
+                    color: i < review.rating
+                        ? ProductDetailsDesign.ratingStar
+                        : ProductDetailsDesign.ratingStarEmpty,
+                    size: ProductDetailsDesign.reviewStarSize,
+                  );
+                }),
+              ),
+            ],
+          ),
+          if (review.comment != null && review.comment!.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              review.comment!,
+              style: const TextStyle(
+                fontSize: 13,
+                color: ProductDetailsDesign.bodyTextColor,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FullscreenGalleryPage extends StatefulWidget {
+  const _FullscreenGalleryPage({
+    required this.images,
+    required this.initialIndex,
+  });
+
+  final List<ProductImage> images;
+  final int initialIndex;
+
+  @override
+  State<_FullscreenGalleryPage> createState() => _FullscreenGalleryPageState();
+}
+
+class _FullscreenGalleryPageState extends State<_FullscreenGalleryPage> {
+  late final PageController _controller = PageController(
+    initialPage: widget.initialIndex,
+  );
+  late int _index = widget.initialIndex;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: GalleryViewerDesign.background,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: _controller,
+              itemCount: widget.images.length,
+              onPageChanged: (i) => setState(() => _index = i),
+              itemBuilder: (context, index) {
+                return InteractiveViewer(
+                  maxScale: GalleryViewerDesign.maxZoom,
+                  child: Center(
+                    child: AppNetworkImage(
+                      widget.images[index].filePath,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                );
+              },
+            ),
+            PositionedDirectional(
+              top: AppSpacing.sm,
+              start: AppSpacing.md,
+              end: AppSpacing.md,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton.filledTonal(
+                    style: IconButton.styleFrom(
+                      backgroundColor: GalleryViewerDesign.closeBackground,
+                      foregroundColor: GalleryViewerDesign.closeIcon,
+                    ),
+                    onPressed: AppHaptics.action(
+                      () => Navigator.of(context).pop(),
+                    ),
+                    icon: const Icon(AppIcons.close),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                    ),
+                    child: Text(
+                      '${_index + 1} / ${widget.images.length}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: AppFont.bold,
+                        color: AppColors.text,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

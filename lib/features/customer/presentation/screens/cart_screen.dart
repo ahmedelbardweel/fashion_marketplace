@@ -1,16 +1,12 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
-import '../../../../core/widgets/app_skeleton.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radii.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../router/routes.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
@@ -25,40 +21,23 @@ class CartScreen extends ConsumerWidget {
 
     return CustomerScaffold(
       title: 'سلة المشتريات',
+      showSearch: false,
       actions: [
         if (cartItems.isNotEmpty)
-          TextButton(
+          TextButton.icon(
             onPressed: AppHaptics.action(() => cartNotifier.clearCart()),
-            child: const Text('تفريغ السلة'),
+            icon: const Icon(AppIcons.delete, size: 18),
+            label: const Text('تفريغ'),
           ),
       ],
       body: cartItems.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.shopping_bag_outlined,
-                    size: 64,
-                    color: AppColors.gray300,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    'سلة المشتريات فارغة',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'تصفح أحدث الأزياء وأضف المنتجات لسلتك',
-                    style: Theme.of(context).textTheme.bodyMedium
-                        ?.copyWith(color: AppColors.gray500),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  AppButton(
-                    label: 'تصفح المتجر الآن',
-                    onPressed: () => context.go(AppRoutes.customerCatalog),
-                  ),
-                ],
+          ? AppEmpty(
+              icon: AppIcons.bag,
+              title: 'سلة المشتريات فارغة',
+              message: 'تصفح أحدث الأزياء وأضف القطع المفضلة إلى سلتك',
+              actionLabel: 'تصفح المتجر الآن',
+              onAction: AppHaptics.action(
+                () => context.go(AppRoutes.customerCatalog),
               ),
             )
           : Column(
@@ -67,136 +46,201 @@ class CartScreen extends ConsumerWidget {
                   child: ListView.separated(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     itemCount: cartItems.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: AppSpacing.sm),
+                    separatorBuilder: (_, _) => const Divider(
+                      height: AppSpacing.lg,
+                      color: CartDesign.itemDivider,
+                    ),
                     itemBuilder: (context, index) {
                       final item = cartItems[index];
-                      return AppCard(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Product Image Thumbnail
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(
-                                AppRadii.card,
-                              ),
-                              child: Container(
-                                width: 75,
-                                height: 75,
-                                color: AppColors.gray100,
-                                child: item.imagePath != null
-                                    ? AppNetworkImage(
-                                        item.imagePath!,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            const Icon(Icons.checkroom),
-                                      )
-                                    : const Icon(Icons.checkroom),
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Portrait Product Image Thumbnail
+                          GestureDetector(
+                            onTap: AppHaptics.action(
+                              () => context.push(
+                                AppRoutes.customerProductDetailsPath(
+                                  item.productId,
+                                ),
                               ),
                             ),
+                            child: Container(
+                              width: CartDesign.itemImageWidth,
+                              height: CartDesign.itemImageHeight,
+                              decoration: BoxDecoration(
+                                color: CartDesign.itemImageBackground,
+                                borderRadius: BorderRadius.circular(
+                                  CartDesign.itemImageRadius,
+                                ),
+                                border: Border.all(
+                                  color: CartDesign.itemImageBorder,
+                                ),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: item.imagePath != null
+                                  ? AppNetworkImage(
+                                      item.imagePath!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => const Icon(
+                                        AppIcons.garment,
+                                        color: AppColors.iconMuted,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      AppIcons.garment,
+                                      color: AppColors.iconMuted,
+                                    ),
+                            ),
+                          ),
 
-                            const SizedBox(width: AppSpacing.md),
+                          const SizedBox(width: AppSpacing.md),
 
-                            // Product Info
-                            Expanded(
+                          // Product Info + Quantity Stepper
+                          Expanded(
+                            child: SizedBox(
+                              height: CartDesign.itemImageHeight,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    item.productName,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleSmall
-                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          item.productName,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: CartDesign.itemTitleSize,
+                                            fontWeight:
+                                                CartDesign.itemTitleWeight,
+                                            color: AppColors.text,
+                                          ),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 28,
+                                          minHeight: 28,
+                                        ),
+                                        icon: const Icon(
+                                          AppIcons.close,
+                                          size: 18,
+                                          color: CartDesign.removeIcon,
+                                        ),
+                                        onPressed: AppHaptics.action(
+                                          () =>
+                                              cartNotifier.removeItem(item.id),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     '${item.shopName} · ${item.variantDescription}',
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(color: AppColors.gray500),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: CartDesign.itemMetaColor,
+                                    ),
                                   ),
-                                  const SizedBox(height: AppSpacing.xs),
-                                  Text(
-                                    '${item.unitPrice.toStringAsFixed(2)} ر.س',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.black,
+                                  const Spacer(),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        AppFormat.price(item.totalPrice),
+                                        style: const TextStyle(
+                                          fontSize: CartDesign.itemPriceSize,
+                                          fontWeight:
+                                              CartDesign.itemPriceWeight,
+                                          color: AppColors.text,
                                         ),
+                                      ),
+                                      Container(
+                                        height: 34,
+                                        decoration: BoxDecoration(
+                                          color: CartDesign.stepperBackground,
+                                          borderRadius: BorderRadius.circular(
+                                            CartDesign.stepperRadius,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            IconButton(
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                  ),
+                                              constraints:
+                                                  const BoxConstraints(),
+                                              icon: const Icon(
+                                                AppIcons.remove,
+                                                size: 16,
+                                                color: AppColors.icon,
+                                              ),
+                                              onPressed: AppHaptics.action(
+                                                () => cartNotifier
+                                                    .updateQuantity(
+                                                      item.id,
+                                                      item.quantity - 1,
+                                                    ),
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 6,
+                                                  ),
+                                              child: Text(
+                                                '${item.quantity}',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: AppFont.bold,
+                                                  color: AppColors.text,
+                                                ),
+                                              ),
+                                            ),
+                                            IconButton(
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                  ),
+                                              constraints:
+                                                  const BoxConstraints(),
+                                              icon: const Icon(
+                                                AppIcons.add,
+                                                size: 16,
+                                                color: AppColors.icon,
+                                              ),
+                                              onPressed: AppHaptics.action(
+                                                () => cartNotifier
+                                                    .updateQuantity(
+                                                      item.id,
+                                                      item.quantity + 1,
+                                                    ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
                             ),
-
-                            // Quantity Stepper & Remove
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                IconButton(
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    size: 20,
-                                    color: AppColors.gray500,
-                                  ),
-                                  onPressed: AppHaptics.action(
-                                    () => cartNotifier.removeItem(item.id),
-                                  ),
-                                ),
-                                const SizedBox(height: AppSpacing.xs),
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      icon: const Icon(
-                                        Icons.remove_circle_outline,
-                                        size: 22,
-                                      ),
-                                      onPressed: AppHaptics.action(
-                                        () => cartNotifier.updateQuantity(
-                                          item.id,
-                                          item.quantity - 1,
-                                        ),
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: AppSpacing.sm,
-                                      ),
-                                      child: Text(
-                                        '${item.quantity}',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      icon: const Icon(
-                                        Icons.add_circle_outline,
-                                        size: 22,
-                                      ),
-                                      onPressed: AppHaptics.action(
-                                        () => cartNotifier.updateQuantity(
-                                          item.id,
-                                          item.quantity + 1,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       );
                     },
                   ),
@@ -206,39 +250,44 @@ class CartScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: const BoxDecoration(
-                    color: AppColors.white,
-                    border: Border(top: BorderSide(color: AppColors.border)),
+                    color: CartDesign.summaryBackground,
+                    boxShadow: CartDesign.summaryShadow,
+                    border: Border(
+                      top: BorderSide(color: CartDesign.summaryBorder),
+                    ),
                   ),
                   child: Column(
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
+                          const Text(
                             'المجموع الفرعي',
-                            style: Theme.of(context).textTheme.bodyMedium,
+                            style: TextStyle(color: CartDesign.summaryLabel),
                           ),
                           Text(
-                            '${cartNotifier.totalAmount.toStringAsFixed(2)} ر.س',
-                            style: Theme.of(context).textTheme.bodyMedium,
+                            AppFormat.price(cartNotifier.totalAmount),
+                            style: const TextStyle(
+                              fontWeight: AppFont.semiBold,
+                              color: AppColors.text,
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: AppSpacing.xs),
-                      Row(
+                      const Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
                             'التوصيل',
-                            style: Theme.of(context).textTheme.bodyMedium,
+                            style: TextStyle(color: CartDesign.summaryLabel),
                           ),
                           Text(
                             'مجاناً',
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: AppColors.black,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                            style: TextStyle(
+                              color: AppColors.primaryDark,
+                              fontWeight: AppFont.bold,
+                            ),
                           ),
                         ],
                       ),
@@ -246,21 +295,27 @@ class CartScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
+                          const Text(
                             'الإجمالي النهائي',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              fontSize: CartDesign.totalSize,
+                              fontWeight: CartDesign.totalWeight,
+                              color: AppColors.text,
+                            ),
                           ),
                           Text(
-                            '${cartNotifier.totalAmount.toStringAsFixed(2)} ر.س',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
+                            AppFormat.price(cartNotifier.totalAmount),
+                            style: const TextStyle(
+                              fontSize: CartDesign.totalSize,
+                              fontWeight: CartDesign.totalWeight,
+                              color: AppColors.text,
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: AppSpacing.md),
                       AppButton(
-                        label: 'متابعة الشراء (${cartItems.length} عناصر)',
+                        label: 'إتمام الشراء (${cartItems.length})',
                         onPressed: () =>
                             context.push(AppRoutes.customerCheckout),
                       ),

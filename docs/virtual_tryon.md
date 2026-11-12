@@ -26,7 +26,7 @@ The desired capture profile is 1280 x 720 at 30 FPS. Actual capture depends on h
 
 The try-on screen requests portrait orientation. Mobile browsers request 720 x 1280 with no crop/scale and 1x zoom as ideal constraints; browsers may ignore unsupported constraints. Native capture retains landscape sensor dimensions and uses device rotation, resetting digital zoom to the capturer minimum after opening or switching cameras. The renderer uses `contain` to preserve the whole returned frame, and the garment carousel starts collapsed. Different camera/server aspect ratios can still produce black margins. Full-body visibility depends on the lens and distance; this does not select an ultrawide lens or generate missing body regions.
 
-On Android/iOS, `camera.availableCameras()` discovers cameras and selects front/back direction. On web, WebRTC opens the camera directly once with standard ideal constraints; camera_web discovery itself opens each camera and is skipped. `flutter_webrtc.getUserMedia` owns native capture, encoding and transport. The public Dart APIs in these packages do **not** connect a `CameraController.startImageStream` to an RTC video track. Opening both captures on the same camera can fail. Feeding `CameraImage` specifically requires an Android/iOS native bridge (not included); this implementation deliberately uses native WebRTC capture for a working Dart-only path. No per-frame Dart/JSON/base64 work occurs.
+On Android/iOS, `camera.availableCameras()` discovers cameras and selects front/back direction. On web, WebRTC opens the camera directly once with standard ideal constraints; camera_web discovery itself opens each camera and is skipped. `flutter_webrtc.getUserMedia` owns native capture, encoding and transport. The public Dart APIs in these packages do **not** connect a `CameraController.startImageStream` to an RTC video track. Opening both captures on the same camera can fail. Feeding `CameraImage` specifically requires an Android/iOS native bridge (not included); this implementation deliberately uses native WebRTC capture for a working Dart-only path. The capture guard samples bounded snapshots locally; camera frames are not encoded into signaling messages.
 
 Only product images are downloaded and encoded, using `compute` on mobile. RTCVideoView renders through a native texture in a RepaintBoundary. Rapid taps retain only the latest pending selection; one acknowledged update is allowed at a time because Decart's image acknowledgments do not include request IDs.
 
@@ -59,3 +59,111 @@ After changing Dart code in an existing Flutter web development session, perform
 The installed flutter_webrtc 0.12.x web renderer declares `onFirstFrameRendered` without invoking it. `RemoteVideoBinding` uses the browser video element's first presented-frame callback, then stops observing. Older browsers fall back to an actual current frame with positive dimensions. Native platforms retain their renderer callback. Detach/retry/dispose cancel pending frame callbacks; generation checks ignore stale callbacks. The connection still requires the server garment acknowledgment and connected peer before the initial overlay disappears.
 
 Regression: `flutter test --no-pub --platform chrome test/virtual_tryon/remote_video_web_test.dart` uses a synthetic canvas stream, not a camera or Decart session.
+
+## Guided capture and protected preview
+
+Both try-on routes now use the guided flow: preparation, local capture checks,
+then the garment preview. Entering the room opens the camera and starts local
+checks automatically (the OS/browser camera permission still applies). No start,
+confirm, or retry button is needed. A session token and peer are created only
+after fresh checks have passed continuously for two seconds. The scan explains
+that passing it automatically begins transmitting camera video for processing.
+Changing garments also revalidates automatically. Known transient capture and
+connection failures retry after 2, 4, and 8 seconds, at most three times per room
+visit; every retry starts a fresh validation. Permission denial, unsupported
+analysis, configuration/authentication failures and unknown errors do not loop.
+Leaving/backgrounding cancels pending recovery and capture; returning from the
+background reopens capture and revalidates before sending video again.
+
+- Tops require **only two clearly visible shoulders**. Seated, tilted and cropped
+  portraits are accepted; face, hips, hands and legs are not prerequisites. There
+  are no upright-body, equal-shoulder-height or uncrossed-arms restrictions.
+- Bottoms require hips, knees and ankles; footwear requires ankles and feet;
+  dresses/outfits need shoulders through ankles. Other garment metadata defaults
+  to shoulder framing, so it does not accidentally impose full-body capture.
+- MediaPipe Pose Landmarker Lite detects up to three poses in IMAGE mode on
+  Android/iOS and in a browser worker. More than one detected person blocks the
+  session. A hidden, tiny or heavily occluded person can still escape detection;
+  this is not a guarantee of person counting in every scene.
+- Local exposure, clipped shadows/highlights, backlight, Laplacian sharpness,
+  visible landmarks, image scale, freshness and stability gate capture. Exposure
+  prefers visible face detail to avoid rejecting dark clothing. Thresholds are
+  conservative heuristics, not measured accuracy claims or device calibration.
+- One snapshot analysis runs at a time, on a 450 ms timer, with deadlines and
+  generation checks. Output is also sampled after its first frame. Movement
+  temporarily hides the overlay and allows recovery; unsafe input stops the
+  session. A sustained output/body mismatch, multiple output people, detector
+  failure or a stale sample hides the result and requests a new check.
+- The original camera renders underneath a conservative clothing-region mask.
+  Generated pixels above the shoulder line are excluded for tops; visible head
+  and hand regions are subtracted. Missing hips in a portrait use an estimated
+  torso extent, **not a measurement**. The mask follows shoulder tilt. Browser
+  and native previews use the same unmirrored contained frame; the guide uses
+  actual renderer dimensions, including landscape webcams with black margins.
+  Aspect mismatches hide the garment. Source and remote video are asynchronous:
+  seams, latency and between-sample motion still require real-device QA. This is
+  not pixel-perfect garment segmentation or a biometric face comparison.
+- No centimeter measurements, body-shape classifications or S/M/L recommendations
+  are derived from landmarks. Real sizing needs product size charts and calibrated
+  measurements; the UI labels the result as an approximate appearance preview.
+
+Android uses a worker executor and a bundled model; iOS uses a serial queue and
+requires `pod install` for MediaPipeTasksVision 0.10.21. Native WebRTC snapshots
+are removed from the application's cache after analysis. No photos or landmark
+profiles are persisted by this feature. The browser requires Workers,
+OffscreenCanvas, WebAssembly and access to the pinned jsDelivr JS/WASM runtime.
+Unsupported or failed analysis does not silently fall back to unchecked try-on.
+The full camera stream, including the face, goes to Decart after capture approval;
+the display mask does not remove the face from transmitted frames.
+
+Unit/widget coverage includes seated shoulder-only portraits, tilt, hidden
+shoulders, regional visibility, exposure, multiple people, movement, stale samples,
+output alignment, face exclusion, RTL layout at large text size, and cancellation
+before signaling. Physical-device tests must still cover a range of skin tones,
+body shapes, clothing, lighting, multiple/partial people, movement and network
+latency. iOS integration cannot be built on the Windows development host.
+
+Implementation references:
+- https://developers.google.com/edge/mediapipe/solutions/vision/pose_landmarker
+- https://github.com/google-ai-edge/mediapipe/tree/master/mediapipe/tasks/ios/vision/pose_landmarker
+
+## Browser analyzer startup regression
+
+The original module worker failed before inference with `Module scripts don't
+support importScripts()`: MediaPipe Tasks Vision 0.10.21 loads its WASM runtime
+with `importScripts`. The worker must remain **classic**. It dynamically imports
+the pinned ESM API inside initialization; do not set `type: 'module'` on `Worker`.
+
+First startup has a 60-second JS deadline (65 seconds in Dart) for downloading
+and compiling the runtime. Warm frame requests have an 8-second JS deadline.
+The first frame is still discarded if it became stale during initialization;
+longer startup budgets never relax the freshness or person/shoulder checks.
+Errors now distinguish runtime/model/worker loading, unreadable camera frames,
+unsupported platforms, stale-page bridges, timeouts and inference failures.
+Only known error codes become user messages; raw engine errors are not displayed.
+
+After changing `web/body_analysis.js` or its worker, fully refresh the page.
+Flutter hot reload alone does not replace the JS bridge installed by `index.html`.
+
+Regression checks:
+- `node test/virtual_tryon/browser_body_analysis_smoke.mjs` starts an isolated
+  headless Chrome profile and serves the actual app JS and bundled model under a
+  subpath. It tests actual inference on synthetic blank images, repeated calls,
+  teardown/retry, a missing model, pending cancellation, malformed input, and
+  recovery. It also compiles the actual Dart adapter into a small browser probe
+  and verifies that JS promise rejections preserve their error classification
+  across Dart interop and that zero poses are a successful result. It uses no
+  camera and sends no private photos. Runtime JS/WASM assets still require
+  network access. Set `CHROME_EXECUTABLE` and/or `DART_EXECUTABLE` if their
+  installations differ from the Windows development paths.
+- `flutter test --no-pub test/virtual_tryon` retains policy/session regressions.
+
+The output capture gate now distinguishes an announced remote stream from a
+rendered first frame. Local guard updates previously copied `renderer.srcObject`
+into the analyzer too early, bypassing the renderer's readiness callback. Only
+the confirmed stream can now be sampled or reused after garment revalidation;
+replacement, detach, and stale callbacks cannot unlock an unready stream.
+Remote capture/decoding failures have separate messages from local camera errors.
+The browser smoke test also negotiates a real local WebRTC loopback with a
+synthetic canvas track and verifies frame capture after video readiness. This
+does not establish connectivity or timing for a live Decart session.

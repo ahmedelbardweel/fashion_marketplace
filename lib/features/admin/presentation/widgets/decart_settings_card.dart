@@ -118,7 +118,7 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
                     onPressed: AppHaptics.action(
                       () => ref.invalidate(adminDecartStatusProvider),
                     ),
-                    icon: const Icon(Icons.refresh),
+                    icon: const Icon(AppIcons.refresh),
                   ),
                 ],
               ),

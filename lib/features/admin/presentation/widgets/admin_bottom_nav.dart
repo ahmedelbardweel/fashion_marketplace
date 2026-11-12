@@ -2,9 +2,7 @@ import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radii.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../router/routes.dart';
 
 class AdminBottomNav extends StatelessWidget {
@@ -25,44 +23,37 @@ class AdminBottomNav extends StatelessWidget {
     final current = _indexFor(location);
 
     return Material(
-      color: AppColors.white,
+      color: BottomNavDesign.background,
       elevation: 0,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppRadii.bottomSheet),
-        ),
-      ),
       child: Container(
         decoration: const BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppRadii.bottomSheet),
-          ),
-          border: Border(top: BorderSide(color: AppColors.border)),
+          color: BottomNavDesign.background,
+          border: Border(top: BorderSide(color: BottomNavDesign.borderColor)),
         ),
         child: SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.sm,
-              AppSpacing.sm,
-              AppSpacing.sm,
-              AppSpacing.sm,
-            ),
+          child: SizedBox(
+            height: BottomNavDesign.height,
             child: Row(
               children: [
                 _NavItem(
                   label: 'الرئيسية',
+                  icon: AppIcons.dashboard,
+                  activeIcon: AppIcons.dashboardActive,
                   selected: current == 0,
                   onTap: () => context.go(AppRoutes.adminHome),
                 ),
                 _NavItem(
                   label: 'الطلبات',
+                  icon: AppIcons.shop,
+                  activeIcon: AppIcons.shopActive,
                   selected: current == 1,
                   onTap: () => context.go(AppRoutes.adminShopApplications),
                 ),
                 _NavItem(
                   label: 'الإعدادات',
+                  icon: AppIcons.settings,
+                  activeIcon: AppIcons.settingsActive,
                   selected: current == 2,
                   onTap: () => context.go(AppRoutes.adminSettings),
                 ),
@@ -78,11 +69,15 @@ class AdminBottomNav extends StatelessWidget {
 class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.label,
+    required this.icon,
+    required this.activeIcon,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
+  final IconData icon;
+  final IconData activeIcon;
   final bool selected;
   final VoidCallback onTap;
 
@@ -91,24 +86,44 @@ class _NavItem extends StatelessWidget {
     return Expanded(
       child: InkWell(
         onTap: AppHaptics.action(onTap),
-        borderRadius: BorderRadius.circular(AppRadii.sm),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.gray100 : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadii.sm),
-            border: Border.all(
-              color: selected ? AppColors.border : Colors.transparent,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedContainer(
+              duration: AppMotion.fast,
+              width: BottomNavDesign.indicatorWidth,
+              height: BottomNavDesign.indicatorHeight,
+              decoration: BoxDecoration(
+                color: selected
+                    ? AdminDesign.navSelectedBackground
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(
+                  BottomNavDesign.indicatorRadius,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                selected ? activeIcon : icon,
+                size: BottomNavDesign.iconSize,
+                color: selected
+                    ? AdminDesign.navSelectedIcon
+                    : AdminDesign.navUnselectedIcon,
+              ),
             ),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: selected ? AppColors.black : AppColors.gray500,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: BottomNavDesign.labelSize,
+                color: selected
+                    ? BottomNavDesign.selectedLabel
+                    : BottomNavDesign.unselectedLabel,
+                fontWeight: selected
+                    ? BottomNavDesign.selectedWeight
+                    : BottomNavDesign.unselectedWeight,
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );

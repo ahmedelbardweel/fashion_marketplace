@@ -17,9 +17,7 @@ import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
 import '../../../../core/painters/garment_overlay_painter.dart';
 import '../../../../core/services/garment_fitter.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radii.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../router/routes.dart';
 import '../../domain/models/customer_product.dart';
@@ -387,10 +385,14 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
         builder: (dialogCtx) => CustomerActionSheet(
           title: Row(
             children: [
-              const Icon(Icons.verified_rounded, color: Colors.green, size: 24),
+              const Icon(
+                AppIcons.verified,
+                color: AppColors.primary,
+                size: 24,
+              ),
               const SizedBox(width: AppSpacing.xs),
               Text(
-                'مطابقة القياس بنجاح 📸',
+                'مطابقة القياس بنجاح',
                 style: Theme.of(dialogCtx).textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.bold),
               ),
@@ -422,7 +424,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.black,
+                            color: AppColors.primary,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -570,7 +572,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                   children: [
                     // Back button
                     _circleIconBtn(
-                      icon: Icons.arrow_back_rounded,
+                      icon: AppIcons.back,
                       onTap: () => context.pop(),
                     ),
 
@@ -586,7 +588,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: _bodyStatus == _BodyStatus.detected
-                              ? const Color(0xFF00E676)
+                              ? TryOnDesign.detectedStroke
                               : Colors.white24,
                           width: 1.2,
                         ),
@@ -596,21 +598,21 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                         children: [
                           Icon(
                             _bodyStatus == _BodyStatus.detected
-                                ? Icons.check_circle_rounded
-                                : Icons.accessibility_new_rounded,
+                                ? AppIcons.checkCircleFilled
+                                : AppIcons.bodyGuide,
                             size: 15,
                             color: _bodyStatus == _BodyStatus.detected
-                                ? const Color(0xFF00E676)
+                                ? TryOnDesign.detectedStroke
                                 : Colors.white70,
                           ),
                           const SizedBox(width: AppSpacing.xs),
                           Text(
                             _bodyStatus == _BodyStatus.detected
-                                ? 'تم تحديد الجسم ✓ (المقاس: ${_transform.estimatedSize})'
+                                ? 'تم تحديد الجسم (المقاس: ${_transform.estimatedSize})'
                                 : 'قف أمام الكاميرا لتحديد الجسم...',
                             style: TextStyle(
                               color: _bodyStatus == _BodyStatus.detected
-                                  ? const Color(0xFF00E676)
+                                  ? TryOnDesign.detectedStroke
                                   : Colors.white,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -625,7 +627,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         _circleIconBtn(
-                          icon: Icons.auto_awesome,
+                          icon: AppIcons.sparkles,
                           onTap: () => context.push(
                             AppRoutes.customerRealtimeTryonPath(
                               widget.productId,
@@ -634,7 +636,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                         ),
                         const SizedBox(width: AppSpacing.xs),
                         _circleIconBtn(
-                          icon: Icons.flip_camera_ios_rounded,
+                          icon: AppIcons.flipCamera,
                           onTap: _cameras.length > 1 ? _switchCamera : null,
                         ),
                       ],
@@ -659,14 +661,14 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                         ),
                         decoration: BoxDecoration(
                           color: (_bodyStatus == _BodyStatus.detected)
-                              ? Colors.redAccent.withValues(alpha: 0.8)
-                              : const Color(0xFF00E676).withValues(alpha: 0.85),
+                              ? AppColors.error.withValues(alpha: 0.85)
+                              : AppColors.primary.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
                           (_bodyStatus == _BodyStatus.detected)
-                              ? 'إخفاء البلوزة ✕'
-                              : 'لبّس البلوزة على الجسم ✓',
+                              ? 'إخفاء القطعة'
+                              : 'معاينة القطعة على الجسم',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 11,
@@ -702,7 +704,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                         ],
                       ),
                       child: const Icon(
-                        Icons.camera_alt_rounded,
+                        AppIcons.camera,
                         size: 32,
                         color: AppColors.black,
                       ),
@@ -718,7 +720,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
             children: [
               Center(
                 child: Icon(
-                  Icons.person_outline,
+                  AppIcons.user,
                   size: 180,
                   color: Colors.white,
                 ),
@@ -730,9 +732,9 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Icon(Icons.flip_camera_ios, color: Colors.white),
-                    Icon(Icons.camera_alt, size: 64, color: Colors.white),
-                    Icon(Icons.checkroom, color: Colors.white),
+                    Icon(AppIcons.flipCamera, color: Colors.white),
+                    Icon(AppIcons.camera, size: 64, color: Colors.white),
+                    Icon(AppIcons.garment, color: Colors.white),
                   ],
                 ),
               ),
@@ -781,7 +783,7 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(
-              Icons.camera_alt_outlined,
+              AppIcons.camera,
               size: 56,
               color: Colors.white30,
             ),

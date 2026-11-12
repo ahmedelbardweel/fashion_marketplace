@@ -1,21 +1,18 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
-import '../widgets/customer_action_sheet.dart';
-import '../../../../core/widgets/app_bottom_sheet.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
+import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../router/routes.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/customer_providers.dart';
+import '../widgets/customer_action_sheet.dart';
 import '../widgets/customer_shell.dart';
 
 class CustomerProfileScreen extends ConsumerStatefulWidget {
@@ -103,10 +100,6 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                 child: const Text('إلغاء'),
               ),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.black,
-                  foregroundColor: AppColors.white,
-                ),
                 onPressed: AppHaptics.action(() {
                   Navigator.of(ctx).pop();
                   ref.read(authControllerProvider.notifier).signOut();
@@ -132,14 +125,19 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).user;
+    final initial =
+        (user?.fullName != null && user!.fullName!.trim().isNotEmpty)
+        ? user.fullName!.trim().characters.first.toUpperCase()
+        : 'ع';
 
     return CustomerScaffold(
       title: 'الملف الشخصي',
       showBack: true,
+      showSearch: false,
       actions: [
         IconButton(
           tooltip: 'تسجيل الخروج',
-          icon: const Icon(Icons.logout, color: AppColors.black),
+          icon: const Icon(AppIcons.logout, color: AppColors.icon),
           onPressed: AppHaptics.action(_confirmLogout),
         ),
       ],
@@ -152,18 +150,20 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
             AppCard(
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: AppColors.black,
+                  Container(
+                    width: ProfileDesign.avatarSize,
+                    height: ProfileDesign.avatarSize,
+                    decoration: const BoxDecoration(
+                      color: ProfileDesign.avatarBackground,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
                     child: Text(
-                      (user?.fullName != null &&
-                              user!.fullName!.trim().isNotEmpty)
-                          ? user.fullName!.trim()[0].toUpperCase()
-                          : 'U',
+                      initial,
                       style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                        color: ProfileDesign.avatarText,
+                        fontSize: 26,
+                        fontWeight: AppFont.extraBold,
                       ),
                     ),
                   ),
@@ -174,13 +174,19 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                       children: [
                         Text(
                           user?.fullName ?? 'عميل المتجر',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: ProfileDesign.nameSize,
+                            fontWeight: ProfileDesign.nameWeight,
+                            color: AppColors.text,
+                          ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
                           user?.email ?? '',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppColors.gray500),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textMuted,
+                          ),
                         ),
                       ],
                     ),
@@ -195,13 +201,19 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                const Text(
                   'البيانات وعنوان التوصيل',
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: SectionDesign.titleSize,
+                    fontWeight: SectionDesign.titleWeight,
+                    color: AppColors.text,
+                  ),
                 ),
                 TextButton.icon(
-                  icon: Icon(_isEditing ? Icons.close : Icons.edit, size: 16),
+                  icon: Icon(
+                    _isEditing ? AppIcons.close : AppIcons.edit,
+                    size: 16,
+                  ),
                   label: Text(_isEditing ? 'إلغاء' : 'تعديل'),
                   onPressed: AppHaptics.action(() {
                     setState(() {
@@ -220,24 +232,28 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                   AppTextField(
                     controller: _nameController,
                     label: 'الاسم الكامل',
+                    prefixIcon: AppIcons.user,
                     enabled: _isEditing,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _phoneController,
                     label: 'رقم الهاتف',
+                    prefixIcon: AppIcons.phone,
                     enabled: _isEditing,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _cityController,
                     label: 'المدينة',
+                    prefixIcon: AppIcons.city,
                     enabled: _isEditing,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _addressController,
                     label: 'العنوان التفصيلي',
+                    prefixIcon: AppIcons.location,
                     enabled: _isEditing,
                   ),
                   if (_isEditing) ...[
@@ -255,51 +271,42 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
             const SizedBox(height: AppSpacing.lg),
 
             // Quick Navigation Shortcuts
-            Text(
+            const Text(
               'روابط سريعة',
-              style: Theme.of(context).textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: SectionDesign.titleSize,
+                fontWeight: SectionDesign.titleWeight,
+                color: AppColors.text,
+              ),
             ),
-            const SizedBox(height: AppSpacing.xs),
+            const SizedBox(height: AppSpacing.sm),
 
             AppCard(
               padding: EdgeInsets.zero,
               child: Column(
                 children: [
-                  ListTile(
-                    leading: const Icon(Icons.receipt_long_outlined),
-                    title: const Text('سجل طلباتي ومشترياتي'),
-                    trailing: const Icon(Icons.chevron_left),
-                    onTap: AppHaptics.action(
-                      () => context.push(AppRoutes.customerOrders),
-                    ),
+                  _ProfileMenuRow(
+                    icon: AppIcons.orders,
+                    title: 'سجل طلباتي ومشترياتي',
+                    onTap: () => context.push(AppRoutes.customerOrders),
                   ),
                   const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.favorite_border),
-                    title: const Text('قائمة المفضلة'),
-                    trailing: const Icon(Icons.chevron_left),
-                    onTap: AppHaptics.action(
-                      () => context.push(AppRoutes.customerFavorites),
-                    ),
+                  _ProfileMenuRow(
+                    icon: AppIcons.heart,
+                    title: 'قائمة المفضلة',
+                    onTap: () => context.push(AppRoutes.customerFavorites),
                   ),
                   const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.compare_arrows_rounded),
-                    title: const Text('مقارنة الملابس المختارة'),
-                    trailing: const Icon(Icons.chevron_left),
-                    onTap: AppHaptics.action(
-                      () => context.push(AppRoutes.customerCompare),
-                    ),
+                  _ProfileMenuRow(
+                    icon: AppIcons.compare,
+                    title: 'مقارنة الملابس المختارة',
+                    onTap: () => context.push(AppRoutes.customerCompare),
                   ),
                   const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.notifications_none_rounded),
-                    title: const Text('الإشعارات والتحديثات'),
-                    trailing: const Icon(Icons.chevron_left),
-                    onTap: AppHaptics.action(
-                      () => context.push(AppRoutes.customerNotifications),
-                    ),
+                  _ProfileMenuRow(
+                    icon: AppIcons.bell,
+                    title: 'الإشعارات والتحديثات',
+                    onTap: () => context.push(AppRoutes.customerNotifications),
                   ),
                 ],
               ),
@@ -314,6 +321,46 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ProfileMenuRow extends StatelessWidget {
+  const _ProfileMenuRow({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      onTap: AppHaptics.action(onTap),
+      leading: Container(
+        width: ProfileDesign.menuIconBoxSize,
+        height: ProfileDesign.menuIconBoxSize,
+        decoration: BoxDecoration(
+          color: ProfileDesign.menuIconBackground,
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+        ),
+        child: Icon(icon, size: 20, color: ProfileDesign.menuIcon),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: AppFont.semiBold,
+          color: AppColors.text,
+        ),
+      ),
+      trailing: const Icon(
+        AppIcons.forward,
+        color: ProfileDesign.menuChevron,
       ),
     );
   }

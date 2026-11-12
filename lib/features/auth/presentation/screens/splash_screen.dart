@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../providers/auth_provider.dart';
 
 final splashCompletedProvider = StateProvider<bool>((ref) => false);
@@ -19,33 +18,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   late final AnimationController _controller;
   late final Animation<double> _fade;
   late final Animation<double> _scale;
-  late final Animation<Offset> _lineSlide;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 1200),
     );
 
     _fade = CurvedAnimation(
       parent: _controller,
-      curve: const Interval(0.0, 0.55, curve: Curves.easeOut),
+      curve: const Interval(0.0, 0.65, curve: Curves.easeOut),
     );
     _scale = Tween<double>(begin: 0.92, end: 1).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 0.7, curve: Curves.easeOutCubic),
-      ),
-    );
-    _lineSlide = Tween<Offset>(
-      begin: const Offset(-0.35, 0),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.35, 1, curve: Curves.easeOutCubic),
+        curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
       ),
     );
 
@@ -70,7 +59,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
+      backgroundColor: SplashDesign.background,
       body: SafeArea(
         child: Center(
           child: AnimatedBuilder(
@@ -83,25 +72,39 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.shopping_bag_outlined, size: 160),
-                      Text(
-                        'ملابسي',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineLarge
-                            ?.copyWith(
-                              color: AppColors.black,
-                              letterSpacing: 6,
-                              fontWeight: FontWeight.w700,
-                            ),
+                      Container(
+                        width: SplashDesign.logoSize,
+                        height: SplashDesign.logoSize,
+                        decoration: BoxDecoration(
+                          color: SplashDesign.logoBackground,
+                          borderRadius: BorderRadius.circular(
+                            AuthDesign.logoRadius,
+                          ),
+                        ),
+                        child: const Icon(
+                          AppIcons.bag,
+                          size: 42,
+                          color: SplashDesign.logoIcon,
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      Text(
-                        'Malabsi',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: AppColors.black,
-                              letterSpacing: 4,
-                            ),
+                      const Text(
+                        'ملابسي',
+                        style: TextStyle(
+                          fontSize: 32,
+                          color: SplashDesign.title,
+                          fontWeight: AppFont.extraBold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'MALABSI',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                          fontWeight: AppFont.bold,
+                          letterSpacing: 4,
+                        ),
                       ),
                     ],
                   ),

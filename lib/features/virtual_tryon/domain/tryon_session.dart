@@ -30,22 +30,27 @@ class GarmentSelection {
 
   String get region {
     final text = '${category ?? ''} $name'.toLowerCase();
-    if (RegExp(r'dress[ -]?shirts?').hasMatch(text))
+    if (RegExp(r'dress[ -]?shirts?').hasMatch(text)) {
       return 'upper body garment';
+    }
     if (RegExp(r'\bdress(?:es)?\b|\bjumpsuits?\b|فستان|فساتين|عباي|عباء|جمبسوت')
-        .hasMatch(text))
+        .hasMatch(text)) {
       return 'outfit';
+    }
     if (RegExp(
       r'\bpants?\b|\btrousers?\b|\bjeans\b|\bskirts?\b|\bshorts?\b|بنطلون|بناطيل|تنور|شورت',
-    ).hasMatch(text))
+    ).hasMatch(text)) {
       return 'lower body garment';
+    }
     if (RegExp(r'\bshoes?\b|\bsneakers?\b|\bboots?\b|حذاء|أحذية|احذية')
-        .hasMatch(text))
+        .hasMatch(text)) {
       return 'footwear';
+    }
     if (RegExp(
-      r'shirts?|hoodies?|sweaters?|tops?|jerseys?|jackets?|تيشيرت|تيشرت|قميص|قمصان|هودي|كنز|بلوز|سويت|جاكيت',
-    ).hasMatch(text))
+      r'shirts?|hoodies?|sweaters?|tops?|jerseys?|jackets?|تي\s*شيرت|تي\s*شرت|قميص|قمصان|هودي|كنز|بلوز|سويت|جاكيت|بلوفر|سترة|معطف|بليزر|كارديغان',
+    ).hasMatch(text)) {
       return 'upper body garment';
+    }
     return 'corresponding clothing item';
   }
 
@@ -60,7 +65,11 @@ class GarmentSelection {
       '${description == null ? '' : 'Visible product details: ${_short(description!, 160)}. '}'
       'Follow the reference image for garment shape, length, sleeves, neckline, '
       'colors, patterns, and visible logos or text. Preserve these details; '
-      'do not invent or redesign them. Keep unrelated clothing unchanged.';
+      'do not invent or redesign them. Keep unrelated clothing unchanged. '
+      'Edit only the requested garment on the single person. Preserve the exact '
+      'face, identity, facial features, hair, skin tone, body proportions, hands, '
+      'pose, camera framing and background. Never beautify, reshape, slim or '
+      'enlarge the person. Fit the garment to their existing body, not vice versa.';
 
   void validate() {
     final uri = Uri.tryParse(imageUrl);

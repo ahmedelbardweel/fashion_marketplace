@@ -55,4 +55,5 @@ flutter {
 
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("com.google.mediapipe:tasks-vision:0.10.21")
 }

@@ -4,6 +4,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_design.dart';
+
 /// Completion reflects entered data, independently of the selected step.
 class ProductFormSteps extends StatelessWidget {
   const ProductFormSteps({
@@ -63,16 +65,16 @@ class ProductFormSteps extends StatelessWidget {
                                     child: ExcludeSemantics(
                                       child: value >= 1
                                           ? const Icon(
-                                              Icons.check,
+                                              AppIcons.check,
                                               size: 20,
-                                              color: Color(0xFF424242),
+                                              color: AppColors.icon,
                                             )
                                           : Text(
                                               '${i + 1}',
                                               style: const TextStyle(
                                                 fontSize: 15,
-                                                fontWeight: FontWeight.w600,
-                                                color: Color(0xFF424242),
+                                                fontWeight: AppFont.bold,
+                                                color: AppColors.text,
                                               ),
                                             ),
                                     ),
@@ -109,8 +111,8 @@ class ProductFormSteps extends StatelessWidget {
                             ? FontWeight.w700
                             : FontWeight.w400,
                         color: current == i
-                            ? const Color(0xFF424242)
-                            : const Color(0xFF757575),
+                            ? AppColors.text
+                            : AppColors.textMuted,
                       ),
                     ),
                   ),
@@ -144,8 +146,8 @@ class _StepCircle extends CustomPainter {
       ),
       Paint()
         ..color = Color.lerp(
-          const Color(0xFFF5F5F5),
-          const Color(0xFFBDBDBD),
+          AppColors.surfaceAlt,
+          AppColors.primarySoft,
           progress,
         )!,
     );
@@ -155,8 +157,8 @@ class _StepCircle extends CustomPainter {
       19,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = const Color(0xFFDDDDDD),
+        ..strokeWidth = 1.2
+        ..color = selected ? SellerDesign.stepActive : AppColors.borderStrong,
     );
     if (selected) {
       canvas.drawCircle(
@@ -164,8 +166,8 @@ class _StepCircle extends CustomPainter {
         23,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1
-          ..color = const Color(0xFFE5E5E5),
+          ..strokeWidth = 1.2
+          ..color = AppColors.primaryBorder,
       );
     }
   }
@@ -194,7 +196,7 @@ class _Connections extends CustomPainter {
         Offset(right, y),
         Paint()
           ..strokeWidth = 1.5
-          ..color = const Color(0xFFE5E5E5),
+          ..color = SellerDesign.stepInactive,
       );
       final length = math.max(0, right - left) * progress[i].clamp(0, 1);
       canvas.drawLine(
@@ -205,7 +207,7 @@ class _Connections extends CustomPainter {
         ),
         Paint()
           ..strokeWidth = 1.5
-          ..color = const Color(0xFF9E9E9E),
+          ..color = SellerDesign.stepActive,
       );
     }
   }

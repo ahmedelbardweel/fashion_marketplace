@@ -1,15 +1,12 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
-import '../../../../core/widgets/app_skeleton.dart';
-import '../../../../core/theme/app_radii.dart';
-import '../../../../core/widgets/app_button.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
+import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../router/routes.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
@@ -23,6 +20,7 @@ class ProductComparisonScreen extends ConsumerWidget {
 
     return CustomerScaffold(
       title: 'مقارنة المنتجات',
+      showSearch: false,
       actions: [
         if (products.isNotEmpty)
           TextButton(
@@ -33,32 +31,14 @@ class ProductComparisonScreen extends ConsumerWidget {
           ),
       ],
       body: products.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.compare_arrows_rounded,
-                    size: 64,
-                    color: AppColors.gray300,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    'قائمة المقارنة فارغة',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  Text(
-                    'أضف منتجين أو أكثر من صفحة المنتج للمقارنة جنباً إلى جنب',
-                    style: Theme.of(context).textTheme.bodyMedium
-                        ?.copyWith(color: AppColors.gray500),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  AppButton(
-                    label: 'تصفح المنتجات',
-                    onPressed: () => context.go(AppRoutes.customerCatalog),
-                  ),
-                ],
+          ? AppEmpty(
+              icon: AppIcons.compare,
+              title: 'قائمة المقارنة فارغة',
+              message:
+                  'أضف منتجين أو أكثر من صفحة المنتج للمقارنة جنباً إلى جنب',
+              actionLabel: 'تصفح المنتجات',
+              onAction: AppHaptics.action(
+                () => context.go(AppRoutes.customerCatalog),
               ),
             )
           : SingleChildScrollView(
@@ -68,43 +48,69 @@ class ProductComparisonScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: products.map((product) {
                   return Container(
-                    width: 260,
-                    margin: const EdgeInsets.only(left: AppSpacing.md),
+                    width: 250,
+                    margin: const EdgeInsetsDirectional.only(
+                      end: AppSpacing.md,
+                    ),
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
                       color: AppColors.white,
-                      borderRadius: BorderRadius.circular(AppRadii.card),
-                      border: Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(CardDesign.radius),
+                      border: Border.all(color: CardDesign.border),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Remove button
-                        Align(
-                          alignment: Alignment.topLeft,
-                          child: IconButton(
-                            icon: const Icon(Icons.close, size: 20),
-                            onPressed: AppHaptics.action(() {
-                              ref
-                                  .read(productComparisonProvider.notifier)
-                                  .removeProduct(product.id);
-                            }),
-                          ),
-                        ),
-
-                        // Image
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(AppRadii.card),
-                          child: Container(
-                            height: 180,
-                            color: AppColors.gray100,
-                            child: product.coverImage != null
-                                ? AppNetworkImage(
-                                    product.coverImage!,
-                                    fit: BoxFit.contain,
-                                  )
-                                : const Icon(Icons.checkroom),
-                          ),
+                        // Image + Close button in corner
+                        Stack(
+                          children: [
+                            Container(
+                              height: CompareDesign.imageHeight,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: CompareDesign.imageBackground,
+                                borderRadius: BorderRadius.circular(
+                                  CompareDesign.imageRadius,
+                                ),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: product.coverImage != null
+                                  ? AppNetworkImage(
+                                      product.coverImage!,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : const Icon(
+                                      AppIcons.garment,
+                                      color: AppColors.iconMuted,
+                                    ),
+                            ),
+                            PositionedDirectional(
+                              top: 6,
+                              end: 6,
+                              child: Material(
+                                color: AppColors.white,
+                                shape: const CircleBorder(),
+                                child: InkWell(
+                                  customBorder: const CircleBorder(),
+                                  onTap: AppHaptics.action(() {
+                                    ref
+                                        .read(
+                                          productComparisonProvider.notifier,
+                                        )
+                                        .removeProduct(product.id);
+                                  }),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(6),
+                                    child: Icon(
+                                      AppIcons.close,
+                                      size: 16,
+                                      color: AppColors.icon,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
 
                         const SizedBox(height: AppSpacing.sm),
@@ -114,46 +120,57 @@ class ProductComparisonScreen extends ConsumerWidget {
                           product.name,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: AppFont.bold,
+                            color: AppColors.text,
+                          ),
                         ),
 
-                        const SizedBox(height: AppSpacing.xs),
+                        const SizedBox(height: 2),
 
                         // Shop
                         Text(
-                          'المتجر: ${product.shopName}',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppColors.gray500),
+                          product.shopName,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.primaryDark,
+                            fontWeight: AppFont.semiBold,
+                          ),
                         ),
 
-                        const SizedBox(height: AppSpacing.xs),
+                        const SizedBox(height: 6),
 
                         // Price
                         Text(
-                          '${product.price.toStringAsFixed(2)} ر.س',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.black,
-                              ),
+                          AppFormat.price(product.price),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: AppFont.extraBold,
+                            color: AppColors.text,
+                          ),
                         ),
 
                         const SizedBox(height: AppSpacing.sm),
-                        const Divider(),
+                        const Divider(height: 1),
+                        const SizedBox(height: AppSpacing.sm),
 
                         // Rating
                         Row(
                           children: [
                             const Icon(
-                              Icons.star,
-                              color: Colors.amber,
-                              size: 18,
+                              AppIcons.starFilled,
+                              color: AppColors.rating,
+                              size: 17,
                             ),
                             const SizedBox(width: 4),
                             Text(
                               '${product.ratingAvg.toStringAsFixed(1)} (${product.ratingCount} تقييم)',
-                              style: Theme.of(context).textTheme.bodySmall,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: AppFont.semiBold,
+                                color: AppColors.text,
+                              ),
                             ),
                           ],
                         ),
@@ -161,51 +178,69 @@ class ProductComparisonScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.sm),
 
                         // Colors
-                        Text(
-                          'الألوان:',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                        const Text(
+                          'الألوان المتاحة',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: CompareDesign.rowLabelColor,
+                          ),
                         ),
                         Text(
                           product.availableColors.isEmpty
                               ? 'قياسي'
                               : product.availableColors.join(' ، '),
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: AppFont.semiBold,
+                            color: AppColors.text,
+                          ),
                         ),
 
                         const SizedBox(height: AppSpacing.sm),
 
                         // Sizes
-                        Text(
-                          'المقاسات:',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                        const Text(
+                          'المقاسات المتاحة',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: CompareDesign.rowLabelColor,
+                          ),
                         ),
                         Text(
                           product.availableSizes.isEmpty
                               ? 'قياسي'
                               : product.availableSizes.join(' ، '),
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: AppFont.semiBold,
+                            color: AppColors.text,
+                          ),
                         ),
 
                         const SizedBox(height: AppSpacing.sm),
 
                         // Stock
-                        Text(
-                          'المخزون:',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                        const Text(
+                          'المخزون',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: CompareDesign.rowLabelColor,
+                          ),
                         ),
                         Text(
                           '${product.totalStock} قطعة',
-                          style: Theme.of(context).textTheme.bodyMedium,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: AppFont.semiBold,
+                            color: AppColors.text,
+                          ),
                         ),
 
                         const SizedBox(height: AppSpacing.lg),
 
                         // Action button
                         AppButton(
-                          label: 'عرض التفاصيل والطلب',
+                          label: 'عرض التفاصيل',
                           onPressed: () => context.push(
                             AppRoutes.customerProductDetailsPath(product.id),
                           ),

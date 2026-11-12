@@ -7,6 +7,32 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:fashion_marketplace/core/services/decart_realtime_service.dart';
 import 'package:fashion_marketplace/features/virtual_tryon/data/decart_session_config.dart';
 import 'package:fashion_marketplace/features/virtual_tryon/data/webrtc_camera_source.dart';
+import 'package:fashion_marketplace/features/virtual_tryon/data/capture_guard.dart';
+
+class TestCaptureGuard implements CaptureGuard {
+  Completer<void>? pending;
+  void Function(String)? onUnsafe;
+  int validations = 0;
+  @override
+  Future<void> validate(
+    MediaStream stream,
+    GarmentSelection garment,
+    void Function(String) onUnsafe,
+  ) async {
+    validations++;
+    this.onUnsafe = onUnsafe;
+    await pending?.future;
+  }
+
+  @override
+  void cancel() {
+    final waiting = pending;
+    pending = null;
+    if (waiting != null && !waiting.isCompleted) {
+      waiting.completeError(const TryonFailure('cancelled'));
+    }
+  }
+}
 
 class Track extends Fake implements MediaStreamTrack {
   bool stopped = false;
@@ -93,10 +119,15 @@ class SocketSink extends Fake implements WebSocketSink {
 
 class Socket extends Fake implements WebSocketChannel {
   final incoming = StreamController<dynamic>();
+  bool wasListened = false;
   @override
   final SocketSink sink = SocketSink();
   @override
-  Stream<dynamic> get stream => incoming.stream;
+  Stream<dynamic> get stream {
+    wasListened = true;
+    return incoming.stream;
+  }
+
   @override
   Future<void> get ready async {}
   void receive(Map<String, dynamic> message) =>
@@ -114,12 +145,15 @@ void main() {
   late Socket socket;
   late DecartRealtimeService service;
   late List<TryonSessionEvent> events;
+  late TestCaptureGuard guard;
   setUp(() {
     camera = Camera();
     peer = Peer();
     socket = Socket();
     events = [];
+    guard = TestCaptureGuard();
     service = DecartRealtimeService(
+      captureGuard: guard,
       camera: camera,
       acknowledgmentTimeout: const Duration(seconds: 1),
       loadConfig: () async =>
@@ -133,7 +167,33 @@ void main() {
   });
   tearDown(() async {
     await service.dispose();
+    // A preflight rejection never subscribes to the signaling socket.
+    if (!socket.wasListened) socket.incoming.stream.listen((_) {});
     await socket.incoming.close();
+  });
+
+  test('does not connect or send any frame before capture approval', () async {
+    guard.pending = Completer<void>();
+    final starting = service.start(garment);
+    await Future<void>.delayed(Duration.zero);
+    expect(guard.validations, 1);
+    expect(socket.sink.sent, isEmpty);
+    await service.stop();
+    await starting;
+    expect(socket.sink.sent, isEmpty);
+    expect(camera.stream.track.stopped, isTrue);
+  });
+
+  test('unsafe capture cancels startup and releases camera', () async {
+    guard.pending = Completer<void>();
+    final starting = service.start(garment);
+    await Future<void>.delayed(Duration.zero);
+    guard.onUnsafe!('ظهر أكثر من شخص');
+    await starting;
+    await Future<void>.delayed(Duration.zero);
+    expect(events.last.status, DecartSessionStatus.error);
+    expect(socket.sink.sent, isEmpty);
+    expect(camera.stream.track.stopped, isTrue);
   });
 
   test(

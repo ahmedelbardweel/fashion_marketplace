@@ -2,9 +2,7 @@ import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radii.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import 'admin_bottom_nav.dart';
 
 class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -20,35 +18,41 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
   final List<Widget>? actions;
 
   @override
-  Size get preferredSize => const Size.fromHeight(64);
+  Size get preferredSize => const Size.fromHeight(AppBarDesign.height);
 
   @override
   Widget build(BuildContext context) {
     final canPop = showBack && Navigator.of(context).canPop();
 
     return AppBar(
-      toolbarHeight: 64,
-      backgroundColor: AppColors.gray100,
-      foregroundColor: AppColors.black,
+      toolbarHeight: AppBarDesign.height,
+      backgroundColor: AdminDesign.appBarBackground,
+      foregroundColor: AppBarDesign.titleColor,
       elevation: 0,
       scrolledUnderElevation: 0,
       systemOverlayStyle: SystemUiOverlayStyle.dark,
       shape: const Border(
-        bottom: BorderSide(color: AppColors.border, width: 1),
+        bottom: BorderSide(color: AppBarDesign.borderColor, width: 1),
       ),
       leading: canPop
           ? IconButton(
               onPressed: AppHaptics.action(
                 () => Navigator.of(context).maybePop(),
               ),
-              icon: const Icon(Icons.arrow_forward, color: AppColors.black),
+              icon: const Icon(
+                AppIcons.back,
+                color: AppBarDesign.iconColor,
+              ),
             )
           : const SizedBox.shrink(),
       leadingWidth: canPop ? 56 : 12,
       title: Text(
         title,
-        style: Theme.of(context).textTheme.titleLarge
-            ?.copyWith(color: AppColors.black),
+        style: const TextStyle(
+          fontSize: AppBarDesign.titleSize,
+          fontWeight: AppBarDesign.titleWeight,
+          color: AppBarDesign.titleColor,
+        ),
       ),
       actions: actions,
     );
@@ -76,6 +80,7 @@ class AdminScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AdminAppBar(title: title, showBack: showBack, actions: actions),
       body: SafeArea(child: body),
       bottomNavigationBar: Column(
@@ -121,14 +126,16 @@ class AdminFeatureTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: AppColors.white,
+      borderRadius: BorderRadius.circular(CardDesign.radius),
       child: InkWell(
         onTap: AppHaptics.action(onTap),
+        borderRadius: BorderRadius.circular(CardDesign.radius),
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
-            border: Border.all(color: AppColors.border),
-            borderRadius: BorderRadius.circular(AppRadii.card),
+            border: Border.all(color: CardDesign.border),
+            borderRadius: BorderRadius.circular(CardDesign.radius),
           ),
           child: Row(
             children: [
@@ -139,7 +146,8 @@ class AdminFeatureTile extends StatelessWidget {
                     Text(
                       code,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.gray500,
+                        color: AppColors.primaryDark,
+                        fontWeight: AppFont.bold,
                         letterSpacing: 0.6,
                       ),
                     ),
@@ -156,21 +164,23 @@ class AdminFeatureTile extends StatelessWidget {
               if (badge != null) ...[
                 const SizedBox(width: AppSpacing.sm),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
+                  padding: BadgeDesign.padding,
                   decoration: BoxDecoration(
-                    color: AppColors.black,
-                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                    color: BadgeDesign.primaryBackground,
+                    borderRadius: BorderRadius.circular(BadgeDesign.radius),
                   ),
                   child: Text(
                     badge!,
-                    style: Theme.of(context).textTheme.labelMedium
-                        ?.copyWith(color: AppColors.white),
+                    style: const TextStyle(
+                      color: BadgeDesign.primaryText,
+                      fontSize: BadgeDesign.textSize,
+                      fontWeight: BadgeDesign.textWeight,
+                    ),
                   ),
                 ),
               ],
+              const SizedBox(width: AppSpacing.xs),
+              const Icon(AppIcons.forward, color: AppColors.icon),
             ],
           ),
         ),

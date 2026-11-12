@@ -1,30 +1,34 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
-import '../widgets/product_cart_sheet.dart';
-import '../../../../core/widgets/app_skeleton.dart';
-import '../../../../core/widgets/loading_fixtures.dart';
-import '../../../../core/widgets/app_button.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/product_grid_card.dart';
 import '../../../../router/routes.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
+import '../widgets/product_cart_sheet.dart';
 
 class CustomerFavoritesScreen extends ConsumerWidget {
   const CustomerFavoritesScreen({super.key});
+
+  Future<void> _toggleFavorite(WidgetRef ref, String productId) async {
+    await ref.read(customerRepositoryProvider).toggleFavorite(productId);
+    ref.invalidate(customerFavoritesProvider);
+    ref.invalidate(customerProductsProvider);
+    ref.invalidate(customerProductDetailsProvider(productId));
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final favoritesAsync = ref.watch(customerFavoritesProvider);
 
     return CustomerScaffold(
-      title: 'المفضلة (Wishlist)',
+      title: 'المفضلة',
       currentNavIndex: 2,
       showBack: false,
       body: RefreshIndicator.noSpinner(
@@ -35,32 +39,13 @@ class CustomerFavoritesScreen extends ConsumerWidget {
           placeholder: LoadingFixtures.products,
           data: (favorites) {
             if (favorites.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.favorite_border,
-                      size: 64,
-                      color: AppColors.gray300,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      'قائمة المفضلة فارغة',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'احفظ الملابس التي تنال إعجابك للرجوع إليها لاحقاً',
-                      style: Theme.of(context).textTheme.bodyMedium
-                          ?.copyWith(color: AppColors.gray500),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    AppButton(
-                      label: 'تصفح الأزياء الآن',
-                      onPressed: () => context.go(AppRoutes.customerCatalog),
-                    ),
-                  ],
+              return AppEmpty(
+                icon: FavoritesDesign.emptyIcon,
+                title: 'قائمة المفضلة فارغة',
+                message: 'احفظ الأزياء التي تنال إعجابك للرجوع إليها في أي وقت',
+                actionLabel: 'تصفح الأزياء الآن',
+                onAction: AppHaptics.action(
+                  () => context.go(AppRoutes.customerCatalog),
                 ),
               );
             }
@@ -74,12 +59,12 @@ class CustomerFavoritesScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final product = favorites[index];
                 return ProductGridCard(
-                  onAddToCart: () => showProductCartSheet(context, product.id),
-                  inStock: product.totalStock > 0,
                   imageUrl: product.coverImage,
-                  title: product.name,
-                  subtitle: product.shopName,
-                  meta: '${product.price.toStringAsFixed(2)} ر.س',
+                  meta: AppFormat.price(product.price),
+                  inStock: product.totalStock > 0,
+                  isFavorite: true,
+                  onToggleFavorite: () => _toggleFavorite(ref, product.id),
+                  onAddToCart: () => showProductCartSheet(context, product.id),
                   onTap: () => context.push(
                     AppRoutes.customerProductDetailsPath(product.id),
                   ),
@@ -87,7 +72,10 @@ class CustomerFavoritesScreen extends ConsumerWidget {
               },
             );
           },
-          error: (err, _) => Center(child: Text('تعذر تحميل المفضلة: $err')),
+          error: (err, _) => AppEmpty(
+            icon: AppIcons.error,
+            message: 'تعذر تحميل المفضلة: $err',
+          ),
         ),
       ),
     );

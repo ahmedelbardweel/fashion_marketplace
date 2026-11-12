@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -55,41 +54,70 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final auth = ref.watch(authControllerProvider);
 
     return Scaffold(
+      backgroundColor: AuthDesign.pageBackground,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: AppSpacing.page,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
+              constraints: const BoxConstraints(
+                maxWidth: AuthDesign.maxFormWidth,
+              ),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
+                    Center(
+                      child: Container(
+                        width: AuthDesign.logoSize,
+                        height: AuthDesign.logoSize,
+                        decoration: BoxDecoration(
+                          color: AuthDesign.logoBackground,
+                          borderRadius: BorderRadius.circular(
+                            AuthDesign.logoRadius,
+                          ),
+                        ),
+                        child: const Icon(
+                          AppIcons.bag,
+                          size: 36,
+                          color: AuthDesign.logoIcon,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    const Text(
                       'ملابسي',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(
-                            letterSpacing: 4,
-                            fontWeight: FontWeight.w700,
-                          ),
+                      style: TextStyle(
+                        fontSize: AuthDesign.titleSize,
+                        fontWeight: AuthDesign.titleWeight,
+                        color: AppColors.text,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.xl),
-                    Text(
+                    const Text(
                       'تسجيل الدخول',
-                      style: Theme.of(context).textTheme.headlineSmall,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: AppFont.bold,
+                        color: AppColors.text,
+                      ),
                     ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      'أدخل بيانات حسابك للمتابعة',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                    const SizedBox(height: 4),
+                    const Text(
+                      'أدخل بيانات حسابك للمتابعة إلى عالم الأزياء',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AuthDesign.subtitleColor,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     AppTextField(
                       controller: _emailController,
                       label: 'البريد الإلكتروني',
                       hint: 'name@example.com',
+                      prefixIcon: AppIcons.mail,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
                       autofillHints: const [AutofillHints.email],
@@ -100,6 +128,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       controller: _passwordController,
                       label: 'كلمة المرور',
                       hint: '********',
+                      prefixIcon: AppIcons.lock,
                       obscureText: _obscure,
                       textInputAction: TextInputAction.done,
                       autofillHints: const [AutofillHints.password],
@@ -111,10 +140,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           () => setState(() => _obscure = !_obscure),
                         ),
                         icon: Icon(
-                          _obscure
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          color: AppColors.gray700,
+                          _obscure ? AppIcons.eye : AppIcons.eyeOff,
+                          color: AppColors.icon,
                           size: 20,
                         ),
                       ),
@@ -127,7 +154,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     AppButton(
-                      label: 'إنشاء حساب',
+                      label: 'إنشاء حساب جديد',
                       variant: AppButtonVariant.outlined,
                       onPressed: auth.isBusy
                           ? null

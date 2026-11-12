@@ -190,6 +190,7 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
   Future<bool> upsertBanner({
     required String title,
     String? subtitle,
+    String? imagePath,
     bool isActive = true,
     String? id,
   }) {
@@ -197,6 +198,7 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
       await _repo.upsertBanner(
         title: title,
         subtitle: subtitle,
+        imagePath: imagePath,
         isActive: isActive,
         id: id,
       );

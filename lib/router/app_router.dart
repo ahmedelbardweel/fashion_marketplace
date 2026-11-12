@@ -33,7 +33,6 @@ import '../features/customer/presentation/screens/customer_orders_screen.dart';
 import '../features/customer/presentation/screens/customer_profile_screen.dart';
 import '../features/customer/presentation/screens/customer_shops_screen.dart';
 import '../features/customer/presentation/screens/order_details_screen.dart';
-import '../features/customer/presentation/screens/product_ar_tryon_screen.dart';
 import '../features/customer/presentation/screens/decart_tryon_screen.dart';
 import '../features/customer/presentation/screens/product_comparison_screen.dart';
 import '../features/customer/presentation/screens/product_details_screen.dart';
@@ -88,7 +87,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         return isSplash ? null : AppRoutes.splash;
       }
 
-      final isAuthRoute = location == AppRoutes.login ||
+      final isAuthRoute =
+          location == AppRoutes.login ||
           location == AppRoutes.register ||
           location == AppRoutes.registerCustomer ||
           location == AppRoutes.registerShop;
@@ -202,9 +202,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.adminShopReview,
-        builder: (context, state) => AdminShopReviewScreen(
-          shopId: state.pathParameters['shopId']!,
-        ),
+        builder: (context, state) =>
+            AdminShopReviewScreen(shopId: state.pathParameters['shopId']!),
       ),
       GoRoute(
         path: AppRoutes.adminShopsManage,
@@ -264,9 +263,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.shopProductEdit,
-        builder: (context, state) => ShopProductFormScreen(
-          productId: state.pathParameters['productId'],
-        ),
+        builder: (context, state) =>
+            ShopProductFormScreen(productId: state.pathParameters['productId']),
       ),
       GoRoute(
         path: AppRoutes.shopOrders,
@@ -315,7 +313,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.customerArTryon,
-        builder: (context, state) => ProductArTryonScreen(
+        builder: (context, state) => DecartTryonScreen(
           productId: state.pathParameters['productId'] ?? '',
         ),
       ),
@@ -347,9 +345,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.customerOrderDetails,
-        builder: (context, state) => OrderDetailsScreen(
-          orderId: state.pathParameters['orderId'] ?? '',
-        ),
+        builder: (context, state) =>
+            OrderDetailsScreen(orderId: state.pathParameters['orderId'] ?? ''),
       ),
       GoRoute(
         path: AppRoutes.customerProfile,

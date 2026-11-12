@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
-import '../theme/app_radii.dart';
-import '../theme/app_spacing.dart';
+import '../theme/app_design.dart';
 
 /// Professional bottom sheet helper.
 /// Top radius is controlled only by [AppRadii.bottomSheet].
@@ -23,10 +21,11 @@ class AppBottomSheet {
       enableDrag: enableDrag,
       isScrollControlled: isScrollControlled,
       backgroundColor: Colors.transparent,
-      barrierColor: AppColors.black.withValues(alpha: 0.45),
+      barrierColor: SheetDesign.scrim,
       builder: (context) {
         final media = MediaQuery.of(context);
-        final maxHeight = media.size.height * (maxHeightFactor ?? 0.92);
+        final maxHeight =
+            media.size.height * (maxHeightFactor ?? SheetDesign.maxHeightFactor);
 
         return Padding(
           padding: EdgeInsets.only(bottom: media.viewInsets.bottom),
@@ -35,10 +34,10 @@ class AppBottomSheet {
             child: ConstrainedBox(
               constraints: BoxConstraints(maxHeight: maxHeight),
               child: Material(
-                color: AppColors.white,
+                color: SheetDesign.background,
                 shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(AppRadii.bottomSheet),
+                    top: Radius.circular(SheetDesign.topRadius),
                   ),
                 ),
                 clipBehavior: Clip.antiAlias,
@@ -79,11 +78,11 @@ class AppBottomSheetScaffold extends StatelessWidget {
             const SizedBox(height: AppSpacing.sm),
             Center(
               child: Container(
-                width: 40,
-                height: 4,
+                width: SheetDesign.handleWidth,
+                height: SheetDesign.handleHeight,
                 decoration: BoxDecoration(
-                  color: AppColors.gray300,
-                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                  color: SheetDesign.handle,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
                 ),
               ),
             ),
@@ -95,7 +94,10 @@ class AppBottomSheetScaffold extends StatelessWidget {
               child: Text(
                 title!,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleLarge,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: SheetDesign.titleSize,
+                  fontWeight: SheetDesign.titleWeight,
+                ),
               ),
             ),
             const SizedBox(height: AppSpacing.md),

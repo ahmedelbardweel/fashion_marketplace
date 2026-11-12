@@ -1,8 +1,7 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
-import '../theme/app_radii.dart';
+import '../theme/app_design.dart';
 import 'app_skeleton.dart';
 
 enum AppButtonVariant { filled, outlined, text }
@@ -70,11 +69,11 @@ class AppIconButton extends StatelessWidget {
     return IconButton(
       onPressed: AppHaptics.action(onPressed),
       tooltip: tooltip,
-      icon: Icon(icon, color: AppColors.black),
+      icon: Icon(icon, color: ButtonDesign.iconButtonColor),
       style: IconButton.styleFrom(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadii.sm),
-          side: const BorderSide(color: AppColors.border),
+          borderRadius: BorderRadius.circular(ButtonDesign.iconButtonRadius),
+          side: const BorderSide(color: ButtonDesign.iconButtonBorder),
         ),
       ),
     );

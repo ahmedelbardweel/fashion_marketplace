@@ -123,19 +123,25 @@ class AdminBanner {
     required this.title,
     required this.isActive,
     this.subtitle,
+    this.imagePath,
+    this.sortOrder = 0,
   });
 
   final String id;
   final String title;
   final String? subtitle;
+  final String? imagePath;
   final bool isActive;
+  final int sortOrder;
 
   factory AdminBanner.fromMap(Map<String, dynamic> map) {
     return AdminBanner(
       id: map['id'] as String,
       title: map['title'] as String? ?? '',
       subtitle: map['subtitle'] as String?,
+      imagePath: map['image_path'] as String?,
       isActive: map['is_active'] as bool? ?? true,
+      sortOrder: (map['sort_order'] as num?)?.toInt() ?? 0,
     );
   }
 }

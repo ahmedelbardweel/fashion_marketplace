@@ -1,13 +1,12 @@
-import '../../../../core/widgets/app_skeleton.dart';
-import '../../../../core/widgets/loading_fixtures.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
 
@@ -24,6 +23,7 @@ class OrderDetailsScreen extends ConsumerWidget {
     required bool isCurrent,
     required bool isLast,
   }) {
+    final active = isCompleted || isCurrent;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -34,18 +34,22 @@ class OrderDetailsScreen extends ConsumerWidget {
               height: 24,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isCompleted || isCurrent
-                    ? AppColors.black
-                    : AppColors.gray100,
+                color: active
+                    ? OrderDetailsDesign.timelineActive
+                    : AppColors.surfaceAlt,
                 border: Border.all(
-                  color: isCompleted || isCurrent
-                      ? AppColors.black
-                      : AppColors.border,
+                  color: active
+                      ? OrderDetailsDesign.timelineActive
+                      : OrderDetailsDesign.timelineInactive,
                   width: 2,
                 ),
               ),
               child: isCompleted
-                  ? const Icon(Icons.check, size: 14, color: AppColors.white)
+                  ? const Icon(
+                      AppIcons.check,
+                      size: 14,
+                      color: AppColors.white,
+                    )
                   : (isCurrent
                         ? const Center(
                             child: SizedBox(
@@ -65,7 +69,9 @@ class OrderDetailsScreen extends ConsumerWidget {
               Container(
                 width: 2,
                 height: 36,
-                color: isCompleted ? AppColors.black : AppColors.border,
+                color: isCompleted
+                    ? OrderDetailsDesign.timelineActive
+                    : OrderDetailsDesign.timelineInactive,
               ),
           ],
         ),
@@ -76,17 +82,18 @@ class OrderDetailsScreen extends ConsumerWidget {
             children: [
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                  color: isCompleted || isCurrent
-                      ? AppColors.black
-                      : AppColors.gray500,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: active ? AppFont.bold : AppFont.medium,
+                  color: active ? AppColors.text : AppColors.textMuted,
                 ),
               ),
               Text(
                 subtitle,
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: AppColors.gray500),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textMuted,
+                ),
               ),
               const SizedBox(height: AppSpacing.md),
             ],
@@ -106,16 +113,24 @@ class OrderDetailsScreen extends ConsumerWidget {
         if (order == null) {
           return const CustomerScaffold(
             title: 'تفاصيل الطلب',
-            body: Center(child: Text('الطلب غير موجود')),
+            showSearch: false,
+            body: AppEmpty(
+              icon: AppIcons.orders,
+              message: 'الطلب غير موجود',
+            ),
           );
         }
 
         final currentStep = order.statusStep;
         final dateStr = DateFormat('yyyy/MM/dd – hh:mm a')
             .format(order.createdAt);
+        final shortId = order.id.length > 8
+            ? order.id.substring(0, 8).toUpperCase()
+            : order.id.toUpperCase();
 
         return CustomerScaffold(
-          title: 'طلب #${order.id.substring(0, 8).toUpperCase()}',
+          title: 'طلب #$shortId',
+          showSearch: false,
           body: SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.md),
             child: Column(
@@ -126,26 +141,32 @@ class OrderDetailsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        spacing: AppSpacing.sm,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'المتجر: ${order.shopName}',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
+                          Expanded(
+                            child: Text(
+                              'المتجر: ${order.shopName}',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: AppFont.bold,
+                                color: AppColors.text,
+                              ),
+                            ),
                           ),
-                          Text(
-                            order.statusLabel,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          AppStatusBadge(
+                            label: order.statusLabel,
+                            tone: BadgeTone.primary,
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 6),
                       Text(
                         'تاريخ الإنشاء: $dateStr',
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: AppColors.gray500),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                     ],
                   ),
@@ -154,10 +175,13 @@ class OrderDetailsScreen extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.lg),
 
                 // Status Timeline Card
-                Text(
+                const Text(
                   'مراحل توصيل الشحنة',
-                  style: Theme.of(context).textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontSize: SectionDesign.titleSize,
+                    fontWeight: SectionDesign.titleWeight,
+                    color: AppColors.text,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AppCard(
@@ -174,7 +198,8 @@ class OrderDetailsScreen extends ConsumerWidget {
                       _buildTimelineStep(
                         context: context,
                         title: 'جاري تجهيز الملابس',
-                        subtitle: 'المتجر يقوم بتجهيز وتغليف المقاسات والألوان المطلوبة',
+                        subtitle:
+                            'المتجر يقوم بتجهيز وتغليف المقاسات والألوان المطلوبة',
                         isCompleted: currentStep > 2,
                         isCurrent: currentStep == 2,
                         isLast: false,
@@ -204,8 +229,11 @@ class OrderDetailsScreen extends ConsumerWidget {
                 // Items List
                 Text(
                   'القطع المشتراة (${order.items.length})',
-                  style: Theme.of(context).textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: SectionDesign.titleSize,
+                    fontWeight: SectionDesign.titleWeight,
+                    color: AppColors.text,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AppCard(
@@ -213,7 +241,7 @@ class OrderDetailsScreen extends ConsumerWidget {
                     children: [
                       ...order.items.map((item) {
                         return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
@@ -224,32 +252,33 @@ class OrderDetailsScreen extends ConsumerWidget {
                                     Text(
                                       item.productName,
                                       style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
+                                        fontWeight: AppFont.bold,
+                                        color: AppColors.text,
                                       ),
                                     ),
                                     if (item.variantInfo != null)
                                       Text(
                                         'المواصفات: ${item.variantInfo}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: AppColors.gray500,
-                                            ),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textMuted,
+                                        ),
                                       ),
                                     Text(
                                       'الكمية: ${item.quantity}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.textSecondary,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
                               Text(
-                                '${item.totalPrice.toStringAsFixed(2)} ر.س',
+                                AppFormat.price(item.totalPrice),
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: AppFont.bold,
+                                  color: AppColors.text,
                                 ),
                               ),
                             ],
@@ -257,15 +286,23 @@ class OrderDetailsScreen extends ConsumerWidget {
                         );
                       }),
                       const Divider(height: AppSpacing.lg),
-                      Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        spacing: AppSpacing.sm,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('الإجمالي المدفوع'),
+                          const Text(
+                            'الإجمالي المدفوع',
+                            style: TextStyle(
+                              fontWeight: AppFont.bold,
+                              color: AppColors.text,
+                            ),
+                          ),
                           Text(
-                            '${order.total.toStringAsFixed(2)} ر.س',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
+                            AppFormat.price(order.total),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: AppFont.extraBold,
+                              color: AppColors.text,
+                            ),
                           ),
                         ],
                       ),
@@ -278,8 +315,12 @@ class OrderDetailsScreen extends ConsumerWidget {
         );
       },
       error: (err, _) => CustomerScaffold(
-        title: 'خطأ',
-        body: Center(child: Text('تعذر تحميل تفاصيل الطلب: $err')),
+        title: 'تفاصيل الطلب',
+        showSearch: false,
+        body: AppEmpty(
+          icon: AppIcons.error,
+          message: 'تعذر تحميل تفاصيل الطلب: $err',
+        ),
       ),
     );
   }

@@ -1,10 +1,9 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
-
-import '../../../../core/utils/snackbar_utils.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_design.dart';
+import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../domain/models/customer_product.dart';
@@ -24,12 +23,14 @@ class _ProductCartSheet extends ConsumerStatefulWidget {
 }
 
 class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
-  String? selectedId;
+  String? _selectedColor;
+  String? _selectedSize;
+
   @override
   Widget build(BuildContext context) {
     final details = ref.watch(customerProductDetailsProvider(widget.productId));
     return AppBottomSheetScaffold(
-      title: 'إضافة إلى السلة',
+      title: 'اختر اللون والمقاس',
       child: details.when(
         loading: () => const AppSkeleton(
           child: Column(
@@ -60,16 +61,35 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
           if (product == null || product.status != 'published') {
             return const Text('هذا المنتج غير متاح حالياً');
           }
+
           final available = product.variants
               .where((v) => v.isActive && v.stock > 0)
               .toList();
-          ProductVariant? selected;
+          final colors = available.map((v) => v.color).toSet().toList();
+          if (_selectedColor == null && colors.isNotEmpty) {
+            _selectedColor = colors.first;
+          }
+
+          final sizesForColor = available
+              .where((v) => v.color == _selectedColor)
+              .map((v) => v.size)
+              .toSet()
+              .toList();
+          if (_selectedSize == null || !sizesForColor.contains(_selectedSize)) {
+            _selectedSize = sizesForColor.isNotEmpty
+                ? sizesForColor.first
+                : null;
+          }
+
+          ProductVariant? choice;
           for (final variant in available) {
-            if (variant.id == selectedId || available.length == 1) {
-              selected = variant;
+            if (variant.color == _selectedColor &&
+                variant.size == _selectedSize) {
+              choice = variant;
+              break;
             }
           }
-          final choice = selected;
+
           final cart = ref.watch(cartProvider);
           final quantity = choice == null
               ? 0
@@ -77,47 +97,175 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                     .where(
                       (item) =>
                           item.productId == product.id &&
-                          item.color == choice.color &&
+                          item.color == choice!.color &&
                           item.size == choice.size,
                     )
                     .fold<int>(0, (total, item) => total + item.quantity);
           final atLimit = choice != null && quantity >= choice.stock;
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                product.shopName,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                product.name,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '${product.price.toStringAsFixed(2)} ر.س',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 20),
-              Text(available.isEmpty ? 'نفدت الكمية' : 'اختر اللون والمقاس'),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              // Product Mini Header
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  for (final variant in available)
-                    ChoiceChip(
-                      label: Text('${variant.color} · ${variant.size}'),
-                      selected: choice?.id == variant.id,
-                      onSelected: AppHaptics.change(
-                        (_) => setState(() => selectedId = variant.id),
+                  Container(
+                    width: 68,
+                    height: 84,
+                    decoration: BoxDecoration(
+                      color: ProductCardDesign.imageBackground,
+                      borderRadius: BorderRadius.circular(AppRadii.sm),
+                      border: Border.all(
+                        color: ProductCardDesign.imageBorderColor,
                       ),
                     ),
+                    clipBehavior: Clip.antiAlias,
+                    child: product.coverImage != null
+                        ? AppNetworkImage(
+                            product.coverImage!,
+                            fit: BoxFit.cover,
+                          )
+                        : const Icon(
+                            AppIcons.garment,
+                            color: AppColors.iconMuted,
+                          ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.shopName,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: AppFont.semiBold,
+                            color: ProductDetailsDesign.shopNameColor,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          product.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: AppFont.bold,
+                            color: AppColors.text,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          AppFormat.price(product.price),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: AppFont.extraBold,
+                            color: AppColors.text,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 20),
-              ElevatedButton(
+              const SizedBox(height: AppSpacing.md),
+              const Divider(height: 1),
+              const SizedBox(height: AppSpacing.md),
+
+              if (available.isEmpty)
+                const Text(
+                  'نفدت الكمية حالياً',
+                  style: TextStyle(
+                    fontWeight: AppFont.bold,
+                    color: AppColors.error,
+                  ),
+                )
+              else ...[
+                // Color Selection
+                Row(
+                  children: [
+                    const Text(
+                      'اللون',
+                      style: TextStyle(
+                        fontSize: ProductDetailsDesign.sectionTitleSize,
+                        fontWeight: ProductDetailsDesign.sectionTitleWeight,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    if (_selectedColor != null) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        '· $_selectedColor',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: AppFont.semiBold,
+                          color: ProductDetailsDesign.sectionValueColor,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    for (final color in colors)
+                      _OptionPill(
+                        label: color,
+                        selected: color == _selectedColor,
+                        onTap: () => setState(() {
+                          _selectedColor = color;
+                          _selectedSize = null;
+                        }),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+
+                // Size Selection
+                Row(
+                  children: [
+                    const Text(
+                      'المقاس',
+                      style: TextStyle(
+                        fontSize: ProductDetailsDesign.sectionTitleSize,
+                        fontWeight: ProductDetailsDesign.sectionTitleWeight,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    if (_selectedSize != null) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Text(
+                        '· $_selectedSize',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: AppFont.semiBold,
+                          color: ProductDetailsDesign.sectionValueColor,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    for (final size in sizesForColor)
+                      _OptionPill(
+                        label: size,
+                        selected: size == _selectedSize,
+                        onTap: () => setState(() => _selectedSize = size),
+                      ),
+                  ],
+                ),
+              ],
+
+              const SizedBox(height: AppSpacing.lg),
+              ElevatedButton.icon(
+                icon: const Icon(AppIcons.bag, size: 20),
                 onPressed: AppHaptics.action(
                   choice == null || atLimit
                       ? null
@@ -126,7 +274,7 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                               .read(cartProvider.notifier)
                               .addItem(
                                 product: product,
-                                variantId: choice.id,
+                                variantId: choice!.id,
                                 color: choice.color,
                                 size: choice.size,
                                 maxStock: choice.stock,
@@ -134,17 +282,75 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                           Navigator.of(context).pop();
                           showAppSnackBar(
                             context,
-                            'تمت إضافة المنتج إلى السلة',
+                            'تمت إضافة القطعة إلى السلة',
                           );
                         },
                 ),
-                child: Text(
-                  atLimit ? 'وصلت للكمية المتاحة' : 'تأكيد الإضافة إلى السلة',
+                label: Text(
+                  atLimit
+                      ? 'وصلت للكمية المتاحة'
+                      : 'إضافة إلى السلة · ${AppFormat.price(product.price)}',
                 ),
               ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _OptionPill extends StatelessWidget {
+  const _OptionPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: AppHaptics.action(onTap),
+      borderRadius: BorderRadius.circular(ProductDetailsDesign.optionRadius),
+      child: Container(
+        constraints: const BoxConstraints(
+          minWidth: ProductDetailsDesign.optionMinWidth,
+          minHeight: ProductDetailsDesign.optionHeight,
+        ),
+        padding: ProductDetailsDesign.optionPadding,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected
+              ? ProductDetailsDesign.optionSelectedBackground
+              : ProductDetailsDesign.optionBackground,
+          borderRadius: BorderRadius.circular(
+            ProductDetailsDesign.optionRadius,
+          ),
+          border: Border.all(
+            color: selected
+                ? ProductDetailsDesign.optionSelectedBorder
+                : ProductDetailsDesign.optionBorder,
+            width: selected
+                ? ProductDetailsDesign.optionSelectedBorderWidth
+                : ProductDetailsDesign.optionBorderWidth,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected
+                ? ProductDetailsDesign.optionSelectedText
+                : ProductDetailsDesign.optionText,
+            fontWeight: selected
+                ? ProductDetailsDesign.optionSelectedWeight
+                : ProductDetailsDesign.optionWeight,
+            fontSize: 13,
+          ),
+        ),
       ),
     );
   }

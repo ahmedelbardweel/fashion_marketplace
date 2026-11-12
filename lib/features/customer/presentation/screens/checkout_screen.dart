@@ -1,19 +1,17 @@
-import '../widgets/customer_action_sheet.dart';
-import '../../../../core/widgets/app_bottom_sheet.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
+import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../router/routes.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/customer_providers.dart';
+import '../widgets/customer_action_sheet.dart';
 import '../widgets/customer_shell.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -72,7 +70,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     try {
       final repo = ref.read(customerRepositoryProvider);
 
-      // Submit an order for each shop in cart
       for (final entry in itemsByShop.entries) {
         await repo.placeOrder(
           shopId: entry.key,
@@ -87,7 +84,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
       if (!mounted) return;
 
-      // Confirm the order in the shared customer sheet.
       AppBottomSheet.show(
         context: context,
         isDismissible: false,
@@ -102,27 +98,29 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   Container(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: const BoxDecoration(
-                      color: AppColors.gray100,
+                      color: CheckoutDesign.successIconBackground,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      Icons.check_circle_rounded,
-                      color: AppColors.black,
-                      size: 64,
+                      AppIcons.checkCircleFilled,
+                      color: CheckoutDesign.successIcon,
+                      size: CheckoutDesign.successIconSize,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    'تم تأكيد طلبك بنجاح! 🎉',
-                    style: Theme.of(ctx).textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    'تم تأكيد طلبك بنجاح',
+                    style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
+                      fontWeight: AppFont.bold,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
                     'سيتولى المتجر تجهيز ملابسك وشحنها إلى عنوانك في أقرب وقت.',
-                    style: Theme.of(ctx).textTheme.bodyMedium
-                        ?.copyWith(color: AppColors.gray500),
+                    style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textMuted,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: AppSpacing.lg),
@@ -158,16 +156,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     return CustomerScaffold(
       title: 'إتمام الشراء',
+      showSearch: false,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Delivery Information Card
-            Text(
+            const Text(
               'عنوان التوصيل والتواصل',
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: SectionDesign.titleSize,
+                fontWeight: SectionDesign.titleWeight,
+                color: AppColors.text,
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppCard(
@@ -176,17 +178,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   AppTextField(
                     controller: _addressController,
                     label: 'عنوان التوصيل التفصيلي (المدينة، الحي، الشارع)',
+                    prefixIcon: AppIcons.location,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _phoneController,
                     label: 'رقم هاتف المستلم',
                     keyboardType: TextInputType.phone,
+                    prefixIcon: AppIcons.phone,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _notesController,
                     label: 'ملاحظات إضافية للتوصيل (اختياري)',
+                    prefixIcon: AppIcons.notes,
                   ),
                 ],
               ),
@@ -195,35 +200,46 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             const SizedBox(height: AppSpacing.lg),
 
             // Payment Method
-            Text(
+            const Text(
               'طريقة الدفع',
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: SectionDesign.titleSize,
+                fontWeight: SectionDesign.titleWeight,
+                color: AppColors.text,
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppCard(
-              child: Row(
+              borderColor: CheckoutDesign.optionSelectedBorder,
+              backgroundColor: CheckoutDesign.optionSelectedBackground,
+              child: const Row(
                 children: [
-                  const Icon(Icons.payments_outlined, color: AppColors.black),
-                  const SizedBox(width: AppSpacing.md),
+                  Icon(AppIcons.payment, color: AppColors.icon),
+                  SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'الدفع عند الاستلام (Cash on Delivery)',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(fontWeight: FontWeight.bold),
+                          'الدفع عند الاستلام',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: AppFont.bold,
+                            color: AppColors.text,
+                          ),
                         ),
+                        SizedBox(height: 2),
                         Text(
-                          'ادفع نقداً أو عبر بطاقة مدى عند استلام ملابسك',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppColors.gray500),
+                          'ادفع نقداً أو عبر البطاقة عند استلام طلبك',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  const Icon(Icons.check_circle, color: AppColors.black),
+                  Icon(AppIcons.checkCircleFilled, color: AppColors.primary),
                 ],
               ),
             ),
@@ -232,9 +248,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
             // Order Summary
             Text(
-              'ملخص الطلب (${cartItems.length} عناصر)',
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              'ملخص الطلب (${cartItems.length})',
+              style: const TextStyle(
+                fontSize: SectionDesign.titleSize,
+                fontWeight: SectionDesign.titleWeight,
+                color: AppColors.text,
+              ),
             ),
             const SizedBox(height: AppSpacing.sm),
             AppCard(
@@ -242,36 +261,43 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 children: [
                   ...cartItems.map((item) {
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
                             child: Text(
-                              '${item.productName} (${item.variantDescription}) x${item.quantity}',
+                              '${item.productName} (${item.variantDescription}) × ${item.quantity}',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodyMedium,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ),
+                          const SizedBox(width: AppSpacing.sm),
                           Text(
-                            '${item.totalPrice.toStringAsFixed(2)} ر.س',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            AppFormat.price(item.totalPrice),
+                            style: const TextStyle(
+                              fontWeight: AppFont.bold,
+                              color: AppColors.text,
+                            ),
                           ),
                         ],
                       ),
                     );
                   }),
                   const Divider(height: AppSpacing.lg),
-                  Row(
+                  const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('الشحن والتوصيل'),
-                      const Text(
+                      Text('الشحن والتوصيل'),
+                      Text(
                         'مجاناً',
                         style: TextStyle(
-                          color: AppColors.black,
-                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryDark,
+                          fontWeight: AppFont.bold,
                         ),
                       ),
                     ],
@@ -280,15 +306,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      const Text(
                         'المبلغ المطلوب دفعه',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: AppFont.bold,
+                          color: AppColors.text,
+                        ),
                       ),
                       Text(
-                        '${totalAmount.toStringAsFixed(2)} ر.س',
-                        style: Theme.of(context).textTheme.titleLarge
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                        AppFormat.price(totalAmount),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: AppFont.extraBold,
+                          color: AppColors.text,
+                        ),
                       ),
                     ],
                   ),
@@ -300,7 +332,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
             // Confirm Button
             AppButton(
-              label: 'تأكيد الطلب وشراء الآن',
+              label: 'تأكيد الطلب الآن',
               isLoading: _isSubmitting,
               onPressed: _isSubmitting ? null : _submitOrder,
             ),

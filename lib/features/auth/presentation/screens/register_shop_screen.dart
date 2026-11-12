@@ -136,10 +136,8 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
                       () => setState(() => _obscure = !_obscure),
                     ),
                     icon: Icon(
-                      _obscure
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      color: AppColors.gray700,
+                      _obscure ? AppIcons.eye : AppIcons.eyeOff,
+                      color: AppColors.icon,
                       size: 20,
                     ),
                   ),
@@ -160,10 +158,8 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
                       () => setState(() => _obscureConfirm = !_obscureConfirm),
                     ),
                     icon: Icon(
-                      _obscureConfirm
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      color: AppColors.gray700,
+                      _obscureConfirm ? AppIcons.eye : AppIcons.eyeOff,
+                      color: AppColors.icon,
                       size: 20,
                     ),
                   ),

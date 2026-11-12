@@ -1,15 +1,13 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
-import '../../../../core/widgets/app_skeleton.dart';
-import '../../../../core/widgets/loading_fixtures.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../router/routes.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
@@ -22,7 +20,8 @@ class CustomerShopsScreen extends ConsumerWidget {
     final shopsAsync = ref.watch(customerShopsProvider);
 
     return CustomerScaffold(
-      title: 'المحلات المعتمدة',
+      title: 'المتاجر المعتمدة',
+      showSearch: false,
       body: RefreshIndicator.noSpinner(
         onRefresh: AppHaptics.refresh(() async {
           ref.invalidate(customerShopsProvider);
@@ -31,13 +30,16 @@ class CustomerShopsScreen extends ConsumerWidget {
           placeholder: LoadingFixtures.customerShops,
           data: (shops) {
             if (shops.isEmpty) {
-              return const Center(child: Text('لا توجد محلات معتمدة حالياً'));
+              return const AppEmpty(
+                icon: AppIcons.shop,
+                message: 'لا توجد متاجر معتمدة حالياً',
+              );
             }
 
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: shops.length,
-              separatorBuilder: (_, __) =>
+              separatorBuilder: (_, _) =>
                   const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
                 final shop = shops[index];
@@ -46,22 +48,31 @@ class CustomerShopsScreen extends ConsumerWidget {
                       context.push(AppRoutes.customerShopProfilePath(shop.id)),
                   child: Row(
                     children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: AppColors.gray100,
+                      Container(
+                        width: ShopProfileDesign.listLogoSize,
+                        height: ShopProfileDesign.listLogoSize,
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceAlt,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.primaryBorder,
+                            width: 1.5,
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
                         child:
                             shop.logoPath != null && shop.logoPath!.isNotEmpty
-                            ? ClipOval(
-                                child: AppNetworkImage(
-                                  shop.logoPath!,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) =>
-                                      const Icon(Icons.storefront_rounded),
+                            ? AppNetworkImage(
+                                shop.logoPath!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => const Icon(
+                                  AppIcons.shopActive,
+                                  color: AppColors.icon,
                                 ),
                               )
                             : const Icon(
-                                Icons.storefront_rounded,
-                                color: AppColors.black,
+                                AppIcons.shopActive,
+                                color: AppColors.icon,
                               ),
                       ),
                       const SizedBox(width: AppSpacing.md),
@@ -71,8 +82,11 @@ class CustomerShopsScreen extends ConsumerWidget {
                           children: [
                             Text(
                               shop.name,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: AppFont.bold,
+                                color: AppColors.text,
+                              ),
                             ),
                             if (shop.description != null &&
                                 shop.description!.isNotEmpty)
@@ -80,26 +94,37 @@ class CustomerShopsScreen extends ConsumerWidget {
                                 shop.description!,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: AppColors.gray500),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textMuted,
+                                ),
                               ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 4),
                             Text(
                               '${shop.city ?? 'متجر أزياء'} · ${shop.productsCount} منتج',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.gray700),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: AppFont.semiBold,
+                                color: AppColors.primaryDark,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_left, color: AppColors.gray500),
+                      const Icon(
+                        AppIcons.forward,
+                        color: AppColors.icon,
+                      ),
                     ],
                   ),
                 );
               },
             );
           },
-          error: (err, _) => Center(child: Text('تعذر تحميل المحلات: $err')),
+          error: (err, _) => AppEmpty(
+            icon: AppIcons.error,
+            message: 'تعذر تحميل المتاجر: $err',
+          ),
         ),
       ),
     );

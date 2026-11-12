@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -136,21 +136,16 @@ class ShopProductsScreen extends ConsumerWidget {
                 return GridView.builder(
                   padding: AppSpacing.page,
                   itemCount: items.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: AppSpacing.sm,
-                    mainAxisSpacing: AppSpacing.sm,
-                    childAspectRatio: 0.58,
+                  gridDelegate: ProductGridDelegate(
+                    textScale: MediaQuery.textScalerOf(context).scale(14) / 14,
                   ),
                   itemBuilder: (context, index) {
                     final item = items[index];
                     return ProductGridCard(
                       imageUrl: item.coverImage,
-                      title: item.name,
-                      subtitle:
-                          '${item.statusLabel} · ${item.categoryName ?? 'بدون تصنيف'}',
-                      meta:
-                          '${item.price.toStringAsFixed(2)} · مخزون ${item.totalStock}',
+                      meta: AppFormat.price(item.price),
+                      inStock: item.totalStock > 0,
+                      showFavorite: false,
                       onTap: busy ? null : () => _manage(context, ref, item),
                     );
                   },

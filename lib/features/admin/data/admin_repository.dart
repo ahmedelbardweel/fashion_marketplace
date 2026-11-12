@@ -198,6 +198,7 @@ class AdminRepository {
   Future<AdminBanner> upsertBanner({
     required String title,
     String? subtitle,
+    String? imagePath,
     bool isActive = true,
     String? id,
   }) async {
@@ -210,7 +211,20 @@ class AdminRepository {
         'p_id': id,
       },
     );
-    return AdminBanner.fromMap(asStringMap(data));
+    final created = AdminBanner.fromMap(asStringMap(data));
+    if (imagePath != null) {
+      final cleanImage = imagePath.trim();
+      final updated = await _client
+          .from('banners')
+          .update({'image_path': cleanImage.isEmpty ? null : cleanImage})
+          .eq('id', created.id)
+          .select()
+          .maybeSingle();
+      if (updated != null) {
+        return AdminBanner.fromMap(Map<String, dynamic>.from(updated));
+      }
+    }
+    return created;
   }
 
   Future<void> deleteBanner(String id) async {

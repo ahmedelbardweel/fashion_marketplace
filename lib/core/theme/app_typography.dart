@@ -1,84 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import 'app_colors.dart';
+import 'app_design.dart';
 
+/// Builds the text theme. All sizes, weights and colors live in app_design.dart.
 class AppTypography {
   AppTypography._();
 
-  static TextTheme textTheme({bool isDark = false}) {
-    final base = GoogleFonts.ibmPlexSansArabicTextTheme();
-    final color = isDark ? AppColors.white : AppColors.black;
+  static TextTheme textTheme() {
+    final base = GoogleFonts.getTextTheme(AppFont.googleFamily);
+    const ink = AppColors.text;
+
+    TextStyle? s(
+      TextStyle? style,
+      double size,
+      FontWeight weight, {
+      Color color = ink,
+      double? height,
+    }) => style?.copyWith(
+      color: color,
+      fontSize: size,
+      fontWeight: weight,
+      height: height,
+      letterSpacing: 0,
+    );
 
     return base.copyWith(
-      displayLarge: base.displayLarge?.copyWith(
-        color: color,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.5,
+      displayLarge: s(base.displayLarge, AppFont.display + 6, AppFont.extraBold),
+      displayMedium: s(base.displayMedium, AppFont.display, AppFont.extraBold),
+      displaySmall: s(base.displaySmall, AppFont.headline + 2, AppFont.bold),
+      headlineLarge: s(base.headlineLarge, AppFont.headline + 4, AppFont.headlineWeight),
+      headlineMedium: s(base.headlineMedium, AppFont.headline, AppFont.headlineWeight),
+      headlineSmall: s(base.headlineSmall, AppFont.title + 2, AppFont.headlineWeight),
+      titleLarge: s(base.titleLarge, AppFont.title, AppFont.titleWeight),
+      titleMedium: s(base.titleMedium, AppFont.subtitle, AppFont.subtitleWeight),
+      titleSmall: s(base.titleSmall, AppFont.body, AppFont.subtitleWeight),
+      bodyLarge: s(
+        base.bodyLarge,
+        AppFont.subtitle,
+        AppFont.bodyWeight,
+        height: AppFont.bodyHeight,
       ),
-      displayMedium: base.displayMedium?.copyWith(
-        color: color,
-        fontWeight: FontWeight.w700,
+      bodyMedium: s(
+        base.bodyMedium,
+        AppFont.body,
+        AppFont.bodyWeight,
+        color: AppColors.textSecondary,
+        height: AppFont.bodyHeight,
       ),
-      headlineLarge: base.headlineLarge?.copyWith(
-        color: color,
-        fontWeight: FontWeight.w700,
-        fontSize: 28,
+      bodySmall: s(
+        base.bodySmall,
+        AppFont.small,
+        AppFont.bodyWeight,
+        color: AppColors.textMuted,
+        height: 1.45,
       ),
-      headlineMedium: base.headlineMedium?.copyWith(
-        color: color,
-        fontWeight: FontWeight.w600,
-        fontSize: 22,
-      ),
-      headlineSmall: base.headlineSmall?.copyWith(
-        color: color,
-        fontWeight: FontWeight.w600,
-        fontSize: 18,
-      ),
-      titleLarge: base.titleLarge?.copyWith(
-        color: color,
-        fontWeight: FontWeight.w600,
-        fontSize: 18,
-      ),
-      titleMedium: base.titleMedium?.copyWith(
-        color: color,
-        fontWeight: FontWeight.w500,
-        fontSize: 16,
-      ),
-      titleSmall: base.titleSmall?.copyWith(
-        color: color,
-        fontWeight: FontWeight.w500,
-        fontSize: 14,
-      ),
-      bodyLarge: base.bodyLarge?.copyWith(
-        color: color,
-        fontWeight: FontWeight.w400,
-        fontSize: 16,
-        height: 1.5,
-      ),
-      bodyMedium: base.bodyMedium?.copyWith(
-        color: AppColors.gray700,
-        fontWeight: FontWeight.w400,
-        fontSize: 14,
-        height: 1.5,
-      ),
-      bodySmall: base.bodySmall?.copyWith(
-        color: AppColors.gray500,
-        fontWeight: FontWeight.w400,
-        fontSize: 12,
-        height: 1.4,
-      ),
-      labelLarge: base.labelLarge?.copyWith(
-        color: color,
-        fontWeight: FontWeight.w600,
-        fontSize: 14,
-        letterSpacing: 0.2,
-      ),
-      labelMedium: base.labelMedium?.copyWith(
-        color: color,
-        fontWeight: FontWeight.w500,
-        fontSize: 12,
-      ),
+      labelLarge: s(base.labelLarge, AppFont.body, AppFont.labelWeight),
+      labelMedium: s(base.labelMedium, AppFont.small, AppFont.semiBold),
+      labelSmall: s(base.labelSmall, AppFont.tiny, AppFont.semiBold),
     );
   }
 }

@@ -1,18 +1,14 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
-import '../../../../core/widgets/app_skeleton.dart';
-import '../../../../core/widgets/loading_fixtures.dart';
-import '../../../../core/theme/app_radii.dart';
-import '../../../../core/widgets/app_button.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../router/routes.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
@@ -20,12 +16,21 @@ import '../widgets/customer_shell.dart';
 class CustomerOrdersScreen extends ConsumerWidget {
   const CustomerOrdersScreen({super.key});
 
+  BadgeTone _toneForStatus(String status) {
+    return switch (status) {
+      'completed' || 'delivered' => BadgeTone.success,
+      'cancelled' || 'rejected' => BadgeTone.error,
+      'shipped' || 'processing' => BadgeTone.primary,
+      _ => BadgeTone.warning,
+    };
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ordersAsync = ref.watch(customerOrdersProvider);
 
     return CustomerScaffold(
-      title: 'طلباتي ومشترياتي',
+      title: 'طلباتي',
       currentNavIndex: 3,
       showBack: false,
       body: RefreshIndicator.noSpinner(
@@ -36,32 +41,13 @@ class CustomerOrdersScreen extends ConsumerWidget {
           placeholder: LoadingFixtures.orders,
           data: (orders) {
             if (orders.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.receipt_long_outlined,
-                      size: 64,
-                      color: AppColors.gray300,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      'لا توجد طلبات سابقة',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'عندما تشتري أي ملابس ستتمكن من تتبعها هنا فوراً',
-                      style: Theme.of(context).textTheme.bodyMedium
-                          ?.copyWith(color: AppColors.gray500),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    AppButton(
-                      label: 'تصفح الملابس الآن',
-                      onPressed: () => context.go(AppRoutes.customerCatalog),
-                    ),
-                  ],
+              return AppEmpty(
+                icon: AppIcons.orders,
+                title: 'لا توجد طلبات سابقة',
+                message: 'عندما تشتري أي ملابس ستتمكن من تتبع شحنتها هنا فوراً',
+                actionLabel: 'تصفح الأزياء الآن',
+                onAction: AppHaptics.action(
+                  () => context.go(AppRoutes.customerCatalog),
                 ),
               );
             }
@@ -69,12 +55,15 @@ class CustomerOrdersScreen extends ConsumerWidget {
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: orders.length,
-              separatorBuilder: (_, __) =>
+              separatorBuilder: (_, _) =>
                   const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
                 final order = orders[index];
                 final dateStr = DateFormat('yyyy/MM/dd – hh:mm a')
                     .format(order.createdAt);
+                final shortId = order.id.length > 8
+                    ? order.id.substring(0, 8).toUpperCase()
+                    : order.id.toUpperCase();
 
                 return AppCard(
                   onTap: () => context.push(
@@ -83,63 +72,70 @@ class CustomerOrdersScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        spacing: AppSpacing.sm,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'طلب #${order.id.substring(0, 8).toUpperCase()}',
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.bold),
+                            'طلب #$shortId',
+                            style: const TextStyle(
+                              fontSize: OrdersDesign.orderNumberSize,
+                              fontWeight: OrdersDesign.orderNumberWeight,
+                              color: AppColors.text,
+                            ),
                           ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.sm,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.gray100,
-                              borderRadius: BorderRadius.circular(
-                                AppRadii.input,
-                              ),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: Text(
-                              order.statusLabel,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                          AppStatusBadge(
+                            label: order.statusLabel,
+                            tone: _toneForStatus(order.status),
                           ),
                         ],
                       ),
                       const SizedBox(height: AppSpacing.xs),
-                      Text(
-                        'المتجر: ${order.shopName}',
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: AppColors.gray700),
+                      Row(
+                        children: [
+                          const Icon(
+                            AppIcons.shop,
+                            size: 15,
+                            color: AppColors.icon,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            order.shopName,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: AppFont.semiBold,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         dateStr,
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: AppColors.gray500),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: OrdersDesign.dateColor,
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.sm),
-                      const Divider(),
-                      const SizedBox(height: AppSpacing.xs),
-                      Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        spacing: AppSpacing.sm,
+                      const Divider(height: 1),
+                      const SizedBox(height: AppSpacing.sm),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
                             '${order.items.length} قطع',
-                            style: Theme.of(context).textTheme.bodySmall,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                           Text(
-                            'الإجمالي: ${order.total.toStringAsFixed(2)} ر.س',
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.bold),
+                            AppFormat.price(order.total),
+                            style: const TextStyle(
+                              fontSize: OrdersDesign.totalSize,
+                              fontWeight: OrdersDesign.totalWeight,
+                              color: AppColors.text,
+                            ),
                           ),
                         ],
                       ),
@@ -149,7 +145,10 @@ class CustomerOrdersScreen extends ConsumerWidget {
               },
             );
           },
-          error: (err, _) => Center(child: Text('تعذر تحميل الطلبات: $err')),
+          error: (err, _) => AppEmpty(
+            icon: AppIcons.error,
+            message: 'تعذر تحميل الطلبات: $err',
+          ),
         ),
       ),
     );

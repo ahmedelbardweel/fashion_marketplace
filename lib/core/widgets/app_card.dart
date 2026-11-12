@@ -1,11 +1,9 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
-import '../theme/app_radii.dart';
-import '../theme/app_spacing.dart';
+import '../theme/app_design.dart';
 
-/// App-wide card. Radius comes from [AppRadii.card].
+/// App-wide card. Every visual value comes from [CardDesign].
 class AppCard extends StatelessWidget {
   const AppCard({
     super.key,
@@ -13,22 +11,29 @@ class AppCard extends StatelessWidget {
     this.padding,
     this.onTap,
     this.borderColor,
+    this.backgroundColor,
   });
 
   final Widget child;
   final EdgeInsetsGeometry? padding;
   final VoidCallback? onTap;
   final Color? borderColor;
+  final Color? backgroundColor;
 
   @override
   Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(CardDesign.radius);
     final content = Container(
       width: double.infinity,
-      padding: padding ?? const EdgeInsets.all(AppSpacing.md),
+      padding: padding ?? CardDesign.padding,
       decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(AppRadii.card),
-        border: Border.all(color: borderColor ?? AppColors.border),
+        color: backgroundColor ?? CardDesign.background,
+        borderRadius: radius,
+        boxShadow: CardDesign.shadow,
+        border: Border.all(
+          color: borderColor ?? CardDesign.border,
+          width: CardDesign.borderWidth,
+        ),
       ),
       child: child,
     );
@@ -39,7 +44,7 @@ class AppCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: AppHaptics.action(onTap),
-        borderRadius: BorderRadius.circular(AppRadii.card),
+        borderRadius: radius,
         child: content,
       ),
     );

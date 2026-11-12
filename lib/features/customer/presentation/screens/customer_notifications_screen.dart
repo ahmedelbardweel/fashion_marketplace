@@ -1,15 +1,13 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
-import '../../../../core/widgets/app_skeleton.dart';
-import '../../../../core/widgets/loading_fixtures.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
 
@@ -22,6 +20,7 @@ class CustomerNotificationsScreen extends ConsumerWidget {
 
     return CustomerScaffold(
       title: 'الإشعارات',
+      showSearch: false,
       body: RefreshIndicator.noSpinner(
         onRefresh: AppHaptics.refresh(() async {
           ref.invalidate(customerNotificationsProvider);
@@ -30,35 +29,17 @@ class CustomerNotificationsScreen extends ConsumerWidget {
           placeholder: LoadingFixtures.notifications,
           data: (notifications) {
             if (notifications.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.notifications_none_rounded,
-                      size: 64,
-                      color: AppColors.gray300,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      'لا توجد إشعارات جديدة',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'ستصلك هنا العروض الحصرية وتحديثات طلباتك',
-                      style: Theme.of(context).textTheme.bodyMedium
-                          ?.copyWith(color: AppColors.gray500),
-                    ),
-                  ],
-                ),
+              return const AppEmpty(
+                icon: AppIcons.bell,
+                title: 'لا توجد إشعارات جديدة',
+                message: 'ستصلك هنا العروض الحصرية وتحديثات طلباتك',
               );
             }
 
             return ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
               itemCount: notifications.length,
-              separatorBuilder: (_, __) =>
+              separatorBuilder: (_, _) =>
                   const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
                 final notif = notifications[index];
@@ -70,14 +51,15 @@ class CustomerNotificationsScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        width: NotificationsDesign.iconBoxSize,
+                        height: NotificationsDesign.iconBoxSize,
                         decoration: const BoxDecoration(
-                          color: AppColors.gray100,
+                          color: NotificationsDesign.iconBackground,
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
-                          Icons.notifications_active_outlined,
-                          color: AppColors.black,
+                          AppIcons.bellActive,
+                          color: NotificationsDesign.icon,
                           size: 20,
                         ),
                       ),
@@ -88,19 +70,28 @@ class CustomerNotificationsScreen extends ConsumerWidget {
                           children: [
                             Text(
                               notif.title,
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              notif.body,
-                              style: Theme.of(context).textTheme.bodyMedium,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: AppFont.bold,
+                                color: AppColors.text,
+                              ),
                             ),
                             const SizedBox(height: 4),
                             Text(
+                              notif.body,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                                height: 1.5,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
                               dateStr,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.gray500),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textMuted,
+                              ),
                             ),
                           ],
                         ),
@@ -111,7 +102,10 @@ class CustomerNotificationsScreen extends ConsumerWidget {
               },
             );
           },
-          error: (err, _) => Center(child: Text('تعذر تحميل الإشعارات: $err')),
+          error: (err, _) => AppEmpty(
+            icon: AppIcons.error,
+            message: 'تعذر تحميل الإشعارات: $err',
+          ),
         ),
       ),
     );

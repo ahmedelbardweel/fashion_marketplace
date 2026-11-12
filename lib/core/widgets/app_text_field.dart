@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../theme/app_colors.dart';
+import '../theme/app_design.dart';
 
 class AppTextField extends StatelessWidget {
   const AppTextField({
@@ -49,7 +49,10 @@ class AppTextField extends StatelessWidget {
         if (label != null) ...[
           Text(
             label!,
-            style: Theme.of(context).textTheme.titleSmall,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: InputDesign.label,
+              fontWeight: InputDesign.labelWeight,
+            ),
           ),
           const SizedBox(height: 8),
         ],
@@ -67,13 +70,13 @@ class AppTextField extends StatelessWidget {
           maxLines: obscureText ? 1 : maxLines,
           inputFormatters: inputFormatters,
           style: Theme.of(context).textTheme.bodyLarge,
-          cursorColor: AppColors.black,
+          cursorColor: InputDesign.cursor,
           decoration: InputDecoration(
             hintText: hint,
             suffixIcon: suffix,
             prefixIcon: prefixIcon == null
                 ? null
-                : Icon(prefixIcon, color: AppColors.gray700, size: 20),
+                : Icon(prefixIcon, color: InputDesign.prefixIcon, size: 20),
           ),
         ),
       ],

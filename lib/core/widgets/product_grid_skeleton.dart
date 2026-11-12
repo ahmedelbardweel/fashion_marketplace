@@ -15,11 +15,11 @@ class ProductGridSkeleton extends StatelessWidget {
       gridDelegate: ProductGridDelegate(
         textScale: MediaQuery.textScalerOf(context).scale(14) / 14,
       ),
-      itemBuilder: (_, _) => const ProductGridCard(
-        title: 'اسم قطعة الملابس',
-        subtitle: 'اسم المتجر',
-        meta: '120 ر.س',
+      itemBuilder: (_, _) => ProductGridCard(
+        meta: '120.00 ر.س',
         imageUrl: 'skeleton://product',
+        onAddToCart: () {},
+        onToggleFavorite: () async {},
       ),
     ),
   );

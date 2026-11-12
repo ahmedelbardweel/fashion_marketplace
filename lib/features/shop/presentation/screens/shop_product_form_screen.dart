@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/background_removal_service.dart';
 import '../../../../core/utils/media_picker.dart';
 import '../../../../core/utils/snackbar_utils.dart';
@@ -613,7 +614,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
           alignment: AlignmentDirectional.centerStart,
           child: TextButton.icon(
             onPressed: AppHaptics.action(_addCategory),
-            icon: const Icon(Icons.add),
+            icon: const Icon(AppIcons.add),
             label: const Text('إضافة تصنيف جديد'),
           ),
         ),
@@ -633,19 +634,19 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
 
   Widget _imagePreview(_ImageDraft item) {
     if (item.kind == '3d_model') {
-      return const Center(child: Icon(Icons.view_in_ar, size: 40));
+      return const Center(child: Icon(AppIcons.tryOn, size: 40));
     }
     if (item.preview != null) {
       return Image.memory(
         item.preview!,
         fit: BoxFit.contain,
-        errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
+        errorBuilder: (_, _, _) => const Icon(AppIcons.imageBroken),
       );
     }
     return AppNetworkImage(
       item.path!,
       fit: BoxFit.contain,
-      errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
+      errorBuilder: (_, _, _) => const Icon(AppIcons.imageBroken),
     );
   }
 
@@ -666,7 +667,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
           padding: EdgeInsets.symmetric(vertical: 32),
           child: Column(
             children: [
-              Icon(Icons.add_photo_alternate_outlined, size: 48),
+              Icon(AppIcons.addPhoto, size: 48),
               SizedBox(height: 12),
               Text(
                 'صورة أمامية، خلفية، وصورة للتفاصيل',
@@ -723,7 +724,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                                 _dirty = true;
                               }),
                       ),
-                      icon: const Icon(Icons.arrow_upward),
+                      icon: const Icon(AppIcons.arrowUp),
                     ),
                     IconButton(
                       tooltip: 'تأخير الصورة',
@@ -736,7 +737,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                                 _dirty = true;
                               }),
                       ),
-                      icon: const Icon(Icons.arrow_downward),
+                      icon: const Icon(AppIcons.arrowDown),
                     ),
                     if (!primary && item.kind == 'gallery')
                       TextButton(
@@ -757,7 +758,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                           _dirty = true;
                         }),
                       ),
-                      icon: const Icon(Icons.delete_outline),
+                      icon: const Icon(AppIcons.delete),
                     ),
                   ],
                 ),
@@ -788,7 +789,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
               IconButton(
                 tooltip: 'تعديل الخيار',
                 onPressed: AppHaptics.action(() => _editVariant(index)),
-                icon: const Icon(Icons.edit_outlined),
+                icon: const Icon(AppIcons.edit),
               ),
               IconButton(
                 tooltip: 'حذف الخيار',
@@ -798,7 +799,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                     _dirty = true;
                   }),
                 ),
-                icon: const Icon(Icons.delete_outline),
+                icon: const Icon(AppIcons.delete),
               ),
             ],
           ),

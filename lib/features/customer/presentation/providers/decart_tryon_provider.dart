@@ -7,6 +7,8 @@ import '../../../../config/supabase_config.dart';
 import '../../../../core/services/decart_realtime_service.dart';
 import '../../../virtual_tryon/data/decart_session_config.dart';
 import '../../../virtual_tryon/data/tryon_errors.dart';
+import '../../../virtual_tryon/data/capture_guard.dart';
+import '../../../virtual_tryon/data/automatic_tryon_recovery.dart';
 import '../../domain/models/customer_product.dart';
 import 'customer_providers.dart';
 
@@ -24,6 +26,8 @@ class DecartTryonState {
     this.isFrontCamera = true,
     this.isUpdating = false,
     this.errorMessage,
+    this.retryPending = false,
+    this.retryAttempt = 0,
   });
   final DecartSessionStatus status;
   final CustomerProduct? selectedProduct;
@@ -32,6 +36,8 @@ class DecartTryonState {
   final bool isFrontCamera;
   final bool isUpdating;
   final String? errorMessage;
+  final bool retryPending;
+  final int retryAttempt;
   bool get isConnected => status == DecartSessionStatus.connected;
   bool get isOverlayLoading =>
       status == DecartSessionStatus.initializing ||
@@ -46,6 +52,8 @@ class DecartTryonState {
     bool? isUpdating,
     String? errorMessage,
     bool clearApplied = false,
+    bool? retryPending,
+    int? retryAttempt,
   }) => DecartTryonState(
     status: status ?? this.status,
     selectedProduct: selectedProduct ?? this.selectedProduct,
@@ -56,12 +64,20 @@ class DecartTryonState {
     isFrontCamera: isFrontCamera ?? this.isFrontCamera,
     isUpdating: isUpdating ?? this.isUpdating,
     errorMessage: errorMessage, // null deliberately clears an earlier failure.
+    retryPending: retryPending ?? this.retryPending,
+    retryAttempt: retryAttempt ?? this.retryAttempt,
   );
 }
+
+final captureGuardProvider = ChangeNotifierProvider.autoDispose
+    .family<CaptureGuardController, String>(
+      (ref, id) => CaptureGuardController(),
+    );
 
 final decartRealtimeServiceProvider = Provider.autoDispose
     .family<DecartRealtimeService, String>((ref, productId) {
       final service = DecartRealtimeService(
+        captureGuard: ref.read(captureGuardProvider(productId)),
         loadConfig: () async {
           try {
             final response = await SupabaseConfig.client.functions.invoke(
@@ -114,6 +130,7 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
             ? state.isUpdating
             : false,
       );
+      if (event.status == DecartSessionStatus.error) _scheduleRecovery();
     });
   }
   final TryonSession _session;
@@ -124,7 +141,38 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
   CustomerProduct? _pending;
   bool _draining = false;
   bool _starting = false;
+  bool _suspended = false;
+  final _recovery = AutomaticTryonRecovery();
+  Timer? _retryTimer;
+  Completer<void>? _startFinished;
   int _revision = 0;
+
+  void _scheduleRecovery() {
+    if (!mounted ||
+        _suspended ||
+        _starting ||
+        _retryTimer != null ||
+        state.status != DecartSessionStatus.error)
+      return;
+    final delay = _recovery.nextDelay(state.errorMessage);
+    if (delay == null) return;
+    state = state.copyWith(
+      errorMessage: state.errorMessage,
+      retryPending: true,
+      retryAttempt: _recovery.attempts,
+    );
+    _retryTimer = Timer(delay, () {
+      _retryTimer = null;
+      if (mounted && !_suspended) unawaited(start());
+    });
+  }
+
+  Future<void> resume() async {
+    // A paused catalog request or capture validation may still be unwinding.
+    final revision = _revision;
+    await _startFinished?.future;
+    if (mounted && _suspended && revision == _revision) await start();
+  }
 
   static bool supports(CustomerProduct product) {
     return product.name.trim().isNotEmpty &&
@@ -141,11 +189,16 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
 
   Future<void> start() async {
     if (!mounted || _starting || state.isConnected) return;
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _suspended = false;
     _starting = true;
+    final finished = _startFinished = Completer<void>();
     final revision = ++_revision;
     state = state.copyWith(
       status: DecartSessionStatus.initializing,
       clearApplied: true,
+      retryPending: false,
     );
     try {
       if (state.availableProducts.isEmpty) {
@@ -187,6 +240,9 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
       }
     } finally {
       _starting = false;
+      finished.complete();
+      _startFinished = null;
+      _scheduleRecovery();
     }
   }
 
@@ -256,6 +312,9 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
   }
 
   Future<void> suspend() async {
+    _suspended = true;
+    _retryTimer?.cancel();
+    _retryTimer = null;
     ++_revision;
     _pending = null;
     _debounce?.cancel();
@@ -263,6 +322,7 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
       state = state.copyWith(
         status: DecartSessionStatus.disconnected,
         isUpdating: false,
+        retryPending: false,
       );
     }
     await _session.stop();
@@ -272,6 +332,8 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
 
   @override
   void dispose() {
+    _suspended = true;
+    _retryTimer?.cancel();
     ++_revision;
     _debounce?.cancel();
     unawaited(_subscription.cancel());

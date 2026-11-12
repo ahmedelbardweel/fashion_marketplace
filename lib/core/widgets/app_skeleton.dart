@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
+import '../theme/app_design.dart';
+
 /// Skeletons reuse the real page builder; placeholders never enter providers.
 class AppSkeleton extends StatelessWidget {
   const AppSkeleton({super.key, required this.child, this.enabled = true});
@@ -17,11 +19,11 @@ class AppSkeleton extends StatelessWidget {
             child: ExcludeFocus(
               child: Skeletonizer(
                 effect: ShimmerEffect(
-                  baseColor: const Color(0xFFE5E7EB),
-                  highlightColor: const Color(0xFFF7F8FA),
+                  baseColor: SkeletonDesign.base,
+                  highlightColor: SkeletonDesign.highlight,
                   duration: MediaQuery.disableAnimationsOf(context)
                       ? Duration.zero
-                      : const Duration(milliseconds: 1400),
+                      : SkeletonDesign.duration,
                 ),
                 child: child,
               ),

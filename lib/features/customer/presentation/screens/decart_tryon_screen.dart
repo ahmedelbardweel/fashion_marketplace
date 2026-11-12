@@ -1,7 +1,3 @@
-import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
-import '../../../../core/widgets/app_skeleton.dart';
-
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -11,8 +7,14 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/services/decart_realtime_service.dart';
-import '../../domain/models/customer_product.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../virtual_tryon/data/capture_guard.dart';
+import '../../../virtual_tryon/domain/capture_quality.dart';
+import '../../../virtual_tryon/domain/remote_frame_gate.dart';
 import '../../../virtual_tryon/presentation/remote_video_binding.dart';
+import '../../../virtual_tryon/presentation/tryon_preparation.dart';
+import '../../domain/models/customer_product.dart';
 import '../providers/decart_tryon_provider.dart';
 
 class DecartTryonScreen extends ConsumerStatefulWidget {
@@ -25,20 +27,28 @@ class DecartTryonScreen extends ConsumerStatefulWidget {
 class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     with WidgetsBindingObserver {
   final _renderer = RTCVideoRenderer();
+  final _localRenderer = RTCVideoRenderer();
+  final _remoteFrames = RemoteFrameGate<MediaStream>();
   late final Future<void> _rendererInitialization;
   late DecartRealtimeService _service;
   late DecartTryonNotifier _controller;
+  late CaptureGuardController _guard;
   RemoteVideoBinding? _videoBinding;
-  bool _ready = false;
-  bool _showGarments = false;
+  bool _ready = false,
+      _started = false,
+      _showGarments = false,
+      _showOriginal = false;
+  bool _foreground = true;
   String? _rendererError;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _rendererInitialization = _renderer.initialize();
-    // Attach the renderer before dialing: the first frame is the readiness signal.
+    _rendererInitialization = Future.wait([
+      _renderer.initialize(),
+      _localRenderer.initialize(),
+    ]);
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
   }
 
@@ -49,257 +59,404 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       ]);
       await _rendererInitialization;
       if (!mounted) return;
+      _localRenderer.addListener(_rendererChanged);
+      _renderer.addListener(_rendererChanged);
       _service = ref.read(decartRealtimeServiceProvider(widget.productId));
       _controller = ref.read(decartTryonProvider(widget.productId).notifier);
+      _guard = ref.read(captureGuardProvider(widget.productId));
+      _guard.addListener(_bindLocal);
       _videoBinding = RemoteVideoBinding(_renderer, () {
-        if (mounted) _service.notifyFirstRemoteFrame();
+        if (mounted) {
+          _remoteFrames.markRendered(_renderer.srcObject);
+          _guard.outputStream = _remoteFrames.readyStream;
+          _service.notifyFirstRemoteFrame();
+        }
       });
       _service.onRemoteStream = (stream) {
+        _remoteFrames.attach(stream);
+        _guard.outputStream = null;
         if (mounted) _videoBinding?.attach(stream);
       };
       setState(() => _ready = true);
-      await _controller.start();
+      if (_foreground) unawaited(_start());
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _rendererError = 'تعذر تهيئة عارض الفيديو على هذا الجهاز.',
-        );
+        setState(() => _rendererError = 'تعذر تهيئة الكاميرا على هذا الجهاز.');
       }
     }
   }
 
+  void _bindLocal() {
+    if (mounted && _guard.approved) {
+      _guard.outputStream = _remoteFrames.readyStream;
+    }
+    if (mounted && _localRenderer.srcObject != _guard.stream) {
+      _localRenderer.srcObject = _guard.stream;
+    }
+  }
+
+  void _rendererChanged() {
+    if (mounted) setState(() {});
+  }
+
+  double get _captureAspect =>
+      _localRenderer.videoHeight > 0 && _localRenderer.videoWidth > 0
+      ? _localRenderer.videoWidth / _localRenderer.videoHeight
+      : 9 / 16;
+
+  Future<void> _start() async {
+    if (!_ready || !mounted || !_foreground) return;
+    setState(() {
+      _started = true;
+      _showOriginal = false;
+      _showGarments = false;
+    });
+    await _controller.start();
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_ready &&
-        (state == AppLifecycleState.paused ||
-            state == AppLifecycleState.hidden ||
-            state == AppLifecycleState.detached)) {
-      unawaited(_controller.suspend());
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _foreground = false;
+      if (_ready) unawaited(_controller.suspend());
+    } else if (state == AppLifecycleState.resumed && !_foreground) {
+      _foreground = true;
+      if (_ready) unawaited(_started ? _controller.resume() : _start());
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _localRenderer.removeListener(_rendererChanged);
+    _renderer.removeListener(_rendererChanged);
     if (_ready) {
+      _guard.removeListener(_bindLocal);
       _service.onRemoteStream = null;
+      _remoteFrames.attach(null);
       _videoBinding?.attach(null);
       _videoBinding?.dispose();
-      _renderer.srcObject = null;
+      _localRenderer.srcObject = null;
       unawaited(_controller.suspend());
     }
     unawaited(
       _rendererInitialization
-          .then((_) => _renderer.dispose())
+          .then((_) async {
+            await _renderer.dispose();
+            await _localRenderer.dispose();
+          })
           .catchError((Object _) {}),
     );
+    unawaited(SystemChrome.setPreferredOrientations([]));
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(decartTryonProvider(widget.productId));
+    final guard = ref.watch(captureGuardProvider(widget.productId));
+    final step = !_started
+        ? 0
+        : guard.approved
+        ? 2
+        : 1;
+    final failed =
+        _rendererError != null ||
+        state.status == DecartSessionStatus.error ||
+        state.status == DecartSessionStatus.disconnected;
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (_ready)
-            RepaintBoundary(
-              child: RTCVideoView(
-                _renderer,
-                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-                mirror: false, // Preserve garment text/logos from the server.
+      backgroundColor: AppColors.surface,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'رجوع',
+                    onPressed: () => context.pop(),
+                    icon: const Icon(AppIcons.back),
+                  ),
+                  Expanded(
+                    child: Text(
+                      'غرفة التجربة',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  const SizedBox(width: 48),
+                ],
               ),
             ),
-          SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  child: Row(
-                    children: [
-                      IconButton.filledTonal(
-                        tooltip: 'رجوع',
-                        onPressed: AppHaptics.action(() => context.pop()),
-                        icon: const Icon(Icons.arrow_back),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Semantics(
-                          liveRegion: true,
-                          child: Text(
-                            state.isConnected
-                                ? 'التجربة المباشرة'
-                                : 'تجربة الملابس',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+            TryonSteps(current: step),
+            Expanded(
+              child: !_started && !failed
+                  ? const TryonIntroduction()
+                  : LayoutBuilder(
+                      builder: (context, constraints) => Column(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              color: const Color(0xFF111111),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  if (_ready)
+                                    RTCVideoView(
+                                      _localRenderer,
+                                      mirror: false,
+                                      objectFit: RTCVideoViewObjectFit
+                                          .RTCVideoViewObjectFitContain,
+                                    ),
+                                  if (_ready)
+                                    ClipPath(
+                                      clipper: GarmentRegionClipper(
+                                        points: guard.assessment.points,
+                                        aspect: _captureAspect,
+                                        region: guard.garment?.region ?? '',
+                                        enabled:
+                                            guard.approved &&
+                                            guard.outputAligned &&
+                                            guard.canApprove &&
+                                            state.isConnected &&
+                                            !state.isUpdating &&
+                                            !_showOriginal &&
+                                            _matchingFrames(guard),
+                                      ),
+                                      child: RTCVideoView(
+                                        _renderer,
+                                        mirror: false,
+                                        objectFit: RTCVideoViewObjectFit
+                                            .RTCVideoViewObjectFitContain,
+                                      ),
+                                    ),
+                                  if (!guard.approved &&
+                                      guard.analyzing &&
+                                      !failed)
+                                    IgnorePointer(
+                                      child: CustomPaint(
+                                        painter: BodyGuidePainter(
+                                          guard.assessment.points,
+                                          _captureAspect,
+                                          region:
+                                              guard.garment?.region ??
+                                              'upper body garment',
+                                        ),
+                                      ),
+                                    ),
+                                  if (guard.approved && state.isConnected)
+                                    Positioned(
+                                      top: 12,
+                                      left: 12,
+                                      child: FilledButton.tonalIcon(
+                                        onPressed: () => setState(
+                                          () => _showOriginal = !_showOriginal,
+                                        ),
+                                        icon: Icon(
+                                          _showOriginal
+                                              ? AppIcons.garment
+                                              : AppIcons.compare,
+                                          size: 18,
+                                        ),
+                                        label: Text(
+                                          _showOriginal
+                                              ? 'عرض القطعة'
+                                              : 'الصورة الأصلية',
+                                        ),
+                                      ),
+                                    ),
+                                  if (failed)
+                                    Center(
+                                      child: _errorPanel(
+                                        state,
+                                        state.errorMessage ??
+                                            guard.error ??
+                                            _rendererError ??
+                                            'توقفت التجربة. أعد فحص الجسم للمتابعة.',
+                                      ),
+                                    ),
+                                  if (!failed &&
+                                      (!guard.analyzing || guard.approved) &&
+                                      !state.isConnected)
+                                    const Center(
+                                      child: Card(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(20),
+                                          child: AppBusyLabel(
+                                            label: 'جارٍ تجهيز التجربة…',
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                      IconButton.filledTonal(
-                        tooltip: 'تبديل الكاميرا',
-                        onPressed: AppHaptics.action(
-                          _ready && state.isConnected
-                              ? _controller.switchCamera
-                              : null,
-                        ),
-                        icon: const Icon(Icons.flip_camera_ios_outlined),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        child: _statusPanel(state),
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxHeight: constraints.maxHeight * .52,
+                            ),
+                            child: SingleChildScrollView(
+                              child: failed
+                                  ? const SizedBox.shrink()
+                                  : !guard.approved && guard.analyzing
+                                  ? CaptureChecklist(
+                                      assessment: guard.assessment,
+                                      region:
+                                          guard.garment?.region ??
+                                          'upper body garment',
+                                    )
+                                  : _garments(state, guard),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ),
-                if (state.isUpdating)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 24),
-                    child: AppBusyLabel(label: 'جارٍ تبديل القطعة…'),
-                  ),
-                if (state.errorMessage != null && state.isConnected)
-                  Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Text(
-                      state.errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.orangeAccent),
-                    ),
-                  ),
-                _garments(state),
-              ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _statusPanel(DecartTryonState state) {
-    final error = _rendererError ?? state.errorMessage;
-    if (_rendererError != null ||
-        state.status == DecartSessionStatus.error ||
-        state.status == DecartSessionStatus.disconnected) {
-      return _panel(
-        key: const ValueKey('error'),
-        children: [
-          const Icon(
-            Icons.videocam_off_outlined,
-            color: Colors.white,
-            size: 36,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            error ?? 'توقفت الجلسة. اضغط للاتصال مجدداً.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white),
-          ),
-          const SizedBox(height: 12),
-          if (_ready)
-            FilledButton(
-              onPressed: AppHaptics.action(_controller.retry),
-              child: const Text('إعادة الاتصال'),
-            ),
-        ],
-      );
+  bool _matchingFrames(CaptureGuardController guard) {
+    final frame = guard.observation;
+    if (frame == null ||
+        _renderer.videoWidth <= 0 ||
+        _renderer.videoHeight <= 0) {
+      return false;
     }
-    if (!_ready ||
-        state.isOverlayLoading ||
-        state.status == DecartSessionStatus.idle) {
-      return _panel(
-        key: const ValueKey('loading'),
-        children: [
-          const AppSkeleton(
-            child: Icon(Icons.videocam_outlined, size: 64, color: Colors.white),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            state.status == DecartSessionStatus.connecting
-                ? 'بانتظار أول إطار من الفيديو المعالج…'
-                : 'جارٍ تجهيز الكاميرا والاتصال…',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white),
-          ),
-        ],
-      );
-    }
-    return const SizedBox.shrink();
+    final sourceAspect = frame.width / frame.height;
+    return (_captureAspect / sourceAspect - 1).abs() < .035 &&
+        ((_renderer.videoWidth / _renderer.videoHeight) / sourceAspect - 1)
+                .abs() <
+            .035;
   }
 
-  Widget _panel({required Key key, required List<Widget> children}) =>
-      Container(
-        key: key,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.75),
-          borderRadius: BorderRadius.circular(20),
+  Widget _errorPanel(
+    DecartTryonState state,
+    String message,
+  ) => SingleChildScrollView(
+    padding: const EdgeInsets.all(24),
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              AppIcons.focus,
+              size: 36,
+              color: AppColors.primary,
+            ),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            if (state.retryPending)
+              AppBusyLabel(
+                label: 'جارٍ استئناف الفحص تلقائياً… (${state.retryAttempt}/3)',
+              )
+            else if (state.retryAttempt >= 3)
+              const Text(
+                'لم نتمكن من استئناف التجربة تلقائياً. تحقق من السبب أعلاه ثم ادخل غرفة التجربة مجدداً.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: AppColors.gray500),
+              ),
+          ],
         ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: children),
-      );
+      ),
+    ),
+  );
 
-  Widget _garments(DecartTryonState state) => Container(
-    color: Colors.black.withValues(alpha: 0.8),
-    padding: const EdgeInsets.symmetric(vertical: 12),
+  Widget _garments(
+    DecartTryonState state,
+    CaptureGuardController guard,
+  ) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Row(
           children: [
-            const SizedBox(width: 16),
-            const Expanded(
+            const Icon(
+              AppIcons.shieldTick,
+              size: 18,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
               child: Text(
-                'ثبّت الهاتف بالطول وابتعد ليظهر جسمك كاملاً',
-                style: TextStyle(color: Colors.white70, fontSize: 11),
+                _showOriginal
+                    ? 'صورتك الأصلية'
+                    : 'المعالجة في منطقة القطعة فقط',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             IconButton(
-              tooltip: _showGarments ? 'إخفاء الملابس' : 'اختيار الملابس',
-              onPressed: AppHaptics.action(
-                () => setState(() => _showGarments = !_showGarments),
-              ),
-              color: Colors.white,
+              tooltip: 'اختيار قطعة',
+              onPressed: state.isConnected && !state.isUpdating
+                  ? () => setState(() => _showGarments = !_showGarments)
+                  : null,
               icon: Icon(
-                _showGarments ? Icons.expand_more : Icons.checkroom_outlined,
+                _showGarments ? AppIcons.chevronDown : AppIcons.garment,
               ),
             ),
           ],
         ),
         Text(
-          state.isUpdating
-              ? 'جارٍ تطبيق القطعة…'
-              : state.selectedProduct?.name ?? 'قطع الملابس',
+          state.selectedProduct?.name ?? 'قطعتك',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
-        if (_showGarments) const SizedBox(height: 8),
-        if (_showGarments)
-          SizedBox(
-            height: 108,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: state.availableProducts.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
-              itemBuilder: (context, index) {
-                final product = state.availableProducts[index];
-                return _garmentTile(product, state);
-              },
+        const SizedBox(height: 4),
+        const Text(
+          'معاينة للشكل، وليست توصية بمقاس الشراء.',
+          style: TextStyle(fontSize: 11, color: AppColors.gray500),
+        ),
+        if (state.isConnected && !_matchingFrames(guard))
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              'أبعاد الفيديو المعالج لا تطابق الكاميرا. أُخفيت القطعة للحفاظ على موضع الجسم.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12),
+            ),
+          ),
+        if (state.isUpdating) const AppBusyLabel(label: 'جارٍ تطبيق القطعة…'),
+        if (state.isConnected &&
+            guard.approved &&
+            !guard.outputAligned &&
+            !state.isUpdating)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              guard.assessment.issue?.message ??
+                  'جارٍ مطابقة القطعة مع وضعيتك…',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ),
+        if (state.errorMessage != null)
+          Text(state.errorMessage!, textAlign: TextAlign.center),
+        if (_showGarments && state.isConnected && !state.isUpdating)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: SizedBox(
+              height: 100,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: state.availableProducts.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 10),
+                itemBuilder: (_, i) =>
+                    _garmentTile(state.availableProducts[i], state),
+              ),
             ),
           ),
       ],
@@ -313,23 +470,20 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       selected: selected,
       label: product.name,
       child: InkWell(
-        onTap: AppHaptics.action(
-          _ready && state.isConnected
-              ? () => _controller.selectGarment(product)
-              : null,
-        ),
-        borderRadius: BorderRadius.circular(14),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          width: 88,
-          padding: const EdgeInsets.all(5),
+        onTap: () {
+          setState(() => _showGarments = false);
+          _controller.selectGarment(product);
+        },
+        child: Container(
+          width: 82,
+          padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: selected ? 0.18 : 0.08),
+            color: selected
+                ? AppColors.primary.withValues(alpha: .06)
+                : AppColors.surface,
             border: Border.all(
-              color: selected ? Colors.greenAccent : Colors.white24,
-              width: 2,
+              color: selected ? AppColors.primary : AppColors.border,
             ),
-            borderRadius: BorderRadius.circular(14),
           ),
           child: Column(
             children: [
@@ -338,8 +492,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                   product.tryonReferenceImage!,
                   fit: BoxFit.contain,
                   cacheWidth: 192,
-                  errorBuilder: (_, _, _) =>
-                      const Icon(Icons.checkroom, color: Colors.white54),
+                  errorBuilder: (_, _, _) => const Icon(AppIcons.garment),
                 ),
               ),
               const SizedBox(height: 4),
@@ -347,7 +500,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                 product.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Colors.white, fontSize: 11),
+                style: const TextStyle(fontSize: 11),
               ),
             ],
           ),

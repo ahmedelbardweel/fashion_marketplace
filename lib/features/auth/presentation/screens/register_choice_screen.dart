@@ -2,7 +2,7 @@ import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
@@ -19,10 +19,10 @@ class RegisterChoiceScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('حساب المستخدم يتيح التصفح والشراء وتجربة الملابس.'),
+            Text('حساب المتسوق يتيح التصفح والشراء وتجربة الملابس افتراضياً.'),
             SizedBox(height: AppSpacing.md),
             Text(
-              'حساب المحل يتيح التسجيل وإرسال طلب انضمام للإدارة. لا يمكن إضافة منتجات قبل الموافقة.',
+              'حساب المتجر يتيح التسجيل وإرسال طلب انضمام للإدارة لعرض وبيع منتجاتك.',
             ),
           ],
         ),
@@ -33,12 +33,14 @@ class RegisterChoiceScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AuthDesign.pageBackground,
       appBar: AppBar(
         title: const Text('إنشاء حساب'),
         actions: [
-          TextButton(
+          IconButton(
+            tooltip: 'معلومات الحسابات',
             onPressed: AppHaptics.action(() => _openInfo(context)),
-            child: const Text('تفاصيل'),
+            icon: const Icon(AppIcons.info, color: AppColors.icon),
           ),
         ],
       ),
@@ -48,29 +50,66 @@ class RegisterChoiceScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
+              const Text(
                 'اختر نوع الحساب',
-                style: Theme.of(context).textTheme.headlineSmall,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: AppFont.bold,
+                  color: AppColors.text,
+                ),
               ),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'كل نوع يفتح مساراً مختلفاً داخل التطبيق',
-                style: Theme.of(context).textTheme.bodyMedium,
+              const SizedBox(height: 4),
+              const Text(
+                'حدد طريقة استخدامك للتطبيق للمتابعة',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AuthDesign.subtitleColor,
+                ),
               ),
               const SizedBox(height: AppSpacing.lg),
               AppCard(
                 onTap: () => context.push(AppRoutes.registerCustomer),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text(
-                      'مستخدم',
-                      style: Theme.of(context).textTheme.titleLarge,
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySoft,
+                        borderRadius: BorderRadius.circular(AppRadii.md),
+                      ),
+                      child: const Icon(
+                        AppIcons.user,
+                        color: AppColors.icon,
+                      ),
                     ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'تصفح المنتجات والبحث والشراء',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                    const SizedBox(width: AppSpacing.md),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'حساب متسوق',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: AppFont.bold,
+                              color: AppColors.text,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'تصفح الأزياء وتجربة الملابس والشراء',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      AppIcons.forward,
+                      color: AppColors.icon,
                     ),
                   ],
                 ),
@@ -78,21 +117,54 @@ class RegisterChoiceScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.md),
               AppCard(
                 onTap: () => context.push(AppRoutes.registerShop),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text('محل', style: Theme.of(context).textTheme.titleLarge),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      'تسجيل متجر وإرسال طلب انضمام للإدارة',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySoft,
+                        borderRadius: BorderRadius.circular(AppRadii.md),
+                      ),
+                      child: const Icon(
+                        AppIcons.shop,
+                        color: AppColors.icon,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'حساب متجر أزياء',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: AppFont.bold,
+                              color: AppColors.text,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'تسجيل متجرك وعرض منتجاتك واستقبال الطلبات',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      AppIcons.forward,
+                      color: AppColors.icon,
                     ),
                   ],
                 ),
               ),
               const Spacer(),
               AppButton(
-                label: 'لدي حساب بالفعل',
+                label: 'لدي حساب بالفعل · تسجيل الدخول',
                 variant: AppButtonVariant.text,
                 onPressed: () => context.go(AppRoutes.login),
               ),

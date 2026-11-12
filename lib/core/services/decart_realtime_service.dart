@@ -9,15 +9,18 @@ import '../../features/virtual_tryon/data/decart_session_config.dart';
 import '../../features/virtual_tryon/data/garment_payload_loader.dart';
 import '../../features/virtual_tryon/data/webrtc_camera_source.dart';
 import '../../features/virtual_tryon/data/tryon_errors.dart';
+import '../../features/virtual_tryon/data/capture_guard.dart';
 import '../../features/virtual_tryon/domain/tryon_session.dart';
 
 export '../../features/virtual_tryon/domain/tryon_session.dart';
 
 /// Native media plane + serialized WebSocket control plane. No video frame
-/// buffers are copied into Dart and no permanent API key lives in the client.
+/// buffers enter the signaling protocol. The capture guard samples bounded
+/// snapshots locally; no permanent API key lives in the client.
 class DecartRealtimeService implements TryonSession {
   DecartRealtimeService({
     required this.loadConfig,
+    required this.captureGuard,
     this.acknowledgmentTimeout = const Duration(seconds: 15),
     WebRtcCameraSource? camera,
     http.Client? imageClient,
@@ -30,6 +33,7 @@ class DecartRealtimeService implements TryonSession {
        _socketFactory = socketFactory ?? WebSocketChannel.connect;
 
   final Future<DecartSessionConfig> Function() loadConfig;
+  final CaptureGuard captureGuard;
   final Duration acknowledgmentTimeout;
   final WebRtcCameraSource _camera;
   final http.Client _images;
@@ -112,6 +116,13 @@ class DecartRealtimeService implements TryonSession {
       stage = TryonStartupStage.session;
       final cameraTrack = _local!.getVideoTracks().firstOrNull;
       if (cameraTrack != null) await _camera.resetZoom(cameraTrack);
+      if (!_current(generation)) return;
+      // No token, peer, or uploaded camera frames before local validation + consent.
+      await captureGuard.validate(
+        _local!,
+        garment,
+        (message) => _fail(generation, message),
+      );
       if (!_current(generation)) return;
       final config = await loadConfig().timeout(const Duration(seconds: 15));
       if (!_current(generation)) return;
@@ -207,7 +218,7 @@ class DecartRealtimeService implements TryonSession {
       await _offer(generation);
       if (!_current(generation)) return;
       stage = TryonStartupStage.garment;
-      await select(garment);
+      await _select(garment);
       if (!_current(generation)) return;
       _initialAccepted = true;
       _maybeReady();
@@ -351,6 +362,21 @@ class DecartRealtimeService implements TryonSession {
   @override
   Future<void> select(GarmentSelection garment) async {
     final generation = _generation;
+    final local = _local;
+    if (local == null || !_reportedConnected) {
+      throw const TryonFailure('أعد فحص الجسم قبل اختيار القطعة.');
+    }
+    await captureGuard.validate(
+      local,
+      garment,
+      (message) => _fail(generation, message),
+    );
+    if (!_current(generation)) throw const TryonFailure('انتهت الجلسة.');
+    await _select(garment);
+  }
+
+  Future<void> _select(GarmentSelection garment) async {
+    final generation = _generation;
     if (!_socketReady || _selectionGeneration != null) {
       throw const TryonFailure('انتظر اكتمال تحديث القطعة الحالية.');
     }
@@ -384,11 +410,14 @@ class DecartRealtimeService implements TryonSession {
     final track = _local?.getVideoTracks().firstOrNull;
     if (track == null || !_reportedConnected) return;
     try {
+      // Switching invalidates the calibrated frame and requires a fresh session.
+      captureGuard.cancel();
       final switched = await Helper.switchCamera(track);
       if (switched) {
         _camera.front = !_camera.front;
         await _camera.resetZoom(track);
       }
+      _fail(_generation, 'تم تغيير الكاميرا. أعد فحص الجسم قبل التجربة.');
     } catch (_) {
       throw const TryonFailure('تعذر تبديل الكاميرا.');
     }
@@ -406,6 +435,7 @@ class DecartRealtimeService implements TryonSession {
   void _fail(int generation, String message) {
     if (!_current(generation)) return;
     ++_generation;
+    captureGuard.cancel();
     _cancelAck();
     _emit(DecartSessionStatus.error, message);
     unawaited(_serialize(_cleanup));
@@ -414,6 +444,7 @@ class DecartRealtimeService implements TryonSession {
   @override
   Future<void> stop() {
     ++_generation;
+    captureGuard.cancel();
     _cancelAck();
     _emit(DecartSessionStatus.disconnected);
     return _serialize(_cleanup);
@@ -477,6 +508,7 @@ class DecartRealtimeService implements TryonSession {
     if (_disposed) return;
     _disposed = true;
     ++_generation;
+    captureGuard.cancel();
     _cancelAck();
     await _serialize(_cleanup);
     _images.close();
