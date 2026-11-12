@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/utils/validators.dart';
@@ -66,7 +67,18 @@ class _RegisterCustomerScreenState
     final auth = ref.watch(authControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: Text('تسجيل مستخدم'.tr)),
+      appBar: AppBar(
+        centerTitle: false,
+        titleSpacing: 0,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppLogoMark(),
+            const SizedBox(width: AppSpacing.xs),
+            Flexible(child: Text('تسجيل مستخدم'.tr)),
+          ],
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: AppSpacing.page,

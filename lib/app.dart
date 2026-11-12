@@ -20,7 +20,9 @@ class FashionMarketplaceApp extends ConsumerWidget {
     AppLang.isEn = locale.languageCode == 'en';
 
     return MaterialApp.router(
-      title: 'Fashion Marketplace',
+      title: locale.languageCode == 'en' ? 'MALABSI' : 'ملابسي',
+      onGenerateTitle: (_) =>
+          locale.languageCode == 'en' ? 'MALABSI' : 'ملابسي',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

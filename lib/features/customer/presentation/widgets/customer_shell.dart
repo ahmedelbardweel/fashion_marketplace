@@ -151,6 +151,8 @@ class _CustomerAppBarState extends ConsumerState<CustomerAppBar>
                                     ),
                                     tooltip: 'رجوع'.tr,
                                   ),
+                                const AppLogoMark(),
+                                const SizedBox(width: AppSpacing.xs),
                                 if (!widget.showSearch) ...[
                                   Expanded(
                                     child: Text(

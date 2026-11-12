@@ -72,21 +72,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: SplashDesign.logoSize,
-                        height: SplashDesign.logoSize,
-                        decoration: BoxDecoration(
-                          color: SplashDesign.logoBackground,
-                          borderRadius: BorderRadius.circular(
-                            AuthDesign.logoRadius,
-                          ),
-                        ),
-                        child: Icon(
-                          AppIcons.bag,
-                          size: 42,
-                          color: SplashDesign.logoIcon,
-                        ),
-                      ),
+                      const AppLogoMark(size: SplashDesign.logoSize),
                       const SizedBox(height: AppSpacing.md),
                       Text(
                         'ملابسي'.tr,

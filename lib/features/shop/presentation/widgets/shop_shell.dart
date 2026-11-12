@@ -46,15 +46,33 @@ class ShopAppBar extends StatelessWidget implements PreferredSizeWidget {
                 color: AppBarDesign.iconColor,
               ),
             )
-          : const SizedBox.shrink(),
-      leadingWidth: canPop ? 56 : 12,
-      title: Text(
-        AppLang.tr(title),
-        style: TextStyle(
-          fontSize: AppBarDesign.titleSize,
-          fontWeight: AppBarDesign.titleWeight,
-          color: AppBarDesign.titleColor,
-        ),
+          : const Padding(
+              padding: EdgeInsetsDirectional.only(start: AppSpacing.sm),
+              child: Center(child: AppLogoMark()),
+            ),
+      leadingWidth: canPop ? 56 : 48,
+      titleSpacing: canPop ? 0 : AppSpacing.xs,
+      centerTitle: false,
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (canPop) ...[
+            const AppLogoMark(),
+            const SizedBox(width: AppSpacing.xs),
+          ],
+          Flexible(
+            child: Text(
+              AppLang.tr(title),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: AppBarDesign.titleSize,
+                fontWeight: AppBarDesign.titleWeight,
+                color: AppBarDesign.titleColor,
+              ),
+            ),
+          ),
+        ],
       ),
       actions: actions,
     );

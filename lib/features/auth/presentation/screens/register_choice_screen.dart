@@ -35,7 +35,16 @@ class RegisterChoiceScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AuthDesign.pageBackground,
       appBar: AppBar(
-        title: Text('إنشاء حساب'.tr),
+        centerTitle: false,
+        titleSpacing: 0,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppLogoMark(),
+            const SizedBox(width: AppSpacing.xs),
+            Flexible(child: Text('إنشاء حساب'.tr)),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: 'معلومات الحسابات'.tr,

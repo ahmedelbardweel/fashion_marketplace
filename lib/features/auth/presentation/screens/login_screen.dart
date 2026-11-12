@@ -68,22 +68,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Center(
-                      child: Container(
-                        width: AuthDesign.logoSize,
-                        height: AuthDesign.logoSize,
-                        decoration: BoxDecoration(
-                          color: AuthDesign.logoBackground,
-                          borderRadius: BorderRadius.circular(
-                            AuthDesign.logoRadius,
-                          ),
-                        ),
-                        child: Icon(
-                          AppIcons.bag,
-                          size: 36,
-                          color: AuthDesign.logoIcon,
-                        ),
-                      ),
+                    const Center(
+                      child: AppLogoMark(size: AuthDesign.logoSize),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     Text(

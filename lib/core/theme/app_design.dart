@@ -28,6 +28,9 @@ export '../l10n/app_translations.dart';
 //  لتغيير أي أيقونة في التطبيق بالكامل، غيّرها من هنا فقط.
 // =============================================================================
 abstract final class AppIcons {
+  /// مسار شعار التطبيق الموحد بدون خلفية.
+  static const String logoAsset = 'assets/images/app_logo.png';
+
   // --- التنقل والأسهم (متوافقة مع اتجاه العربية RTL) ---
   static IconData get back => AppLang.isEn ? IconsaxPlusLinear.arrow_left_1 : IconsaxPlusLinear.arrow_right_1;
   static IconData get forward => AppLang.isEn ? IconsaxPlusLinear.arrow_right_3 : IconsaxPlusLinear.arrow_left_2;
@@ -430,6 +433,7 @@ abstract final class AppFormat {
 // -----------------------------------------------------------------------------
 abstract final class AppBarDesign {
   static const double height = 64;
+  static const double logoSize = 36;
   static Color get background => AppColors.white;
   static Color get iconColor => AppColors.icon;
   static const double iconSize = 24;
@@ -1090,9 +1094,9 @@ abstract final class AuthDesign {
 // -----------------------------------------------------------------------------
 abstract final class SplashDesign {
   static Color get background => AppColors.white;
-  static Color get logoBackground => AppColors.primary;
+  static Color get logoBackground => Colors.transparent;
   static Color get logoIcon => AppColors.onPrimary;
-  static const double logoSize = 88;
+  static const double logoSize = 112;
   static Color get title => AppColors.text;
   static Color get indicator => AppColors.primary;
 }
@@ -1135,6 +1139,29 @@ abstract final class AdminDesign {
   static Color get navSelectedBackground => AppColors.primarySoft;
   static Color get navSelectedIcon => AppColors.icon;
   static Color get navUnselectedIcon => AppColors.iconMuted;
+}
+
+/// شارة شعار التطبيق بدون خلفية (للشريط العلوي وشاشة البداية وتسجيل الدخول).
+class AppLogoMark extends StatelessWidget {
+  const AppLogoMark({
+    super.key,
+    this.size = AppBarDesign.logoSize,
+    this.fit = BoxFit.contain,
+  });
+
+  final double size;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      AppIcons.logoAsset,
+      width: size,
+      height: size,
+      fit: fit,
+      filterQuality: FilterQuality.medium,
+    );
+  }
 }
 
 // -----------------------------------------------------------------------------

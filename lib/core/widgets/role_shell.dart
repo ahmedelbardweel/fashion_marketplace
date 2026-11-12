@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_design.dart';
 import '../theme/app_spacing.dart';
 import 'app_bottom_sheet.dart';
 import 'app_button.dart';
@@ -61,7 +62,15 @@ class RoleShell extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        centerTitle: false,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppLogoMark(),
+            const SizedBox(width: AppSpacing.xs),
+            Flexible(child: Text(title)),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: AppHaptics.action(() => _confirmLogout(context, ref)),

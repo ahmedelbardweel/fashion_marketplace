@@ -1409,6 +1409,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                           tooltip: 'رجوع'.tr,
                           onTap: () => Navigator.of(context).maybePop(),
                         ),
+                        const SizedBox(width: AppSpacing.xs),
+                        const AppLogoMark(),
                         const Spacer(),
                         _FloatingCircleButton(
                           icon: AppIcons.compare,

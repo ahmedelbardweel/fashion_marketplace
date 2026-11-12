@@ -2,6 +2,7 @@ import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/utils/validators.dart';
@@ -76,7 +77,15 @@ class _CustomerCompleteProfileScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('إكمال الملف الشخصي'.tr),
+        centerTitle: false,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const AppLogoMark(),
+            const SizedBox(width: AppSpacing.xs),
+            Flexible(child: Text('إكمال الملف الشخصي'.tr)),
+          ],
+        ),
         automaticallyImplyLeading: false,
         actions: [
           TextButton(
