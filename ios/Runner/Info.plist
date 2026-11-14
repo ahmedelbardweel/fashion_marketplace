@@ -70,6 +70,10 @@
 	<string>التقاط صور للمنتجات وتجربة الملابس</string>
 	<key>FlutterDeepLinkingEnabled</key>
 	<false/>
+	<key>GIDClientID</key>
+	<string>756058625665-3e50kcqh5ebkd08v6e34sj95o53jda0t.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>756058625665-8p78ecnhqg2gt5v5ath082u7dp54c108.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -80,6 +84,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>io.supabase.shopy</string>
+				<string>com.googleusercontent.apps.756058625665-3e50kcqh5ebkd08v6e34sj95o53jda0t</string>
 			</array>
 		</dict>
 	</array>
