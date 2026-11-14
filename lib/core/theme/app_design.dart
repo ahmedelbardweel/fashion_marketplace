@@ -15,9 +15,11 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
 import '../l10n/app_translations.dart';
+export 'package:font_awesome_flutter/font_awesome_flutter.dart';
 export 'package:iconsax_plus/iconsax_plus.dart';
 export '../l10n/app_translations.dart';
 
@@ -101,6 +103,7 @@ abstract final class AppIcons {
   static const IconData rateReview = IconsaxPlusLinear.message_edit;
 
   // --- الحساب والحقول والبيانات الشخصية ---
+  static const IconData google = FontAwesomeIcons.google;
   static const IconData mail = IconsaxPlusLinear.sms;
   static const IconData lock = IconsaxPlusLinear.lock;
   static const IconData eye = IconsaxPlusLinear.eye;
@@ -1087,6 +1090,19 @@ abstract final class AuthDesign {
   static Color get choiceCardBorder => AppColors.border;
   static Color get choiceCardSelectedBorder => AppColors.primary;
   static const double choiceCardRadius = AppRadii.card;
+
+  // --- التسجيل الاجتماعي (Google) والفاصل ---
+  static const double socialButtonHeight = ButtonDesign.height;
+  static const double socialButtonRadius = ButtonDesign.radius;
+  static const double socialIconSize = 18;
+  static const double socialIconSpacing = 10;
+  static Color get socialIconColor => AppColors.icon;
+  static Color get socialButtonBackground => AppColors.surfaceAlt;
+  static Color get socialButtonBorder => AppColors.border;
+  static Color get socialButtonForeground => AppColors.text;
+  static Color get dividerColor => AppColors.divider;
+  static Color get dividerTextColor => AppColors.textMuted;
+  static const double dividerTextSize = 13;
 }
 
 // -----------------------------------------------------------------------------

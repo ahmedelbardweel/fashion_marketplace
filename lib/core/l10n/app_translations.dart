@@ -209,6 +209,11 @@ class AppLang {
     // --- App & Navigation ---
     'ملابسي': 'Shopy',
     'Shopy': 'Shopy',
+    'أو': 'OR',
+    'المتابعة باستخدام Google': 'Continue with Google',
+    'تعذر تسجيل الدخول عبر Google': 'Failed to sign in with Google',
+    'تعذر فتح صفحة تسجيل الدخول عبر Google':
+        'Could not open Google sign-in page',
     'السوق العصري': 'Modern Market',
     'الرئيسية': 'Home',
     'المنتجات': 'Products',

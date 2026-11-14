@@ -49,6 +49,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _submitGoogle() async {
+    FocusScope.of(context).unfocus();
+    final ok = await ref
+        .read(authControllerProvider.notifier)
+        .signInWithGoogle();
+    if (!mounted) return;
+    if (!ok) {
+      final error = ref.read(authControllerProvider).errorMessage;
+      showAppSnackBar(
+        context,
+        error ?? 'تعذر تسجيل الدخول عبر Google'.tr,
+        isError: true,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
@@ -136,13 +152,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     AppButton(
                       label: 'دخول'.tr,
                       isLoading: auth.isBusy,
-                      onPressed: _submit,
+                      onPressed: auth.isGoogleBusy ? null : _submit,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Divider(
+                            color: AuthDesign.dividerColor,
+                            thickness: AppBorders.width,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                          ),
+                          child: Text(
+                            'أو'.tr,
+                            style: TextStyle(
+                              fontSize: AuthDesign.dividerTextSize,
+                              fontWeight: AppFont.medium,
+                              color: AuthDesign.dividerTextColor,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Divider(
+                            color: AuthDesign.dividerColor,
+                            thickness: AppBorders.width,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    AppGoogleAuthButton(
+                      isLoading: auth.isGoogleBusy,
+                      onPressed: auth.isBusy ? null : _submitGoogle,
                     ),
                     const SizedBox(height: AppSpacing.md),
                     AppButton(
                       label: 'إنشاء حساب جديد'.tr,
                       variant: AppButtonVariant.outlined,
-                      onPressed: auth.isBusy
+                      onPressed: (auth.isBusy || auth.isGoogleBusy)
                           ? null
                           : () => context.push(AppRoutes.register),
                     ),

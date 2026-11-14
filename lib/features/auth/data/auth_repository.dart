@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
@@ -6,9 +7,11 @@ import '../domain/models/user_role.dart';
 
 class AuthRepository {
   AuthRepository({SupabaseClient? client})
-      : _client = client ?? SupabaseConfig.client;
+    : _client = client ?? SupabaseConfig.client;
 
   final SupabaseClient _client;
+
+  static const String oauthRedirectUrl = 'io.supabase.shopy://login-callback/';
 
   Session? get currentSession => _client.auth.currentSession;
   User? get currentAuthUser => _client.auth.currentUser;
@@ -19,14 +22,46 @@ class AuthRepository {
     final user = currentAuthUser;
     if (user == null) return null;
 
-    final data = await _client
-        .from('profiles')
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
+    Map<String, dynamic>? data;
+    for (var attempt = 0; attempt < 5; attempt++) {
+      final res = await _client
+          .from('profiles')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
+      if (res != null) {
+        data = Map<String, dynamic>.from(res);
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
 
     if (data == null) return null;
-    return AppUser.fromMap(Map<String, dynamic>.from(data));
+
+    final currentFullName = (data['full_name'] as String?)?.trim();
+    if (currentFullName == null || currentFullName.isEmpty) {
+      final meta = user.userMetadata;
+      final googleName =
+          (meta?['full_name'] as String?)?.trim() ??
+          (meta?['name'] as String?)?.trim();
+      if (googleName != null && googleName.isNotEmpty) {
+        data['full_name'] = googleName;
+      }
+    }
+
+    return AppUser.fromMap(data);
+  }
+
+  Future<bool> signInWithGoogle() async {
+    final launched = await _client.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: kIsWeb ? null : oauthRedirectUrl,
+      authScreenLaunchMode: LaunchMode.externalApplication,
+    );
+    if (!launched) {
+      throw AuthException('تعذر فتح صفحة تسجيل الدخول عبر Google');
+    }
+    return true;
   }
 
   Future<AppUser> signIn({

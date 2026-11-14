@@ -81,6 +81,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final auth = ref.read(authControllerProvider);
       final location = state.matchedLocation;
 
+      if (location.contains('login-callback')) {
+        return AppRoutes.splash;
+      }
+
       final isSplash = location == AppRoutes.splash;
       final isSplashDone = ref.read(splashCompletedProvider);
       if (!isSplashDone) {

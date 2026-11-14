@@ -21,12 +21,14 @@ class AuthSessionState {
     this.user,
     this.errorMessage,
     this.isBusy = false,
+    this.isGoogleBusy = false,
   });
 
   final AuthStatus status;
   final AppUser? user;
   final String? errorMessage;
   final bool isBusy;
+  final bool isGoogleBusy;
 
   bool get isAuthenticated =>
       status == AuthStatus.authenticated && user != null;
@@ -38,6 +40,7 @@ class AuthSessionState {
     AppUser? user,
     String? errorMessage,
     bool? isBusy,
+    bool? isGoogleBusy,
     bool clearUser = false,
     bool clearError = false,
   }) {
@@ -46,6 +49,7 @@ class AuthSessionState {
       user: clearUser ? null : (user ?? this.user),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       isBusy: isBusy ?? this.isBusy,
+      isGoogleBusy: isGoogleBusy ?? this.isGoogleBusy,
     );
   }
 }
@@ -125,6 +129,23 @@ class AuthController extends StateNotifier<AuthSessionState> {
         isBusy: false,
         status: AuthStatus.unauthenticated,
         clearUser: true,
+        errorMessage: _repository.mapAuthError(error),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> signInWithGoogle() async {
+    state = state.copyWith(isGoogleBusy: true, clearError: true);
+    try {
+      await _repository.signInWithGoogle();
+      // Keep isGoogleBusy false once external browser opens; authStateChanges
+      // will update state to authenticated when callback returns.
+      state = state.copyWith(isGoogleBusy: false);
+      return true;
+    } catch (error) {
+      state = state.copyWith(
+        isGoogleBusy: false,
         errorMessage: _repository.mapAuthError(error),
       );
       return false;
