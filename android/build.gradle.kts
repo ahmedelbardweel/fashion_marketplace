@@ -25,6 +25,12 @@ subprojects {
                 }
             }
     }
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+        compilerExecutionStrategy.set(
+            org.jetbrains.kotlin.gradle.tasks.KotlinCompilerExecutionStrategy.IN_PROCESS
+        )
+        useDaemonFallbackStrategy.set(true)
+    }
 }
 subprojects {
     project.evaluationDependsOn(":app")

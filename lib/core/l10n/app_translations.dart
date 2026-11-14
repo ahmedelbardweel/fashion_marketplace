@@ -206,6 +206,28 @@ class AppLang {
   };
 
   static const Map<String, String> _exact = {
+    // --- Body zone selection ---
+    'اختر منطقة التجربة': 'Choose your try-on area',
+    'المس منطقة على الجسم أو اختر من الخيارات أدناه.':
+        'Tap a body area or choose an option below.',
+    'القطعة المختارة': 'Selected item',
+    'منظر أمامي': 'Front view',
+    'دليل مناطق الجسم': 'Body area guide',
+    'الجزء العلوي': 'Upper body',
+    'شورت': 'Shorts',
+    'طقم كامل / فستان': 'Full outfit / dress',
+    'الأحذية': 'Footwear',
+    'ابدأ التجربة': 'Start try-on',
+    'وجّه الكاميرا ليظهر الجزء العلوي والكتفين في إضاءة واضحة.':
+        'Keep your upper body and shoulders visible in good light.',
+    'وجّه الكاميرا نحو منطقة الخصر والرجلين في إضاءة واضحة.':
+        'Keep your waist and legs visible in good light.',
+    'وجّه الكاميرا نحو الخصر والركبتين في إضاءة واضحة.':
+        'Keep your waist and knees visible in good light.',
+    'قف أمام الكاميرا ليظهر الجسم في إضاءة واضحة.':
+        'Stand in front of the camera with your body visible in good light.',
+    'وجّه الكاميرا نحو القدمين والكاحلين في إضاءة واضحة.':
+        'Keep your feet and ankles visible in good light.',
     // --- App & Navigation ---
     'ملابسي': 'Shopy',
     'Shopy': 'Shopy',

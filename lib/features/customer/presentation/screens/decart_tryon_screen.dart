@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/services/decart_realtime_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_skeleton.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../virtual_tryon/data/capture_guard.dart';
 import '../../../virtual_tryon/domain/remote_frame_gate.dart';
 import '../../../virtual_tryon/presentation/remote_video_binding.dart';
@@ -44,6 +45,9 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _service = ref.read(decartRealtimeServiceProvider(widget.productId));
+    _controller = ref.read(decartTryonProvider(widget.productId).notifier);
+    _guard = ref.read(captureGuardProvider(widget.productId));
     _rendererInitialization = Future.wait([
       _renderer.initialize(),
       _localRenderer.initialize(),
@@ -53,6 +57,8 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   Future<void> _initialize() async {
     try {
+      // Preload product & catalog immediately for Step 1 (Interactive Body Zone Selector)
+      unawaited(_controller.preloadCatalog());
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
       ]);
@@ -60,9 +66,6 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       if (!mounted) return;
       _localRenderer.addListener(_rendererChanged);
       _renderer.addListener(_rendererChanged);
-      _service = ref.read(decartRealtimeServiceProvider(widget.productId));
-      _controller = ref.read(decartTryonProvider(widget.productId).notifier);
-      _guard = ref.read(captureGuardProvider(widget.productId));
       _guard.addListener(_bindLocal);
       _videoBinding = RemoteVideoBinding(_renderer, () {
         if (mounted) {
@@ -77,8 +80,6 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
         if (mounted) _videoBinding?.attach(stream);
       };
       setState(() => _ready = true);
-      // Preload product & catalog for Step 1 (Interactive Body Zone Selector)
-      unawaited(_controller.preloadCatalog());
     } catch (_) {
       if (mounted) {
         setState(
@@ -102,7 +103,13 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   }
 
   Future<void> _start() async {
-    if (!_ready || !mounted || !_foreground) return;
+    if (!mounted || !_foreground) return;
+    if (!_ready) {
+      try {
+        await _rendererInitialization;
+      } catch (_) {}
+      if (!mounted) return;
+    }
     setState(() {
       _started = true;
       _showOriginal = false;
@@ -150,7 +157,9 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                 const SizedBox(height: 8),
                 Expanded(
                   child: InteractiveBodyZoneSelector(
-                    selectedZone: currentState.selectedZone,
+                    measurementProfileId:
+                        ref.watch(authControllerProvider).user?.id ?? 'guest',
+                    selectedZone: currentState.effectiveZone,
                     selectedProduct: currentState.selectedProduct,
                     availableProducts: currentState.availableProducts,
                     onZoneSelected: (zone) {
@@ -218,6 +227,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   Widget build(BuildContext context) {
     final state = ref.watch(decartTryonProvider(widget.productId));
     final guard = ref.watch(captureGuardProvider(widget.productId));
+    final activeZone = state.effectiveZone;
     final step = !_started
         ? 0
         : guard.approved
@@ -227,7 +237,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
         _rendererError != null ||
         state.status == DecartSessionStatus.error ||
         (_started && state.status == DecartSessionStatus.disconnected);
-    final zoneColor = Color(state.selectedZone.colorHex);
+    final zoneColor = Color(activeZone.colorHex);
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -252,7 +262,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                   ),
                   Expanded(
                     child: Text(
-                      'غرفة التجربة الذكية'.tr,
+                      'تجربة الملابس'.tr,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
@@ -273,13 +283,15 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                 ],
               ),
             ),
-            TryonSteps(current: step),
+            if (_started) TryonSteps(current: step),
 
             // Main Stage Area
             Expanded(
               child: !_started && !failed
                   ? InteractiveBodyZoneSelector(
-                      selectedZone: state.selectedZone,
+                      measurementProfileId:
+                          ref.watch(authControllerProvider).user?.id ?? 'guest',
+                      selectedZone: activeZone,
                       selectedProduct: state.selectedProduct,
                       availableProducts: state.availableProducts,
                       onZoneSelected: _controller.selectBodyZone,
@@ -333,7 +345,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                                     IgnorePointer(
                                       child: CustomPaint(
                                         painter: ZoneFramedGuidePainter(
-                                          zone: state.selectedZone,
+                                          zone: activeZone,
                                         ),
                                       ),
                                     ),
@@ -379,9 +391,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                                                     ),
                                                     const SizedBox(width: 7),
                                                     Text(
-                                                      state
-                                                          .selectedZone
-                                                          .shortLabel,
+                                                      activeZone.shortLabel,
                                                       style: const TextStyle(
                                                         color: Colors.white,
                                                         fontSize: 12,
@@ -483,15 +493,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                                             children: [
                                               AppBusyLabel(
                                                 label:
-                                                    'جارٍ تركيب القطعة على (${state.selectedZone.shortLabel}) بنفس الخامة والتفاصيل…',
-                                              ),
-                                              const SizedBox(height: 6),
-                                              Text(
-                                                'مع الحفاظ الكامل على الوجه وحجم الجسم الطبيعي',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: AppColors.gray500,
-                                                ),
+                                                    'جارٍ تركيب القطعة على (${activeZone.shortLabel})…',
                                               ),
                                             ],
                                           ),
@@ -514,7 +516,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                                   : !guard.approved && guard.analyzing
                                   ? LightingOnlyChecklist(
                                       assessment: guard.assessment,
-                                      selectedZone: state.selectedZone,
+                                      selectedZone: activeZone,
                                       onSkipLighting:
                                           _guard.forceApproveLighting,
                                       onChangeZone: () =>
@@ -533,56 +535,57 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     );
   }
 
-  Widget _errorPanel(DecartTryonState state, String message) =>
-      SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Card(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(22),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(AppIcons.focus, size: 36, color: AppColors.primary),
-                const SizedBox(height: 12),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 16),
-                if (state.retryPending)
-                  AppBusyLabel(
-                    label:
-                        'جارٍ استئناف التجربة تلقائياً… (${state.retryAttempt}/3)'
-                            .tr,
-                  )
-                else ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _controller.retry,
-                      icon: const Icon(Icons.refresh_rounded, size: 18),
-                      label: const Text('إعادة المحاولة الآن'),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton.icon(
-                    onPressed: _returnToBodyMap,
-                    icon: const Icon(Icons.accessibility_new_rounded, size: 18),
-                    label: const Text('العودة لتحديد مكان اللبس على المجسم'),
-                  ),
-                ],
-              ],
+  Widget _errorPanel(
+    DecartTryonState state,
+    String message,
+  ) => SingleChildScrollView(
+    padding: const EdgeInsets.all(24),
+    child: Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(AppIcons.focus, size: 36, color: AppColors.primary),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w600),
             ),
-          ),
+            const SizedBox(height: 16),
+            if (state.retryPending)
+              AppBusyLabel(
+                label:
+                    'جارٍ استئناف التجربة تلقائياً… (${state.retryAttempt}/3)'
+                        .tr,
+              )
+            else ...[
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _controller.retry,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('إعادة المحاولة الآن'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _returnToBodyMap,
+                icon: const Icon(Icons.accessibility_new_rounded, size: 18),
+                label: const Text('العودة لتحديد مكان اللبس على المجسم'),
+              ),
+            ],
+          ],
         ),
-      );
+      ),
+    ),
+  );
 
   Widget _garments(DecartTryonState state) {
-    final zoneColor = Color(state.selectedZone.colorHex);
+    final activeZone = state.effectiveZone;
+    final zoneColor = Color(activeZone.colorHex);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
       child: Column(
@@ -603,7 +606,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                 child: Text(
                   _showOriginal
                       ? 'صورتك الأصلية للمقارنة'.tr
-                      : 'مركّب على: ${state.selectedZone.arabicTitle}',
+                      : activeZone.shortLabel,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -647,18 +650,11 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
           ),
-          const SizedBox(height: 3),
-          Text(
-            'نفس خامات وتفاصيل المنتج • الحفاظ التام على الوجه وحجم الجسم الطبيعي',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: AppColors.gray500),
-          ),
           if (state.isUpdating)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: AppBusyLabel(
-                label:
-                    'جارٍ تطبيق القطعة على (${state.selectedZone.shortLabel})…',
+                label: 'جارٍ تطبيق القطعة على (${activeZone.shortLabel})…',
               ),
             ),
           if (state.errorMessage != null)

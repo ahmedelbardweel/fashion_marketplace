@@ -46,6 +46,13 @@ class DecartTryonState {
   bool get isOverlayLoading =>
       status == DecartSessionStatus.initializing ||
       status == DecartSessionStatus.connecting;
+  TryonBodyZone get effectiveZone =>
+      zoneManuallySelected || selectedProduct == null
+      ? selectedZone
+      : TryonBodyZone.infer(
+          selectedProduct!.name,
+          selectedProduct!.categoryName,
+        );
 
   DecartTryonState copyWith({
     DecartSessionStatus? status,
