@@ -47,6 +47,17 @@ jobs:
       - name: Test virtual try-on
         if: matrix.platform == 'android'
         run: flutter test test/virtual_tryon/decart_service_test.dart test/virtual_tryon/tryon_controller_test.dart test/virtual_tryon/web_camera_test.dart
+      - name: Configure Gradle for CI
+        if: matrix.platform == 'android'
+        shell: bash
+        run: |
+          mkdir -p ~/.gradle
+          cat << 'EOF' > ~/.gradle/gradle.properties
+          org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -XX:ReservedCodeCacheSize=512m
+          kotlin.daemon.jvmargs=-Xmx2048m -XX:MaxMetaspaceSize=512m
+          org.gradle.parallel=true
+          org.gradle.vfs.watch=false
+          EOF
       - name: Build Android APK
         if: matrix.platform == 'android'
         run: flutter build apk --release --build-number=${{ github.run_number }}
