@@ -36,6 +36,15 @@ android {
         }
     }
 
+    signingConfigs {
+        getByName("debug") {
+            val sharedDebugKeystore = file("debug.keystore")
+            if (sharedDebugKeystore.exists()) {
+                storeFile = sharedDebugKeystore
+            }
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

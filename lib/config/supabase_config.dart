@@ -25,6 +25,12 @@ class SupabaseConfig {
     return value;
   }
 
+  static String get googleWebClientId =>
+      dotenv.env['GOOGLE_WEB_CLIENT_ID']?.trim() ?? '';
+
+  static String get googleIosClientId =>
+      dotenv.env['GOOGLE_IOS_CLIENT_ID']?.trim() ?? '';
+
   static Future<void> initialize() async {
     await Supabase.initialize(
       url: url,

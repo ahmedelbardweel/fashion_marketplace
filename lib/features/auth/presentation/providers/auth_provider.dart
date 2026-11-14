@@ -138,10 +138,16 @@ class AuthController extends StateNotifier<AuthSessionState> {
   Future<bool> signInWithGoogle() async {
     state = state.copyWith(isGoogleBusy: true, clearError: true);
     try {
-      await _repository.signInWithGoogle();
-      // Keep isGoogleBusy false once external browser opens; authStateChanges
-      // will update state to authenticated when callback returns.
-      state = state.copyWith(isGoogleBusy: false);
+      final user = await _repository.signInWithGoogle();
+      if (user == null) {
+        // User dismissed the native bottom sheet without error
+        state = state.copyWith(isGoogleBusy: false, clearError: true);
+        return true;
+      }
+      state = AuthSessionState(
+        status: AuthStatus.authenticated,
+        user: user,
+      );
       return true;
     } catch (error) {
       state = state.copyWith(

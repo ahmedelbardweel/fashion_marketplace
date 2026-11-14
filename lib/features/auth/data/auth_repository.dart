@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
@@ -10,8 +12,6 @@ class AuthRepository {
     : _client = client ?? SupabaseConfig.client;
 
   final SupabaseClient _client;
-
-  static const String oauthRedirectUrl = 'io.supabase.shopy://login-callback/';
 
   Session? get currentSession => _client.auth.currentSession;
   User? get currentAuthUser => _client.auth.currentUser;
@@ -52,16 +52,85 @@ class AuthRepository {
     return AppUser.fromMap(data);
   }
 
-  Future<bool> signInWithGoogle() async {
-    final launched = await _client.auth.signInWithOAuth(
-      OAuthProvider.google,
-      redirectTo: kIsWeb ? null : oauthRedirectUrl,
-      authScreenLaunchMode: LaunchMode.externalApplication,
-    );
-    if (!launched) {
-      throw AuthException('تعذر فتح صفحة تسجيل الدخول عبر Google');
+  /// يفتح نافذة اختيار حساب Google الأصلية (Bottom Sheet داخل التطبيق) على أندرويد وآيفون
+  /// ويسجل الدخول مباشرة في Supabase عبر ID Token بدون الخروج إلى المتصفح.
+  Future<AppUser?> signInWithGoogle() async {
+    final webClientId = SupabaseConfig.googleWebClientId;
+    final iosClientId = SupabaseConfig.googleIosClientId;
+
+    if (!kIsWeb && webClientId.isEmpty) {
+      throw const AuthException(
+        'يرجى إضافة GOOGLE_WEB_CLIENT_ID في ملف .env لتفعيل الدخول المباشر عبر Google',
+      );
     }
-    return true;
+
+    final googleSignIn = GoogleSignIn(
+      scopes: const ['email', 'profile'],
+      serverClientId: webClientId.isEmpty ? null : webClientId,
+      clientId: (!kIsWeb &&
+              defaultTargetPlatform == TargetPlatform.iOS &&
+              iosClientId.isNotEmpty)
+          ? iosClientId
+          : null,
+    );
+
+    try {
+      // ضمان ظهور نافذة اختيار الحساب السفلية (Bottom Sheet) دائماً
+      await googleSignIn.signOut();
+    } catch (_) {}
+
+    final GoogleSignInAccount? googleUser;
+    try {
+      googleUser = await googleSignIn.signIn();
+    } on PlatformException catch (e) {
+      final code = e.code.toLowerCase();
+      if (code.contains('canceled') || code.contains('cancelled')) {
+        return null;
+      }
+      if (code.contains('sign_in_failed') ||
+          (e.message?.contains('10:') ?? false)) {
+        throw const AuthException(
+          'تأكد من إضافة بصمة SHA-1 و Web Client ID في إعدادات Google Cloud Console',
+        );
+      }
+      throw AuthException(e.message ?? 'تعذر تسجيل الدخول عبر Google');
+    }
+
+    // إذا أغلق المستخدم النافذة السفلية بدون اختيار حساب
+    if (googleUser == null) {
+      return null;
+    }
+
+    final googleAuth = await googleUser.authentication;
+    final idToken = googleAuth.idToken;
+    final accessToken = googleAuth.accessToken;
+
+    if (idToken == null) {
+      throw const AuthException(
+        'تعذر الحصول على رمز المصادقة (ID Token) من Google. تأكد من صحة GOOGLE_WEB_CLIENT_ID',
+      );
+    }
+
+    final response = await _client.auth.signInWithIdToken(
+      provider: OAuthProvider.google,
+      idToken: idToken,
+      accessToken: accessToken,
+    );
+
+    if (response.user == null) {
+      throw const AuthException('تعذر تسجيل الدخول عبر Google');
+    }
+
+    final profile = await fetchCurrentProfile();
+    if (profile == null) {
+      await signOut();
+      throw const AuthException('لم يتم العثور على ملف المستخدم');
+    }
+    if (!profile.isActive) {
+      await signOut();
+      throw const AuthException('هذا الحساب موقوف. تواصل مع الإدارة');
+    }
+    return profile;
   }
 
   Future<AppUser> signIn({

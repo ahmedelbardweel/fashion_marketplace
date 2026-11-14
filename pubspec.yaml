@@ -31,6 +31,7 @@ dependencies:
   skeletonizer: ^3.0.0
   iconsax_plus: ^1.0.0
   font_awesome_flutter: ^10.8.0
+  google_sign_in: ^6.2.2
   shared_preferences: ^2.3.5
 
 dev_dependencies:

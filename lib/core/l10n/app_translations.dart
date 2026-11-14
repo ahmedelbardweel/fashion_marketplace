@@ -212,8 +212,12 @@ class AppLang {
     'أو': 'OR',
     'المتابعة باستخدام Google': 'Continue with Google',
     'تعذر تسجيل الدخول عبر Google': 'Failed to sign in with Google',
-    'تعذر فتح صفحة تسجيل الدخول عبر Google':
-        'Could not open Google sign-in page',
+    'يرجى إضافة GOOGLE_WEB_CLIENT_ID في ملف .env لتفعيل الدخول المباشر عبر Google':
+        'Please add GOOGLE_WEB_CLIENT_ID in .env to enable native Google sign-in',
+    'تأكد من إضافة بصمة SHA-1 و Web Client ID في إعدادات Google Cloud Console':
+        'Ensure SHA-1 fingerprint and Web Client ID are configured in Google Cloud Console',
+    'تعذر الحصول على رمز المصادقة (ID Token) من Google. تأكد من صحة GOOGLE_WEB_CLIENT_ID':
+        'Failed to get ID Token from Google. Verify GOOGLE_WEB_CLIENT_ID',
     'السوق العصري': 'Modern Market',
     'الرئيسية': 'Home',
     'المنتجات': 'Products',
