@@ -76,6 +76,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           items: entry.value,
           deliveryAddress: address,
           phone: phone,
+          notes: _notesController.text,
         );
       }
 

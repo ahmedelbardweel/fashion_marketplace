@@ -168,6 +168,39 @@ class OrderDetailsScreen extends ConsumerWidget {
                           color: AppColors.textMuted,
                         ),
                       ),
+                      if (order.deliveryAddress != null &&
+                          order.deliveryAddress!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          '${'عنوان التوصيل'.tr}: ${order.deliveryAddress}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                      if (order.phone != null &&
+                          order.phone!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '${'رقم الهاتف'.tr}: ${order.phone}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                      if (order.notes != null &&
+                          order.notes!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '${'ملاحظات'.tr}: ${order.notes}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

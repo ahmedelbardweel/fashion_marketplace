@@ -419,24 +419,274 @@ class CustomerRepository {
     );
   }
 
+  // Cart persistence in Supabase
+  Future<List<CartItem>> getCartItems() async {
+    final userId = currentUserId;
+    if (userId == null) return const [];
+    try {
+      final rows = await _client
+          .from('cart_items')
+          .select('''
+            id, product_id, variant_id, color, size, quantity,
+            product:products(
+              id, shop_id, name, price, status,
+              shops:shop_id(name),
+              variants:product_variants(*),
+              images:product_images(*)
+            )
+          ''')
+          .eq('customer_id', userId)
+          .order('created_at', ascending: true);
+
+      final items = <CartItem>[];
+      for (final row in rows as List) {
+        final r = asStringMap(row);
+        final pData = row['product'];
+        if (pData == null || pData is! Map) continue;
+        final pMap = asStringMap(pData);
+        if (pMap['status']?.toString() != 'published') continue;
+
+        final shopMap = pData['shops'] is Map ? asStringMap(pData['shops']) : null;
+        final shopName = shopMap?['name']?.toString() ?? 'متجر';
+        final productId = pMap['id']?.toString() ?? r['product_id']?.toString() ?? '';
+        final shopId = pMap['shop_id']?.toString() ?? '';
+        final productName = pMap['name']?.toString() ?? 'منتج';
+        final unitPrice = (pMap['price'] as num?)?.toDouble() ?? 0.0;
+        final color = r['color']?.toString() ?? '';
+        final size = r['size']?.toString() ?? '';
+        final variantId = r['variant_id']?.toString();
+
+        final variants = (pData['variants'] as List? ?? [])
+            .map((v) => ProductVariant.fromMap(asStringMap(v)))
+            .toList();
+        final images = (pData['images'] as List? ?? [])
+            .map((img) => ProductImage.fromMap(asStringMap(img)))
+            .toList();
+
+        String? coverImage;
+        for (final img in images) {
+          if (img.kind == 'cover') {
+            coverImage = img.filePath;
+            break;
+          }
+        }
+        coverImage ??= images.isNotEmpty ? images.first.filePath : null;
+
+        int maxStock = 999;
+        for (final v in variants) {
+          if ((variantId != null && v.id == variantId) ||
+              (v.color == color && v.size == size)) {
+            maxStock = v.stock > 0 ? v.stock : 1;
+            break;
+          }
+        }
+
+        final qty = ((r['quantity'] as num?)?.toInt() ?? 1).clamp(1, maxStock);
+        final cartItemId = '${productId}_${color}_$size';
+
+        items.add(
+          CartItem(
+            id: cartItemId,
+            productId: productId,
+            productName: productName,
+            shopId: shopId,
+            shopName: shopName,
+            variantId: variantId,
+            color: color,
+            size: size,
+            unitPrice: unitPrice,
+            quantity: qty,
+            imagePath: coverImage,
+            maxStock: maxStock,
+          ),
+        );
+      }
+      return items;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> upsertCartItem({
+    required String productId,
+    String? variantId,
+    required String color,
+    required String size,
+    required int quantity,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    try {
+      await _client.from('cart_items').upsert(
+        {
+          'customer_id': userId,
+          'product_id': productId,
+          'variant_id': (variantId == null || variantId.isEmpty) ? null : variantId,
+          'color': color,
+          'size': size,
+          'quantity': quantity,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        onConflict: 'customer_id,product_id,color,size',
+      );
+    } catch (_) {}
+  }
+
+  Future<void> removeCartItem({
+    required String productId,
+    required String color,
+    required String size,
+  }) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    try {
+      await _client
+          .from('cart_items')
+          .delete()
+          .eq('customer_id', userId)
+          .eq('product_id', productId)
+          .eq('color', color)
+          .eq('size', size);
+    } catch (_) {}
+  }
+
+  Future<void> clearCartItems() async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    try {
+      await _client.from('cart_items').delete().eq('customer_id', userId);
+    } catch (_) {}
+  }
+
+  // Comparison persistence in Supabase
+  Future<List<CustomerProduct>> getComparisonProducts() async {
+    final userId = currentUserId;
+    if (userId == null) return const [];
+    try {
+      final rows = await _client
+          .from('comparison_items')
+          .select('''
+            product:products(
+              id, shop_id, category_id, name, description, details, price, status,
+              shops:shop_id(name),
+              categories:category_id(name),
+              variants:product_variants(*),
+              images:product_images(*)
+            )
+          ''')
+          .eq('customer_id', userId)
+          .order('created_at', ascending: true);
+
+      final favoriteIds = await _getUserFavoriteIds();
+      final list = <CustomerProduct>[];
+      for (final row in rows as List) {
+        final pData = row['product'];
+        if (pData == null || pData is! Map) continue;
+        final map = asStringMap(pData);
+        if (map['status']?.toString() != 'published') continue;
+        final shopMap = pData['shops'] is Map ? asStringMap(pData['shops']) : null;
+        final catMap = pData['categories'] is Map ? asStringMap(pData['categories']) : null;
+        map['shop_name'] = shopMap?['name'] ?? 'متجر';
+        map['category_name'] = catMap?['name'];
+
+        final variants = (pData['variants'] as List? ?? [])
+            .map((v) => ProductVariant.fromMap(asStringMap(v)))
+            .toList();
+        final images = (pData['images'] as List? ?? [])
+            .map((img) => ProductImage.fromMap(asStringMap(img)))
+            .toList();
+        final pid = map['id']?.toString() ?? '';
+
+        list.add(
+          CustomerProduct.fromMap(
+            map,
+            variants: variants,
+            images: images,
+            isFavorite: favoriteIds.contains(pid),
+          ),
+        );
+      }
+      return list;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> addComparisonProduct(String productId) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    try {
+      await _client.from('comparison_items').upsert(
+        {
+          'customer_id': userId,
+          'product_id': productId,
+        },
+        onConflict: 'customer_id,product_id',
+      );
+    } catch (_) {}
+  }
+
+  Future<void> removeComparisonProduct(String productId) async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    try {
+      await _client
+          .from('comparison_items')
+          .delete()
+          .eq('customer_id', userId)
+          .eq('product_id', productId);
+    } catch (_) {}
+  }
+
+  Future<void> clearComparisonProducts() async {
+    final userId = currentUserId;
+    if (userId == null) return;
+    try {
+      await _client.from('comparison_items').delete().eq('customer_id', userId);
+    } catch (_) {}
+  }
+
   // Orders
   Future<CustomerOrder> placeOrder({
     required String shopId,
     required List<CartItem> items,
     required String deliveryAddress,
     required String phone,
+    String? notes,
   }) async {
     final payload = items.map((i) => i.toOrderPayload()).toList();
+    final trimmedAddress = deliveryAddress.trim();
+    final trimmedPhone = phone.trim();
+    final trimmedNotes = notes?.trim();
 
-    final result = await _client.rpc(
-      'customer_place_order',
-      params: {
-        'p_shop_id': shopId,
-        'p_items': payload,
-        'p_delivery_address': deliveryAddress.trim(),
-        'p_phone': phone.trim(),
-      },
-    );
+    dynamic result;
+    try {
+      result = await _client.rpc(
+        'customer_place_order',
+        params: {
+          'p_shop_id': shopId,
+          'p_items': payload,
+          'p_delivery_address': trimmedAddress,
+          'p_phone': trimmedPhone,
+          'p_notes': trimmedNotes,
+        },
+      );
+    } on PostgrestException catch (e) {
+      // Fallback if the 4-argument version of customer_place_order is still installed
+      if (e.message.contains('p_notes') || e.code == 'PGRST202') {
+        result = await _client.rpc(
+          'customer_place_order',
+          params: {
+            'p_shop_id': shopId,
+            'p_items': payload,
+            'p_delivery_address': trimmedAddress,
+            'p_phone': trimmedPhone,
+          },
+        );
+      } else {
+        rethrow;
+      }
+    }
 
     return CustomerOrder.fromMap(asStringMap(result));
   }
@@ -446,7 +696,7 @@ class CustomerRepository {
     if (userId == null) return const [];
     try {
       final rows = await _client.from('orders').select('''
-        id, customer_id, shop_id, status, total, created_at,
+        *,
         shops:shop_id(name),
         items:order_items(*)
       ''').eq('customer_id', userId).order('created_at', ascending: false);
@@ -470,7 +720,7 @@ class CustomerRepository {
   Future<CustomerOrder?> getOrderDetails(String orderId) async {
     try {
       final row = await _client.from('orders').select('''
-        id, customer_id, shop_id, status, total, created_at,
+        *,
         shops:shop_id(name),
         items:order_items(*)
       ''').eq('id', orderId).single();
@@ -495,7 +745,7 @@ class CustomerRepository {
       final rows = await _client
           .from('notifications')
           .select()
-          .inFilter('audience', ['all', 'customers'])
+          .inFilter('audience', ['all', 'customer'])
           .order('created_at', ascending: false);
       return (rows as List).map((r) => AdminNotification.fromMap(asStringMap(r))).toList();
     } catch (_) {

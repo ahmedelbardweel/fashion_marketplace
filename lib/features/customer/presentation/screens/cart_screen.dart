@@ -30,22 +30,36 @@ class CartScreen extends ConsumerWidget {
             label: Text('تفريغ'.tr),
           ),
       ],
-      body: cartItems.isEmpty
-          ? AppEmpty(
-              icon: AppIcons.bag,
-              title: 'سلة المشتريات فارغة'.tr,
-              message: 'تصفح أحدث الأزياء وأضف القطع المفضلة إلى سلتك'.tr,
-              actionLabel: 'تصفح المتجر الآن'.tr,
-              onAction: AppHaptics.action(
-                () => context.go(AppRoutes.customerCatalog),
-              ),
-            )
-          : Column(
-              children: [
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    itemCount: cartItems.length,
+      body: RefreshIndicator.noSpinner(
+        onRefresh: AppHaptics.refresh(() async {
+          await cartNotifier.loadFromRemote();
+        }),
+        child: cartItems.isEmpty
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: [
+                  SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.65,
+                    child: AppEmpty(
+                      icon: AppIcons.bag,
+                      title: 'سلة المشتريات فارغة'.tr,
+                      message:
+                          'تصفح أحدث الأزياء وأضف القطع المفضلة إلى سلتك'.tr,
+                      actionLabel: 'تصفح المتجر الآن'.tr,
+                      onAction: AppHaptics.action(
+                        () => context.go(AppRoutes.customerCatalog),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                  Expanded(
+                    child: ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      itemCount: cartItems.length,
                     separatorBuilder: (_, _) => Divider(
                       height: AppSpacing.lg,
                       color: CartDesign.itemDivider,
@@ -324,6 +338,7 @@ class CartScreen extends ConsumerWidget {
                 ),
               ],
             ),
+      ),
     );
   }
 }

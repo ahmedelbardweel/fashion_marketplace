@@ -9,6 +9,7 @@ class CustomerOrderItem {
     required this.unitPrice,
     required this.quantity,
     required this.totalPrice,
+    this.imagePath,
   });
 
   factory CustomerOrderItem.fromMap(Map<String, dynamic> map) {
@@ -22,6 +23,7 @@ class CustomerOrderItem {
       unitPrice: (map['unit_price'] as num?)?.toDouble() ?? 0.0,
       quantity: (map['quantity'] as num?)?.toInt() ?? 1,
       totalPrice: (map['total_price'] as num?)?.toDouble() ?? 0.0,
+      imagePath: map['image_path']?.toString(),
     );
   }
 
@@ -34,6 +36,7 @@ class CustomerOrderItem {
   final double unitPrice;
   final int quantity;
   final double totalPrice;
+  final String? imagePath;
 }
 
 class CustomerOrder {
@@ -45,6 +48,9 @@ class CustomerOrder {
     required this.status,
     required this.total,
     required this.createdAt,
+    this.deliveryAddress,
+    this.phone,
+    this.notes,
     this.items = const [],
   });
 
@@ -57,6 +63,9 @@ class CustomerOrder {
       status: map['status']?.toString() ?? 'pending',
       total: (map['total'] as num?)?.toDouble() ?? 0.0,
       createdAt: DateTime.tryParse(map['created_at']?.toString() ?? '') ?? DateTime.now(),
+      deliveryAddress: map['delivery_address']?.toString(),
+      phone: map['phone']?.toString(),
+      notes: map['notes']?.toString(),
       items: items ?? const [],
     );
   }
@@ -68,12 +77,17 @@ class CustomerOrder {
   final String status;
   final double total;
   final DateTime createdAt;
+  final String? deliveryAddress;
+  final String? phone;
+  final String? notes;
   final List<CustomerOrderItem> items;
 
   String get statusLabel {
     switch (status) {
       case 'pending':
         return 'قيد الانتظار';
+      case 'confirmed':
+        return 'تم التأكيد';
       case 'processing':
         return 'جاري التجهيز';
       case 'shipped':
@@ -90,6 +104,7 @@ class CustomerOrder {
   int get statusStep {
     switch (status) {
       case 'pending':
+      case 'confirmed':
         return 1;
       case 'processing':
         return 2;

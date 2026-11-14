@@ -165,9 +165,35 @@ final customerFavoritesProvider =
   return ref.watch(customerRepositoryProvider).getFavorites();
 });
 
-// Cart State Notifier
+// Cart State Notifier (Backed by Supabase public.cart_items)
 class CartNotifier extends StateNotifier<List<CartItem>> {
-  CartNotifier() : super([]);
+  CartNotifier(this._ref) : super([]) {
+    final initialUserId = _ref.read(authControllerProvider).user?.id;
+    if (initialUserId != null) {
+      Future.microtask(loadFromRemote);
+    }
+    _ref.listen<String?>(
+      authControllerProvider.select((s) => s.user?.id),
+      (previous, next) {
+        if (next == null) {
+          // Clear local memory only on sign-out so Supabase keeps the user's cart
+          state = [];
+        } else if (next != previous) {
+          loadFromRemote();
+        }
+      },
+    );
+  }
+
+  final Ref _ref;
+
+  CustomerRepository get _repo => _ref.read(customerRepositoryProvider);
+
+  Future<void> loadFromRemote() async {
+    final remoteItems = await _repo.getCartItems();
+    if (!mounted) return;
+    state = remoteItems;
+  }
 
   void addItem({
     required CustomerProduct product,
@@ -179,15 +205,17 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
   }) {
     final cartItemId = '${product.id}_${color}_$size';
     final existingIndex = state.indexWhere((item) => item.id == cartItemId);
+    late final CartItem targetItem;
 
     if (existingIndex >= 0) {
       final existing = state[existingIndex];
       final newQty = (existing.quantity + quantity).clamp(1, maxStock);
+      targetItem = existing.copyWith(quantity: newQty);
       final updated = List<CartItem>.from(state);
-      updated[existingIndex] = existing.copyWith(quantity: newQty);
+      updated[existingIndex] = targetItem;
       state = updated;
     } else {
-      final newItem = CartItem(
+      targetItem = CartItem(
         id: cartItemId,
         productId: product.id,
         productName: product.name,
@@ -201,8 +229,16 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
         imagePath: product.coverImage,
         maxStock: maxStock,
       );
-      state = [...state, newItem];
+      state = [...state, targetItem];
     }
+
+    _repo.upsertCartItem(
+      productId: targetItem.productId,
+      variantId: targetItem.variantId,
+      color: targetItem.color,
+      size: targetItem.size,
+      quantity: targetItem.quantity,
+    );
   }
 
   void updateQuantity(String cartItemId, int newQty) {
@@ -210,20 +246,47 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
       removeItem(cartItemId);
       return;
     }
+    CartItem? updatedItem;
     state = state.map((item) {
       if (item.id == cartItemId) {
-        return item.copyWith(quantity: newQty.clamp(1, item.maxStock));
+        updatedItem = item.copyWith(quantity: newQty.clamp(1, item.maxStock));
+        return updatedItem!;
       }
       return item;
     }).toList();
+
+    if (updatedItem != null) {
+      _repo.upsertCartItem(
+        productId: updatedItem!.productId,
+        variantId: updatedItem!.variantId,
+        color: updatedItem!.color,
+        size: updatedItem!.size,
+        quantity: updatedItem!.quantity,
+      );
+    }
   }
 
   void removeItem(String cartItemId) {
+    CartItem? removed;
+    for (final item in state) {
+      if (item.id == cartItemId) {
+        removed = item;
+        break;
+      }
+    }
     state = state.where((item) => item.id != cartItemId).toList();
+    if (removed != null) {
+      _repo.removeCartItem(
+        productId: removed.productId,
+        color: removed.color,
+        size: removed.size,
+      );
+    }
   }
 
   void clearCart() {
     state = [];
+    _repo.clearCartItems();
   }
 
   double get totalAmount => state.fold(0.0, (sum, item) => sum + item.totalPrice);
@@ -240,12 +303,37 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
 }
 
 final cartProvider = StateNotifierProvider<CartNotifier, List<CartItem>>((ref) {
-  return CartNotifier();
+  return CartNotifier(ref);
 });
 
-// Product Comparison State Notifier
+// Product Comparison State Notifier (Backed by Supabase public.comparison_items)
 class ProductComparisonNotifier extends StateNotifier<List<CustomerProduct>> {
-  ProductComparisonNotifier() : super([]);
+  ProductComparisonNotifier(this._ref) : super([]) {
+    final initialUserId = _ref.read(authControllerProvider).user?.id;
+    if (initialUserId != null) {
+      Future.microtask(loadFromRemote);
+    }
+    _ref.listen<String?>(
+      authControllerProvider.select((s) => s.user?.id),
+      (previous, next) {
+        if (next == null) {
+          state = [];
+        } else if (next != previous) {
+          loadFromRemote();
+        }
+      },
+    );
+  }
+
+  final Ref _ref;
+
+  CustomerRepository get _repo => _ref.read(customerRepositoryProvider);
+
+  Future<void> loadFromRemote() async {
+    final remoteProducts = await _repo.getComparisonProducts();
+    if (!mounted) return;
+    state = remoteProducts.take(3).toList();
+  }
 
   bool addProduct(CustomerProduct product) {
     if (state.length >= 3) {
@@ -255,21 +343,24 @@ class ProductComparisonNotifier extends StateNotifier<List<CustomerProduct>> {
       return true;
     }
     state = [...state, product];
+    _repo.addComparisonProduct(product.id);
     return true;
   }
 
   void removeProduct(String productId) {
     state = state.where((p) => p.id != productId).toList();
+    _repo.removeComparisonProduct(productId);
   }
 
   void clear() {
     state = [];
+    _repo.clearComparisonProducts();
   }
 }
 
 final productComparisonProvider =
     StateNotifierProvider<ProductComparisonNotifier, List<CustomerProduct>>((ref) {
-  return ProductComparisonNotifier();
+  return ProductComparisonNotifier(ref);
 });
 
 // Customer Orders Provider

@@ -58,6 +58,7 @@ class CartItem {
       'variant_info': variantDescription,
       'unit_price': unitPrice,
       'quantity': quantity,
+      'image_path': imagePath,
     };
   }
 }
