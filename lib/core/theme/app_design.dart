@@ -15,11 +15,9 @@
 // =============================================================================
 
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:iconsax_plus/iconsax_plus.dart';
 
 import '../l10n/app_translations.dart';
-export 'package:font_awesome_flutter/font_awesome_flutter.dart';
 export 'package:iconsax_plus/iconsax_plus.dart';
 export '../l10n/app_translations.dart';
 
@@ -103,7 +101,11 @@ abstract final class AppIcons {
   static const IconData rateReview = IconsaxPlusLinear.message_edit;
 
   // --- الحساب والحقول والبيانات الشخصية ---
-  static const IconData google = FontAwesomeIcons.google;
+  static const IconData google = IconData(
+    0xf1a0,
+    fontFamily: 'FontAwesomeBrands',
+    fontPackage: 'font_awesome_flutter',
+  );
   static const IconData mail = IconsaxPlusLinear.sms;
   static const IconData lock = IconsaxPlusLinear.lock;
   static const IconData eye = IconsaxPlusLinear.eye;
