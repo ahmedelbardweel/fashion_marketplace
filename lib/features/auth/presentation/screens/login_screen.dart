@@ -72,7 +72,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       backgroundColor: AuthDesign.pageBackground,
       body: SafeArea(
-        child: Center(
+        child: Align(
+          alignment: Alignment.topCenter,
           child: SingleChildScrollView(
             padding: AppSpacing.page,
             child: ConstrainedBox(
@@ -84,18 +85,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const SizedBox(height: AppSpacing.md),
                     const Center(
                       child: AppLogoMark(size: AuthDesign.logoSize),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      'Shopy',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: AuthDesign.titleSize,
-                        fontWeight: AuthDesign.titleWeight,
-                        color: AppColors.text,
-                      ),
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     Text(

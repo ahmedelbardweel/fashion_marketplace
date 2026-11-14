@@ -69,31 +69,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                 opacity: _fade,
                 child: ScaleTransition(
                   scale: _scale,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const AppLogoMark(size: SplashDesign.logoSize),
-                      const SizedBox(height: AppSpacing.md),
-                      Text(
-                        'Shopy',
-                        style: TextStyle(
-                          fontSize: 32,
-                          color: SplashDesign.title,
-                          fontWeight: AppFont.extraBold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'SHOPY',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textMuted,
-                          fontWeight: AppFont.bold,
-                          letterSpacing: 4,
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: const AppLogoMark(size: SplashDesign.logoSize),
                 ),
               );
             },

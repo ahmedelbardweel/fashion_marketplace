@@ -244,6 +244,9 @@ class AuthRepository {
   String mapAuthError(Object error) {
     if (error is AuthException) {
       final message = error.message.toLowerCase();
+      if (message.contains('passed nonce and nonce in id_token')) {
+        return 'يرجى تفعيل خيار Skip nonce checks داخل إعدادات Google في Supabase';
+      }
       if (message.contains('invalid login credentials')) {
         return 'البريد أو كلمة المرور غير صحيحة';
       }
