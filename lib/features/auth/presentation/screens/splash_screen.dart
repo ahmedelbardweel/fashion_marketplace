@@ -75,7 +75,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       const AppLogoMark(size: SplashDesign.logoSize),
                       const SizedBox(height: AppSpacing.md),
                       Text(
-                        'ملابسي'.tr,
+                        'Shopy',
                         style: TextStyle(
                           fontSize: 32,
                           color: SplashDesign.title,
@@ -84,7 +84,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'MALABSI',
+                        'SHOPY',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,

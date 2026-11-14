@@ -1,6 +1,6 @@
 {
-    "name": "fashion_marketplace",
-    "short_name": "fashion_marketplace",
+    "name": "Shopy",
+    "short_name": "Shopy",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -73,7 +73,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     Text(
-                      'ملابسي'.tr,
+                      'Shopy',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: AuthDesign.titleSize,

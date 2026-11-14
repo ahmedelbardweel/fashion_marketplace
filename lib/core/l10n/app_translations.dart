@@ -207,7 +207,8 @@ class AppLang {
 
   static const Map<String, String> _exact = {
     // --- App & Navigation ---
-    'ملابسي': 'Malabsi',
+    'ملابسي': 'Shopy',
+    'Shopy': 'Shopy',
     'السوق العصري': 'Modern Market',
     'الرئيسية': 'Home',
     'المنتجات': 'Products',
