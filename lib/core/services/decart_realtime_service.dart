@@ -365,13 +365,20 @@ class DecartRealtimeService implements TryonSession {
     final generation = _generation;
     final local = _local;
     if (local == null || !_reportedConnected) {
-      throw TryonFailure('أعد فحص الجسم قبل اختيار القطعة.'.tr);
+      throw TryonFailure('أعد فحص الإضاءة قبل اختيار القطعة.'.tr);
     }
-    await captureGuard.validate(
-      local,
-      garment,
-      (message) => _fail(generation, message),
-    );
+    final guard = captureGuard;
+    final skipRevalidate =
+        guard is CaptureGuardController && guard.lightingOnly && guard.approved;
+    if (!skipRevalidate) {
+      await captureGuard.validate(
+        local,
+        garment,
+        (message) => _fail(generation, message),
+      );
+    } else {
+      guard.garment = garment;
+    }
     if (!_current(generation)) throw TryonFailure('انتهت الجلسة.'.tr);
     await _select(garment);
   }
@@ -411,14 +418,11 @@ class DecartRealtimeService implements TryonSession {
     final track = _local?.getVideoTracks().firstOrNull;
     if (track == null || !_reportedConnected) return;
     try {
-      // Switching invalidates the calibrated frame and requires a fresh session.
-      captureGuard.cancel();
       final switched = await Helper.switchCamera(track);
       if (switched) {
         _camera.front = !_camera.front;
         await _camera.resetZoom(track);
       }
-      _fail(_generation, 'تم تغيير الكاميرا. أعد فحص الجسم قبل التجربة.'.tr);
     } catch (_) {
       throw TryonFailure('تعذر تبديل الكاميرا.'.tr);
     }

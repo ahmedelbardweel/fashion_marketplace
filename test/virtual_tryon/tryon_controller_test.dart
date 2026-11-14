@@ -270,4 +270,35 @@ void main() {
     notifier.dispose();
     await session.dispose();
   });
+
+  test('TryonBodyZone infers boots, shorts, pants, full outfits and tops accurately', () {
+    expect(
+      TryonBodyZone.infer('بوات جلد طبيعي', 'بوات وأحذية رجالي'),
+      TryonBodyZone.footwear,
+    );
+    expect(
+      TryonBodyZone.infer('شورت صيفي قطني', 'ملابس رجالي'),
+      TryonBodyZone.lowerShorts,
+    );
+    expect(
+      TryonBodyZone.infer('بنطلون جينز كلاسيك', 'بناطيل وجينز رجالي'),
+      TryonBodyZone.lowerPants,
+    );
+    expect(
+      TryonBodyZone.infer('فستان سهرة مخمل', 'فساتين وعبايات نسائية'),
+      TryonBodyZone.fullBody,
+    );
+    expect(
+      TryonBodyZone.infer('بلوزة حرير ناعمة', 'بلوزات وتيشيرتات نسائية'),
+      TryonBodyZone.upperBody,
+    );
+    const customShorts = GarmentSelection(
+      id: 's1',
+      name: 'شورت كتان',
+      imageUrl: 'https://example.com/s1.png',
+      targetZone: TryonBodyZone.lowerShorts,
+    );
+    expect(customShorts.region, 'lower body garment');
+    expect(customShorts.prompt, contains('SHORTS / UPPER LEGS ONLY'));
+  });
 }

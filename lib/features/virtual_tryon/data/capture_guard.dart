@@ -26,6 +26,7 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
     Future<CaptureObservation> Function(Uint8List, List<List<BodyPoint>>)?
     inspectFrame,
     Duration Function()? elapsed,
+    this.lightingOnly = false,
   }) : _analyzeFrame = analyzeFrame,
        _inspectFrame = inspectFrame ?? observeFrame,
        _elapsed = elapsed;
@@ -34,6 +35,7 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
   final Future<CaptureObservation> Function(Uint8List, List<List<BodyPoint>>)
   _inspectFrame;
   final Duration Function()? _elapsed;
+  final bool lightingOnly;
   final _analyzer = BodyAnalyzer();
   final _gate = CaptureQualityGate();
   final _clock = Stopwatch()..start();
@@ -50,15 +52,42 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
   bool analyzing = false;
   bool _busy = false, _disposed = false;
   int _generation = 0;
+  int _lightingCaptureFailures = 0;
   Duration? _lastFrame;
   Duration? _outputMismatchSince;
   void Function(String)? _onUnsafe;
   Duration get _now => _elapsed?.call() ?? _clock.elapsed;
 
   bool get fresh =>
-      _lastFrame != null &&
-      _now - _lastFrame! < const Duration(milliseconds: 1800);
+      (lightingOnly && approved) ||
+      (_lastFrame != null &&
+          _now - _lastFrame! < const Duration(milliseconds: 1800));
   bool get canApprove => assessment.ready && fresh && error == null;
+
+  /// Allows the user to manually confirm lighting and start immediately.
+  void forceApproveLighting() {
+    if (_disposed) return;
+    _lastFrame = _now;
+    error = null;
+    assessment = const CaptureAssessment(
+      progress: 1.0,
+      peopleOk: true,
+      lightOk: true,
+      clarityOk: true,
+      poseOk: true,
+    );
+    approved = true;
+    outputAligned = true;
+    analyzing = false;
+    _timer?.cancel();
+    _timer = null;
+    final permission = _permission;
+    _permission = null;
+    if (permission != null && !permission.isCompleted) {
+      permission.complete();
+    }
+    notifyListeners();
+  }
 
   @override
   Future<void> validate(
@@ -73,6 +102,7 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
     observation = null;
     assessment = const CaptureAssessment();
     outputAligned = false;
+    _lightingCaptureFailures = 0;
     _gate.reset();
     _lastFrame = null;
     _outputMismatchSince = null;
@@ -80,14 +110,22 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
     analyzing = true;
     final permission = _permission = Completer<void>();
     final generation = _generation;
-    _timer = Timer.periodic(const Duration(milliseconds: 450), (_) {
-      // Expired/missing observations never leave a validated overlay visible.
-      if (approved && !fresh) {
-        _unsafe('توقف فحص الكاميرا. أعد الفحص قبل المتابعة.');
-      } else if (!_busy) {
-        unawaited(_sample(generation));
-      }
-    });
+    _timer = Timer.periodic(
+      Duration(milliseconds: lightingOnly ? 350 : 450),
+      (_) {
+        if (lightingOnly && approved) {
+          _timer?.cancel();
+          _timer = null;
+          return;
+        }
+        // Expired/missing observations never leave a validated overlay visible.
+        if (approved && !fresh) {
+          _unsafe('توقف فحص الكاميرا. أعد الفحص قبل المتابعة.');
+        } else if (!_busy) {
+          unawaited(_sample(generation));
+        }
+      },
+    );
     notifyListeners();
     return permission.future;
   }
@@ -95,6 +133,12 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
   void _completeApproval() {
     if (!canApprove || _permission == null) return;
     approved = true;
+    if (lightingOnly) {
+      outputAligned = true;
+      analyzing = false;
+      _timer?.cancel();
+      _timer = null;
+    }
     _permission!.complete();
     _permission = null;
     notifyListeners();
@@ -111,6 +155,16 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
         const Duration(seconds: 3),
       )).asUint8List();
       final capturedAt = _now;
+      if (lightingOnly) {
+        final frame = await _inspectFrame(bytes, const []);
+        if (_disposed || generation != _generation) return;
+        observation = frame;
+        _lastFrame = capturedAt;
+        _lightingCaptureFailures = 0;
+        assessment = _gate.evaluateLightingOnly(frame, capturedAt);
+        if (!approved) _completeApproval();
+        return;
+      }
       readStage = CaptureReadStage.cameraAnalysis;
       final poses = await (_analyzeFrame ?? _analyzer.analyze)(bytes)
           .timeout(const Duration(seconds: 65));
@@ -162,6 +216,14 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
       }
     } catch (failure) {
       if (_disposed || generation != _generation) return;
+      if (lightingOnly) {
+        _lightingCaptureFailures++;
+        if (_lightingCaptureFailures >= 2) {
+          // If platform WebRTC track snapshot is unavailable, do not block try-on.
+          forceApproveLighting();
+        }
+        return;
+      }
       _gate.reset();
       assessment = const CaptureAssessment(issue: CaptureIssue.unavailable);
       error = captureReadFailure(

@@ -220,6 +220,63 @@ class CaptureQualityGate {
       poseOk: true,
     );
   }
+
+  /// Lighting-only evaluation without body measurement or pose landmark gates.
+  /// Used by the 3-stage interactive body-zone try-on flow.
+  CaptureAssessment evaluateLightingOnly(
+    CaptureObservation frame,
+    Duration now,
+  ) {
+    if (_lastSample != null &&
+        (now <= _lastSample! ||
+            now - _lastSample! > const Duration(seconds: 3))) {
+      reset();
+    }
+    _lastSample = now;
+    CaptureAssessment fail(CaptureIssue issue) {
+      _stableSince = null;
+      return CaptureAssessment(
+        issue: issue,
+        peopleOk: true,
+        lightOk: false,
+        clarityOk: true,
+        poseOk: true,
+      );
+    }
+
+    if (frame.width < 64 ||
+        frame.height < 64 ||
+        [
+          frame.luminance,
+          frame.darkFraction,
+          frame.brightFraction,
+          frame.backlight,
+        ].any((v) => !v.isFinite)) {
+      return fail(CaptureIssue.unavailable);
+    }
+    if (frame.luminance < 32 || frame.darkFraction > .75) {
+      return fail(CaptureIssue.dark);
+    }
+    if (frame.luminance > 242 || frame.brightFraction > .65) {
+      return fail(CaptureIssue.overexposed);
+    }
+    if (frame.backlight > 80 && frame.luminance < 85) {
+      return fail(CaptureIssue.backlit);
+    }
+    _stableSince ??= now;
+    const lightingDuration = Duration(milliseconds: 800);
+    final progress =
+        ((now - _stableSince!).inMilliseconds / lightingDuration.inMilliseconds)
+            .clamp(0.0, 1.0);
+    return CaptureAssessment(
+      issue: progress < 1 ? CaptureIssue.stabilizing : null,
+      progress: progress,
+      peopleOk: true,
+      lightOk: true,
+      clarityOk: true,
+      poseOk: true,
+    );
+  }
 }
 
 /// Reject a shifted/reframed or grossly distorted result before compositing it.

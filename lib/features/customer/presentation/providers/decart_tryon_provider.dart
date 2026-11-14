@@ -13,7 +13,7 @@ import '../../domain/models/customer_product.dart';
 import 'customer_providers.dart';
 
 export '../../../../core/services/decart_realtime_service.dart'
-    show DecartSessionStatus;
+    show DecartSessionStatus, TryonBodyZone;
 
 typedef LoadTryonCatalog = Future<List<CustomerProduct>> Function();
 
@@ -23,6 +23,8 @@ class DecartTryonState {
     this.selectedProduct,
     this.appliedProductId,
     this.availableProducts = const [],
+    this.selectedZone = TryonBodyZone.upperBody,
+    this.zoneManuallySelected = false,
     this.isFrontCamera = true,
     this.isUpdating = false,
     this.errorMessage,
@@ -33,6 +35,8 @@ class DecartTryonState {
   final CustomerProduct? selectedProduct;
   final String? appliedProductId;
   final List<CustomerProduct> availableProducts;
+  final TryonBodyZone selectedZone;
+  final bool zoneManuallySelected;
   final bool isFrontCamera;
   final bool isUpdating;
   final String? errorMessage;
@@ -48,6 +52,8 @@ class DecartTryonState {
     CustomerProduct? selectedProduct,
     String? appliedProductId,
     List<CustomerProduct>? availableProducts,
+    TryonBodyZone? selectedZone,
+    bool? zoneManuallySelected,
     bool? isFrontCamera,
     bool? isUpdating,
     String? errorMessage,
@@ -61,6 +67,8 @@ class DecartTryonState {
         ? null
         : appliedProductId ?? this.appliedProductId,
     availableProducts: availableProducts ?? this.availableProducts,
+    selectedZone: selectedZone ?? this.selectedZone,
+    zoneManuallySelected: zoneManuallySelected ?? this.zoneManuallySelected,
     isFrontCamera: isFrontCamera ?? this.isFrontCamera,
     isUpdating: isUpdating ?? this.isUpdating,
     errorMessage: errorMessage, // null deliberately clears an earlier failure.
@@ -71,7 +79,7 @@ class DecartTryonState {
 
 final captureGuardProvider = ChangeNotifierProvider.autoDispose
     .family<CaptureGuardController, String>(
-      (ref, id) => CaptureGuardController(),
+      (ref, id) => CaptureGuardController(lightingOnly: true),
     );
 
 final decartRealtimeServiceProvider = Provider.autoDispose
@@ -185,7 +193,52 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
     imageUrl: product.tryonReferenceImage ?? '',
     category: product.categoryName,
     description: product.description,
+    targetZone: state.zoneManuallySelected
+        ? state.selectedZone
+        : TryonBodyZone.infer(product.name, product.categoryName),
   );
+
+  /// Preloads the initial product and catalog during Step 1 (Body Map screen)
+  /// so the user sees the product and its auto-detected body zone before starting the camera.
+  Future<void> preloadCatalog() async {
+    if (!mounted || state.availableProducts.isNotEmpty || _starting) return;
+    try {
+      final catalog = await _loadCatalog();
+      if (!mounted || state.availableProducts.isNotEmpty) return;
+      final garments = catalog.where(supports).toList();
+      if (garments.isEmpty) return;
+      final initial =
+          garments.where((p) => p.id == _initialId).firstOrNull ??
+          garments.first;
+      state = state.copyWith(
+        availableProducts: garments,
+        selectedProduct: initial,
+        selectedZone: state.zoneManuallySelected
+            ? state.selectedZone
+            : TryonBodyZone.infer(initial.name, initial.categoryName),
+      );
+    } catch (_) {
+      // Errors will be surfaced if start() is invoked and fails.
+    }
+  }
+
+  /// Explicitly sets the target anatomical body zone from the interactive body diagram.
+  void selectBodyZone(TryonBodyZone zone) {
+    if (!mounted) return;
+    final changed = state.selectedZone != zone || !state.zoneManuallySelected;
+    state = state.copyWith(
+      selectedZone: zone,
+      zoneManuallySelected: true,
+      errorMessage: state.errorMessage,
+    );
+    if (changed && state.isConnected && state.selectedProduct != null) {
+      ++_revision;
+      _pending = state.selectedProduct;
+      state = state.copyWith(isUpdating: true);
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 120), _drain);
+    }
+  }
 
   Future<void> start() async {
     if (!mounted || _starting || state.isConnected) return;
@@ -217,6 +270,9 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
         state = state.copyWith(
           availableProducts: garments,
           selectedProduct: initial,
+          selectedZone: state.zoneManuallySelected
+              ? state.selectedZone
+              : TryonBodyZone.infer(initial.name, initial.categoryName),
         );
       }
       final selected = state.selectedProduct!;
@@ -246,15 +302,30 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
     }
   }
 
-  void selectGarment(CustomerProduct product) {
-    if (!mounted ||
-        !state.isConnected ||
-        state.selectedProduct?.id == product.id) {
+  void selectGarment(CustomerProduct product, {bool keepManualZone = false}) {
+    if (!mounted) return;
+    final inferredZone = keepManualZone && state.zoneManuallySelected
+        ? state.selectedZone
+        : TryonBodyZone.infer(product.name, product.categoryName);
+    if (!state.isConnected) {
+      state = state.copyWith(
+        selectedProduct: product,
+        selectedZone: inferredZone,
+        zoneManuallySelected: keepManualZone && state.zoneManuallySelected,
+      );
+      return;
+    }
+    if (state.selectedProduct?.id == product.id) {
       return;
     }
     ++_revision;
     _pending = product;
-    state = state.copyWith(selectedProduct: product, isUpdating: true);
+    state = state.copyWith(
+      selectedProduct: product,
+      selectedZone: inferredZone,
+      zoneManuallySelected: keepManualZone && state.zoneManuallySelected,
+      isUpdating: true,
+    );
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 120), _drain);
   }
