@@ -63,7 +63,7 @@ class BodyAnalysisHandler(private val context: Context) : MethodChannel.MethodCa
                             decoded.recycle()
                         }
                         main.post { result.success(poses) }
-                    } catch (_: Exception) {
+                    } catch (_: Throwable) {
                         main.post { result.error("analysis_failed", "Body analysis unavailable", null) }
                     } finally {
                         // flutter_webrtc 0.12 writes its snapshot here; remove it after use.
@@ -72,7 +72,9 @@ class BodyAnalysisHandler(private val context: Context) : MethodChannel.MethodCa
                 }
             }
             "close" -> executor.execute {
-                detector?.close()
+                try {
+                    detector?.close()
+                } catch (_: Throwable) {}
                 detector = null
                 File(context.cacheDir, "captureFrame.png").delete()
                 main.post { result.success(null) }
@@ -82,7 +84,12 @@ class BodyAnalysisHandler(private val context: Context) : MethodChannel.MethodCa
     }
 
     fun dispose() {
-        executor.execute { detector?.close(); detector = null }
+        executor.execute {
+            try {
+                detector?.close()
+            } catch (_: Throwable) {}
+            detector = null
+        }
         executor.shutdown()
     }
 }

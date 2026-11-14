@@ -35,12 +35,21 @@
 -keep class com.cloudwebrtc.webrtc.** { *; }
 -dontwarn com.cloudwebrtc.webrtc.**
 
-# 4. Google ML Kit Pose Detection
+# 4. Google ML Kit Pose Detection & MediaPipe Tasks Vision & JNI
 -keep class com.google.mlkit.** { *; }
 -keep class com.google.android.gms.vision.** { *; }
+-keep class com.google.mediapipe.** { *; }
+-keep class com.google.protobuf.** { *; }
+-keep class com.github.dart_lang.** { *; }
+-keep class androidx.camera.** { *; }
+-keep class com.example.fashion_marketplace.** { *; }
 -dontwarn com.google.mlkit.**
 -dontwarn com.google.android.gms.vision.**
 -dontwarn com.google_mlkit_pose_detection.**
+-dontwarn com.google.mediapipe.**
+-dontwarn com.google.protobuf.**
+-dontwarn com.github.dart_lang.**
+-dontwarn androidx.camera.**
 
 # 5. Preserve all native methods across the application and plugins
 -keepclasseswithmembernames class * {
