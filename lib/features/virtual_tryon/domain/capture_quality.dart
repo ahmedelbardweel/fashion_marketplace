@@ -191,8 +191,14 @@ class CaptureQualityGate {
     final previous = _previous;
     _previous = points;
     if (previous != null &&
-        required.any(
+        <int>{
+          ...required,
+          // Head/hand motion can enter a garment mask while shoulders stay still.
+          for (var i = 0; i < points.length; i++)
+            if (points[i].visible || previous[i].visible) i,
+        }.any(
           (i) =>
+              points[i].visible != previous[i].visible ||
               (points[i].x - previous[i].x).abs() > .025 ||
               (points[i].y - previous[i].y).abs() > .025,
         )) {
@@ -291,11 +297,26 @@ bool outputMatchesBody(
   }
   final target = output.single;
   final anchors = requiredBodyPoints(garment.region);
-  return anchors.every(
+  if (!anchors.every((i) => source[i].visible && target[i].visible)) {
+    return false;
+  }
+  double span(List<BodyPoint> points) {
+    final a = points[anchors[0]], b = points[anchors[1]];
+    return math.sqrt(math.pow(a.x - b.x, 2) + math.pow(a.y - b.y, 2));
+  }
+
+  final sourceSpan = span(source);
+  if (sourceSpan <= 0 || (span(target) / sourceSpan - 1).abs() > .08) {
+    return false; // Reject zoom/distance drift even when both anchors are close.
+  }
+  final tolerance = math.min(.025, sourceSpan * .08);
+  return <int>{
+    ...anchors,
+    for (var i = 0; i < source.length; i++)
+      if (source[i].visible && target[i].visible) i,
+  }.every(
     (i) =>
-        source[i].visible &&
-        target[i].visible &&
-        (source[i].x - target[i].x).abs() < .055 &&
-        (source[i].y - target[i].y).abs() < .055,
+        (source[i].x - target[i].x).abs() < tolerance &&
+        (source[i].y - target[i].y).abs() < tolerance,
   );
 }

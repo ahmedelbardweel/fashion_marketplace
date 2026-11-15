@@ -52,6 +52,7 @@ class DecartRealtimeService implements TryonSession {
   RTCPeerConnection? _peer;
   MediaStream? _local;
   MediaStream? _remote;
+  GarmentSelection? _activeGarment;
   WebSocketChannel? _socket;
   StreamSubscription<dynamic>? _subscription;
   Future<void> _operations = Future.value();
@@ -348,7 +349,8 @@ class DecartRealtimeService implements TryonSession {
       case 'generation_ended':
         _fail(
           generation,
-          'أنهى الخادم الجلسة أو رفض الاتصال. تحقق من الرصيد وإعدادات الخدمة.'.tr,
+          'أنهى الخادم الجلسة أو رفض الاتصال. تحقق من الرصيد وإعدادات الخدمة.'
+              .tr,
         );
       default:
         break; // session_id, generation_started/tick and forward-compatible events.
@@ -367,18 +369,11 @@ class DecartRealtimeService implements TryonSession {
     if (local == null || !_reportedConnected) {
       throw TryonFailure('أعد فحص الإضاءة قبل اختيار القطعة.'.tr);
     }
-    final guard = captureGuard;
-    final skipRevalidate =
-        guard is CaptureGuardController && guard.lightingOnly && guard.approved;
-    if (!skipRevalidate) {
-      await captureGuard.validate(
-        local,
-        garment,
-        (message) => _fail(generation, message),
-      );
-    } else {
-      guard.garment = garment;
-    }
+    await captureGuard.validate(
+      local,
+      garment,
+      (message) => _fail(generation, message),
+    );
     if (!_current(generation)) throw TryonFailure('انتهت الجلسة.'.tr);
     await _select(garment);
   }
@@ -391,8 +386,9 @@ class DecartRealtimeService implements TryonSession {
     _selectionGeneration = generation;
     try {
       final loader = payloadLoader ?? GarmentPayloadLoader(_images).load;
-      final payload = await loader(garment)
-          .timeout(const Duration(seconds: 20));
+      final payload = await loader(
+        garment,
+      ).timeout(const Duration(seconds: 20));
       if (!_current(generation) || !_socketReady) {
         throw TryonFailure('انتهت الجلسة.'.tr);
       }
@@ -402,6 +398,7 @@ class DecartRealtimeService implements TryonSession {
       try {
         _socket!.sink.add(payload);
         await ack.future.timeout(acknowledgmentTimeout);
+        if (_current(generation)) _activeGarment = garment;
       } on TimeoutException {
         _fail(generation, 'لم يؤكد الخادم تحديث القطعة. أعد الاتصال.'.tr);
         throw TryonFailure('انتهت مهلة تأكيد القطعة.'.tr);
@@ -417,13 +414,25 @@ class DecartRealtimeService implements TryonSession {
   Future<void> switchCamera() => _serialize(() async {
     final track = _local?.getVideoTracks().firstOrNull;
     if (track == null || !_reportedConnected) return;
+    final generation = _generation;
+    final garment = _activeGarment;
+    // A different camera must never reuse the previous camera's landmarks.
+    captureGuard.cancel();
     try {
-      final switched = await Helper.switchCamera(track);
+      final switched = await _camera.switchCamera(track);
       if (switched) {
         _camera.front = !_camera.front;
         await _camera.resetZoom(track);
       }
+      if (_current(generation) && garment != null && _local != null) {
+        await captureGuard.validate(
+          _local!,
+          garment,
+          (message) => _fail(generation, message),
+        );
+      }
     } catch (_) {
+      _fail(generation, 'تم تغيير الكاميرا. أعد فحص الجسم قبل التجربة.'.tr);
       throw TryonFailure('تعذر تبديل الكاميرا.'.tr);
     }
   });
@@ -460,6 +469,7 @@ class DecartRealtimeService implements TryonSession {
     _disconnectDeadline?.cancel();
     _socketReady = _offerSent = _hasAnswer = _hasFrame = false;
     _initialAccepted = _peerConnected = _reportedConnected = false;
+    _activeGarment = null;
     _remoteIce.clear();
     _localIce.clear();
     try {

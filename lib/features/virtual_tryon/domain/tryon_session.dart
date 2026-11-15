@@ -13,23 +13,28 @@ enum TryonBodyZone {
   upperBody(
     arabicTitle: 'الجزء العلوي (بلوزة / قميص / جاكيت)',
     shortLabel: 'الجزء العلوي',
-    bodyPartDescription: 'الصدر والكتفين والذراعين (بلوزة، تيشيرت، قميص، هودي، جاكيت)',
-    framingInstruction: 'وجّه الكاميرا ليظهر الجزء العلوي والكتفين في إضاءة واضحة.',
+    bodyPartDescription:
+        'الصدر والكتفين والذراعين (بلوزة، تيشيرت، قميص، هودي، جاكيت)',
+    framingInstruction:
+        'وجّه الكاميرا ليظهر الجزء العلوي والكتفين في إضاءة واضحة.',
     colorHex: 0xFF00ACC1, // Cyan / Teal
     protocolRegion: 'upper body garment',
   ),
   lowerPants(
     arabicTitle: 'البنطلون الكامل (الرجلين بالكامل)',
     shortLabel: 'بنطلون كامل',
-    bodyPartDescription: 'من الخصر حتى الكاحلين (بنطلون جينز، رسمي، كارغو، رياضي)',
-    framingInstruction: 'وجّه الكاميرا نحو منطقة الخصر والرجلين في إضاءة واضحة.',
+    bodyPartDescription:
+        'من الخصر حتى الكاحلين (بنطلون جينز، رسمي، كارغو، رياضي)',
+    framingInstruction:
+        'وجّه الكاميرا نحو منطقة الخصر والرجلين في إضاءة واضحة.',
     colorHex: 0xFF3B82F6, // Royal Blue
     protocolRegion: 'lower body garment',
   ),
   lowerShorts(
     arabicTitle: 'الشورت (أعلى الركبة)',
     shortLabel: 'شورت / ركبة',
-    bodyPartDescription: 'من الخصر حتى الركبتين فقط مع الحفاظ على الساقين السفليتين',
+    bodyPartDescription:
+        'من الخصر حتى الركبتين فقط مع الحفاظ على الساقين السفليتين',
     framingInstruction: 'وجّه الكاميرا نحو الخصر والركبتين في إضاءة واضحة.',
     colorHex: 0xFFF59E0B, // Amber / Orange
     protocolRegion: 'lower body garment',
@@ -37,7 +42,8 @@ enum TryonBodyZone {
   fullBody(
     arabicTitle: 'طقم كامل / فستان / عباية',
     shortLabel: 'طقم كامل / فستان',
-    bodyPartDescription: 'الجذع والرجلين معاً كقطعة متكاملة (فستان، عباية، بدلة، طقم)',
+    bodyPartDescription:
+        'الجذع والرجلين معاً كقطعة متكاملة (فستان، عباية، بدلة، طقم)',
     framingInstruction: 'قف أمام الكاميرا ليظهر الجسم في إضاءة واضحة.',
     colorHex: 0xFFA855F7, // Purple / Violet
     protocolRegion: 'outfit',
@@ -45,7 +51,8 @@ enum TryonBodyZone {
   footwear(
     arabicTitle: 'البوت والحذاء (القدمين)',
     shortLabel: 'بوات / القدمين',
-    bodyPartDescription: 'القدمين والكاحلين فقط (بوات، سنيكرز، بوت جلدي، حذاء رسمي)',
+    bodyPartDescription:
+        'القدمين والكاحلين فقط (بوات، سنيكرز، بوت جلدي، حذاء رسمي)',
     framingInstruction: 'وجّه الكاميرا نحو القدمين والكاحلين في إضاءة واضحة.',
     colorHex: 0xFF10B981, // Emerald Green
     protocolRegion: 'footwear',
@@ -180,6 +187,8 @@ class GarmentSelection {
       'Do not invent, simplify, or redesign any detail. '
       'Strictly preserve the person\'s real face, facial identity, expression, hair, skin tone, hands, '
       'and exact natural body size, width, and proportions without any slimming, enlarging, or reshaping. '
+      'Keep the original background, objects, camera framing, perspective, and distance unchanged. '
+      'Edit only the selected garment; never zoom, crop, replace the person, or regenerate the scene. '
       'Drape and fit the garment naturally onto the person\'s actual body posture and scene lighting.';
 
   void validate() {

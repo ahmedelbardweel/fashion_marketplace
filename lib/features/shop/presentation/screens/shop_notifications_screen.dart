@@ -184,52 +184,51 @@ class _ShopNotificationsScreenState
                       : ListView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: AppSpacing.page,
-                          children: filtered
-                            .map(
-                            (AdminNotification item) => Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: AppSpacing.sm,
-                              ),
-                              child: AppCard(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            item.title,
-                                            style: Theme.of(
-                                              context,
-                                            ).textTheme.titleLarge,
-                                          ),
-                                        ),
-                                        if (_sessionUnreadIds.contains(
-                                          item.id,
-                                        )) ...[
-                                          const SizedBox(width: AppSpacing.xs),
-                                          Container(
-                                            width: 8,
-                                            height: 8,
-                                            decoration: BoxDecoration(
-                                              color: AppColors.primary,
-                                              shape: BoxShape.circle,
+                          children: [
+                            for (final AdminNotification item in filtered)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.sm,
+                                ),
+                                child: AppCard(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              item.title,
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.titleLarge,
                                             ),
                                           ),
+                                          if (_sessionUnreadIds.contains(
+                                            item.id,
+                                          )) ...[
+                                            const SizedBox(width: AppSpacing.xs),
+                                            Container(
+                                              width: 8,
+                                              height: 8,
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primary,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                          ],
                                         ],
-                                      ],
-                                    ),
-                                    const SizedBox(height: AppSpacing.xs),
-                                    Text(item.audienceLabel),
-                                    const SizedBox(height: AppSpacing.sm),
-                                    Text(item.body),
-                                  ],
+                                      ),
+                                      const SizedBox(height: AppSpacing.xs),
+                                      Text(item.audienceLabel),
+                                      const SizedBox(height: AppSpacing.sm),
+                                      Text(item.body),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                            )
-                            .toList(),
+                          ],
                         ),
                 ),
               ),

@@ -69,6 +69,16 @@ void main() {
       expect(outputMatchesBody(body(), [shifted], top), isFalse);
       final hidden = body()..[11] = const BodyPoint(.28, .25, 0, .1);
       expect(outputMatchesBody(body(), [hidden], top), isFalse);
+      final zoomed = body()
+          .map((p) => BodyPoint(.5 + (p.x - .5) * 1.1, p.y, p.z, p.confidence))
+          .toList();
+      expect(
+        outputMatchesBody(body(), [zoomed], top),
+        isFalse,
+        reason: 'Small zoom must fail even inside the old absolute tolerance',
+      );
+      final movedHand = body()..[15] = const BodyPoint(.3, .4, 0, .99);
+      expect(outputMatchesBody(body(), [movedHand], top), isFalse);
     },
   );
   test(

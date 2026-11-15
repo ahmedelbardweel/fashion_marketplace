@@ -26,7 +26,6 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
     Future<CaptureObservation> Function(Uint8List, List<List<BodyPoint>>)?
     inspectFrame,
     Duration Function()? elapsed,
-    this.lightingOnly = false,
   }) : _analyzeFrame = analyzeFrame,
        _inspectFrame = inspectFrame ?? observeFrame,
        _elapsed = elapsed;
@@ -35,15 +34,24 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
   final Future<CaptureObservation> Function(Uint8List, List<List<BodyPoint>>)
   _inspectFrame;
   final Duration Function()? _elapsed;
-  final bool lightingOnly;
   final _analyzer = BodyAnalyzer();
   final _gate = CaptureQualityGate();
   final _clock = Stopwatch()..start();
   Timer? _timer;
   Completer<void>? _permission;
   MediaStream? stream;
-  MediaStream? outputStream;
+  MediaStream? _outputStream;
+  MediaStream? get outputStream => _outputStream;
+  set outputStream(MediaStream? value) {
+    if (identical(value, _outputStream)) return;
+    _outputStream = value;
+    _invalidateOutput();
+    if (!_disposed) notifyListeners();
+  }
+
   bool outputAligned = false;
+  List<BodyPoint> overlayPoints = const [];
+  List<BodyPoint> outputPoints = const [];
   GarmentSelection? garment;
   CaptureObservation? observation;
   CaptureAssessment assessment = const CaptureAssessment();
@@ -52,41 +60,30 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
   bool analyzing = false;
   bool _busy = false, _disposed = false;
   int _generation = 0;
-  int _lightingCaptureFailures = 0;
   Duration? _lastFrame;
+  Duration? _lastOutputFrame;
   Duration? _outputMismatchSince;
   void Function(String)? _onUnsafe;
   Duration get _now => _elapsed?.call() ?? _clock.elapsed;
 
   bool get fresh =>
-      (lightingOnly && approved) ||
-      (_lastFrame != null &&
-          _now - _lastFrame! < const Duration(milliseconds: 1800));
+      _lastFrame != null &&
+      _now - _lastFrame! < const Duration(milliseconds: 1800);
+  bool get canShowOverlay =>
+      approved &&
+      assessment.ready &&
+      fresh &&
+      outputAligned &&
+      _outputStream != null &&
+      _lastOutputFrame != null &&
+      _now - _lastOutputFrame! < const Duration(milliseconds: 900);
   bool get canApprove => assessment.ready && fresh && error == null;
 
-  /// Allows the user to manually confirm lighting and start immediately.
-  void forceApproveLighting() {
-    if (_disposed) return;
-    _lastFrame = _now;
-    error = null;
-    assessment = const CaptureAssessment(
-      progress: 1.0,
-      peopleOk: true,
-      lightOk: true,
-      clarityOk: true,
-      poseOk: true,
-    );
-    approved = true;
-    outputAligned = true;
-    analyzing = false;
-    _timer?.cancel();
-    _timer = null;
-    final permission = _permission;
-    _permission = null;
-    if (permission != null && !permission.isCompleted) {
-      permission.complete();
-    }
-    notifyListeners();
+  void _invalidateOutput() {
+    outputAligned = false;
+    _lastOutputFrame = null;
+    overlayPoints = const [];
+    outputPoints = const [];
   }
 
   @override
@@ -101,8 +98,7 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
     error = null;
     observation = null;
     assessment = const CaptureAssessment();
-    outputAligned = false;
-    _lightingCaptureFailures = 0;
+    _invalidateOutput();
     _gate.reset();
     _lastFrame = null;
     _outputMismatchSince = null;
@@ -110,22 +106,18 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
     analyzing = true;
     final permission = _permission = Completer<void>();
     final generation = _generation;
-    _timer = Timer.periodic(
-      Duration(milliseconds: lightingOnly ? 350 : 450),
-      (_) {
-        if (lightingOnly && approved) {
-          _timer?.cancel();
-          _timer = null;
-          return;
-        }
-        // Expired/missing observations never leave a validated overlay visible.
-        if (approved && !fresh) {
-          _unsafe('توقف فحص الكاميرا. أعد الفحص قبل المتابعة.');
-        } else if (!_busy) {
-          unawaited(_sample(generation));
-        }
-      },
-    );
+    _timer = Timer.periodic(const Duration(milliseconds: 450), (_) {
+      if (outputAligned && !canShowOverlay) {
+        _invalidateOutput();
+        notifyListeners();
+      }
+      // Expired/missing observations never leave a validated overlay visible.
+      if (approved && !fresh) {
+        _unsafe('توقف فحص الكاميرا. أعد الفحص قبل المتابعة.');
+      } else if (!_busy) {
+        unawaited(_sample(generation));
+      }
+    });
     notifyListeners();
     return permission.future;
   }
@@ -133,12 +125,6 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
   void _completeApproval() {
     if (!canApprove || _permission == null) return;
     approved = true;
-    if (lightingOnly) {
-      outputAligned = true;
-      analyzing = false;
-      _timer?.cancel();
-      _timer = null;
-    }
     _permission!.complete();
     _permission = null;
     notifyListeners();
@@ -155,19 +141,11 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
         const Duration(seconds: 3),
       )).asUint8List();
       final capturedAt = _now;
-      if (lightingOnly) {
-        final frame = await _inspectFrame(bytes, const []);
-        if (_disposed || generation != _generation) return;
-        observation = frame;
-        _lastFrame = capturedAt;
-        _lightingCaptureFailures = 0;
-        assessment = _gate.evaluateLightingOnly(frame, capturedAt);
-        if (!approved) _completeApproval();
-        return;
-      }
+      if (_disposed || generation != _generation) return;
       readStage = CaptureReadStage.cameraAnalysis;
-      final poses = await (_analyzeFrame ?? _analyzer.analyze)(bytes)
-          .timeout(const Duration(seconds: 65));
+      final poses = await (_analyzeFrame ?? _analyzer.analyze)(
+        bytes,
+      ).timeout(const Duration(seconds: 65));
       final frame = await _inspectFrame(bytes, poses);
       if (_disposed || generation != _generation) return;
       if (_now - capturedAt > const Duration(milliseconds: 1800)) {
@@ -180,27 +158,42 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
       _lastFrame = capturedAt;
       assessment = _gate.evaluate(frame, selected, capturedAt);
       if (approved && !assessment.ready) {
-        if (assessment.issue == CaptureIssue.moving ||
-            assessment.issue == CaptureIssue.stabilizing) {
-          outputAligned = false;
+        _invalidateOutput();
+        if (assessment.issue != CaptureIssue.multiplePeople &&
+            assessment.issue != CaptureIssue.unavailable) {
           _outputMismatchSince = null;
-          return; // Ordinary pose changes pause the overlay, not the session.
+          return; // Recover framing/light/movement without restarting the stream.
         }
         _unsafe(assessment.issue?.message ?? 'أعد تثبيت وضعيتك.');
         return;
       }
       if (!approved) _completeApproval();
-      final remoteTrack = outputStream?.getVideoTracks().firstOrNull;
+      final sampledOutput = outputStream;
+      final remoteTrack = sampledOutput?.getVideoTracks().firstOrNull;
       if (approved && remoteTrack != null) {
         readStage = CaptureReadStage.outputFrame;
         final outputBytes = (await remoteTrack.captureFrame().timeout(
           const Duration(seconds: 3),
         )).asUint8List();
-        readStage = CaptureReadStage.outputAnalysis;
-        final output = await (_analyzeFrame ?? _analyzer.analyze)(outputBytes)
-            .timeout(const Duration(seconds: 3));
         if (_disposed || generation != _generation) return;
+        readStage = CaptureReadStage.outputAnalysis;
+        final output = await (_analyzeFrame ?? _analyzer.analyze)(
+          outputBytes,
+        ).timeout(const Duration(seconds: 3));
+        if (_disposed || generation != _generation) return;
+        if (!identical(sampledOutput, outputStream) ||
+            _now - capturedAt >= const Duration(milliseconds: 900)) {
+          _invalidateOutput();
+          return;
+        }
         outputAligned = outputMatchesBody(assessment.points, output, selected);
+        if (outputAligned) {
+          overlayPoints = List.unmodifiable(assessment.points);
+          outputPoints = List.unmodifiable(output.single);
+          _lastOutputFrame = capturedAt;
+        } else {
+          _invalidateOutput();
+        }
         if (output.length != 1) {
           _unsafe('تعذر التأكد من وجود شخص واحد في النتيجة. أعد الفحص.');
         } else if (!outputAligned) {
@@ -216,14 +209,6 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
       }
     } catch (failure) {
       if (_disposed || generation != _generation) return;
-      if (lightingOnly) {
-        _lightingCaptureFailures++;
-        if (_lightingCaptureFailures >= 2) {
-          // If platform WebRTC track snapshot is unavailable, do not block try-on.
-          forceApproveLighting();
-        }
-        return;
-      }
       _gate.reset();
       assessment = const CaptureAssessment(issue: CaptureIssue.unavailable);
       error = captureReadFailure(
@@ -239,7 +224,7 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
 
   void _unsafe(String message) {
     approved = false;
-    outputAligned = false;
+    _invalidateOutput();
     error = message;
     _timer?.cancel();
     analyzing = false;
@@ -259,8 +244,8 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
     _timer = null;
     _onUnsafe = null;
     approved = false;
-    outputAligned = false;
-    outputStream = null;
+    _invalidateOutput();
+    _outputStream = null;
     analyzing = false;
     stream = null;
     final permission = _permission;
@@ -268,6 +253,7 @@ class CaptureGuardController extends ChangeNotifier implements CaptureGuard {
     if (permission != null && !permission.isCompleted) {
       permission.completeError(const TryonFailure('تم إلغاء فحص الجسم.'));
     }
+    if (!_disposed) notifyListeners();
   }
 
   @override

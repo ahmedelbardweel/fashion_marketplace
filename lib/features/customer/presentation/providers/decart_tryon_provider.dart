@@ -86,7 +86,7 @@ class DecartTryonState {
 
 final captureGuardProvider = ChangeNotifierProvider.autoDispose
     .family<CaptureGuardController, String>(
-      (ref, id) => CaptureGuardController(lightingOnly: true),
+      (ref, id) => CaptureGuardController(),
     );
 
 final decartRealtimeServiceProvider = Provider.autoDispose

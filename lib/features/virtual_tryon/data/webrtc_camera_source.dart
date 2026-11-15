@@ -26,6 +26,9 @@ class WebRtcCameraSource {
   final Future<MediaStream> Function(Map<String, dynamic>) _capture;
   bool front = true;
 
+  Future<bool> switchCamera(MediaStreamTrack track) =>
+      Helper.switchCamera(track);
+
   /// Reset to the widest unzoomed view supported by the active native capturer.
   Future<void> resetZoom(MediaStreamTrack track) async {
     if (useWebCapture) return;

@@ -53,7 +53,7 @@ class TryonSteps extends StatelessWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  ['مكان اللبس'.tr, 'فحص الإضاءة'.tr, 'التجربة'.tr][i],
+                  ['مكان اللبس'.tr, 'فحص الكاميرا'.tr, 'التجربة'.tr][i],
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 11,
@@ -492,14 +492,15 @@ class GarmentRegionClipper extends CustomClipper<Path> {
       final length = hipsVisible
           ? (((p(23) + p(24)) / 2) - ((a + b) / 2)).distance
           : width * 1.7;
-      final lowerA = a + down * length;
-      final lowerB = b + down * length;
-      mask.addPolygon([
-        a - across * pad,
-        b + across * pad,
-        lowerB + across * pad,
-        lowerA - across * pad,
-      ], true);
+      // Follow the actual waist rather than extending a shoulder-width box
+      // into the background on either side of the body.
+      final lowerA = hipsVisible
+          ? (p(23).dx <= p(24).dx ? p(23) : p(24))
+          : a + down * length + across * width * .08;
+      final lowerB = hipsVisible
+          ? (p(23).dx <= p(24).dx ? p(24) : p(23))
+          : b + down * length - across * width * .08;
+      mask.addPolygon([a, b, lowerB, lowerA], true);
       for (final pair in [
         [11, 13],
         [13, 15],

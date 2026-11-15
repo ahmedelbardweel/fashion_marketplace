@@ -167,3 +167,45 @@ Remote capture/decoding failures have separate messages from local camera errors
 The browser smoke test also negotiates a real local WebRTC loopback with a
 synthetic canvas track and verifies frame capture after video readiness. This
 does not establish connectivity or timing for a live Decart session.
+
+## Face/background preservation regression (2026-11-15)
+
+The interactive body-zone screen had bypassed the protected preview: it painted
+the full generated stream with `cover`, mirrored only the local stream, and used
+a lighting-only guard that stopped sampling after approval (or skipped failed
+capture). The active route now requires continuous pose/quality checks and uses
+`ProtectedTryonPreview`. Both videos are unmirrored and contained. Generated
+pixels are restricted to the intersection of source/output garment masks; head
+and hand exclusions apply to both. The torso follows visible hips instead of
+extending a shoulder-width rectangle into the surrounding scene.
+
+The overlay disappears without a fade when tracking, output alignment, selection,
+frame aspect ratios or sample freshness are invalid. Output samples older than
+900 ms cannot unlock it. Distance/scale drift and visible head/hand movement are
+checked as well as clothing anchors. Ordinary framing/light/motion changes show
+the original camera and recover after stability returns, without reconnecting.
+Camera switches invalidate the previous landmarks and revalidate. Garment
+updates remain hidden until acknowledged, and replaced/detached output streams
+cannot reuse an earlier alignment result. There is no manual lighting bypass.
+
+Regression tests include pixel-level compositing (face/background preservation,
+immediate hiding, aspect mismatches), stepping away, moving the head, losing a
+shoulder, delayed/detached output, and camera revalidation. The remote view stays
+mounted while clipped so first-frame detection can still complete.
+
+This is a conservative landmark mask, not garment/person pixel segmentation.
+Garment edges can be clipped and areas inside the mask can still include scene
+pixels; asynchronous streams and movement between samples can cause seams. It
+does not promise perfect background preservation at moving garment boundaries.
+Physical iPhone/Android testing with the live service remains necessary; Windows
+cannot validate the iOS camera integration. Rebuild/redeploy the client for these
+changes to reach an installed app or hosted web build.
+
+Validation for this fix: all 65 host try-on tests passed. Static analysis of the
+changed feature completed without errors or warnings (existing style infos
+remain); the protected preview, current screen and browser integration test
+also passed a focused analysis with no issues. The additional
+`protected_tryon_web_test.dart` exercises first-frame readiness with the real
+WebRTC HTML view clipped away and a synthetic canvas stream. Its Chrome run
+could not start because Flutter's required Web SDK download stalled at zero
+bytes; no live camera/service or physical iPhone run was performed.

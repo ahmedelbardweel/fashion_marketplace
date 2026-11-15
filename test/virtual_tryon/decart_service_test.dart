@@ -13,6 +13,7 @@ class TestCaptureGuard implements CaptureGuard {
   Completer<void>? pending;
   void Function(String)? onUnsafe;
   int validations = 0;
+  int cancellations = 0;
   @override
   Future<void> validate(
     MediaStream stream,
@@ -26,6 +27,7 @@ class TestCaptureGuard implements CaptureGuard {
 
   @override
   void cancel() {
+    cancellations++;
     final waiting = pending;
     pending = null;
     if (waiting != null && !waiting.isCompleted) {
@@ -59,6 +61,13 @@ class VideoStream extends Fake implements MediaStream {
 
 class Camera extends WebRtcCameraSource {
   final stream = VideoStream();
+  int switches = 0;
+  @override
+  Future<bool> switchCamera(MediaStreamTrack track) async {
+    switches++;
+    return true;
+  }
+
   @override
   Future<MediaStream> open() async => stream;
 }
@@ -232,6 +241,30 @@ void main() {
       expect(camera.stream.disposed, true);
       expect(remote.disposed, true);
       expect(peer.closed, true);
+    },
+  );
+
+  test(
+    'switching camera cancels old tracking and validates the new camera',
+    () async {
+      final starting = service.start(garment);
+      await Future<void>.delayed(Duration.zero);
+      peer.onConnectionState!(
+        RTCPeerConnectionState.RTCPeerConnectionStateConnected,
+      );
+      final remote = VideoStream();
+      peer.onTrack!(RTCTrackEvent(streams: [remote], track: remote.track));
+      await Future<void>.delayed(Duration.zero);
+      service.notifyFirstRemoteFrame();
+      socket.receive({'type': 'set_image_ack', 'success': true});
+      await starting;
+      await Future<void>.delayed(Duration.zero);
+      final validations = guard.validations;
+      final cancellations = guard.cancellations;
+      await service.switchCamera();
+      expect(camera.switches, 1);
+      expect(guard.cancellations, cancellations + 1);
+      expect(guard.validations, validations + 1);
     },
   );
 

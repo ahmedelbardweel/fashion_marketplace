@@ -12,6 +12,8 @@ import '../../../../core/widgets/app_skeleton.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../virtual_tryon/data/capture_guard.dart';
 import '../../../virtual_tryon/domain/remote_frame_gate.dart';
+import '../../../virtual_tryon/domain/capture_quality.dart';
+import '../../../virtual_tryon/presentation/protected_tryon_preview.dart';
 import '../../../virtual_tryon/presentation/remote_video_binding.dart';
 import '../../../virtual_tryon/presentation/tryon_preparation.dart';
 import '../../domain/models/customer_product.dart';
@@ -36,10 +38,20 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   RemoteVideoBinding? _videoBinding;
   bool _ready = false,
       _started = false,
-      _showGarments = true,
+      _showGarments = false,
       _showOriginal = false;
   bool _foreground = true;
+  bool _switchingCamera = false;
   String? _rendererError;
+
+  Timer? _snackHideTimer;
+  Timer? _snackNextTimer;
+  bool _snackVisible = false;
+  bool _snackSyncScheduled = false;
+  int _snackIndex = 0;
+  _CameraAlert? _displayedAlert;
+  List<_CameraAlert> _latestAlerts = const [];
+  String _lastAlertKeySet = '';
 
   @override
   void initState() {
@@ -102,6 +114,16 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     if (mounted) setState(() {});
   }
 
+  Future<void> _switchCamera() async {
+    if (_switchingCamera) return;
+    setState(() => _switchingCamera = true);
+    try {
+      await _controller.switchCamera();
+    } finally {
+      if (mounted) setState(() => _switchingCamera = false);
+    }
+  }
+
   Future<void> _start() async {
     if (!mounted || !_foreground) return;
     if (!_ready) {
@@ -113,17 +135,301 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     setState(() {
       _started = true;
       _showOriginal = false;
-      _showGarments = true;
+      _showGarments = false;
     });
     await _controller.start();
   }
 
   Future<void> _returnToBodyMap() async {
+    _cancelSnackTimers();
     await _controller.suspend();
     if (!mounted) return;
     setState(() {
       _started = false;
       _showOriginal = false;
+      _showGarments = false;
+      _snackVisible = false;
+      _displayedAlert = null;
+      _latestAlerts = const [];
+      _lastAlertKeySet = '';
+    });
+  }
+
+  void _cancelSnackTimers() {
+    _snackHideTimer?.cancel();
+    _snackHideTimer = null;
+    _snackNextTimer?.cancel();
+    _snackNextTimer = null;
+  }
+
+  List<_CameraAlert> _collectCameraAlerts(
+    DecartTryonState state,
+    CaptureGuardController guard, {
+    required bool failed,
+    required bool showOverlay,
+    required TryonBodyZone activeZone,
+  }) {
+    if (!_started && !failed) return const [];
+    final alerts = <_CameraAlert>[];
+    final seenKeys = <String>{};
+
+    void addAlert(_CameraAlert alert) {
+      if (seenKeys.add(alert.key)) alerts.add(alert);
+    }
+
+    if (failed) {
+      final errMsg =
+          state.errorMessage ??
+          guard.error ??
+          _rendererError ??
+          'توقفت التجربة. يمكنك إعادة المحاولة الآن.'.tr;
+      addAlert(
+        _CameraAlert(
+          key: 'fatal:$errMsg:${state.retryPending}',
+          message: errMsg,
+          icon: Icons.error_outline_rounded,
+          accent: const Color(0xFFEF4444),
+          canRetry: !state.retryPending,
+        ),
+      );
+      if (state.retryPending) {
+        addAlert(
+          _CameraAlert(
+            key: 'retry:${state.retryAttempt}',
+            message:
+                'جارٍ استئناف التجربة تلقائياً… (${state.retryAttempt}/3)'.tr,
+            icon: Icons.refresh_rounded,
+            accent: AppColors.primary,
+          ),
+        );
+      }
+      return alerts;
+    }
+
+    if (!guard.approved) {
+      if (guard.error != null && guard.error!.trim().isNotEmpty) {
+        addAlert(
+          _CameraAlert(
+            key: 'guard_err:${guard.error}',
+            message: guard.error!,
+            icon: Icons.error_outline_rounded,
+            accent: const Color(0xFFEF4444),
+          ),
+        );
+      }
+
+      final assessment = guard.assessment;
+      final issue = assessment.issue;
+
+      if (issue != null &&
+          (issue == CaptureIssue.dark ||
+              issue == CaptureIssue.overexposed ||
+              issue == CaptureIssue.backlit)) {
+        addAlert(
+          _CameraAlert(
+            key: 'light:${issue.name}',
+            message: issue.message,
+            icon: Icons.wb_sunny_outlined,
+            accent: const Color(0xFFF59E0B),
+          ),
+        );
+      } else if (!assessment.lightOk && assessment.points.isNotEmpty) {
+        addAlert(
+          _CameraAlert(
+            key: 'light:dark',
+            message: CaptureIssue.dark.message,
+            icon: Icons.wb_sunny_outlined,
+            accent: const Color(0xFFF59E0B),
+          ),
+        );
+      }
+
+      if (issue == CaptureIssue.blurred ||
+          (assessment.lightOk &&
+              !assessment.clarityOk &&
+              assessment.points.isNotEmpty)) {
+        addAlert(
+          _CameraAlert(
+            key: 'clarity:blurred',
+            message: CaptureIssue.blurred.message,
+            icon: Icons.center_focus_weak_rounded,
+            accent: const Color(0xFFF59E0B),
+          ),
+        );
+      }
+
+      if (issue != null &&
+          (issue == CaptureIssue.noPerson ||
+              issue == CaptureIssue.multiplePeople ||
+              issue == CaptureIssue.cropped ||
+              issue == CaptureIssue.tooFar ||
+              issue == CaptureIssue.moving ||
+              issue == CaptureIssue.unavailable)) {
+        final msg =
+            issue == CaptureIssue.cropped &&
+                activeZone.protocolRegion == 'upper body garment'
+            ? 'أظهر الكتفين بوضوح داخل الكاميرا؛ لا يلزم ظهور الجسم كاملاً.'.tr
+            : issue.message;
+        addAlert(
+          _CameraAlert(
+            key: 'pose:${issue.name}',
+            message: msg,
+            icon: issue == CaptureIssue.unavailable
+                ? Icons.videocam_off_outlined
+                : Icons.accessibility_new_rounded,
+            accent: issue == CaptureIssue.unavailable
+                ? const Color(0xFFEF4444)
+                : AppColors.primary,
+          ),
+        );
+      }
+
+      if (alerts.isEmpty) {
+        addAlert(
+          _CameraAlert(
+            key: 'wait:camera',
+            message: 'ثبّت وضعيتك قليلاً أمام الكاميرا…'.tr,
+            icon: Icons.auto_awesome_rounded,
+            accent: AppColors.primary,
+          ),
+        );
+      }
+      return alerts;
+    }
+
+    if (!state.isConnected) {
+      addAlert(
+        _CameraAlert(
+          key: 'wait:connecting',
+          message: 'انتظر لحظة، جارٍ تجهيز الإطلالة…'.tr,
+          icon: Icons.auto_awesome_rounded,
+          accent: AppColors.primary,
+        ),
+      );
+      return alerts;
+    }
+
+    if (state.errorMessage != null && state.errorMessage!.trim().isNotEmpty) {
+      addAlert(
+        _CameraAlert(
+          key: 'session_err:${state.errorMessage}',
+          message: state.errorMessage!,
+          icon: Icons.error_outline_rounded,
+          accent: const Color(0xFFEF4444),
+        ),
+      );
+    }
+
+    if (state.isUpdating) {
+      addAlert(
+        _CameraAlert(
+          key: 'wait:updating',
+          message: 'جارٍ تبديل القطعة…'.tr,
+          icon: Icons.checkroom_rounded,
+          accent: AppColors.primary,
+        ),
+      );
+    } else if (!_showOriginal && !showOverlay) {
+      final issueMsg =
+          guard.assessment.issue?.message ??
+          'ثبّت وضعيتك قليلاً لتظهر القطعة بوضوح.'.tr;
+      addAlert(
+        _CameraAlert(
+          key: 'live_hint:$issueMsg',
+          message: issueMsg,
+          icon: Icons.center_focus_strong_rounded,
+          accent: const Color(0xFFF59E0B),
+        ),
+      );
+    }
+
+    return alerts;
+  }
+
+  void _syncAlerts(List<_CameraAlert> alerts) {
+    _latestAlerts = alerts;
+    final keySet = alerts.map((e) => e.key).join('|');
+    final changed = keySet != _lastAlertKeySet;
+    _lastAlertKeySet = keySet;
+
+    if (alerts.isEmpty) {
+      if (_displayedAlert != null ||
+          _snackVisible ||
+          _snackHideTimer != null ||
+          _snackNextTimer != null) {
+        _scheduleSnackSync(() {
+          if (!mounted || _latestAlerts.isNotEmpty) return;
+          _cancelSnackTimers();
+          setState(() {
+            _snackVisible = false;
+            _displayedAlert = null;
+            _snackIndex = 0;
+          });
+        });
+      }
+      return;
+    }
+
+    final shouldInterruptImmediately =
+        changed &&
+        (_displayedAlert == null ||
+            (alerts.first.canRetry && !(_displayedAlert?.canRetry ?? false)));
+
+    if ((_snackHideTimer == null && _snackNextTimer == null) ||
+        shouldInterruptImmediately) {
+      _scheduleSnackSync(() {
+        if (!mounted || _latestAlerts.isEmpty) return;
+        _showAlertAt(0);
+      });
+    }
+  }
+
+  void _scheduleSnackSync(VoidCallback action) {
+    if (_snackSyncScheduled) return;
+    _snackSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _snackSyncScheduled = false;
+      action();
+    });
+  }
+
+  void _showAlertAt(int index) {
+    if (!mounted || _latestAlerts.isEmpty) return;
+    _cancelSnackTimers();
+    final safeIndex = index % _latestAlerts.length;
+    setState(() {
+      _snackIndex = safeIndex;
+      _displayedAlert = _latestAlerts[safeIndex];
+      _snackVisible = true;
+    });
+    _snackHideTimer = Timer(const Duration(seconds: 5), _onSnackFiveSeconds);
+  }
+
+  void _onSnackFiveSeconds() {
+    _snackHideTimer = null;
+    if (!mounted) return;
+    final previousKey = _displayedAlert?.key;
+    setState(() => _snackVisible = false);
+
+    if (_latestAlerts.isEmpty) {
+      _displayedAlert = null;
+      return;
+    }
+
+    final nextIndex = (_snackIndex + 1) % _latestAlerts.length;
+    final hasOtherAlert =
+        _latestAlerts.length > 1 || _latestAlerts.first.key != previousKey;
+    final pauseDuration = hasOtherAlert
+        ? const Duration(milliseconds: 550)
+        : const Duration(milliseconds: 1800);
+
+    _snackNextTimer = Timer(pauseDuration, () {
+      _snackNextTimer = null;
+      if (!mounted || _latestAlerts.isEmpty) {
+        if (mounted) setState(() => _displayedAlert = null);
+        return;
+      }
+      _showAlertAt(nextIndex);
     });
   }
 
@@ -194,6 +500,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   @override
   void dispose() {
+    _cancelSnackTimers();
     WidgetsBinding.instance.removeObserver(this);
     _localRenderer.removeListener(_rendererChanged);
     _renderer.removeListener(_rendererChanged);
@@ -228,306 +535,355 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     final state = ref.watch(decartTryonProvider(widget.productId));
     final guard = ref.watch(captureGuardProvider(widget.productId));
     final activeZone = state.effectiveZone;
-    final step = !_started
-        ? 0
-        : guard.approved
-        ? 2
-        : 1;
     final failed =
         _rendererError != null ||
         state.status == DecartSessionStatus.error ||
         (_started && state.status == DecartSessionStatus.disconnected);
     final zoneColor = Color(activeZone.colorHex);
+    final observation = guard.observation;
+    final showOverlay =
+        state.isConnected &&
+        !state.isUpdating &&
+        !_showOriginal &&
+        !_switchingCamera &&
+        _foreground &&
+        !failed &&
+        guard.canShowOverlay &&
+        guard.garment?.effectiveZone == activeZone &&
+        guard.garment?.id == state.appliedProductId &&
+        state.appliedProductId == state.selectedProduct?.id &&
+        ProtectedTryonPreview.framesAlign(
+          _localRenderer.value.aspectRatio,
+          _renderer.value.aspectRatio,
+          observation == null ? 0 : observation.width / observation.height,
+        );
 
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Top App Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: Row(
-                children: [
-                  IconButton(
-                    tooltip: 'رجوع'.tr,
-                    onPressed: () {
-                      if (_started) {
-                        unawaited(_returnToBodyMap());
-                      } else {
-                        context.pop();
-                      }
-                    },
-                    icon: Icon(AppIcons.back),
-                  ),
-                  Expanded(
-                    child: Text(
-                      'تجربة الملابس'.tr,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
+    final alerts = _collectCameraAlerts(
+      state,
+      guard,
+      failed: failed,
+      showOverlay: showOverlay,
+      activeZone: activeZone,
+    );
+    _syncAlerts(alerts);
+
+    if (!_started && !failed) {
+      return Scaffold(
+        backgroundColor: AppColors.surface,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'رجوع'.tr,
+                      onPressed: () => context.pop(),
+                      icon: Icon(AppIcons.back),
+                    ),
+                    Expanded(
+                      child: Text(
+                        'تجربة الملابس'.tr,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                  ),
-                  if (_started)
-                    IconButton(
-                      tooltip: 'تغيير مكان اللبس'.tr,
-                      onPressed: () => _openBodyZoneModal(context),
-                      icon: Icon(
-                        Icons.accessibility_new_rounded,
-                        color: zoneColor,
-                      ),
-                    )
-                  else
                     const SizedBox(width: 48),
-                ],
+                  ],
+                ),
+              ),
+              Expanded(
+                child: InteractiveBodyZoneSelector(
+                  measurementProfileId:
+                      ref.watch(authControllerProvider).user?.id ?? 'guest',
+                  selectedZone: activeZone,
+                  selectedProduct: state.selectedProduct,
+                  availableProducts: state.availableProducts,
+                  onZoneSelected: _controller.selectBodyZone,
+                  onProductSelected: _controller.selectGarment,
+                  onContinue: _start,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final showGarmentDock =
+        state.isConnected &&
+        _showGarments &&
+        !state.isUpdating &&
+        !failed &&
+        state.availableProducts.isNotEmpty;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 1) Edge-to-Edge Full-Screen Camera + Protected Try-On Stream
+            if (_ready)
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final rawAspect = _localRenderer.value.aspectRatio;
+                    final fallbackAspect =
+                        constraints.maxWidth /
+                        constraints.maxHeight.clamp(1.0, double.infinity);
+                    final stageAspect =
+                        rawAspect.isFinite && rawAspect > 0
+                        ? rawAspect
+                        : fallbackAspect;
+                    const baseHeight = 1000.0;
+                    return ClipRect(
+                      child: SizedBox.expand(
+                        child: FittedBox(
+                          fit: BoxFit.cover,
+                          alignment: Alignment.center,
+                          child: SizedBox(
+                            width: baseHeight * stageAspect,
+                            height: baseHeight,
+                            child: ProtectedTryonPreview(
+                              enabled: showOverlay,
+                              points: guard.overlayPoints,
+                              outputPoints: guard.outputPoints,
+                              sourceAspect: _localRenderer.value.aspectRatio,
+                              outputAspect: _renderer.value.aspectRatio,
+                              observationAspect: observation == null
+                                  ? 0
+                                  : observation.width / observation.height,
+                              region:
+                                  guard.garment?.region ??
+                                  activeZone.protocolRegion,
+                              original: RTCVideoView(
+                                _localRenderer,
+                                mirror: false,
+                                objectFit: RTCVideoViewObjectFit
+                                    .RTCVideoViewObjectFitContain,
+                              ),
+                              generated: RTCVideoView(
+                                _renderer,
+                                mirror: false,
+                                objectFit: RTCVideoViewObjectFit
+                                    .RTCVideoViewObjectFitContain,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+            // Subtle top gradient so floating controls & status bar stay crisp
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 120,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.50),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
-            if (_started) TryonSteps(current: step),
 
-            // Main Stage Area
-            Expanded(
-              child: !_started && !failed
-                  ? InteractiveBodyZoneSelector(
-                      measurementProfileId:
-                          ref.watch(authControllerProvider).user?.id ?? 'guest',
-                      selectedZone: activeZone,
-                      selectedProduct: state.selectedProduct,
-                      availableProducts: state.availableProducts,
-                      onZoneSelected: _controller.selectBodyZone,
-                      onProductSelected: _controller.selectGarment,
-                      onContinue: _start,
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) => Column(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              color: const Color(0xFF0B0F19),
-                              child: Stack(
-                                fit: StackFit.expand,
+            // 2) Minimal Floating Top Controls over Camera
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      _CameraFloatingCircleButton(
+                        icon: AppIcons.back,
+                        tooltip: 'رجوع'.tr,
+                        onTap: () {
+                          if (_started) {
+                            unawaited(_returnToBodyMap());
+                          } else {
+                            context.pop();
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      Material(
+                        color: Colors.black.withValues(alpha: 0.48),
+                        shape: StadiumBorder(
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.16),
+                          ),
+                        ),
+                        child: InkWell(
+                          customBorder: const StadiumBorder(),
+                          onTap: () => _openBodyZoneModal(context),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 9,
+                                  height: 9,
+                                  decoration: BoxDecoration(
+                                    color: zoneColor,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  activeZone.shortLabel,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.tune_rounded,
+                                  size: 14,
+                                  color: Colors.white70,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      if (state.isConnected) ...[
+                        Material(
+                          color: Colors.black.withValues(alpha: 0.48),
+                          shape: StadiumBorder(
+                            side: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.16),
+                            ),
+                          ),
+                          child: InkWell(
+                            customBorder: const StadiumBorder(),
+                            onTap: () =>
+                                setState(() => _showOriginal = !_showOriginal),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  // 1. Base Local Camera Stream
-                                  if (_ready)
-                                    RTCVideoView(
-                                      _localRenderer,
-                                      mirror: state.isFrontCamera,
-                                      objectFit: RTCVideoViewObjectFit
-                                          .RTCVideoViewObjectFitCover,
+                                  Icon(
+                                    _showOriginal
+                                        ? AppIcons.garment
+                                        : AppIcons.compare,
+                                    size: 15,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    _showOriginal
+                                        ? 'عرض القطعة'.tr
+                                        : 'الصورة الأصلية'.tr,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w600,
                                     ),
-
-                                  // 2. Processed Decart Remote Try-On Stream (Full Fidelity)
-                                  if (_ready)
-                                    AnimatedOpacity(
-                                      duration: const Duration(
-                                        milliseconds: 220,
-                                      ),
-                                      opacity:
-                                          state.isConnected && !_showOriginal
-                                          ? 1.0
-                                          : 0.0,
-                                      child: IgnorePointer(
-                                        ignoring:
-                                            !state.isConnected || _showOriginal,
-                                        child: RTCVideoView(
-                                          _renderer,
-                                          mirror: false,
-                                          objectFit: RTCVideoViewObjectFit
-                                              .RTCVideoViewObjectFitCover,
-                                        ),
-                                      ),
-                                    ),
-
-                                  // 3. Stage 2 Zone-Colored Framing Overlay (Lighting Check only)
-                                  if (!guard.approved &&
-                                      guard.analyzing &&
-                                      !failed)
-                                    IgnorePointer(
-                                      child: CustomPaint(
-                                        painter: ZoneFramedGuidePainter(
-                                          zone: activeZone,
-                                        ),
-                                      ),
-                                    ),
-
-                                  // 4. Top Live Controls (Zone Pill + Compare + Camera Switch)
-                                  if (!failed)
-                                    Positioned(
-                                      top: 12,
-                                      left: 12,
-                                      right: 12,
-                                      child: Row(
-                                        children: [
-                                          // Active Body Zone Badge (Tappable)
-                                          Material(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.65,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              24,
-                                            ),
-                                            child: InkWell(
-                                              borderRadius:
-                                                  BorderRadius.circular(24),
-                                              onTap: () =>
-                                                  _openBodyZoneModal(context),
-                                              child: Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 7,
-                                                    ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Container(
-                                                      width: 10,
-                                                      height: 10,
-                                                      decoration: BoxDecoration(
-                                                        color: zoneColor,
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 7),
-                                                    Text(
-                                                      activeZone.shortLabel,
-                                                      style: const TextStyle(
-                                                        color: Colors.white,
-                                                        fontSize: 12,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    const Icon(
-                                                      Icons.tune_rounded,
-                                                      size: 14,
-                                                      color: Colors.white70,
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          const Spacer(),
-                                          if (state.isConnected) ...[
-                                            FilledButton.tonalIcon(
-                                              style: FilledButton.styleFrom(
-                                                backgroundColor: Colors.black
-                                                    .withValues(alpha: 0.65),
-                                                foregroundColor: Colors.white,
-                                                visualDensity:
-                                                    VisualDensity.compact,
-                                              ),
-                                              onPressed: () => setState(
-                                                () => _showOriginal =
-                                                    !_showOriginal,
-                                              ),
-                                              icon: Icon(
-                                                _showOriginal
-                                                    ? AppIcons.garment
-                                                    : AppIcons.compare,
-                                                size: 16,
-                                              ),
-                                              label: Text(
-                                                _showOriginal
-                                                    ? 'عرض القطعة'.tr
-                                                    : 'الصورة الأصلية'.tr,
-                                                style: const TextStyle(
-                                                  fontSize: 11.5,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            IconButton.filledTonal(
-                                              style: IconButton.styleFrom(
-                                                backgroundColor: Colors.black
-                                                    .withValues(alpha: 0.65),
-                                                foregroundColor: Colors.white,
-                                              ),
-                                              tooltip: 'تبديل الكاميرا'.tr,
-                                              onPressed:
-                                                  _controller.switchCamera,
-                                              icon: const Icon(
-                                                Icons.cameraswitch_rounded,
-                                                size: 19,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-
-                                  // 5. Error Panel
-                                  if (failed)
-                                    Center(
-                                      child: _errorPanel(
-                                        state,
-                                        state.errorMessage ??
-                                            guard.error ??
-                                            _rendererError ??
-                                            'توقفت التجربة. يمكنك إعادة المحاولة الآن.'
-                                                .tr,
-                                      ),
-                                    ),
-
-                                  // 6. Connecting Indicator after Lighting Approved
-                                  if (!failed &&
-                                      (!guard.analyzing || guard.approved) &&
-                                      !state.isConnected)
-                                    Center(
-                                      child: Card(
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            16,
-                                          ),
-                                        ),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 22,
-                                            vertical: 18,
-                                          ),
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              AppBusyLabel(
-                                                label:
-                                                    'جارٍ تركيب القطعة على (${activeZone.shortLabel})…',
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                                  ),
                                 ],
                               ),
                             ),
                           ),
+                        ),
+                        const SizedBox(width: 8),
+                        _CameraFloatingCircleButton(
+                          icon: AppIcons.garment,
+                          tooltip: 'اختيار قطعة'.tr,
+                          active: _showGarments,
+                          onTap: state.isUpdating
+                              ? null
+                              : () => setState(
+                                  () => _showGarments = !_showGarments,
+                                ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      if (_ready)
+                        _CameraFloatingCircleButton(
+                          icon: Icons.cameraswitch_rounded,
+                          tooltip: 'تبديل الكاميرا'.tr,
+                          onTap: _switchingCamera || state.isUpdating
+                              ? null
+                              : _switchCamera,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
-                          // Bottom Stage Panel: Lighting-Only Check OR Garment Switcher
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxHeight: constraints.maxHeight * .46,
-                            ),
-                            child: SingleChildScrollView(
-                              child: failed
-                                  ? const SizedBox.shrink()
-                                  : !guard.approved && guard.analyzing
-                                  ? LightingOnlyChecklist(
-                                      assessment: guard.assessment,
-                                      selectedZone: activeZone,
-                                      onSkipLighting:
-                                          _guard.forceApproveLighting,
-                                      onChangeZone: () =>
-                                          _openBodyZoneModal(context),
-                                    )
-                                  : _garments(state),
-                            ),
+            // 3) Bottom Floating 5-Second Auto-Rotating SnackBar + Optional Garment Dock
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_displayedAlert != null)
+                        Padding(
+                          padding: EdgeInsets.only(
+                            bottom: showGarmentDock ? 10 : 0,
                           ),
-                        ],
-                      ),
-                    ),
+                          child: _CameraStatusSnackBar(
+                            alert: _displayedAlert!,
+                            visible: _snackVisible,
+                            onRetry: _displayedAlert!.canRetry
+                                ? _controller.retry
+                                : null,
+                          ),
+                        ),
+                      if (showGarmentDock) _garmentDock(state),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -535,155 +891,23 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     );
   }
 
-  Widget _errorPanel(
-    DecartTryonState state,
-    String message,
-  ) => SingleChildScrollView(
-    padding: const EdgeInsets.all(24),
-    child: Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(AppIcons.focus, size: 36, color: AppColors.primary),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 16),
-            if (state.retryPending)
-              AppBusyLabel(
-                label:
-                    'جارٍ استئناف التجربة تلقائياً… (${state.retryAttempt}/3)'
-                        .tr,
-              )
-            else ...[
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _controller.retry,
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  label: const Text('إعادة المحاولة الآن'),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: _returnToBodyMap,
-                icon: const Icon(Icons.accessibility_new_rounded, size: 18),
-                label: const Text('العودة لتحديد مكان اللبس على المجسم'),
-              ),
-            ],
-          ],
-        ),
+  Widget _garmentDock(DecartTryonState state) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
       ),
-    ),
-  );
-
-  Widget _garments(DecartTryonState state) {
-    final activeZone = state.effectiveZone;
-    final zoneColor = Color(activeZone.colorHex);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: zoneColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _showOriginal
-                      ? 'صورتك الأصلية للمقارنة'.tr
-                      : activeZone.shortLabel,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: _showOriginal ? AppColors.gray700 : zoneColor,
-                  ),
-                ),
-              ),
-              TextButton.icon(
-                style: TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                ),
-                onPressed: () => _openBodyZoneModal(context),
-                icon: Icon(
-                  Icons.accessibility_new_rounded,
-                  size: 16,
-                  color: zoneColor,
-                ),
-                label: Text(
-                  'تغيير المكان',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: zoneColor,
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: 'اختيار قطعة'.tr,
-                onPressed: state.isConnected && !state.isUpdating
-                    ? () => setState(() => _showGarments = !_showGarments)
-                    : null,
-                icon: Icon(
-                  _showGarments ? AppIcons.chevronDown : AppIcons.garment,
-                ),
-              ),
-            ],
-          ),
-          Text(
-            state.selectedProduct?.name ?? 'قطعتك'.tr,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-          ),
-          if (state.isUpdating)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: AppBusyLabel(
-                label: 'جارٍ تطبيق القطعة على (${activeZone.shortLabel})…',
-              ),
-            ),
-          if (state.errorMessage != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                state.errorMessage!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
-              ),
-            ),
-          if (_showGarments &&
-              state.isConnected &&
-              !state.isUpdating &&
-              state.availableProducts.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: SizedBox(
-                height: 96,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: state.availableProducts.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 10),
-                  itemBuilder: (_, i) =>
-                      _garmentTile(state.availableProducts[i], state),
-                ),
-              ),
-            ),
-        ],
+      child: SizedBox(
+        height: 92,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: state.availableProducts.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 10),
+          itemBuilder: (_, i) =>
+              _garmentTile(state.availableProducts[i], state),
+        ),
       ),
     );
   }
@@ -698,19 +922,17 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       label: product.name,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          _controller.selectGarment(product);
-        },
+        onTap: () => _controller.selectGarment(product),
         child: Container(
-          width: 84,
+          width: 80,
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: selected
-                ? tileColor.withValues(alpha: .10)
-                : AppColors.surface,
+                ? tileColor.withValues(alpha: 0.22)
+                : Colors.white.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: selected ? tileColor : AppColors.border,
+              color: selected ? tileColor : Colors.white.withValues(alpha: 0.16),
               width: selected ? 2 : 1,
             ),
           ),
@@ -724,15 +946,18 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                         product.tryonReferenceImage!,
                         fit: BoxFit.contain,
                         cacheWidth: 192,
-                        errorBuilder: (_, _, _) => const Icon(AppIcons.garment),
+                        errorBuilder: (_, _, _) => const Icon(
+                          AppIcons.garment,
+                          color: Colors.white70,
+                        ),
                       ),
                     ),
                     Positioned(
                       top: 0,
                       right: 0,
                       child: Container(
-                        width: 8,
-                        height: 8,
+                        width: 7,
+                        height: 7,
                         decoration: BoxDecoration(
                           color: tileColor,
                           shape: BoxShape.circle,
@@ -748,11 +973,172 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 10.5,
+                  color: Colors.white,
+                  fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CameraAlert {
+  const _CameraAlert({
+    required this.key,
+    required this.message,
+    required this.icon,
+    required this.accent,
+    this.canRetry = false,
+  });
+
+  final String key;
+  final String message;
+  final IconData icon;
+  final Color accent;
+  final bool canRetry;
+}
+
+class _CameraFloatingCircleButton extends StatelessWidget {
+  const _CameraFloatingCircleButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: active
+            ? AppColors.primary.withValues(alpha: 0.85)
+            : Colors.black.withValues(alpha: 0.48),
+        shape: CircleBorder(
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.16)),
+        ),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(
+              icon,
+              size: 19,
+              color: onTap == null ? Colors.white38 : Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CameraStatusSnackBar extends StatelessWidget {
+  const _CameraStatusSnackBar({
+    required this.alert,
+    required this.visible,
+    this.onRetry,
+  });
+
+  final _CameraAlert alert;
+  final bool visible;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      ignoring: !visible || onRetry == null,
+      child: AnimatedSlide(
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOutCubic,
+        offset: visible ? Offset.zero : const Offset(0, 0.35),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 240),
+          opacity: visible ? 1.0 : 0.0,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 240),
+            child: Container(
+              key: ValueKey(alert.key),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xE011161F),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: alert.accent.withValues(alpha: 0.45),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: alert.accent.withValues(alpha: 0.16),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(alert.icon, size: 17, color: alert.accent),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      alert.message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                  if (onRetry != null) ...[
+                    const SizedBox(width: 8),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: alert.accent.withValues(alpha: 0.25),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: onRetry,
+                      child: Text(
+                        'إعادة'.tr,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),
