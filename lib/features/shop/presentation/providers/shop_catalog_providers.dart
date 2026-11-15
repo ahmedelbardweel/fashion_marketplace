@@ -1,4 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/filtering/filter_models.dart';
+import '../../../../core/notifications/read_notifications_provider.dart';
+export '../../../../core/notifications/read_notifications_provider.dart';
+import '../../../../core/pagination/paginated_state.dart';
+export '../../../../core/pagination/paginated_state.dart';
 
 import '../../../admin/domain/models/catalog_models.dart';
 import '../../../auth/domain/models/user_role.dart';
@@ -41,11 +49,117 @@ final shopCategoriesProvider =
       return ref.watch(shopCatalogRepositoryProvider).fetchActiveCategories();
     });
 
-final shopProductsProvider = FutureProvider.autoDispose<List<ShopProduct>>((
-  ref,
-) async {
-  if (!_isShop(ref)) return const [];
-  return ref.watch(shopCatalogRepositoryProvider).fetchMyProducts();
+final shopProductFilterProvider = StateProvider<ShopProductFilterState>((ref) {
+  return ShopProductFilterState.empty;
+});
+
+/// Paginated shop product controller fetching [kProductPageSize] (6) items per
+/// request with server-pushed filters and debounced search.
+class PaginatedShopProductsNotifier extends PaginatedListNotifier<ShopProduct> {
+  PaginatedShopProductsNotifier({
+    required ShopCatalogRepository repository,
+    required bool isShop,
+    ShopProductFilterState initialFilter = ShopProductFilterState.empty,
+  }) : _repository = repository,
+       _isShop = isShop,
+       _filter = initialFilter,
+       super(
+         fetcher: (offset, limit) => _fetchFilteredPage(
+           repository: repository,
+           isShop: isShop,
+           offset: offset,
+           limit: limit,
+           filter: initialFilter,
+         ),
+         itemId: (item) => item.id,
+       );
+
+  final ShopCatalogRepository _repository;
+  final bool _isShop;
+  ShopProductFilterState _filter;
+  Timer? _searchDebounce;
+
+  static Future<PaginatedPage<ShopProduct>> _fetchFilteredPage({
+    required ShopCatalogRepository repository,
+    required bool isShop,
+    required int offset,
+    required int limit,
+    required ShopProductFilterState filter,
+  }) async {
+    if (!isShop) {
+      return const PaginatedPage<ShopProduct>(items: [], rawCount: 0);
+    }
+    final page = await repository.fetchMyProductsPage(
+      limit: limit,
+      offset: offset,
+      status: filter.status,
+      categoryId: filter.categoryId,
+      minPrice: filter.minPrice,
+      maxPrice: filter.maxPrice,
+      search: filter.search,
+      sort: filter.sort,
+    );
+    final refined = filterShopProducts(page.items, filter);
+    return PaginatedPage<ShopProduct>(
+      items: refined,
+      rawCount: page.rawCount ?? page.items.length,
+      totalCount: page.totalCount,
+    );
+  }
+
+  void updateFilter(ShopProductFilterState next, {bool force = false}) {
+    if (!force && next == _filter) return;
+    final searchChanged = next.search != _filter.search;
+    _filter = next;
+    _searchDebounce?.cancel();
+
+    if (searchChanged && next.search.trim().isNotEmpty) {
+      _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+        if (!mounted) return;
+        _resetForCurrentFilter();
+      });
+    } else {
+      _resetForCurrentFilter();
+    }
+  }
+
+  void _resetForCurrentFilter() {
+    final activeFilter = _filter;
+    resetWithFetcher(
+      (offset, limit) => _fetchFilteredPage(
+        repository: _repository,
+        isShop: _isShop,
+        offset: offset,
+        limit: limit,
+        filter: activeFilter,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
+}
+
+final shopProductsPaginatedProvider = StateNotifierProvider.autoDispose<
+  PaginatedShopProductsNotifier,
+  PaginatedListState<ShopProduct>
+>((ref) {
+  final isShop = _isShop(ref);
+  final repository = ref.watch(shopCatalogRepositoryProvider);
+  final initialFilter = ref.read(shopProductFilterProvider);
+  final notifier = PaginatedShopProductsNotifier(
+    repository: repository,
+    isShop: isShop,
+    initialFilter: initialFilter,
+  );
+  ref.listen<ShopProductFilterState>(
+    shopProductFilterProvider,
+    (previous, next) => notifier.updateFilter(next),
+  );
+  return notifier;
 });
 
 final shopProductProvider = FutureProvider.autoDispose
@@ -66,6 +180,12 @@ final shopNotificationsProvider =
       if (!_isShop(ref)) return const [];
       return ref.watch(shopCatalogRepositoryProvider).fetchNotifications();
     });
+
+final shopUnreadNotificationsCountProvider = Provider.autoDispose<int>((ref) {
+  final readIds = ref.watch(readNotificationIdsProvider);
+  final notifications = ref.watch(shopNotificationsProvider).valueOrNull;
+  return countUnreadNotifications(notifications, readIds);
+});
 
 final shopImagesProvider = FutureProvider.autoDispose<List<ShopMediaItem>>((
   ref,
@@ -111,7 +231,9 @@ class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     try {
       final product = await _repo.saveProductForm(data);
-      _ref.invalidate(shopProductsProvider);
+      if (_ref.exists(shopProductsPaginatedProvider)) {
+        _ref.read(shopProductsPaginatedProvider.notifier).refresh();
+      }
       _ref.invalidate(shopStatsProvider);
       _ref.invalidate(shopCategoriesProvider);
       _ref.invalidate(shopProductProvider(product.id));
@@ -129,7 +251,9 @@ class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
   }) {
     return _run(() async {
       await _repo.setProductStatus(productId: productId, status: status);
-      _ref.invalidate(shopProductsProvider);
+      if (_ref.exists(shopProductsPaginatedProvider)) {
+        _ref.read(shopProductsPaginatedProvider.notifier).refresh();
+      }
       _ref.invalidate(shopStatsProvider);
       _ref.invalidate(shopProductProvider(productId));
     });

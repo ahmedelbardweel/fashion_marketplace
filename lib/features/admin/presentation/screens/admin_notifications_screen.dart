@@ -17,8 +17,26 @@ import '../providers/admin_providers.dart';
 import '../widgets/admin_app_bar.dart';
 import '../widgets/admin_async_body.dart';
 
-class AdminNotificationsScreen extends ConsumerWidget {
+import '../../../../core/filtering/filter_models.dart';
+import '../../../../core/widgets/app_filter_bar.dart';
+
+class AdminNotificationsScreen extends ConsumerStatefulWidget {
   const AdminNotificationsScreen({super.key});
+
+  @override
+  ConsumerState<AdminNotificationsScreen> createState() =>
+      _AdminNotificationsScreenState();
+}
+
+class _AdminNotificationsScreenState
+    extends ConsumerState<AdminNotificationsScreen> {
+  NotificationFilterState _filter = NotificationFilterState.empty;
+
+  static const _audienceOptions = [
+    ('all_users', 'الكل (العملاء والمتاجر)'),
+    ('customer', 'العملاء'),
+    ('shop', 'أصحاب المتاجر'),
+  ];
 
   Future<void> _send(BuildContext context, WidgetRef ref) async {
     final titleController = TextEditingController();
@@ -117,7 +135,7 @@ class AdminNotificationsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final notifications = ref.watch(adminNotificationsProvider);
     final busy = ref.watch(adminActionProvider).isLoading;
 
@@ -129,34 +147,148 @@ class AdminNotificationsScreen extends ConsumerWidget {
         emptyMessage: 'لا توجد إشعارات مرسلة بعد'.tr,
         isEmpty: (data) => data.isEmpty,
         onRetry: () => ref.invalidate(adminNotificationsProvider),
+        onRefresh: () => ref.refresh(adminNotificationsProvider.future),
         builder: (items) {
-          return ListView(
-            padding: AppSpacing.page,
-            children: items
-                .map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: AppCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.title,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            item.audienceLabel,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: AppSpacing.sm),
-                          Text(item.body),
-                        ],
+          final filtered = filterNotifications(items, _filter);
+          final audienceCounts = <String, int>{};
+          for (final item in items) {
+            audienceCounts[item.audience] =
+                (audienceCounts[item.audience] ?? 0) + 1;
+          }
+
+          return Column(
+            children: [
+              AppFilterToolbar(
+                searchValue: _filter.search,
+                searchHint: 'ابحث في الإشعارات...',
+                onSearchChanged: (val) =>
+                    setState(() => _filter = _filter.copyWith(search: val)),
+                sortLabel: _filter.oldestFirst ? 'الأقدم' : 'الأحدث',
+                isDefaultSort: !_filter.oldestFirst,
+                onOpenSort: () async {
+                  final selected = await showAppSortSheet<bool>(
+                    context: context,
+                    current: _filter.oldestFirst,
+                    options: const [
+                      AppSortChoice(
+                        value: false,
+                        label: 'الأحدث',
+                        icon: AppIcons.arrowDown,
+                      ),
+                      AppSortChoice(
+                        value: true,
+                        label: 'الأقدم',
+                        icon: AppIcons.arrowUp,
+                      ),
+                    ],
+                  );
+                  if (selected != null && mounted) {
+                    setState(
+                      () => _filter = _filter.copyWith(oldestFirst: selected),
+                    );
+                  }
+                },
+                quickOptions: [
+                  AppQuickFilterOption(
+                    id: 'admin_notif_all',
+                    label: 'الكل',
+                    count: items.length,
+                    selected:
+                        _filter.audience == null &&
+                        _filter.datePreset == DateRangePreset.all,
+                    onTap: () => setState(
+                      () => _filter = _filter.copyWith(
+                        clearAudience: true,
+                        datePreset: DateRangePreset.all,
                       ),
                     ),
                   ),
-                )
-                .toList(),
+                  for (final aud in _audienceOptions)
+                    AppQuickFilterOption(
+                      id: 'admin_notif_${aud.$1}',
+                      label: aud.$2,
+                      count: audienceCounts[aud.$1] ?? 0,
+                      selected: _filter.audience == aud.$1,
+                      onTap: () => setState(() {
+                        final same = _filter.audience == aud.$1;
+                        _filter = same
+                            ? _filter.copyWith(clearAudience: true)
+                            : _filter.copyWith(audience: aud.$1);
+                      }),
+                    ),
+                  for (final preset in DateRangePreset.values)
+                    if (preset != DateRangePreset.all)
+                      AppQuickFilterOption(
+                        id: 'admin_notif_${preset.name}',
+                        label: preset.labelAr,
+                        selected: _filter.datePreset == preset,
+                        onTap: () => setState(() {
+                          final same = _filter.datePreset == preset;
+                          _filter = _filter.copyWith(
+                            datePreset: same ? DateRangePreset.all : preset,
+                          );
+                        }),
+                      ),
+                ],
+                totalCount: items.length,
+                filteredCount: filtered.length,
+                hasActiveCustomization: _filter.hasActiveFilters,
+                onClearAll: () => setState(
+                  () => _filter = NotificationFilterState.empty,
+                ),
+                showCountWhenUnfiltered: true,
+              ),
+              Expanded(
+                child: filtered.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: AppSpacing.page,
+                        children: [
+                          AppFilterEmptyState(
+                            onReset: () => setState(
+                              () => _filter = NotificationFilterState.empty,
+                            ),
+                          ),
+                        ],
+                      )
+                    : ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: AppSpacing.page,
+                        children: filtered
+                            .map(
+                              (item) => Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.sm,
+                                ),
+                                child: AppCard(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.title,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleLarge,
+                                      ),
+                                      const SizedBox(height: AppSpacing.xs),
+                                      Text(
+                                        item.audienceLabel,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
+                                      const SizedBox(height: AppSpacing.sm),
+                                      Text(item.body),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+              ),
+            ],
           );
         },
       ),

@@ -4,16 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_design.dart';
-import '../../../../core/widgets/app_bottom_sheet.dart';
-import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_empty.dart';
-import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/app_filter_bar.dart';
+import '../../../../core/widgets/app_pagination_footer.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/product_grid_card.dart';
 import '../../../../router/routes.dart';
+import '../../domain/models/customer_product.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
 import '../widgets/product_cart_sheet.dart';
+import '../widgets/product_filter_sheet.dart';
 
 class CustomerCatalogScreen extends ConsumerStatefulWidget {
   const CustomerCatalogScreen({super.key});
@@ -24,409 +26,271 @@ class CustomerCatalogScreen extends ConsumerStatefulWidget {
 }
 
 class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
-  final _searchController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    final filter = ref.read(productFilterProvider);
-    if (filter.search != null) {
-      _searchController.text = filter.search!;
+  Future<void> _toggleFavorite(CustomerProduct product) async {
+    final nextFav = !product.isFavorite;
+    syncFavoriteAcrossProductLists(ref, product, nextFav);
+    try {
+      await ref.read(customerRepositoryProvider).toggleFavorite(product.id);
+      ref.invalidate(customerProductDetailsProvider(product.id));
+    } catch (_) {
+      syncFavoriteAcrossProductLists(ref, product, product.isFavorite);
     }
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _toggleFavorite(String productId) async {
-    await ref.read(customerRepositoryProvider).toggleFavorite(productId);
-    ref.invalidate(customerProductsProvider);
-    ref.invalidate(customerFavoritesProvider);
-    ref.invalidate(customerProductDetailsProvider(productId));
-  }
-
-  void _openFilterBottomSheet() {
+  Future<void> _openFilterBottomSheet() async {
     final currentFilter = ref.read(productFilterProvider);
-    final categories = ref.read(customerCategoriesProvider).value ?? [];
+    final categories = ref.read(customerCategoriesProvider).value ?? const [];
+    final shops = ref.read(customerShopsProvider).value ?? const [];
+    final loadedProducts = ref.read(catalogProductsProvider).items;
 
-    String? selectedCategory = currentFilter.categoryId;
-    String? selectedColor = currentFilter.color;
-    String? selectedSize = currentFilter.size;
-    final double? minPrice = currentFilter.minPrice;
-    final double? maxPrice = currentFilter.maxPrice;
-
-    final minPriceController = TextEditingController(
-      text: minPrice != null ? minPrice.toStringAsFixed(0) : '',
-    );
-    final maxPriceController = TextEditingController(
-      text: maxPrice != null ? maxPrice.toStringAsFixed(0) : '',
-    );
-
-    AppBottomSheet.show(
+    final updated = await showCustomerProductFilterSheet(
       context: context,
-      isScrollControlled: true,
-      child: AppBottomSheetScaffold(
-        title: 'تصفية المنتجات'.tr,
-        child: StatefulBuilder(
-          builder: (ctx, setModalState) {
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (categories.isNotEmpty) ...[
-                  Text(
-                    'التصنيف'.tr,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: AppFont.bold,
-                      color: AppColors.text,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Wrap(
-                    spacing: AppSpacing.sm,
-                    runSpacing: AppSpacing.sm,
-                    children: categories.map((cat) {
-                      final isSelected = selectedCategory == cat.id;
-                      return ChoiceChip(
-                        label: Text(cat.name),
-                        selected: isSelected,
-                        onSelected: AppHaptics.change((val) {
-                          setModalState(() {
-                            selectedCategory = val ? cat.id : null;
-                          });
-                        }),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                ],
-
-                // Price Range
-                Text(
-                  'نطاق السعر (₪)'.tr,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: AppFont.bold,
-                    color: AppColors.text,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: minPriceController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(hintText: 'الحد الأدنى'.tr),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: TextField(
-                        controller: maxPriceController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(hintText: 'الحد الأقصى'.tr),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: AppSpacing.md),
-
-                // Sizes
-                Text(
-                  'المقاس'.tr,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: AppFont.bold,
-                    color: AppColors.text,
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: ['XS', 'S', 'M', 'L', 'XL', 'XXL'].map((sz) {
-                    final isSelected = selectedSize == sz;
-                    return ChoiceChip(
-                      label: Text(sz),
-                      selected: isSelected,
-                      onSelected: AppHaptics.change((val) {
-                        setModalState(() {
-                          selectedSize = val ? sz : null;
-                        });
-                      }),
-                    );
-                  }).toList(),
-                ),
-
-                const SizedBox(height: AppSpacing.lg),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppButton(
-                        label: 'إعادة ضبط'.tr,
-                        variant: AppButtonVariant.outlined,
-                        onPressed: () {
-                          setModalState(() {
-                            selectedCategory = null;
-                            selectedColor = null;
-                            selectedSize = null;
-                            minPriceController.clear();
-                            maxPriceController.clear();
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      flex: 2,
-                      child: AppButton(
-                        label: 'تطبيق الفلترة'.tr,
-                        onPressed: () {
-                          final minP = double.tryParse(
-                            minPriceController.text.trim(),
-                          );
-                          final maxP = double.tryParse(
-                            maxPriceController.text.trim(),
-                          );
-
-                          ref.read(productFilterProvider.notifier).state = ref
-                              .read(productFilterProvider)
-                              .copyWith(
-                                categoryId: selectedCategory,
-                                color: selectedColor,
-                                size: selectedSize,
-                                minPrice: minP,
-                                maxPrice: maxP,
-                                clearCategory: selectedCategory == null,
-                                clearColor: selectedColor == null,
-                                clearSize: selectedSize == null,
-                              );
-
-                          Navigator.of(ctx).pop();
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
-      ),
+      initial: currentFilter,
+      sourceProducts: loadedProducts,
+      categories: categories,
+      shops: shops,
     );
+    if (updated != null) {
+      ref.read(productFilterProvider.notifier).state = updated;
+    }
+  }
+
+  Future<void> _openSortSheet() async {
+    final currentFilter = ref.read(productFilterProvider);
+    final selected = await showAppSortSheet<ProductSortOption>(
+      context: context,
+      current: currentFilter.sort,
+      options: kCustomerProductSortChoices,
+    );
+    if (selected != null) {
+      ref.read(productFilterProvider.notifier).state = currentFilter.copyWith(
+        sort: selected,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final filter = ref.watch(productFilterProvider);
-    final categoriesAsync = ref.watch(customerCategoriesProvider);
-    final productsAsync = ref.watch(customerProductsProvider);
+    final categories = ref.watch(customerCategoriesProvider).value ?? const [];
+    final shops = ref.watch(customerShopsProvider).value ?? const [];
+    final productsState = ref.watch(catalogProductsProvider);
     final compareList = ref.watch(productComparisonProvider);
+
+    final quickOptions = <AppQuickFilterOption>[
+      AppQuickFilterOption(
+        id: 'in_stock',
+        label: 'متوفر فقط',
+        icon: AppIcons.checkCircle,
+        selected: filter.inStockOnly,
+        onTap: () {
+          ref.read(productFilterProvider.notifier).state = filter.copyWith(
+            inStockOnly: !filter.inStockOnly,
+          );
+        },
+      ),
+      if (categories.isNotEmpty) ...[
+        AppQuickFilterOption(
+          id: 'all_categories',
+          label: 'الكل',
+          selected: filter.categoryId == null,
+          onTap: () {
+            ref.read(productFilterProvider.notifier).state = filter.copyWith(
+              clearCategory: true,
+            );
+          },
+        ),
+        for (final cat in categories)
+          AppQuickFilterOption(
+            id: 'cat_${cat.id}',
+            label: cat.name,
+            selected: filter.categoryId == cat.id,
+            onTap: () {
+              final selected = filter.categoryId == cat.id;
+              ref.read(productFilterProvider.notifier).state = selected
+                  ? filter.copyWith(clearCategory: true)
+                  : filter.copyWith(categoryId: cat.id);
+            },
+          ),
+      ],
+    ];
+
+    final activeTags = buildCustomerProductActiveTags(
+      filter: filter,
+      categories: categories,
+      shops: shops,
+      includeCategoryTag: true,
+      includeShopTag: true,
+      onChanged: (next) =>
+          ref.read(productFilterProvider.notifier).state = next,
+    );
 
     return CustomerScaffold(
       title: 'المنتجات'.tr,
       currentNavIndex: 1,
       showBack: false,
-      actions: [
-        IconButton(
-          tooltip: 'تصفية وبحث متقدم'.tr,
-          icon: Badge(
-            isLabelVisible: filter.hasActiveFilters,
-            backgroundColor: CatalogDesign.filterActiveDot,
-            child: Icon(
-              AppIcons.filter,
-              color: CatalogDesign.filterButtonIcon,
-            ),
-          ),
-          onPressed: AppHaptics.action(_openFilterBottomSheet),
-        ),
-      ],
       body: Column(
         children: [
-          // Horizontal Category Chips Bar
-          categoriesAsync.when(
-            data: (categories) {
-              if (categories.isEmpty) return const SizedBox.shrink();
-              return Container(
-                height: 54,
-                decoration: BoxDecoration(
-                  color: CatalogDesign.toolbarBackground,
-                  border: Border(
-                    bottom: BorderSide(color: CatalogDesign.toolbarBorder),
-                  ),
-                ),
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: 8,
-                  ),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: categories.length + 1,
-                  separatorBuilder: (_, _) =>
-                      const SizedBox(width: AppSpacing.xs),
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      final allSelected = filter.categoryId == null;
-                      return _CategoryFilterPill(
-                        label: 'الكل'.tr,
-                        selected: allSelected,
-                        onTap: () {
-                          ref.read(productFilterProvider.notifier).state =
-                              filter.copyWith(clearCategory: true);
-                        },
-                      );
-                    }
-                    final cat = categories[index - 1];
-                    final selected = filter.categoryId == cat.id;
-                    return _CategoryFilterPill(
-                      label: cat.name,
-                      selected: selected,
-                      onTap: () {
-                        ref.read(productFilterProvider.notifier).state =
-                            selected
-                            ? filter.copyWith(clearCategory: true)
-                            : filter.copyWith(categoryId: cat.id);
-                      },
-                    );
-                  },
-                ),
-              );
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, _) => const SizedBox.shrink(),
-          ),
-
-          // Active filter badges
-          if (filter.hasActiveFilters)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.xs,
-              ),
-              color: AppColors.surfaceSubtle,
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    if (filter.search != null && filter.search!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsetsDirectional.only(
-                          end: AppSpacing.xs,
-                        ),
-                        child: InputChip(
-                          label: Text('بحث: ${filter.search}'.tr),
-                          onDeleted: AppHaptics.action(() {
-                            _searchController.clear();
-                            ref.read(productFilterProvider.notifier).state =
-                                filter.copyWith(search: '');
-                          }),
-                        ),
-                      ),
-                    if (filter.minPrice != null || filter.maxPrice != null)
-                      Padding(
-                        padding: const EdgeInsetsDirectional.only(
-                          end: AppSpacing.xs,
-                        ),
-                        child: InputChip(
-                          label: Text(
-                            'السعر: ${filter.minPrice ?? 0} - ${filter.maxPrice ?? '.tr∞'}',
-                          ),
-                          onDeleted: AppHaptics.action(() {
-                            ref.read(productFilterProvider.notifier).state =
-                                filter.copyWith(minPrice: null, maxPrice: null);
-                          }),
-                        ),
-                      ),
-                    if (filter.size != null)
-                      Padding(
-                        padding: const EdgeInsetsDirectional.only(
-                          end: AppSpacing.xs,
-                        ),
-                        child: InputChip(
-                          label: Text('المقاس: ${filter.size}'.tr),
-                          onDeleted: AppHaptics.action(() {
-                            ref.read(productFilterProvider.notifier).state =
-                                filter.copyWith(clearSize: true);
-                          }),
-                        ),
-                      ),
-                    TextButton.icon(
-                      onPressed: AppHaptics.action(() {
-                        _searchController.clear();
-                        ref.read(productFilterProvider.notifier).state =
-                            const ProductFilter();
-                      }),
-                      icon: const Icon(AppIcons.refresh, size: 16),
-                      label: Text('مسح الكل'.tr),
-                    ),
-                  ],
-                ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: CatalogDesign.toolbarBackground,
+              border: Border(
+                bottom: BorderSide(color: CatalogDesign.toolbarBorder),
               ),
             ),
+            child: AppFilterToolbar(
+              searchValue: filter.search ?? '',
+              searchHint: 'بحث في الكتالوج، الماركة، اللون...',
+              onSearchChanged: (value) {
+                ref.read(productFilterProvider.notifier).state = value.isEmpty
+                    ? filter.copyWith(clearSearch: true)
+                    : filter.copyWith(search: value);
+              },
+              quickOptions: quickOptions,
+              activeTags: activeTags,
+              activeFacetCount: filter.activeFacetCount,
+              onOpenAdvancedFilter: _openFilterBottomSheet,
+              sortLabel: filter.sort.labelAr,
+              isDefaultSort: filter.sort == ProductSortOption.newest,
+              onOpenSort: _openSortSheet,
+              totalCount:
+                  productsState.totalCount ??
+                  (productsState.hasMore ? null : productsState.items.length),
+              filteredCount: productsState.isInitialLoading
+                  ? null
+                  : productsState.items.length,
+              hasActiveCustomization: filter.hasActiveFilters,
+              onClearAll: () => ref.read(productFilterProvider.notifier).state =
+                  ProductFilter.empty,
+              showCountWhenUnfiltered:
+                  !productsState.isInitialLoading &&
+                  (productsState.totalCount != null || !productsState.hasMore),
+            ),
+          ),
 
           // Products Grid
           Expanded(
-            child: productsAsync.skeletonWhen(
+            child: productsState.skeletonWhen(
               placeholder: LoadingFixtures.products,
               data: (products) {
-                if (products.isEmpty) {
-                  return AppEmpty(
-                    icon: AppIcons.searchOff,
-                    title: 'لا توجد منتجات مطابقة'.tr,
-                    message: 'جرّب تغيير كلمات البحث أو إعادة ضبط الفلاتر'.tr,
-                    actionLabel: filter.hasActiveFilters
-                        ? 'إعادة ضبط الفلاتر'.tr
-                        : null,
-                    onAction: filter.hasActiveFilters
-                        ? AppHaptics.action(() {
-                            _searchController.clear();
-                            ref.read(productFilterProvider.notifier).state =
-                                const ProductFilter();
-                          })
-                        : null,
+                Future<void> handleRefresh() => Future.wait([
+                  ref.refresh(customerCategoriesProvider.future),
+                  ref.refresh(customerShopsProvider.future),
+                  ref.read(catalogProductsProvider.notifier).refresh(),
+                ]);
+
+                if (products.isEmpty && !productsState.isInitialLoading) {
+                  if (filter.hasActiveFilters) {
+                    return AppRefreshIndicator(
+                      onRefresh: handleRefresh,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: AppSpacing.page,
+                        children: [
+                          AppFilterEmptyState(
+                            onReset: () =>
+                                ref.read(productFilterProvider.notifier).state =
+                                    ProductFilter.empty,
+                          ),
+                          if (productsState.hasMore)
+                            AppLoadMoreFooter(
+                              isLoadingMore: productsState.isLoadingMore,
+                              hasMore: productsState.hasMore,
+                              itemsCount: products.length,
+                              loadMoreError: productsState.loadMoreError,
+                              onLoadMore: ref
+                                  .read(catalogProductsProvider.notifier)
+                                  .loadMore,
+                              useProductGridSkeleton: true,
+                            ),
+                        ],
+                      ),
+                    );
+                  }
+                  return AppRefreshIndicator(
+                    onRefresh: handleRefresh,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.55,
+                          child: AppEmpty(
+                            icon: AppIcons.searchOff,
+                            title: 'لا توجد منتجات منشورة حالياً'.tr,
+                            message: 'يرجى المحاولة لاحقاً.'.tr,
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 }
 
-                return RefreshIndicator.noSpinner(
-                  onRefresh: AppHaptics.refresh(() async {
-                    ref.invalidate(customerProductsProvider);
-                  }),
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    itemCount: products.length,
-                    gridDelegate: ProductGridDelegate(
-                      textScale:
-                          MediaQuery.textScalerOf(context).scale(14) / 14,
-                    ),
-                    itemBuilder: (context, index) {
-                      final product = products[index];
-                      return ProductGridCard(
-                        imageUrl: product.coverImage,
-                        meta: AppFormat.price(product.price),
-                        inStock: product.totalStock > 0,
-                        isFavorite: product.isFavorite,
-                        onToggleFavorite: () => _toggleFavorite(product.id),
-                        onAddToCart: () =>
-                            showProductCartSheet(context, product.id),
-                        onTap: () => context.push(
-                          AppRoutes.customerProductDetailsPath(product.id),
+                final showFooter = !productsState.isInitialLoading;
+                return AppRefreshIndicator(
+                  onRefresh: handleRefresh,
+                  child: AppPaginationScrollListener(
+                    hasMore: productsState.hasMore,
+                    isLoadingMore: productsState.isLoadingMore,
+                    onLoadMore: ref
+                        .read(catalogProductsProvider.notifier)
+                        .loadMore,
+                    child: CustomScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          sliver: SliverGrid(
+                            gridDelegate: ProductGridDelegate(
+                              textScale:
+                                  MediaQuery.textScalerOf(context).scale(14) /
+                                  14,
+                            ),
+                            delegate: SliverChildBuilderDelegate((
+                              context,
+                              index,
+                            ) {
+                              final product = products[index];
+                              return ProductGridCard(
+                                imageUrl: product.coverImage,
+                                meta: AppFormat.price(product.price),
+                                inStock: product.totalStock > 0,
+                                isFavorite: product.isFavorite,
+                                onToggleFavorite: () =>
+                                    _toggleFavorite(product),
+                                onAddToCart: () =>
+                                    showProductCartSheet(context, product.id),
+                                onTap: () => context.push(
+                                  AppRoutes.customerProductDetailsPath(
+                                    product.id,
+                                  ),
+                                ),
+                              );
+                            }, childCount: products.length),
+                          ),
                         ),
-                      );
-                    },
+                        if (showFooter)
+                          SliverToBoxAdapter(
+                            child: AppLoadMoreFooter(
+                              isLoadingMore: productsState.isLoadingMore,
+                              hasMore: productsState.hasMore,
+                              itemsCount: products.length,
+                              loadMoreError: productsState.loadMoreError,
+                              onLoadMore: ref
+                                  .read(catalogProductsProvider.notifier)
+                                  .loadMore,
+                              useProductGridSkeleton: true,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 );
               },
-              error: (err, _) => AppEmpty(
+              error: (err) => AppEmpty(
                 icon: AppIcons.error,
                 message: 'تعذر تحميل المنتجات: $err'.tr,
+                actionLabel: 'إعادة المحاولة'.tr,
+                onAction: ref.read(catalogProductsProvider.notifier).refresh,
               ),
             ),
           ),
@@ -446,10 +310,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(
-                    AppIcons.compare,
-                    color: AppColors.icon,
-                  ),
+                  Icon(AppIcons.compare, color: AppColors.icon),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
                     'تم تحديد ${compareList.length} منتجات للمقارنة'.tr,
@@ -476,48 +337,6 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _CategoryFilterPill extends StatelessWidget {
-  const _CategoryFilterPill({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: AppHaptics.action(onTap),
-      borderRadius: BorderRadius.circular(ChipDesign.radius),
-      child: AnimatedContainer(
-        duration: AppMotion.fast,
-        padding: ChipDesign.padding,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? ChipDesign.selectedBackground : ChipDesign.background,
-          borderRadius: BorderRadius.circular(ChipDesign.radius),
-          border: Border.all(
-            color: selected ? ChipDesign.selectedBorder : ChipDesign.border,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: ChipDesign.textSize,
-            fontWeight: selected
-                ? ChipDesign.selectedWeight
-                : ChipDesign.textWeight,
-            color: selected ? ChipDesign.selectedText : ChipDesign.text,
-          ),
-        ),
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_design.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../router/routes.dart';
 
 class AdminBottomNav extends StatelessWidget {
@@ -41,21 +42,37 @@ class AdminBottomNav extends StatelessWidget {
                   icon: AppIcons.dashboard,
                   activeIcon: AppIcons.dashboardActive,
                   selected: current == 0,
-                  onTap: () => context.go(AppRoutes.adminHome),
+                  onTap: () => AppRefreshIndicator.handleBottomNavTap(
+                    targetRoute: AppRoutes.adminHome,
+                    selected: current == 0,
+                    currentLocation: location,
+                    onNavigate: () => context.go(AppRoutes.adminHome),
+                  ),
                 ),
                 _NavItem(
                   label: 'الطلبات'.tr,
                   icon: AppIcons.shop,
                   activeIcon: AppIcons.shopActive,
                   selected: current == 1,
-                  onTap: () => context.go(AppRoutes.adminShopApplications),
+                  onTap: () => AppRefreshIndicator.handleBottomNavTap(
+                    targetRoute: AppRoutes.adminShopApplications,
+                    selected: current == 1,
+                    currentLocation: location,
+                    onNavigate: () =>
+                        context.go(AppRoutes.adminShopApplications),
+                  ),
                 ),
                 _NavItem(
                   label: 'الإعدادات'.tr,
                   icon: AppIcons.settings,
                   activeIcon: AppIcons.settingsActive,
                   selected: current == 2,
-                  onTap: () => context.go(AppRoutes.adminSettings),
+                  onTap: () => AppRefreshIndicator.handleBottomNavTap(
+                    targetRoute: AppRoutes.adminSettings,
+                    selected: current == 2,
+                    currentLocation: location,
+                    onNavigate: () => context.go(AppRoutes.adminSettings),
+                  ),
                 ),
               ],
             ),

@@ -1,4 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/filtering/filter_models.dart';
+export '../../../../core/filtering/filter_models.dart';
+import '../../../../core/notifications/read_notifications_provider.dart';
+export '../../../../core/notifications/read_notifications_provider.dart';
+import '../../../../core/pagination/paginated_state.dart';
+export '../../../../core/pagination/paginated_state.dart';
 
 import '../../../admin/domain/models/catalog_models.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -74,77 +83,195 @@ final customerShopDetailsProvider =
   return ref.watch(customerRepositoryProvider).getShopDetails(shopId);
 });
 
-// Filter State Model for Catalog
-class ProductFilter {
-  const ProductFilter({
-    this.categoryId,
-    this.shopId,
-    this.search,
-    this.minPrice,
-    this.maxPrice,
-    this.color,
-    this.size,
-  });
-
-  final String? categoryId;
-  final String? shopId;
-  final String? search;
-  final double? minPrice;
-  final double? maxPrice;
-  final String? color;
-  final String? size;
-
-  ProductFilter copyWith({
-    String? categoryId,
-    String? shopId,
-    String? search,
-    double? minPrice,
-    double? maxPrice,
-    String? color,
-    String? size,
-    bool clearCategory = false,
-    bool clearShop = false,
-    bool clearColor = false,
-    bool clearSize = false,
-  }) {
-    return ProductFilter(
-      categoryId: clearCategory ? null : (categoryId ?? this.categoryId),
-      shopId: clearShop ? null : (shopId ?? this.shopId),
-      search: search ?? this.search,
-      minPrice: minPrice ?? this.minPrice,
-      maxPrice: maxPrice ?? this.maxPrice,
-      color: clearColor ? null : (color ?? this.color),
-      size: clearSize ? null : (size ?? this.size),
-    );
-  }
-
-  bool get hasActiveFilters =>
-      (categoryId != null && categoryId!.isNotEmpty) ||
-      (shopId != null && shopId!.isNotEmpty) ||
-      (search != null && search!.isNotEmpty) ||
-      minPrice != null ||
-      maxPrice != null ||
-      (color != null && color!.isNotEmpty) ||
-      (size != null && size!.isNotEmpty);
-}
-
-// Current Filter State Provider
+// Current Filter State Provider (Catalog)
 final productFilterProvider = StateProvider<ProductFilter>((ref) {
   return const ProductFilter();
 });
 
-// Filtered Products Provider
-final customerProductsProvider = FutureProvider.autoDispose<List<CustomerProduct>>((ref) async {
-  final filter = ref.watch(productFilterProvider);
-  return ref.watch(customerRepositoryProvider).getProducts(
-        categoryId: filter.categoryId,
-        shopId: filter.shopId,
-        search: filter.search,
-        minPrice: filter.minPrice,
-        maxPrice: filter.maxPrice,
-        color: filter.color,
-        size: filter.size,
+// Quick Filter State Provider for Home Feed (kept independent from Catalog)
+final homeProductFilterProvider = StateProvider<ProductFilter>((ref) {
+  return const ProductFilter();
+});
+
+// Shop Public Profile Filter State Provider
+final shopPublicProductFilterProvider =
+    StateProvider.autoDispose.family<ProductFilter, String>((ref, shopId) {
+      return const ProductFilter();
+    });
+
+/// Paginated product controller fetching [kProductPageSize] (6) items per
+/// request with generation-safe filter resets and 350ms search debouncing.
+class PaginatedCustomerProductsNotifier
+    extends PaginatedListNotifier<CustomerProduct> {
+  PaginatedCustomerProductsNotifier({
+    required CustomerRepository repository,
+    ProductFilter initialFilter = const ProductFilter(),
+    this.shopId,
+  }) : _repository = repository,
+       _filter = initialFilter,
+       super(
+         fetcher: (offset, limit) => _fetchFilterPage(
+           repository: repository,
+           shopId: shopId,
+           filter: initialFilter,
+           offset: offset,
+           limit: limit,
+         ),
+         itemId: (item) => item.id,
+       );
+
+  final CustomerRepository _repository;
+  final String? shopId;
+  ProductFilter _filter;
+  Timer? _searchDebounce;
+
+  static Future<PaginatedPage<CustomerProduct>> _fetchFilterPage({
+    required CustomerRepository repository,
+    required String? shopId,
+    required ProductFilter filter,
+    required int offset,
+    required int limit,
+  }) {
+    return repository.getProductsPage(
+      categoryId: filter.categoryId,
+      shopId: shopId ?? filter.shopId,
+      search: filter.search,
+      minPrice: filter.minPrice,
+      maxPrice: filter.maxPrice,
+      color: filter.color,
+      size: filter.size,
+      inStockOnly: filter.inStockOnly,
+      minRating: filter.minRating,
+      sort: filter.sort,
+      limit: limit,
+      offset: offset,
+    );
+  }
+
+  ProductFilter get filter => _filter;
+
+  void updateFilter(ProductFilter next, {bool force = false}) {
+    if (!force && next == _filter) return;
+    final searchChanged = next.search != _filter.search;
+    _filter = next;
+    _searchDebounce?.cancel();
+
+    if (searchChanged && (next.search?.trim().isNotEmpty ?? false)) {
+      _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+        if (!mounted) return;
+        _resetForCurrentFilter();
+      });
+    } else {
+      _resetForCurrentFilter();
+    }
+  }
+
+  void _resetForCurrentFilter() {
+    final activeFilter = _filter;
+    resetWithFetcher(
+      (offset, limit) => _fetchFilterPage(
+        repository: _repository,
+        shopId: shopId,
+        filter: activeFilter,
+        offset: offset,
+        limit: limit,
+      ),
+    );
+  }
+
+  void setProductFavorite(String productId, bool isFavorite) {
+    updateWhere(
+      (item) => item.id == productId,
+      (item) => item.copyWith(isFavorite: isFavorite),
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
+}
+
+/// Paginated favorites controller fetching [kProductPageSize] (6) items per request.
+class PaginatedCustomerFavoritesNotifier
+    extends PaginatedListNotifier<CustomerProduct> {
+  PaginatedCustomerFavoritesNotifier({required CustomerRepository repository})
+    : super(
+        fetcher: (offset, limit) =>
+            repository.getFavoritesPage(limit: limit, offset: offset),
+        itemId: (item) => item.id,
       );
+
+  void applyFavoriteChange(CustomerProduct product, bool isFavorite) {
+    if (isFavorite) {
+      updateWhere(
+        (item) => item.id == product.id,
+        (item) => item.copyWith(isFavorite: true),
+      );
+      if (!state.items.any((item) => item.id == product.id)) {
+        refresh();
+      }
+    } else {
+      removeWhere((item) => item.id == product.id);
+    }
+  }
+}
+
+// Paginated Products Provider (Catalog)
+final catalogProductsProvider = StateNotifierProvider.autoDispose<
+  PaginatedCustomerProductsNotifier,
+  PaginatedListState<CustomerProduct>
+>((ref) {
+  final repository = ref.watch(customerRepositoryProvider);
+  final initialFilter = ref.read(productFilterProvider);
+  final notifier = PaginatedCustomerProductsNotifier(
+    repository: repository,
+    initialFilter: initialFilter,
+  );
+  ref.listen<ProductFilter>(
+    productFilterProvider,
+    (previous, next) => notifier.updateFilter(next),
+  );
+  return notifier;
+});
+
+// Paginated Products Provider (Home Quick Feed)
+final homeProductsProvider = StateNotifierProvider.autoDispose<
+  PaginatedCustomerProductsNotifier,
+  PaginatedListState<CustomerProduct>
+>((ref) {
+  final repository = ref.watch(customerRepositoryProvider);
+  final initialFilter = ref.read(homeProductFilterProvider);
+  final notifier = PaginatedCustomerProductsNotifier(
+    repository: repository,
+    initialFilter: initialFilter,
+  );
+  ref.listen<ProductFilter>(
+    homeProductFilterProvider,
+    (previous, next) => notifier.updateFilter(next),
+  );
+  return notifier;
+});
+
+// Paginated Products Provider (Shop Public Profile)
+final shopPublicProductsProvider = StateNotifierProvider.autoDispose.family<
+  PaginatedCustomerProductsNotifier,
+  PaginatedListState<CustomerProduct>,
+  String
+>((ref, shopId) {
+  final repository = ref.watch(customerRepositoryProvider);
+  final initialFilter = ref.read(shopPublicProductFilterProvider(shopId));
+  final notifier = PaginatedCustomerProductsNotifier(
+    repository: repository,
+    initialFilter: initialFilter,
+    shopId: shopId,
+  );
+  ref.listen<ProductFilter>(
+    shopPublicProductFilterProvider(shopId),
+    (previous, next) => notifier.updateFilter(next),
+  );
+  return notifier;
 });
 
 // Single Product Details Provider
@@ -159,11 +286,45 @@ final productReviewsProvider =
   return ref.watch(customerRepositoryProvider).getProductReviews(productId);
 });
 
-// Favorites Provider
-final customerFavoritesProvider =
-    FutureProvider.autoDispose<List<CustomerProduct>>((ref) async {
-  return ref.watch(customerRepositoryProvider).getFavorites();
+// Paginated Favorites Provider
+final customerFavoritesPaginatedProvider = StateNotifierProvider.autoDispose<
+  PaginatedCustomerFavoritesNotifier,
+  PaginatedListState<CustomerProduct>
+>((ref) {
+  ref.watch(authControllerProvider.select((s) => s.user?.id));
+  final repository = ref.watch(customerRepositoryProvider);
+  return PaginatedCustomerFavoritesNotifier(repository: repository);
 });
+
+/// Updates loaded paginated product lists in place without losing scroll
+/// position or fetched pages when the user toggles a favorite heart.
+void syncFavoriteAcrossProductLists(
+  WidgetRef ref,
+  CustomerProduct product,
+  bool isFavorite,
+) {
+  if (ref.exists(catalogProductsProvider)) {
+    ref
+        .read(catalogProductsProvider.notifier)
+        .setProductFavorite(product.id, isFavorite);
+  }
+  if (ref.exists(homeProductsProvider)) {
+    ref
+        .read(homeProductsProvider.notifier)
+        .setProductFavorite(product.id, isFavorite);
+  }
+  if (product.shopId != null &&
+      ref.exists(shopPublicProductsProvider(product.shopId!))) {
+    ref
+        .read(shopPublicProductsProvider(product.shopId!).notifier)
+        .setProductFavorite(product.id, isFavorite);
+  }
+  if (ref.exists(customerFavoritesPaginatedProvider)) {
+    ref
+        .read(customerFavoritesPaginatedProvider.notifier)
+        .applyFavoriteChange(product, isFavorite);
+  }
+}
 
 // Cart State Notifier (Backed by Supabase public.cart_items)
 class CartNotifier extends StateNotifier<List<CartItem>> {
@@ -378,4 +539,11 @@ final customerOrderDetailsProvider =
 final customerNotificationsProvider =
     FutureProvider.autoDispose<List<AdminNotification>>((ref) async {
   return ref.watch(customerRepositoryProvider).getCustomerNotifications();
+});
+
+// Unread Customer Notifications Count
+final customerUnreadNotificationsCountProvider = Provider.autoDispose<int>((ref) {
+  final readIds = ref.watch(readNotificationIdsProvider);
+  final notifications = ref.watch(customerNotificationsProvider).valueOrNull;
+  return countUnreadNotifications(notifications, readIds);
 });

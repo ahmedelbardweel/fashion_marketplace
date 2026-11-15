@@ -1,4 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/filtering/filter_models.dart';
+import '../../../../core/pagination/paginated_state.dart';
+export '../../../../core/pagination/paginated_state.dart';
 
 import '../../../auth/domain/models/app_user.dart';
 import '../../../auth/domain/models/user_role.dart';
@@ -57,10 +63,117 @@ final adminCategoriesProvider =
   return ref.watch(adminRepositoryProvider).fetchCategories();
 });
 
-final adminProductsProvider =
-    FutureProvider.autoDispose<List<AdminProduct>>((ref) async {
-  if (!_isAdmin(ref)) return const [];
-  return ref.watch(adminRepositoryProvider).fetchProducts();
+final adminProductFilterProvider = StateProvider<AdminProductFilterState>((ref) {
+  return AdminProductFilterState.empty;
+});
+
+/// Paginated admin product controller fetching [kProductPageSize] (6) items
+/// per request with server-pushed filters and debounced search.
+class PaginatedAdminProductsNotifier
+    extends PaginatedListNotifier<AdminProduct> {
+  PaginatedAdminProductsNotifier({
+    required AdminRepository repository,
+    required bool isAdmin,
+    AdminProductFilterState initialFilter = AdminProductFilterState.empty,
+  }) : _repository = repository,
+       _isAdmin = isAdmin,
+       _filter = initialFilter,
+       super(
+         fetcher: (offset, limit) => _fetchFilteredPage(
+           repository: repository,
+           isAdmin: isAdmin,
+           offset: offset,
+           limit: limit,
+           filter: initialFilter,
+         ),
+         itemId: (item) => item.id,
+       );
+
+  final AdminRepository _repository;
+  final bool _isAdmin;
+  AdminProductFilterState _filter;
+  Timer? _searchDebounce;
+
+  static Future<PaginatedPage<AdminProduct>> _fetchFilteredPage({
+    required AdminRepository repository,
+    required bool isAdmin,
+    required int offset,
+    required int limit,
+    required AdminProductFilterState filter,
+  }) async {
+    if (!isAdmin) {
+      return const PaginatedPage<AdminProduct>(items: [], rawCount: 0);
+    }
+    final page = await repository.fetchProductsPage(
+      limit: limit,
+      offset: offset,
+      status: filter.status,
+      minPrice: filter.minPrice,
+      maxPrice: filter.maxPrice,
+      search: filter.search,
+      sort: filter.sort,
+    );
+    final refined = filterAdminProducts(page.items, filter);
+    return PaginatedPage<AdminProduct>(
+      items: refined,
+      rawCount: page.rawCount ?? page.items.length,
+      totalCount: page.totalCount,
+    );
+  }
+
+  void updateFilter(AdminProductFilterState next, {bool force = false}) {
+    if (!force && next == _filter) return;
+    final searchChanged = next.search != _filter.search;
+    _filter = next;
+    _searchDebounce?.cancel();
+
+    if (searchChanged && next.search.trim().isNotEmpty) {
+      _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+        if (!mounted) return;
+        _resetForCurrentFilter();
+      });
+    } else {
+      _resetForCurrentFilter();
+    }
+  }
+
+  void _resetForCurrentFilter() {
+    final activeFilter = _filter;
+    resetWithFetcher(
+      (offset, limit) => _fetchFilteredPage(
+        repository: _repository,
+        isAdmin: _isAdmin,
+        offset: offset,
+        limit: limit,
+        filter: activeFilter,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchDebounce?.cancel();
+    super.dispose();
+  }
+}
+
+final adminProductsPaginatedProvider = StateNotifierProvider.autoDispose<
+  PaginatedAdminProductsNotifier,
+  PaginatedListState<AdminProduct>
+>((ref) {
+  final isAdmin = _isAdmin(ref);
+  final repository = ref.watch(adminRepositoryProvider);
+  final initialFilter = ref.read(adminProductFilterProvider);
+  final notifier = PaginatedAdminProductsNotifier(
+    repository: repository,
+    isAdmin: isAdmin,
+    initialFilter: initialFilter,
+  );
+  ref.listen<AdminProductFilterState>(
+    adminProductFilterProvider,
+    (previous, next) => notifier.updateFilter(next),
+  );
+  return notifier;
 });
 
 final adminOrdersProvider =
@@ -182,7 +295,9 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
   }) {
     return _run(() async {
       await _repo.setProductStatus(productId: productId, status: status);
-      _ref.invalidate(adminProductsProvider);
+      if (_ref.exists(adminProductsPaginatedProvider)) {
+        _ref.read(adminProductsPaginatedProvider.notifier).refresh();
+      }
       _ref.invalidate(adminStatsProvider);
     });
   }

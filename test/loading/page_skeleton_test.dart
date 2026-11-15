@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fashion_marketplace/core/pagination/paginated_state.dart';
 import 'package:fashion_marketplace/core/widgets/app_skeleton.dart';
 import 'package:fashion_marketplace/core/widgets/product_grid_card.dart';
 import 'package:fashion_marketplace/features/customer/presentation/providers/customer_providers.dart';
@@ -33,6 +34,10 @@ class _CustomerRepository extends Fake implements CustomerRepository {
   dynamic noSuchMethod(Invocation invocation) {
     if (invocation.memberName == #getProducts) {
       return Future<List<CustomerProduct>>.value([]);
+    }
+    if (invocation.memberName == #getProductsPage ||
+        invocation.memberName == #getFavoritesPage) {
+      return Completer<PaginatedPage<CustomerProduct>>().future;
     }
     return super.noSuchMethod(invocation);
   }
@@ -88,8 +93,6 @@ void main() {
               customerBannersProvider.overrideWith(pending),
               customerCategoriesProvider.overrideWith(pending),
               customerShopsProvider.overrideWith(pending),
-              customerProductsProvider.overrideWith(pending),
-              customerFavoritesProvider.overrideWith(pending),
               customerOrdersProvider.overrideWith(pending),
               customerNotificationsProvider.overrideWith(pending),
               adminStatsProvider.overrideWith(pending),

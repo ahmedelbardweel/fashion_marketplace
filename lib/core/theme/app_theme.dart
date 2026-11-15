@@ -14,6 +14,7 @@ class AppPreferences {
 
   static const _themeKey = 'app_theme_mode';
   static const _localeKey = 'app_locale_code';
+  static const _readNotificationsKey = 'app_read_notification_ids';
 
   static SharedPreferences? _prefs;
   static ThemeMode initialThemeMode = ThemeMode.light;
@@ -55,6 +56,20 @@ class AppPreferences {
   static Future<void> setLocale(Locale locale) async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     await prefs.setString(_localeKey, locale.languageCode);
+  }
+
+  static Set<String> getReadNotificationIds([String scope = 'default']) {
+    final list = _prefs?.getStringList('${_readNotificationsKey}_$scope');
+    return list == null ? <String>{} : list.toSet();
+  }
+
+  static Future<void> setReadNotificationIds(
+    Set<String> ids, {
+    String scope = 'default',
+  }) async {
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    _prefs = prefs;
+    await prefs.setStringList('${_readNotificationsKey}_$scope', ids.toList());
   }
 }
 

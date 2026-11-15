@@ -1,5 +1,4 @@
-import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 
@@ -27,6 +26,7 @@ class ShopDashboardScreen extends ConsumerWidget {
         statsState.asData?.value ??
         (statsState.isLoading ? LoadingFixtures.shopStats : null);
     final approved = shop?.visibleStatus == ShopStatus.approved;
+    final unreadNotifications = ref.watch(shopUnreadNotificationsCountProvider);
 
     return ShopScaffold(
       title: shop?.name ?? 'لوحة المحل'.tr,
@@ -37,13 +37,14 @@ class ShopDashboardScreen extends ConsumerWidget {
                 !ref.watch(myShopProvider).hasValue) ||
             (ref.watch(shopStatsProvider).isLoading &&
                 !ref.watch(shopStatsProvider).hasValue),
-        child: RefreshIndicator.noSpinner(
-          onRefresh: AppHaptics.refresh(() async {
-            ref.invalidate(myShopProvider);
-            ref.invalidate(shopStatsProvider);
-            await ref.read(shopStatsProvider.future);
-          }),
+        child: AppRefreshIndicator(
+          onRefresh: () => Future.wait([
+            ref.refresh(myShopProvider.future),
+            ref.refresh(shopStatsProvider.future),
+            ref.refresh(shopNotificationsProvider.future),
+          ]),
           child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: AppSpacing.page,
             children: [
               AppCard(
@@ -148,6 +149,11 @@ class ShopDashboardScreen extends ConsumerWidget {
                 code: 'SHOP-20',
                 title: 'الإشعارات'.tr,
                 subtitle: 'إشعارات الطلبات والتنبيهات'.tr,
+                badge: unreadNotifications == 0
+                    ? null
+                    : (unreadNotifications > 99
+                          ? '99+'
+                          : '$unreadNotifications'),
                 onTap: () => context.push(AppRoutes.shopNotifications),
               ),
               const SizedBox(height: AppSpacing.sm),

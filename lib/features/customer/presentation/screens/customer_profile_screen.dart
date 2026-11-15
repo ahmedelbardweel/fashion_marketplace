@@ -8,6 +8,7 @@ import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/customer_providers.dart';
@@ -367,9 +368,14 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
       title: 'حسابي'.tr,
       currentNavIndex: 4,
       showBack: false,
-      showSearch: false,
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.md),
+      body: AppRefreshIndicator(
+        onRefresh: () async {
+          await ref.read(authControllerProvider.notifier).refreshProfile();
+          if (mounted) _populateFields();
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -532,6 +538,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -20,7 +20,6 @@ class ProductComparisonScreen extends ConsumerWidget {
 
     return CustomerScaffold(
       title: 'مقارنة المنتجات'.tr,
-      showSearch: false,
       actions: [
         if (products.isNotEmpty)
           TextButton(

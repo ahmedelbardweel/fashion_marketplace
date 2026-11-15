@@ -22,6 +22,10 @@ class AppTextField extends StatelessWidget {
     this.suffix,
     this.prefixIcon,
     this.focusNode,
+    this.suffixText,
+    this.helperText,
+    this.helperMaxLines,
+    this.errorMaxLines,
   });
 
   final TextEditingController? controller;
@@ -40,6 +44,10 @@ class AppTextField extends StatelessWidget {
   final Widget? suffix;
   final IconData? prefixIcon;
   final FocusNode? focusNode;
+  final String? suffixText;
+  final String? helperText;
+  final int? helperMaxLines;
+  final int? errorMaxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -78,6 +86,10 @@ class AppTextField extends StatelessWidget {
           cursorColor: InputDesign.cursor,
           decoration: InputDecoration(
             hintText: hint == null ? null : AppLang.tr(hint!),
+            suffixText: suffixText == null ? null : AppLang.tr(suffixText!),
+            helperText: helperText == null ? null : AppLang.tr(helperText!),
+            helperMaxLines: helperMaxLines,
+            errorMaxLines: errorMaxLines,
             suffixIcon: suffix,
             prefixIcon: prefixIcon == null
                 ? null

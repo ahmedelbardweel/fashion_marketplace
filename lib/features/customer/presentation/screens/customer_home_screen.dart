@@ -7,23 +7,33 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_pagination_footer.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/product_grid_card.dart';
 import '../../../../router/routes.dart';
 import '../../../admin/domain/models/catalog_models.dart';
+import '../../domain/models/customer_product.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
 import '../widgets/product_cart_sheet.dart';
 
+import '../../../../core/widgets/app_filter_bar.dart';
+import '../widgets/product_filter_sheet.dart';
+
 class CustomerHomeScreen extends ConsumerWidget {
   const CustomerHomeScreen({super.key});
 
-  Future<void> _toggleFavorite(WidgetRef ref, String productId) async {
-    await ref.read(customerRepositoryProvider).toggleFavorite(productId);
-    ref.invalidate(customerProductsProvider);
-    ref.invalidate(customerFavoritesProvider);
-    ref.invalidate(customerProductDetailsProvider(productId));
+  Future<void> _toggleFavorite(WidgetRef ref, CustomerProduct product) async {
+    final nextFav = !product.isFavorite;
+    syncFavoriteAcrossProductLists(ref, product, nextFav);
+    try {
+      await ref.read(customerRepositoryProvider).toggleFavorite(product.id);
+      ref.invalidate(customerProductDetailsProvider(product.id));
+    } catch (_) {
+      syncFavoriteAcrossProductLists(ref, product, product.isFavorite);
+    }
   }
 
   @override
@@ -31,24 +41,30 @@ class CustomerHomeScreen extends ConsumerWidget {
     final bannersAsync = ref.watch(customerBannersProvider);
     final categoriesAsync = ref.watch(customerCategoriesProvider);
     final shopsAsync = ref.watch(customerShopsProvider);
-    final productsAsync = ref.watch(customerProductsProvider);
+    final productsState = ref.watch(homeProductsProvider);
+    final homeFilter = ref.watch(homeProductFilterProvider);
 
     return CustomerScaffold(
       title: 'السوق العصري'.tr,
       currentNavIndex: 0,
       showBack: false,
       showProfile: true,
-      body: RefreshIndicator.noSpinner(
-        onRefresh: AppHaptics.refresh(() async {
-          ref.invalidate(customerBannersProvider);
-          ref.invalidate(customerCategoriesProvider);
-          ref.invalidate(customerShopsProvider);
-          ref.invalidate(customerProductsProvider);
-        }),
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-          child: Column(
+      body: AppRefreshIndicator(
+        onRefresh: () => Future.wait([
+          ref.refresh(customerBannersProvider.future),
+          ref.refresh(customerCategoriesProvider.future),
+          ref.refresh(customerShopsProvider.future),
+          ref.refresh(customerNotificationsProvider.future),
+          ref.read(homeProductsProvider.notifier).refresh(),
+        ]),
+        child: AppPaginationScrollListener(
+          hasMore: productsState.hasMore,
+          isLoadingMore: productsState.isLoadingMore,
+          onLoadMore: ref.read(homeProductsProvider.notifier).loadMore,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // 1) Promotional Hero Banners
@@ -232,55 +248,193 @@ class CustomerHomeScreen extends ConsumerWidget {
                   () => context.push(AppRoutes.customerCatalog),
                 ),
               ),
-              const SizedBox(height: SectionDesign.spacingBelow),
+              AppFilterToolbar(
+                searchValue: homeFilter.search ?? '',
+                searchHint: 'ابحث باسم المنتج، المتجر، اللون...',
+                onSearchChanged: (val) {
+                  ref.read(homeProductFilterProvider.notifier).state =
+                      val.isEmpty
+                          ? homeFilter.copyWith(clearSearch: true)
+                          : homeFilter.copyWith(search: val);
+                },
+                quickOptions: [
+                  AppQuickFilterOption(
+                    id: 'home_in_stock',
+                    label: 'متوفر فقط',
+                    icon: AppIcons.checkCircle,
+                    selected: homeFilter.inStockOnly,
+                    onTap: () {
+                      ref.read(homeProductFilterProvider.notifier).state =
+                          homeFilter.copyWith(
+                            inStockOnly: !homeFilter.inStockOnly,
+                          );
+                    },
+                  ),
+                  if ((categoriesAsync.value ?? const []).isNotEmpty) ...[
+                    AppQuickFilterOption(
+                      id: 'home_cat_all',
+                      label: 'الكل',
+                      selected: homeFilter.categoryId == null,
+                      onTap: () {
+                        ref.read(homeProductFilterProvider.notifier).state =
+                            homeFilter.copyWith(clearCategory: true);
+                      },
+                    ),
+                    for (final cat in categoriesAsync.value ?? const [])
+                      AppQuickFilterOption(
+                        id: 'home_cat_${cat.id}',
+                        label: cat.name,
+                        selected: homeFilter.categoryId == cat.id,
+                        onTap: () {
+                          final selected = homeFilter.categoryId == cat.id;
+                          ref.read(homeProductFilterProvider.notifier).state =
+                              selected
+                                  ? homeFilter.copyWith(clearCategory: true)
+                                  : homeFilter.copyWith(categoryId: cat.id);
+                        },
+                      ),
+                  ],
+                ],
+                activeTags: buildCustomerProductActiveTags(
+                  filter: homeFilter,
+                  categories: categoriesAsync.value ?? const [],
+                  shops: shopsAsync.value ?? const [],
+                  onChanged: (next) =>
+                      ref.read(homeProductFilterProvider.notifier).state = next,
+                ),
+                activeFacetCount: homeFilter.activeFacetCount,
+                sortLabel: homeFilter.sort.labelAr,
+                isDefaultSort: homeFilter.sort == ProductSortOption.newest,
+                onOpenSort: () async {
+                  final selected = await showAppSortSheet<ProductSortOption>(
+                    context: context,
+                    current: homeFilter.sort,
+                    options: kCustomerProductSortChoices,
+                  );
+                  if (selected != null) {
+                    ref.read(homeProductFilterProvider.notifier).state =
+                        homeFilter.copyWith(sort: selected);
+                  }
+                },
+                onOpenAdvancedFilter: () async {
+                  final updated = await showCustomerProductFilterSheet(
+                    context: context,
+                    initial: homeFilter,
+                    sourceProducts: productsState.items,
+                    categories: categoriesAsync.value ?? const [],
+                    shops: shopsAsync.value ?? const [],
+                  );
+                  if (updated != null) {
+                    ref.read(homeProductFilterProvider.notifier).state =
+                        updated;
+                  }
+                },
+                totalCount:
+                    productsState.totalCount ??
+                    (productsState.hasMore ? null : productsState.items.length),
+                filteredCount: productsState.isInitialLoading
+                    ? null
+                    : productsState.items.length,
+                hasActiveCustomization: homeFilter.hasActiveFilters,
+                onClearAll: () =>
+                    ref.read(homeProductFilterProvider.notifier).state =
+                        ProductFilter.empty,
+              ),
+              const SizedBox(height: AppSpacing.xs),
 
-              productsAsync.skeletonWhen(
+              productsState.skeletonWhen(
                 placeholder: LoadingFixtures.products,
                 data: (products) {
-                  if (products.isEmpty) {
+                  if (products.isEmpty && !productsState.isInitialLoading) {
+                    if (homeFilter.hasActiveFilters) {
+                      return Padding(
+                        padding: AppSpacing.pageHorizontal,
+                        child: Column(
+                          children: [
+                            AppFilterEmptyState(
+                              onReset: () => ref
+                                  .read(homeProductFilterProvider.notifier)
+                                  .state = ProductFilter.empty,
+                            ),
+                            if (productsState.hasMore)
+                              AppLoadMoreFooter(
+                                isLoadingMore: productsState.isLoadingMore,
+                                hasMore: productsState.hasMore,
+                                itemsCount: products.length,
+                                loadMoreError: productsState.loadMoreError,
+                                onLoadMore: ref
+                                    .read(homeProductsProvider.notifier)
+                                    .loadMore,
+                                useProductGridSkeleton: true,
+                              ),
+                          ],
+                        ),
+                      );
+                    }
                     return AppEmpty(
                       icon: AppIcons.garment,
                       message: 'لا توجد منتجات منشورة حالياً'.tr,
                     );
                   }
-                  return Padding(
-                    padding: AppSpacing.pageHorizontal,
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: products.length,
-                      gridDelegate: ProductGridDelegate(
-                        textScale:
-                            MediaQuery.textScalerOf(context).scale(14) / 14,
-                      ),
-                      itemBuilder: (context, index) {
-                        final product = products[index];
-                        return ProductGridCard(
-                          imageUrl: product.coverImage,
-                          meta: AppFormat.price(product.price),
-                          inStock: product.totalStock > 0,
-                          isFavorite: product.isFavorite,
-                          onToggleFavorite: () =>
-                              _toggleFavorite(ref, product.id),
-                          onAddToCart: () =>
-                              showProductCartSheet(context, product.id),
-                          onTap: () => context.push(
-                            AppRoutes.customerProductDetailsPath(product.id),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: AppSpacing.pageHorizontal,
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: products.length,
+                          gridDelegate: ProductGridDelegate(
+                            textScale:
+                                MediaQuery.textScalerOf(context).scale(14) / 14,
                           ),
-                        );
-                      },
-                    ),
+                          itemBuilder: (context, index) {
+                            final product = products[index];
+                            return ProductGridCard(
+                              imageUrl: product.coverImage,
+                              meta: AppFormat.price(product.price),
+                              inStock: product.totalStock > 0,
+                              isFavorite: product.isFavorite,
+                              onToggleFavorite: () =>
+                                  _toggleFavorite(ref, product),
+                              onAddToCart: () =>
+                                  showProductCartSheet(context, product.id),
+                              onTap: () => context.push(
+                                AppRoutes.customerProductDetailsPath(
+                                  product.id,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      if (!productsState.isInitialLoading)
+                        AppLoadMoreFooter(
+                          isLoadingMore: productsState.isLoadingMore,
+                          hasMore: productsState.hasMore,
+                          itemsCount: products.length,
+                          loadMoreError: productsState.loadMoreError,
+                          onLoadMore: ref
+                              .read(homeProductsProvider.notifier)
+                              .loadMore,
+                          useProductGridSkeleton: true,
+                        ),
+                    ],
                   );
                 },
-                error: (err, _) => AppEmpty(
+                error: (err) => AppEmpty(
                   icon: AppIcons.error,
                   message: 'تعذر تحميل المنتجات: $err'.tr,
+                  actionLabel: 'إعادة المحاولة'.tr,
+                  onAction: ref.read(homeProductsProvider.notifier).refresh,
                 ),
               ),
             ],
           ),
         ),
       ),
+    ),
     );
   }
 }

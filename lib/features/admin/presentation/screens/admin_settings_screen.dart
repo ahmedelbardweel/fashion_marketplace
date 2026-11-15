@@ -10,6 +10,7 @@ import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../domain/models/catalog_models.dart';
 import '../providers/admin_providers.dart';
@@ -84,9 +85,12 @@ class AdminSettingsScreen extends ConsumerWidget {
     return AdminScaffold(
       title: 'إعدادات المنصة'.tr,
       showBack: false,
-      body: ListView(
-        padding: AppSpacing.page,
-        children: [
+      body: AppRefreshIndicator(
+        onRefresh: () => ref.refresh(adminSettingsProvider.future),
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: AppSpacing.page,
+          children: [
           const DecartSettingsCard(),
           const SizedBox(height: AppSpacing.md),
           settings.skeletonWhen(
@@ -128,6 +132,7 @@ class AdminSettingsScreen extends ConsumerWidget {
             ),
           ),
         ],
+      ),
       ),
       bottom: AppButton(
         label: 'تسجيل الخروج'.tr,

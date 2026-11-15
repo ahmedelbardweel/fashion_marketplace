@@ -1,5 +1,4 @@
-import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 
 import 'package:flutter/material.dart';
@@ -100,13 +99,13 @@ class AdminDashboardScreen extends ConsumerWidget {
       showBack: false,
       body: AppSkeleton(
         enabled: stats.isLoading && !stats.hasValue,
-        child: RefreshIndicator.noSpinner(
-          onRefresh: AppHaptics.refresh(() async {
-            ref.invalidate(adminStatsProvider);
-            ref.invalidate(adminShopApplicationsProvider);
-            await ref.read(adminStatsProvider.future);
-          }),
+        child: AppRefreshIndicator(
+          onRefresh: () => Future.wait([
+            ref.refresh(adminStatsProvider.future),
+            ref.refresh(adminShopApplicationsProvider.future),
+          ]),
           child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: AppSpacing.page,
             children: [
               AppCard(

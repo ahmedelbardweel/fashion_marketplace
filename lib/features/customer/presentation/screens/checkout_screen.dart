@@ -157,7 +157,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     return CustomerScaffold(
       title: 'إتمام الشراء'.tr,
-      showSearch: false,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Column(

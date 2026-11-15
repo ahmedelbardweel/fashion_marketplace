@@ -161,9 +161,15 @@ class AdminShopReviewScreen extends ConsumerWidget {
           ref.invalidate(adminShopDocumentsProvider(shopId));
           ref.invalidate(adminShopImagesProvider(shopId));
         },
+        onRefresh: () => Future.wait([
+          ref.refresh(adminShopByIdProvider(shopId).future),
+          ref.refresh(adminShopDocumentsProvider(shopId).future),
+          ref.refresh(adminShopImagesProvider(shopId).future),
+        ]),
         builder: (shop) {
           final current = shop!;
           return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: AppSpacing.page,
             children: [
               AppCard(

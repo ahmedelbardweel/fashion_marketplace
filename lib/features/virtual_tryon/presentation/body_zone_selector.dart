@@ -6,8 +6,11 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_skeleton.dart';
 import '../../customer/domain/models/customer_product.dart';
+import '../data/body_measurement_store.dart';
 import '../domain/body_measurements.dart';
+import '../domain/size_recommendation.dart';
 import '../domain/tryon_session.dart';
+import 'measurement_editor.dart';
 
 String _zoneLabel(TryonBodyZone zone) => switch (zone) {
   TryonBodyZone.upperBody => 'الجزء العلوي'.tr,
@@ -17,7 +20,7 @@ String _zoneLabel(TryonBodyZone zone) => switch (zone) {
   TryonBodyZone.footwear => 'الأحذية'.tr,
 };
 
-class InteractiveBodyZoneSelector extends StatelessWidget {
+class InteractiveBodyZoneSelector extends StatefulWidget {
   const InteractiveBodyZoneSelector({
     super.key,
     required this.selectedZone,
@@ -36,6 +39,273 @@ class InteractiveBodyZoneSelector extends StatelessWidget {
   final List<CustomerProduct> availableProducts;
   final ValueChanged<CustomerProduct>? onProductSelected;
   final String measurementProfileId;
+
+  @override
+  State<InteractiveBodyZoneSelector> createState() =>
+      _InteractiveBodyZoneSelectorState();
+}
+
+class _InteractiveBodyZoneSelectorState
+    extends State<InteractiveBodyZoneSelector> {
+  BodyMeasurements? _measurements;
+  bool _loadingMeasurements = true;
+  bool _loadFailed = false;
+  int _loadRevision = 0;
+  late BodyMeasurementStore _store;
+  TryonBodyZone get selectedZone => widget.selectedZone;
+  CustomerProduct? get selectedProduct => widget.selectedProduct;
+  ValueChanged<TryonBodyZone> get onZoneSelected => widget.onZoneSelected;
+  VoidCallback get onContinue => widget.onContinue;
+
+  String _t(String ar, String en) => measurementText(context, ar, en);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMeasurements();
+  }
+
+  @override
+  void didUpdateWidget(covariant InteractiveBodyZoneSelector oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.measurementProfileId != widget.measurementProfileId) {
+      _measurements = null;
+      _loadMeasurements();
+    }
+  }
+
+  Future<void> _loadMeasurements() async {
+    final revision = ++_loadRevision;
+    _store = BodyMeasurementStore(widget.measurementProfileId);
+    setState(() {
+      _loadingMeasurements = true;
+      _loadFailed = false;
+    });
+    try {
+      final saved = await _store.load();
+      if (mounted && revision == _loadRevision) {
+        setState(() => _measurements = saved);
+      }
+    } catch (_) {
+      if (mounted && revision == _loadRevision) {
+        setState(() => _loadFailed = true);
+      }
+    } finally {
+      if (mounted && revision == _loadRevision) {
+        setState(() => _loadingMeasurements = false);
+      }
+    }
+  }
+
+  Future<void> _editMeasurements() async {
+    final store = _store;
+    final revision = _loadRevision;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: AppColors.surface,
+      builder: (context) => FractionallySizedBox(
+        heightFactor: .94,
+        child: MeasurementEditor(
+          initial: _measurements,
+          previewBuilder: (draft) => ColorCodedBodyMap(
+            selectedZone: selectedZone,
+            onZoneTapped: (_) {},
+            measurements: draft,
+          ),
+          onSave: (value) async {
+            await store.save(value);
+            if (mounted && revision == _loadRevision) {
+              setState(() => _measurements = value);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _clearMeasurements() async {
+    final revision = _loadRevision;
+    final store = _store;
+    try {
+      await store.clear();
+      if (mounted && revision == _loadRevision) {
+        setState(() => _measurements = null);
+      }
+    } catch (_) {
+      if (mounted && revision == _loadRevision) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _t(
+                'تعذر حذف القياسات. حاول مجدداً.',
+                'Could not delete measurements. Please try again.',
+              ),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _measurementCard() {
+    final profile = _measurements;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.primarySoft,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(AppIcons.ruler, color: AppColors.primary, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _t('قياساتي', 'My measurements'),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              if (profile != null)
+                IconButton(
+                  onPressed: _clearMeasurements,
+                  tooltip: _t(
+                    'حذف القياسات المحفوظة',
+                    'Delete saved measurements',
+                  ),
+                  icon: const Icon(AppIcons.delete, size: 18),
+                ),
+            ],
+          ),
+          if (_loadingMeasurements)
+            Text(_t('جارٍ تحميل القياسات…', 'Loading measurements…'))
+          else if (_loadFailed)
+            TextButton(
+              onPressed: _loadMeasurements,
+              child: Text(
+                _t(
+                  'تعذر تحميل القياسات · إعادة المحاولة',
+                  'Could not load measurements · Retry',
+                ),
+              ),
+            )
+          else ...[
+            Text(
+              profile == null
+                  ? _t(
+                      'أضف وزنك وطولك وطول قدمك لتخصيص الهيكل.',
+                      'Add your weight, height and foot length to personalize the figure.',
+                    )
+                  : '${measurementNumber(profile[BodyMeasure.height]!)} ${_t('سم', 'cm')}  ·  ${measurementNumber(profile[BodyMeasure.weight]!)} ${_t('كغ', 'kg')}${profile[BodyMeasure.footLength] == null ? '' : '  ·  ${_t('القدم', 'Foot')} ${measurementNumber(profile[BodyMeasure.footLength]!)} ${_t('سم', 'cm')}'}',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.6,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.primaryDark,
+                ),
+                key: const ValueKey('edit-measurements'),
+                onPressed: _editMeasurements,
+                icon: Icon(
+                  profile == null ? AppIcons.add : AppIcons.edit,
+                  size: 17,
+                ),
+                label: Text(
+                  profile == null
+                      ? _t('إضافة قياساتي', 'Add my measurements')
+                      : _t('تعديل القياسات', 'Edit measurements'),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _sizeSuggestion() {
+    final product = selectedProduct;
+    final measurements = _measurements;
+    if (product == null || measurements == null) return const SizedBox.shrink();
+    final match = SizeRecommendation.evaluate(
+      measurements: measurements,
+      chart: product.details['size_chart'],
+      availableSizes: product.availableSizes,
+      zone: selectedZone,
+    );
+    final message = switch (match.status) {
+      SizeMatchStatus.matched => _t(
+        'المقاس المقترح: ${match.size}',
+        'Suggested size: ${match.size}',
+      ),
+      SizeMatchStatus.noChart => _t(
+        'لا يتوفر جدول قياسات لهذه القطعة بعد.',
+        'This item does not have a measurement chart yet.',
+      ),
+      SizeMatchStatus.noMatch => _t(
+        'لا يوجد مقاس في الجدول يطابق القياسات المدخلة.',
+        'No chart size matches the measurements entered.',
+      ),
+      SizeMatchStatus.outOfStock => _t(
+        'المقاس المطابق لقياساتك غير متوفر حالياً.',
+        'The size matching your measurements is currently out of stock.',
+      ),
+      SizeMatchStatus.missingMeasurements =>
+        match.missing.every(BodyMeasurements.customerFields.contains)
+            ? _t(
+                'أكمل بيانات الوزن والطول وطول القدم.',
+                'Complete your weight, height and foot length.',
+              )
+            : _t(
+                'لا يمكن تحديد مقاس هذه القطعة بدقة من البيانات الثلاثة فقط.',
+                'These three measurements are not enough to determine an accurate size for this item.',
+              ),
+    };
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: match.status == SizeMatchStatus.matched
+                  ? AppColors.primaryDark
+                  : AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            match.status == SizeMatchStatus.matched
+                ? _t(
+                    'حسب جدول هذا المنتج والمقاسات المتوفرة؛ قد تختلف الراحة حسب القَصّة.',
+                    'Based on this product chart and available sizes; comfort can vary with the cut.',
+                  )
+                : _t(
+                    'الطول والوزن وحدهما لا يحددان مقاس شراء دقيقاً.',
+                    'Height and weight alone cannot determine an accurate purchase size.',
+                  ),
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.5,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,19 +327,14 @@ class InteractiveBodyZoneSelector extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: AppColors.surfaceAlt,
                             borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Color(
-                                selectedZone.colorHex,
-                              ).withValues(alpha: 0.45),
-                            ),
                           ),
                           child: Row(
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
                                 child: SizedBox(
-                                  width: 52,
-                                  height: 52,
+                                  width: 48,
+                                  height: 48,
                                   child: product.tryonReferenceImage != null
                                       ? AppNetworkImage(
                                           product.tryonReferenceImage!,
@@ -92,41 +357,21 @@ class InteractiveBodyZoneSelector extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      product.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
+                                      'القطعة المختارة'.tr,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textSecondary,
                                       ),
                                     ),
                                     const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Container(
-                                          width: 8,
-                                          height: 8,
-                                          decoration: BoxDecoration(
-                                            color: Color(selectedZone.colorHex),
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Flexible(
-                                          child: Text(
-                                            _zoneLabel(selectedZone),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: Color(
-                                                selectedZone.colorHex,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                    Text(
+                                      product.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -134,95 +379,179 @@ class InteractiveBodyZoneSelector extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 20),
                       ],
                       Text(
                         'اختر منطقة التجربة'.tr,
                         style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.text,
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 6),
+                      Text(
+                        'المس منطقة على الجسم أو اختر من الخيارات أدناه.'.tr,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.6,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      _measurementCard(),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  AppIcons.bodyGuide,
+                                  size: 16,
+                                  color: AppColors.textMuted,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'منظر أمامي'.tr,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Icon(
+                                  AppIcons.focus,
+                                  size: 18,
+                                  color: AppColors.primary,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              height: (constraints.maxHeight * .58).clamp(
+                                300.0,
+                                410.0,
+                              ),
+                              child: ColorCodedBodyMap(
+                                selectedZone: selectedZone,
+                                onZoneTapped: onZoneSelected,
+                                measurements: _measurements,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            if (_measurements != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Text(
+                                  _t(
+                                    'هيكل تقريبي حسب قياساتك',
+                                    'Approximate figure based on your measurements',
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                              ),
+                            Semantics(
+                              liveRegion: true,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primarySoft,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      AppIcons.checkCircle,
+                                      color: AppColors.primary,
+                                      size: 20,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _zoneLabel(selectedZone),
+                                            style: TextStyle(
+                                              color: AppColors.primaryDark,
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            selectedZone.framingInstruction.tr,
+                                            style: TextStyle(
+                                              color: AppColors.textSecondary,
+                                              fontSize: 12,
+                                              height: 1.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _sizeSuggestion(),
                       Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        runSpacing: 8,
                         children: [
                           for (final zone in TryonBodyZone.values)
                             ChoiceChip(
-                              avatar: Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: Color(zone.colorHex),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
                               label: Text(_zoneLabel(zone)),
                               selected: selectedZone == zone,
                               onSelected: (_) => onZoneSelected(zone),
-                              selectedColor: Color(
-                                zone.colorHex,
-                              ).withValues(alpha: 0.18),
+                              selectedColor: AppColors.primarySoft,
                               backgroundColor: AppColors.surface,
-                              showCheckmark: false,
+                              checkmarkColor: AppColors.primary,
                               labelStyle: TextStyle(
                                 color: selectedZone == zone
-                                    ? Color(zone.colorHex)
+                                    ? AppColors.primaryDark
                                     : AppColors.textSecondary,
-                                fontSize: 12,
+                                fontSize: 13,
                                 fontWeight: selectedZone == zone
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
                               ),
                               side: BorderSide(
                                 color: selectedZone == zone
-                                    ? Color(zone.colorHex)
-                                    : Color(
-                                        zone.colorHex,
-                                      ).withValues(alpha: 0.35),
-                                width: selectedZone == zone ? 1.6 : 1.0,
+                                    ? AppColors.primary
+                                    : AppColors.border,
                               ),
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 6,
+                                horizontal: 10,
+                                vertical: 10,
                               ),
                               materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
+                                  MaterialTapTargetSize.padded,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
                         ],
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0B1325),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: Color(
-                              selectedZone.colorHex,
-                            ).withValues(alpha: 0.55),
-                            width: 1.4,
-                          ),
-                        ),
-                        child: SizedBox(
-                          height: (constraints.maxHeight * .64).clamp(
-                            320.0,
-                            450.0,
-                          ),
-                          child: ColorCodedBodyMap(
-                            selectedZone: selectedZone,
-                            onZoneTapped: onZoneSelected,
-                          ),
-                        ),
                       ),
                     ],
                   ),
@@ -354,6 +683,22 @@ class _BodyGeometry {
   Offset project(Offset p) {
     if (proportions.measurements == null) return p;
     var x = p.dx * proportions.widthAt(p.dy);
+    // Keep arm centerlines smooth: changing the waist must not bend elbows or
+    // wrists. Translate the arms outward and scale their thickness separately.
+    if (p.dy >= 145 && p.dy <= 315 && p.dx.abs() > 38) {
+      final center = 48 + (p.dy - 145) * .18;
+      final shift = math.max(
+        (proportions.widthAt(165) - 1) * 38,
+        (proportions.widthAt(235) - 1) * 30,
+      );
+      final thickness = math.sqrt(proportions.widthAt(165)).clamp(.85, 1.45);
+      final armX =
+          p.dx.sign * (center + shift + (p.dx.abs() - center) * thickness);
+      final blend =
+          ((p.dy - 145) / 35).clamp(0.0, 1.0) *
+          ((p.dx.abs() - 38) / 10).clamp(0.0, 1.0);
+      x += (armX - x) * blend;
+    }
     if (p.dy > 492) {
       final blend = ((p.dy - 492) / 35).clamp(0.0, 1.0);
       final footX =
@@ -361,7 +706,7 @@ class _BodyGeometry {
           (22 * proportions.widthAt(492) +
               (p.dx.abs() - 22) *
                   proportions.footScale /
-                  proportions.heightRatio);
+                  math.sqrt(proportions.heightRatio));
       x += (footX - x) * blend;
     }
     final inseam = proportions.measurements?[BodyMeasure.inseam];
@@ -537,90 +882,44 @@ class _BodyPainter extends CustomPainter {
         ).createShader(const Rect.fromLTWH(-110, 58, 220, 440)),
     );
 
-    void draw(
-      Path path, {
-      required Color zoneColor,
-      bool active = false,
-      bool neutralPart = false,
-    }) {
+    void draw(Path path, {bool active = false}) {
       path = geometry.projectPath(path);
       final bounds = path.getBounds();
       canvas.drawPath(
         path,
         Paint()
           ..shader = LinearGradient(
-            colors: neutralPart
+            colors: active
                 ? [
-                    const Color(0xFF475569).withValues(alpha: 0.72),
-                    const Color(0xFF334155).withValues(alpha: 0.72),
+                    Color.lerp(primary, AppPalette.white, .18)!,
+                    primary,
+                    Color.lerp(primary, AppPalette.ink, .12)!,
                   ]
-                : active
-                ? [
-                    Color.lerp(zoneColor, AppPalette.white, .20)!,
-                    zoneColor,
-                    Color.lerp(zoneColor, AppPalette.ink, .14)!,
-                  ]
-                : [
-                    zoneColor.withValues(alpha: 0.38),
-                    zoneColor.withValues(alpha: 0.28),
-                    zoneColor.withValues(alpha: 0.22),
-                  ],
-            stops: neutralPart ? const [0, 1] : const [0, .55, 1],
+                : [surface, neutral, surface],
+            stops: const [0, .55, 1],
           ).createShader(bounds),
       );
       canvas.drawPath(
         path,
         Paint()
-          ..color = neutralPart
-              ? const Color(0xFF94A3B8).withValues(alpha: 0.55)
-              : active
-              ? Colors.white
-              : zoneColor.withValues(alpha: 0.85)
+          ..color = active ? primary : outline.withValues(alpha: .42)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = active ? 2.4 : 1.3
+          ..strokeWidth = active ? 1.6 : 1
           ..strokeJoin = StrokeJoin.round,
       );
     }
 
     final full = selectedZone == TryonBodyZone.fullBody;
-    final fullColor = Color(TryonBodyZone.fullBody.colorHex);
-    final upperColor = Color(TryonBodyZone.upperBody.colorHex);
-    final shortsColor = Color(TryonBodyZone.lowerShorts.colorHex);
-    final pantsColor = Color(TryonBodyZone.lowerPants.colorHex);
-    final feetColor = Color(TryonBodyZone.footwear.colorHex);
-
-    // Outer full-body / dress indicator frame
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-92, 86, 184, 412),
-        const Radius.circular(28),
-      ),
-      Paint()
-        ..color = full ? fullColor : fullColor.withValues(alpha: 0.32)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = full ? 2.6 : 1.2,
-    );
-
-    draw(_BodyGeometry.neck, zoneColor: outline, neutralPart: true);
-    draw(_BodyGeometry.head, zoneColor: outline, neutralPart: true);
-    draw(_BodyGeometry.hand, zoneColor: outline, neutralPart: true);
-    draw(
-      _BodyGeometry.mirror(_BodyGeometry.hand),
-      zoneColor: outline,
-      neutralPart: true,
-    );
+    draw(_BodyGeometry.neck);
+    draw(_BodyGeometry.head);
+    draw(_BodyGeometry.hand);
+    draw(_BodyGeometry.mirror(_BodyGeometry.hand));
     draw(
       _BodyGeometry.upper,
-      zoneColor: full ? fullColor : upperColor,
       active: full || selectedZone == TryonBodyZone.upperBody,
     );
     draw(
       _BodyGeometry.shorts,
-      zoneColor: full
-          ? fullColor
-          : selectedZone == TryonBodyZone.lowerPants
-          ? pantsColor
-          : shortsColor,
       active:
           full ||
           selectedZone == TryonBodyZone.lowerShorts ||
@@ -628,14 +927,9 @@ class _BodyPainter extends CustomPainter {
     );
     draw(
       _BodyGeometry.calves,
-      zoneColor: full ? fullColor : pantsColor,
       active: full || selectedZone == TryonBodyZone.lowerPants,
     );
-    draw(
-      _BodyGeometry.feet,
-      zoneColor: feetColor,
-      active: selectedZone == TryonBodyZone.footwear,
-    );
+    draw(_BodyGeometry.feet, active: selectedZone == TryonBodyZone.footwear);
 
     // Subtle collarbones and joint contours give the neutral mannequin form.
     final detail = Paint()

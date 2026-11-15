@@ -9,6 +9,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../router/routes.dart';
 import '../../domain/models/shop.dart';
 import '../providers/shop_providers.dart';
@@ -89,9 +90,12 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
             return Center(child: Text('لم يتم العثور على بيانات المحل'.tr));
           }
 
-          return ListView(
-            padding: AppSpacing.page,
-            children: [
+          return AppRefreshIndicator(
+            onRefresh: () => _refresh(context, ref),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: AppSpacing.page,
+              children: [
               AppCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,6 +157,7 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
                 onPressed: () => confirmShopLogout(context, ref),
               ),
             ],
+          ),
           );
         },
       ),

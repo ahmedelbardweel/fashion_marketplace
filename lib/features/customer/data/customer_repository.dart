@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
+import '../../../core/filtering/filter_models.dart';
+import '../../../core/pagination/paginated_state.dart';
 import '../../../core/utils/map_utils.dart';
 import '../../admin/domain/models/catalog_models.dart';
 import '../../auth/domain/models/app_user.dart';
@@ -142,7 +144,90 @@ class CustomerRepository {
     }
   }
 
-  // Fetch Products with Filters & Pagination
+  // Fetch Paginated Products (strictly [limit] per request, default 6)
+  Future<PaginatedPage<CustomerProduct>> getProductsPage({
+    String? categoryId,
+    String? shopId,
+    String? search,
+    double? minPrice,
+    double? maxPrice,
+    String? color,
+    String? size,
+    bool inStockOnly = false,
+    double? minRating,
+    ProductSortOption sort = ProductSortOption.newest,
+    int limit = kProductPageSize,
+    int offset = 0,
+    String? excludeProductId,
+  }) async {
+    var query = _client.from('products').select('''
+      id, shop_id, category_id, name, description, details, price, status,
+      shops:shop_id(name),
+      categories:category_id(name),
+      variants:product_variants(*),
+      images:product_images(*)
+    ''').eq('status', 'published');
+
+    if (excludeProductId != null && excludeProductId.isNotEmpty) {
+      query = query.neq('id', excludeProductId);
+    }
+    if (categoryId != null && categoryId.isNotEmpty) {
+      query = query.eq('category_id', categoryId);
+    }
+    if (shopId != null && shopId.isNotEmpty) {
+      query = query.eq('shop_id', shopId);
+    }
+    if (search != null && search.trim().isNotEmpty) {
+      query = query.ilike('name', '%${search.trim()}%');
+    }
+    if (minPrice != null) {
+      query = query.gte('price', minPrice);
+    }
+    if (maxPrice != null) {
+      query = query.lte('price', maxPrice);
+    }
+
+    final orderedQuery = switch (sort) {
+      ProductSortOption.priceAsc => query
+          .order('price', ascending: true)
+          .order('created_at', ascending: false),
+      ProductSortOption.priceDesc => query
+          .order('price', ascending: false)
+          .order('created_at', ascending: false),
+      ProductSortOption.nameAsc => query
+          .order('name', ascending: true)
+          .order('created_at', ascending: false),
+      _ => query.order('created_at', ascending: false),
+    };
+
+    final from = offset < 0 ? 0 : offset;
+    final to = from + limit - 1;
+    final rawRows = await orderedQuery.range(from, to) as List;
+    final favoriteIds = await _getUserFavoriteIds();
+
+    final mapped = _mapProductRows(rawRows, favoriteIds);
+    final refined = applyCustomerProductFilter(
+      mapped,
+      ProductFilter(
+        categoryId: categoryId,
+        shopId: shopId,
+        minPrice: minPrice,
+        maxPrice: maxPrice,
+        color: color,
+        size: size,
+        inStockOnly: inStockOnly,
+        minRating: minRating,
+        sort: sort,
+      ),
+    );
+
+    return PaginatedPage<CustomerProduct>(
+      items: refined,
+      rawCount: rawRows.length,
+    );
+  }
+
+  // Fetch Products with Filters & Pagination (non-throwing wrapper)
   Future<List<CustomerProduct>> getProducts({
     String? categoryId,
     String? shopId,
@@ -151,92 +236,58 @@ class CustomerRepository {
     double? maxPrice,
     String? color,
     String? size,
-    int? limit,
-    int? offset,
+    int limit = kProductPageSize,
+    int offset = 0,
     String? excludeProductId,
   }) async {
     try {
-      var query = _client.from('products').select('''
-        id, shop_id, category_id, name, description, details, price, status,
-        shops:shop_id(name),
-        categories:category_id(name),
-        variants:product_variants(*),
-        images:product_images(*)
-      ''').eq('status', 'published');
-
-      if (excludeProductId != null && excludeProductId.isNotEmpty) {
-        query = query.neq('id', excludeProductId);
-      }
-      if (categoryId != null && categoryId.isNotEmpty) {
-        query = query.eq('category_id', categoryId);
-      }
-      if (shopId != null && shopId.isNotEmpty) {
-        query = query.eq('shop_id', shopId);
-      }
-      if (search != null && search.trim().isNotEmpty) {
-        query = query.ilike('name', '%${search.trim()}%');
-      }
-      if (minPrice != null) {
-        query = query.gte('price', minPrice);
-      }
-      if (maxPrice != null) {
-        query = query.lte('price', maxPrice);
-      }
-
-      var orderedQuery = query.order('created_at', ascending: false);
-
-      if (limit != null) {
-        final from = offset ?? 0;
-        final to = from + limit - 1;
-        orderedQuery = orderedQuery.range(from, to);
-      }
-
-      final rows = await orderedQuery;
-
-      // Get user's favorites set
-      final favoriteIds = await _getUserFavoriteIds();
-
-      final products = (rows as List).map((row) {
-        final map = asStringMap(row);
-        final shopMap = row['shops'] is Map ? asStringMap(row['shops']) : null;
-        final catMap = row['categories'] is Map ? asStringMap(row['categories']) : null;
-
-        map['shop_name'] = shopMap?['name'] ?? 'متجر';
-        map['category_name'] = catMap?['name'];
-
-        final variantsList = (row['variants'] as List? ?? [])
-            .map((v) => ProductVariant.fromMap(asStringMap(v)))
-            .toList();
-
-        final imagesList = (row['images'] as List? ?? [])
-            .map((img) => ProductImage.fromMap(asStringMap(img)))
-            .toList();
-
-        final pid = map['id']?.toString() ?? '';
-        return CustomerProduct.fromMap(
-          map,
-          variants: variantsList,
-          images: imagesList,
-          isFavorite: favoriteIds.contains(pid),
-        );
-      }).toList();
-
-      // Client-side filtering for color and size if requested
-      if (color != null && color.isNotEmpty) {
-        return products
-            .where((p) => p.variants.any((v) => v.color.toLowerCase() == color.toLowerCase()))
-            .toList();
-      }
-      if (size != null && size.isNotEmpty) {
-        return products
-            .where((p) => p.variants.any((v) => v.size.toLowerCase() == size.toLowerCase()))
-            .toList();
-      }
-
-      return products;
+      final page = await getProductsPage(
+        categoryId: categoryId,
+        shopId: shopId,
+        search: search,
+        minPrice: minPrice,
+        maxPrice: maxPrice,
+        color: color,
+        size: size,
+        limit: limit,
+        offset: offset,
+        excludeProductId: excludeProductId,
+      );
+      return page.items;
     } catch (_) {
       return const [];
     }
+  }
+
+  List<CustomerProduct> _mapProductRows(
+    List<dynamic> rows,
+    Set<String> favoriteIds,
+  ) {
+    return rows.map((row) {
+      final map = asStringMap(row);
+      final shopMap = row['shops'] is Map ? asStringMap(row['shops']) : null;
+      final catMap =
+          row['categories'] is Map ? asStringMap(row['categories']) : null;
+
+      map['shop_name'] = shopMap?['name'] ?? 'متجر';
+      map['category_name'] = catMap?['name'];
+
+      final variantsList = (row['variants'] as List? ?? [])
+          .map((v) => ProductVariant.fromMap(asStringMap(v)))
+          .toList();
+
+      final imagesList = (row['images'] as List? ?? [])
+          .map((img) => ProductImage.fromMap(asStringMap(img)))
+          .toList();
+
+      final pid = map['id']?.toString() ?? '';
+      return CustomerProduct.fromMap(
+        map,
+        variants: variantsList,
+        images: imagesList,
+        isFavorite: favoriteIds.contains(pid),
+      );
+    }).toList();
   }
 
   // Fetch Product Details
@@ -334,50 +385,76 @@ class CustomerRepository {
     }
   }
 
-  Future<List<CustomerProduct>> getFavorites() async {
+  Future<PaginatedPage<CustomerProduct>> getFavoritesPage({
+    int limit = kProductPageSize,
+    int offset = 0,
+  }) async {
     final userId = currentUserId;
-    if (userId == null) return const [];
+    if (userId == null) {
+      return const PaginatedPage<CustomerProduct>(items: [], rawCount: 0);
+    }
+
+    final from = offset < 0 ? 0 : offset;
+    final to = from + limit - 1;
+    final rawRows = await _client.from('favorites').select('''
+      product:products(
+        id, shop_id, category_id, name, description, details, price, status,
+        shops:shop_id(name),
+        categories:category_id(name),
+        variants:product_variants(*),
+        images:product_images(*)
+      )
+    ''')
+        .eq('customer_id', userId)
+        .order('created_at', ascending: false)
+        .range(from, to) as List;
+
+    return PaginatedPage<CustomerProduct>(
+      items: _mapFavoriteRows(rawRows),
+      rawCount: rawRows.length,
+    );
+  }
+
+  Future<List<CustomerProduct>> getFavorites() async {
     try {
-      final rows = await _client.from('favorites').select('''
-        product:products(
-          id, shop_id, category_id, name, description, details, price, status,
-          shops:shop_id(name),
-          categories:category_id(name),
-          variants:product_variants(*),
-          images:product_images(*)
-        )
-      ''').eq('customer_id', userId);
+      final page = await getFavoritesPage();
+      return page.items;
+    } catch (_) {
+      return const [];
+    }
+  }
 
-      final list = <CustomerProduct>[];
-      for (final row in rows as List) {
-        final pData = row['product'];
-        if (pData == null || pData is! Map) continue;
-        final map = asStringMap(pData);
-        final shopMap = pData['shops'] is Map ? asStringMap(pData['shops']) : null;
-        final catMap = pData['categories'] is Map ? asStringMap(pData['categories']) : null;
+  List<CustomerProduct> _mapFavoriteRows(List<dynamic> rows) {
+    final list = <CustomerProduct>[];
+    for (final row in rows) {
+      final pData = row['product'];
+      if (pData == null || pData is! Map) continue;
+      final map = asStringMap(pData);
+      final shopMap = pData['shops'] is Map ? asStringMap(pData['shops']) : null;
+      final catMap =
+          pData['categories'] is Map ? asStringMap(pData['categories']) : null;
 
-        map['shop_name'] = shopMap?['name'] ?? 'متجر';
-        map['category_name'] = catMap?['name'];
+      map['shop_name'] = shopMap?['name'] ?? 'متجر';
+      map['category_name'] = catMap?['name'];
 
-        final variants = (pData['variants'] as List? ?? [])
-            .map((v) => ProductVariant.fromMap(asStringMap(v)))
-            .toList();
+      final variants = (pData['variants'] as List? ?? [])
+          .map((v) => ProductVariant.fromMap(asStringMap(v)))
+          .toList();
 
-        final images = (pData['images'] as List? ?? [])
-            .map((img) => ProductImage.fromMap(asStringMap(img)))
-            .toList();
+      final images = (pData['images'] as List? ?? [])
+          .map((img) => ProductImage.fromMap(asStringMap(img)))
+          .toList();
 
-        list.add(CustomerProduct.fromMap(
+      list.add(
+        CustomerProduct.fromMap(
           map,
           variants: variants,
           images: images,
           isFavorite: true,
-        ));
-      }
-      return list;
-    } catch (_) {
-      return const [];
+        ),
+      );
     }
+    return list;
   }
 
   // Reviews

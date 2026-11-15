@@ -23,6 +23,7 @@ class AdminReportsScreen extends ConsumerWidget {
         placeholder: LoadingFixtures.stats,
         value: stats,
         onRetry: () => ref.invalidate(adminStatsProvider),
+        onRefresh: () => ref.refresh(adminStatsProvider.future),
         builder: (data) {
           final approvalRate = data.shops == 0
               ? 0
@@ -32,6 +33,7 @@ class AdminReportsScreen extends ConsumerWidget {
               : ((data.hiddenProducts / data.products) * 100).round();
 
           return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: AppSpacing.page,
             children: [
               Text(

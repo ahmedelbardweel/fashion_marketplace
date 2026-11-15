@@ -10,6 +10,7 @@ import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/models/shop.dart';
@@ -257,9 +258,16 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
           child: Text(ref.read(shopRepositoryProvider).mapError(error)),
         ),
         data: (shop) {
-          return SingleChildScrollView(
-            padding: AppSpacing.page,
-            child: Form(
+          return AppRefreshIndicator(
+            onRefresh: () => Future.wait([
+              ref.refresh(myShopProvider.future),
+              ref.refresh(shopImagesProvider.future),
+              ref.refresh(shopDocumentsProvider.future),
+            ]),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: AppSpacing.page,
+              child: Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -377,6 +385,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                 ],
               ),
             ),
+          ),
           );
         },
       ),

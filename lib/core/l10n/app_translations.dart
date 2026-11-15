@@ -39,6 +39,94 @@ class AppLang {
 
   static final List<_PatternRule> _patterns = [
     _PatternRule(
+      RegExp(r'^عرض (\d+) من (\d+)$'),
+      (m) => 'Showing ${m[1]} of ${m[2]}',
+    ),
+    _PatternRule(
+      RegExp(r'^إجمالي النتائج: (\d+)$'),
+      (m) => 'Total results: ${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^النتائج: (\d+)$'),
+      (m) => 'Results: ${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^عرض المزيد \((\d+) منتجات\)$'),
+      (m) => 'Load more (${m[1]} products)',
+    ),
+    _PatternRule(
+      RegExp(r'^تم عرض جميع النتائج \((\d+)\)$'),
+      (m) => 'All ${m[1]} results shown',
+    ),
+    _PatternRule(
+      RegExp(r'^السعر: من ([\d.]+) إلى ([\d.]+)$'),
+      (m) => 'Price: ₪${m[1]} - ₪${m[2]}',
+    ),
+    _PatternRule(
+      RegExp(r'^السعر: من ([\d.]+)$'),
+      (m) => 'Price: from ₪${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^السعر: حتى ([\d.]+)$'),
+      (m) => 'Price: up to ₪${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^الإجمالي: من ([\d.]+) إلى ([\d.]+)$'),
+      (m) => 'Total: ₪${m[1]} - ₪${m[2]}',
+    ),
+    _PatternRule(
+      RegExp(r'^الإجمالي: من ([\d.]+)$'),
+      (m) => 'Total: from ₪${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^الإجمالي: حتى ([\d.]+)$'),
+      (m) => 'Total: up to ₪${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^التقييم: (\d+)\+ نجوم$'),
+      (m) => 'Rating: ${m[1]}+ stars',
+    ),
+    _PatternRule(
+      RegExp(r'^(\d+)★ فأعلى$'),
+      (m) => '${m[1]}★ & up',
+    ),
+    _PatternRule(
+      RegExp(r'^(\d+) نجوم$'),
+      (m) => '${m[1]} stars',
+    ),
+    _PatternRule(
+      RegExp(r'^المقاس: (.+)$'),
+      (m) => 'Size: ${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^اللون: (.+)$'),
+      (m) => 'Color: ${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^المتجر: (.+)$'),
+      (m) => 'Shop: ${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^التصنيف: (.+)$'),
+      (m) => 'Category: ${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^المدينة: (.+)$'),
+      (m) => 'City: ${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^أقل من ([\d.]+)$'),
+      (m) => 'Under ₪${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^أكثر من ([\d.]+)$'),
+      (m) => 'Over ₪${m[1]}',
+    ),
+    _PatternRule(
+      RegExp(r'^([\d.]+)\s*-\s*([\d.]+)$'),
+      (m) => '₪${m[1]} - ₪${m[2]}',
+    ),
+    _PatternRule(
       RegExp(r'^إتمام الشراء \((\d+)\)$'),
       (m) => 'Checkout (${m.group(1)})',
     ),
@@ -206,6 +294,96 @@ class AppLang {
   };
 
   static const Map<String, String> _exact = {
+    'بحث...': 'Search...',
+    'مسح البحث': 'Clear search',
+    'فلترة': 'Filter',
+    'ترتيب النتائج': 'Sort Results',
+    'عرض النتائج': 'Show Results',
+    'لا توجد نتائج مطابقة': 'No matching results',
+    'جرّب تعديل كلمات البحث أو مسح بعض الفلاتر لعرض المزيد.':
+        'Try adjusting your search keywords or clearing some filters.',
+    'من': 'From',
+    'إلى': 'To',
+    'الأحدث': 'Newest',
+    'الأقدم': 'Oldest',
+    'السعر: الأقل أولاً': 'Price: Low to High',
+    'السعر: الأعلى أولاً': 'Price: High to Low',
+    'الأعلى تقييماً': 'Top Rated',
+    'الأقل تقييماً': 'Lowest Rated',
+    'الاسم: أ - ي': 'Name: A - Z',
+    'أبجدياً: أ - ي': 'Alphabetical: A - Z',
+    'أبجدياً: ي - أ': 'Alphabetical: Z - A',
+    'الترتيب الافتراضي': 'Default Order',
+    'الأقل مخزوناً': 'Lowest Stock',
+    'الأكثر توفراً': 'Highest Stock',
+    'الأعلى قيمة': 'Highest Total',
+    'الأقل قيمة': 'Lowest Total',
+    'الأكثر منتجات': 'Most Products',
+    'الافتراضي': 'Default',
+    'اليوم': 'Today',
+    'آخر 7 أيام': 'Last 7 Days',
+    'آخر 30 يوماً': 'Last 30 Days',
+    'متوفر': 'In Stock',
+    'مخزون منخفض': 'Low Stock',
+    'متوفر فقط': 'In Stock Only',
+    'المتوفر في المخزون فقط': 'Show in-stock items only',
+    'إخفاء المنتجات غير المتوفرة حالياً':
+        'Hide items that are currently out of stock',
+    'نشط': 'Active',
+    'معطّل': 'Inactive',
+    'مكتمل': 'Completed',
+    'غير مكتمل': 'Incomplete',
+    'نطاق السعر': 'Price Range',
+    'التقييم': 'Rating',
+    'نطاق الإجمالي': 'Total Range',
+    'الفترة الزمنية': 'Date Range',
+    'حالة المخزون': 'Stock Status',
+    'الحالة': 'Status',
+    'الدور': 'Role',
+    'اكتمال الملف': 'Profile Status',
+    'الجمهور': 'Audience',
+    'متاجر لديها منتجات فقط': 'Shops with products only',
+    'عرض المتاجر التي نشرت منتجات فقط': 'Only show shops that have products',
+    'مع تعليق فقط': 'With Comment Only',
+    'تقييمات تحتوي على تعليق نصي فقط': 'Only reviews that include text comments',
+    'بحث في الكتالوج، الماركة، اللون...': 'Search catalog, brand, color...',
+    'ابحث في تشكيلة المتجر، اللون، المقاس...':
+        'Search shop collection, color, size...',
+    'ابحث باسم المتجر، المدينة، الوصف...': 'Search shop name, city, description...',
+    'ابحث برقم الطلب، المتجر، اسم المنتج...': 'Search order #, shop, item...',
+    'ابحث في المفضلة، المتجر، اللون...': 'Search favorites, shop, color...',
+    'ابحث في الإشعارات...': 'Search notifications...',
+    'ابحث باسم المنتج، المتجر، اللون...': 'Search product, shop, color...',
+    'ابحث برقم الطلب، العميل، البريد...': 'Search order #, customer, email...',
+    'ابحث باسم المنتج، المتجر، التصنيف...': 'Search product, shop, category...',
+    'ابحث برقم الطلب، المتجر، العميل...': 'Search order #, shop, customer...',
+    'ابحث باسم المتجر، المالك، المدينة، السجل...':
+        'Search shop, owner, city, CR...',
+    'ابحث بالاسم، البريد، الهاتف، المدينة...':
+        'Search name, email, phone, city...',
+    'ابحث باسم التصنيف أو المعرف...': 'Search category name or slug...',
+    'ابحث في عنوان البنر أو الوصف...': 'Search banner title or subtitle...',
+    'منشور': 'Published',
+    'مسودة': 'Draft',
+    'مخفي': 'Hidden',
+    'مقبول': 'Approved',
+    'مرفوض': 'Rejected',
+    'معلق': 'Suspended',
+    'صاحب متجر': 'Shop Owner',
+    'الكل (العملاء والمتاجر)': 'All (Customers & Shops)',
+    'العملاء': 'Customers',
+    'أصحاب المتاجر': 'Shop Owners',
+    'عرض الكل في الكتالوج': 'View All in Catalog',
+    '5 نجوم': '5 Stars',
+    '4 نجوم': '4 Stars',
+    '3 نجوم': '3 Stars',
+    'نجمتان': '2 Stars',
+    'نجمة واحدة': '1 Star',
+    'تصفية المفضلة': 'Filter Favorites',
+    'تصفية المتاجر': 'Filter Shops',
+    'تصفية الطلبات': 'Filter Orders',
+    'تصفية المستخدمين': 'Filter Users',
+    'تصفية الإشعارات': 'Filter Notifications',
     // --- Body zone selection ---
     'اختر منطقة التجربة': 'Choose your try-on area',
     'المس منطقة على الجسم أو اختر من الخيارات أدناه.':
@@ -646,6 +824,9 @@ class AppLang {
     'البنرات': 'Banners',
     'التقارير': 'Reports',
     'إعدادات المنصة': 'Platform Settings',
+    'جاري تحميل المزيد...': 'Loading more...',
+    'تعذر تحميل الدفعة التالية': 'Could not load the next batch',
+    'عرض المزيد': 'Load more',
   };
 }
 

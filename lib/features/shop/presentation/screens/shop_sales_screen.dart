@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../domain/models/shop_product.dart';
 import '../providers/shop_catalog_providers.dart';
 import '../widgets/shop_shell.dart';
@@ -27,9 +28,12 @@ class ShopSalesScreen extends ConsumerWidget {
           child: Text(ref.read(shopCatalogRepositoryProvider).mapError(error)),
         ),
         data: (ShopStats stats) {
-          return ListView(
-            padding: AppSpacing.page,
-            children: [
+          return AppRefreshIndicator(
+            onRefresh: () => ref.refresh(shopStatsProvider.future),
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: AppSpacing.page,
+              children: [
               AppCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,6 +63,7 @@ class ShopSalesScreen extends ConsumerWidget {
                 ),
               ),
             ],
+          ),
           );
         },
       ),

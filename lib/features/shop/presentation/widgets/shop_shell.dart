@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../router/routes.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 
@@ -115,28 +116,48 @@ class ShopBottomNav extends StatelessWidget {
                   icon: AppIcons.dashboard,
                   activeIcon: AppIcons.dashboardActive,
                   selected: current == 0,
-                  onTap: () => context.go(AppRoutes.shopHome),
+                  onTap: () => AppRefreshIndicator.handleBottomNavTap(
+                    targetRoute: AppRoutes.shopHome,
+                    selected: current == 0,
+                    currentLocation: location,
+                    onNavigate: () => context.go(AppRoutes.shopHome),
+                  ),
                 ),
                 _Item(
                   label: 'المنتجات'.tr,
                   icon: AppIcons.garment,
                   activeIcon: AppIcons.garmentFilled,
                   selected: current == 1,
-                  onTap: () => context.go(AppRoutes.shopProducts),
+                  onTap: () => AppRefreshIndicator.handleBottomNavTap(
+                    targetRoute: AppRoutes.shopProducts,
+                    selected: current == 1,
+                    currentLocation: location,
+                    onNavigate: () => context.go(AppRoutes.shopProducts),
+                  ),
                 ),
                 _Item(
                   label: 'الطلبات'.tr,
                   icon: AppIcons.orders,
                   activeIcon: AppIcons.ordersActive,
                   selected: current == 2,
-                  onTap: () => context.go(AppRoutes.shopOrders),
+                  onTap: () => AppRefreshIndicator.handleBottomNavTap(
+                    targetRoute: AppRoutes.shopOrders,
+                    selected: current == 2,
+                    currentLocation: location,
+                    onNavigate: () => context.go(AppRoutes.shopOrders),
+                  ),
                 ),
                 _Item(
                   label: 'المتجر'.tr,
                   icon: AppIcons.shop,
                   activeIcon: AppIcons.shopActive,
                   selected: current == 3,
-                  onTap: () => context.go(AppRoutes.shopProfile),
+                  onTap: () => AppRefreshIndicator.handleBottomNavTap(
+                    targetRoute: AppRoutes.shopProfile,
+                    selected: current == 3,
+                    currentLocation: location,
+                    onNavigate: () => context.go(AppRoutes.shopProfile),
+                  ),
                 ),
               ],
             ),

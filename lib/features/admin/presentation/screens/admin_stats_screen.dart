@@ -23,6 +23,7 @@ class AdminStatsScreen extends ConsumerWidget {
         placeholder: LoadingFixtures.stats,
         value: stats,
         onRetry: () => ref.invalidate(adminStatsProvider),
+        onRefresh: () => ref.refresh(adminStatsProvider.future),
         builder: (data) {
           final items = [
             ('المستخدمون'.tr, data.customers),
@@ -39,6 +40,7 @@ class AdminStatsScreen extends ConsumerWidget {
           ];
 
           return ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: AppSpacing.page,
             children: [
               Text(

@@ -49,6 +49,20 @@ String measurementNumber(double value) => value == value.roundToDouble()
     : value.toStringAsFixed(1);
 
 class BodyMeasurements {
+  static const customerFields = [
+    BodyMeasure.height,
+    BodyMeasure.weight,
+    BodyMeasure.footLength,
+  ];
+
+  /// Restrict customer profiles to the three measurements collected by the UI.
+  BodyMeasurements get customerOnly => BodyMeasurements(
+    values: {
+      for (final field in customerFields)
+        if (values[field] case final value?) field: value,
+    },
+  );
+
   BodyMeasurements({
     Map<BodyMeasure, double> values = const {},
     this.shoeSize,
@@ -106,29 +120,36 @@ class BodyProportions {
   BodyProportions(this.measurements);
   final BodyMeasurements? measurements;
   double get heightRatio => (measurements?[BodyMeasure.height] ?? 175) / 175;
-  double get heightScale => heightRatio.clamp(.34, 1.3);
+  // Compress extreme height differences to keep the illustration legible.
+  double get heightScale =>
+      math.pow(heightRatio, .65).toDouble().clamp(.65, 1.25);
   double get _girth =>
       math.sqrt((measurements?[BodyMeasure.weight] ?? 70) / 70 / heightRatio);
-  double _width(BodyMeasure field, double reference) =>
+  double _width(
+    BodyMeasure field,
+    double reference, {
+    double power = 1,
+    double maximum = 2.1,
+  }) =>
       ((measurements?[field] != null
                   ? measurements![field]! / reference
-                  : _girth) /
-              heightRatio)
-          .clamp(.65, 2.8);
+                  : math.pow(_girth, power).toDouble()) /
+              math.sqrt(heightRatio))
+          .clamp(.65, maximum);
 
   double widthAt(double y) {
     if (measurements == null) return 1;
     final anchors = <(double, double)>[
-      (80, (1 / math.sqrt(heightRatio)).clamp(.85, 1.35)),
+      (80, heightScale),
       (
         105,
         ((measurements?[BodyMeasure.shoulders] ?? 40 * math.pow(_girth, .35)) /
                 40 /
-                heightRatio)
-            .clamp(.7, 2.3),
+                math.sqrt(heightRatio))
+            .clamp(.7, 1.9),
       ),
       (165, _width(BodyMeasure.chest, 98)),
-      (235, _width(BodyMeasure.waist, 84)),
+      (235, _width(BodyMeasure.waist, 84, power: 1.5, maximum: 2.4)),
       (275, _width(BodyMeasure.hips, 100)),
       (320, _width(BodyMeasure.thigh, 56)),
       (410, _width(BodyMeasure.calf, 37)),

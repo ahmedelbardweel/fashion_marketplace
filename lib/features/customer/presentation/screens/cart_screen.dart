@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../router/routes.dart';
 import '../providers/customer_providers.dart';
@@ -21,7 +22,6 @@ class CartScreen extends ConsumerWidget {
 
     return CustomerScaffold(
       title: 'سلة المشتريات'.tr,
-      showSearch: false,
       actions: [
         if (cartItems.isNotEmpty)
           TextButton.icon(
@@ -30,10 +30,8 @@ class CartScreen extends ConsumerWidget {
             label: Text('تفريغ'.tr),
           ),
       ],
-      body: RefreshIndicator.noSpinner(
-        onRefresh: AppHaptics.refresh(() async {
-          await cartNotifier.loadFromRemote();
-        }),
+      body: AppRefreshIndicator(
+        onRefresh: cartNotifier.loadFromRemote,
         child: cartItems.isEmpty
             ? ListView(
                 physics: const AlwaysScrollableScrollPhysics(),

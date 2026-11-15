@@ -123,7 +123,7 @@ final decartTryonProvider = StateNotifierProvider.autoDispose
       final repository = ref.read(customerRepositoryProvider);
       return DecartTryonNotifier(service, () async {
         final initial = await repository.getProductDetails(id);
-        final catalog = await repository.getProducts();
+        final catalog = await repository.getProducts(limit: kProductPageSize);
         return {
           for (final item in catalog) item.id: item,
           ?initial?.id: initial!,

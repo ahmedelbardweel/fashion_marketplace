@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
+import '../../../core/filtering/filter_models.dart';
+import '../../../core/pagination/paginated_state.dart';
 import '../../../core/utils/map_utils.dart';
 import '../../auth/domain/models/app_user.dart';
 import '../../shop/domain/models/shop.dart';
@@ -142,18 +144,63 @@ class AdminRepository {
     return CatalogCategory.fromMap(asStringMap(data));
   }
 
-  Future<List<AdminProduct>> fetchProducts() async {
-    final rows = await _client
+  Future<PaginatedPage<AdminProduct>> fetchProductsPage({
+    int limit = kProductPageSize,
+    int offset = 0,
+    String? status,
+    double? minPrice,
+    double? maxPrice,
+    String? search,
+    ProductSortOption sort = ProductSortOption.newest,
+  }) async {
+    var query = _client
         .from('products')
         .select('*, shops(name), categories(name)')
-        .neq('status', 'deleted')
-        .order('updated_at', ascending: false);
-    return (rows as List)
+        .neq('status', 'deleted');
+
+    if (status != null && status.isNotEmpty) {
+      query = query.eq('status', status);
+    }
+    if (minPrice != null) {
+      query = query.gte('price', minPrice);
+    }
+    if (maxPrice != null) {
+      query = query.lte('price', maxPrice);
+    }
+    if (search != null && search.trim().isNotEmpty) {
+      query = query.ilike('name', '%${search.trim()}%');
+    }
+
+    final orderedQuery = switch (sort) {
+      ProductSortOption.priceAsc => query
+          .order('price', ascending: true)
+          .order('updated_at', ascending: false),
+      ProductSortOption.priceDesc => query
+          .order('price', ascending: false)
+          .order('updated_at', ascending: false),
+      ProductSortOption.nameAsc => query
+          .order('name', ascending: true)
+          .order('updated_at', ascending: false),
+      _ => query.order('updated_at', ascending: false),
+    };
+
+    final from = offset < 0 ? 0 : offset;
+    final to = from + limit - 1;
+    final rawRows = await orderedQuery.range(from, to) as List;
+
+    final items = rawRows
         .map(
           (row) =>
               AdminProduct.fromMap(Map<String, dynamic>.from(row as Map)),
         )
         .toList();
+
+    return PaginatedPage<AdminProduct>(items: items, rawCount: rawRows.length);
+  }
+
+  Future<List<AdminProduct>> fetchProducts() async {
+    final page = await fetchProductsPage(limit: 50);
+    return page.items;
   }
 
   Future<AdminProduct> setProductStatus({

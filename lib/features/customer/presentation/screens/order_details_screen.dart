@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 import '../providers/customer_providers.dart';
@@ -113,7 +114,6 @@ class OrderDetailsScreen extends ConsumerWidget {
         if (order == null) {
           return CustomerScaffold(
             title: 'تفاصيل الطلب'.tr,
-            showSearch: false,
             body: AppEmpty(
               icon: AppIcons.orders,
               message: 'الطلب غير موجود'.tr,
@@ -130,10 +130,13 @@ class OrderDetailsScreen extends ConsumerWidget {
 
         return CustomerScaffold(
           title: 'طلب #$shortId'.tr,
-          showSearch: false,
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            child: Column(
+          body: AppRefreshIndicator(
+            onRefresh: () =>
+                ref.refresh(customerOrderDetailsProvider(orderId).future),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Header Card
@@ -345,11 +348,11 @@ class OrderDetailsScreen extends ConsumerWidget {
               ],
             ),
           ),
+        ),
         );
       },
       error: (err, _) => CustomerScaffold(
         title: 'تفاصيل الطلب'.tr,
-        showSearch: false,
         body: AppEmpty(
           icon: AppIcons.error,
           message: 'تعذر تحميل تفاصيل الطلب: $err'.tr,

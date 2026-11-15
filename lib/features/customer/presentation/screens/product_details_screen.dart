@@ -7,6 +7,8 @@ import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_filter_bar.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/product_grid_card.dart';
@@ -33,7 +35,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   final List<CustomerProduct> _recommendedProducts = [];
   bool _loadingMore = false;
   bool _hasMore = true;
-  static const int _pageSize = 6;
+  static const int _pageSize = kProductPageSize;
 
   int _currentImageIndex = 0;
   String? _selectedColor;
@@ -91,11 +93,31 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     }
   }
 
-  Future<void> _toggleFavorite(String productId) async {
-    await ref.read(customerRepositoryProvider).toggleFavorite(productId);
-    ref.invalidate(customerProductDetailsProvider(productId));
-    ref.invalidate(customerFavoritesProvider);
-    ref.invalidate(customerProductsProvider);
+  void _setRecommendedFavorite(String productId, bool isFavorite) {
+    setState(() {
+      for (var i = 0; i < _recommendedProducts.length; i++) {
+        if (_recommendedProducts[i].id == productId) {
+          _recommendedProducts[i] = _recommendedProducts[i].copyWith(
+            isFavorite: isFavorite,
+          );
+        }
+      }
+    });
+  }
+
+  Future<void> _toggleFavorite(CustomerProduct product) async {
+    final nextFav = !product.isFavorite;
+    syncFavoriteAcrossProductLists(ref, product, nextFav);
+    _setRecommendedFavorite(product.id, nextFav);
+    try {
+      await ref.read(customerRepositoryProvider).toggleFavorite(product.id);
+      ref.invalidate(customerProductDetailsProvider(product.id));
+    } catch (_) {
+      syncFavoriteAcrossProductLists(ref, product, product.isFavorite);
+      if (mounted) {
+        _setRecommendedFavorite(product.id, product.isFavorite);
+      }
+    }
   }
 
   void _openFullScreenGallery(
@@ -122,6 +144,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     int rating = 5;
     final commentController = TextEditingController();
     bool isSubmitting = false;
+    var reviewFilter = ReviewFilterState.empty;
 
     AppBottomSheet.show(
       context: context,
@@ -134,6 +157,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 productReviewsProvider(widget.productId),
               );
               final currentReviews = reviewsAsync.value ?? reviews;
+              final filteredReviews = filterProductReviews(
+                currentReviews,
+                reviewFilter,
+              );
 
               return SafeArea(
                 top: true,
@@ -366,23 +393,130 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             const SizedBox(height: AppSpacing.lg),
 
                             // Existing Reviews
-                            Text(
-                              'آراء العملاء السابقة'.tr,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: AppFont.bold,
-                                color: AppColors.text,
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'آراء العملاء السابقة'.tr,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: AppFont.bold,
+                                    color: AppColors.text,
+                                  ),
+                                ),
+                                if (currentReviews.isNotEmpty)
+                                  TextButton.icon(
+                                    onPressed: AppHaptics.action(() async {
+                                      final picked =
+                                          await showAppSortSheet<
+                                            ReviewSortOption
+                                          >(
+                                            context: ctx,
+                                            current: reviewFilter.sort,
+                                            options: const [
+                                              AppSortChoice(
+                                                value: ReviewSortOption.newest,
+                                                label: 'الأحدث',
+                                                icon: AppIcons.arrowDown,
+                                              ),
+                                              AppSortChoice(
+                                                value: ReviewSortOption
+                                                    .highestRating,
+                                                label: 'الأعلى تقييماً',
+                                                icon: AppIcons.starFilled,
+                                              ),
+                                              AppSortChoice(
+                                                value: ReviewSortOption
+                                                    .lowestRating,
+                                                label: 'الأقل تقييماً',
+                                                icon: AppIcons.star,
+                                              ),
+                                            ],
+                                          );
+                                      if (picked != null) {
+                                        setSheetState(
+                                          () => reviewFilter = reviewFilter
+                                              .copyWith(sort: picked),
+                                        );
+                                      }
+                                    }),
+                                    icon: const Icon(
+                                      Icons.swap_vert_rounded,
+                                      size: 16,
+                                    ),
+                                    label: Text(reviewFilter.sort.labelAr.tr),
+                                  ),
+                              ],
                             ),
+                            if (currentReviews.isNotEmpty) ...[
+                              const SizedBox(height: AppSpacing.xs),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    FilterChip(
+                                      label: Text(
+                                        '${'الكل'.tr} (${currentReviews.length})',
+                                      ),
+                                      selected: reviewFilter.rating == null,
+                                      onSelected: (_) => setSheetState(
+                                        () => reviewFilter = reviewFilter
+                                            .copyWith(clearRating: true),
+                                      ),
+                                    ),
+                                    const SizedBox(width: AppSpacing.xs),
+                                    for (final star in const [5, 4, 3, 2, 1]) ...[
+                                      FilterChip(
+                                        avatar: Icon(
+                                          AppIcons.starFilled,
+                                          size: 14,
+                                          color: ProductDetailsDesign.ratingStar,
+                                        ),
+                                        label: Text(
+                                          '$star (${currentReviews.where((r) => r.rating == star).length})',
+                                        ),
+                                        selected: reviewFilter.rating == star,
+                                        onSelected: (_) => setSheetState(
+                                          () => reviewFilter =
+                                              reviewFilter.rating == star
+                                                  ? reviewFilter.copyWith(
+                                                      clearRating: true,
+                                                    )
+                                                  : reviewFilter.copyWith(
+                                                      rating: star,
+                                                    ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: AppSpacing.xs),
+                                    ],
+                                    FilterChip(
+                                      label: Text('مع تعليق فقط'.tr),
+                                      selected: reviewFilter.withCommentOnly,
+                                      onSelected: (v) => setSheetState(
+                                        () => reviewFilter = reviewFilter
+                                            .copyWith(withCommentOnly: v),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: AppSpacing.sm),
                             if (currentReviews.isEmpty)
                               AppEmpty(
                                 icon: AppIcons.reviews,
                                 message:
-                                    'لا توجد تقييمات لهذا المنتج بعد. كن أول من يقيّمه.'.tr,
+                                    'لا توجد تقييمات لهذا المنتج بعد. كن أول من يقيّمه.'
+                                        .tr,
+                              )
+                            else if (filteredReviews.isEmpty)
+                              AppFilterEmptyState(
+                                onReset: () => setSheetState(
+                                  () => reviewFilter = ReviewFilterState.empty,
+                                ),
                               )
                             else
-                              ...currentReviews.map(
+                              ...filteredReviews.map(
                                 (rev) => Padding(
                                   padding: const EdgeInsets.only(
                                     bottom: AppSpacing.sm,
@@ -490,8 +624,17 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           body: Stack(
             children: [
               // 1) Main Scrollable Content (Editorial Hero Gallery + Overlapping Sheet)
-              SingleChildScrollView(
-                controller: _scrollController,
+              AppRefreshIndicator(
+                edgeOffset: MediaQuery.paddingOf(context).top,
+                onRefresh: () => Future.wait([
+                  ref.refresh(
+                    customerProductDetailsProvider(widget.productId).future,
+                  ),
+                  ref.refresh(productReviewsProvider(widget.productId).future),
+                ]),
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -1366,7 +1509,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                     inStock: recProduct.totalStock > 0,
                                     isFavorite: recProduct.isFavorite,
                                     onToggleFavorite: () =>
-                                        _toggleFavorite(recProduct.id),
+                                        _toggleFavorite(recProduct),
                                     onAddToCart: () => showProductCartSheet(
                                       context,
                                       recProduct.id,
@@ -1388,6 +1531,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                     ),
                   ],
                 ),
+              ),
               ),
 
               // 2) Floating Top Bar over the Gallery (Back, Compare, Favorite, Cart)
@@ -1459,7 +1603,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                               : () async {
                                   setState(() => _togglingFavorite = true);
                                   try {
-                                    await _toggleFavorite(product.id);
+                                    await _toggleFavorite(product);
                                   } finally {
                                     if (mounted) {
                                       setState(() => _togglingFavorite = false);

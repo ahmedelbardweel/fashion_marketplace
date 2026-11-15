@@ -1,6 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
+import '../../../core/filtering/filter_models.dart';
+import '../../../core/pagination/paginated_state.dart';
 import '../../../core/utils/map_utils.dart';
 import '../../admin/domain/models/catalog_models.dart';
 import '../domain/models/shop.dart';
@@ -43,22 +45,72 @@ class ShopCatalogRepository {
         .toList();
   }
 
-  Future<List<ShopProduct>> fetchMyProducts() async {
+  Future<PaginatedPage<ShopProduct>> fetchMyProductsPage({
+    int limit = kProductPageSize,
+    int offset = 0,
+    String? status,
+    String? categoryId,
+    double? minPrice,
+    double? maxPrice,
+    String? search,
+    ProductSortOption sort = ProductSortOption.newest,
+  }) async {
     final shopId = await _client.rpc('current_shop_id');
-    if (shopId == null) return const [];
+    if (shopId == null) {
+      return const PaginatedPage<ShopProduct>(items: [], rawCount: 0);
+    }
 
-    final rows = await _client
+    var query = _client
         .from('products')
         .select(_productSelect)
         .eq('shop_id', shopId)
-        .neq('status', 'deleted')
-        .order('updated_at', ascending: false);
+        .neq('status', 'deleted');
 
-    return (rows as List)
+    if (status != null && status.isNotEmpty) {
+      query = query.eq('status', status);
+    }
+    if (categoryId != null && categoryId.isNotEmpty) {
+      query = query.eq('category_id', categoryId);
+    }
+    if (minPrice != null) {
+      query = query.gte('price', minPrice);
+    }
+    if (maxPrice != null) {
+      query = query.lte('price', maxPrice);
+    }
+    if (search != null && search.trim().isNotEmpty) {
+      query = query.ilike('name', '%${search.trim()}%');
+    }
+
+    final orderedQuery = switch (sort) {
+      ProductSortOption.priceAsc => query
+          .order('price', ascending: true)
+          .order('updated_at', ascending: false),
+      ProductSortOption.priceDesc => query
+          .order('price', ascending: false)
+          .order('updated_at', ascending: false),
+      ProductSortOption.nameAsc => query
+          .order('name', ascending: true)
+          .order('updated_at', ascending: false),
+      _ => query.order('updated_at', ascending: false),
+    };
+
+    final from = offset < 0 ? 0 : offset;
+    final to = from + limit - 1;
+    final rawRows = await orderedQuery.range(from, to) as List;
+
+    final items = rawRows
         .map(
           (row) => ShopProduct.fromMap(Map<String, dynamic>.from(row as Map)),
         )
         .toList();
+
+    return PaginatedPage<ShopProduct>(items: items, rawCount: rawRows.length);
+  }
+
+  Future<List<ShopProduct>> fetchMyProducts() async {
+    final page = await fetchMyProductsPage(limit: 50);
+    return page.items;
   }
 
   Future<ShopProduct?> fetchProduct(String productId) async {

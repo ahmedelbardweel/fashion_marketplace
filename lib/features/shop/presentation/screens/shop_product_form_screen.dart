@@ -1,6 +1,7 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 
 import '../widgets/product_form_steps.dart';
+import '../widgets/product_size_chart_editor.dart';
 
 import 'dart:typed_data';
 
@@ -235,7 +236,8 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'استخدم اسماً واضحاً مثل فساتين سهرة أو ملابس رياضية. سيُحفظ التصنيف مع المنتج.'.tr,
+              'استخدم اسماً واضحاً مثل فساتين سهرة أو ملابس رياضية. سيُحفظ التصنيف مع المنتج.'
+                  .tr,
             ),
             const SizedBox(height: 16),
             TextField(
@@ -552,7 +554,8 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
     final categories = ref.watch(shopCategoriesProvider);
     return _section(
       'عرّف العميل بالمنتج'.tr,
-      'الاسم والوصف والتصنيف والسعر مطلوبة للنشر. يمكنك إكمال البقية لاحقاً كمسودة.'.tr,
+      'الاسم والوصف والتصنيف والسعر مطلوبة للنشر. يمكنك إكمال البقية لاحقاً كمسودة.'
+          .tr,
       [
         _field(_name, 'اسم المنتج *'.tr),
         _field(
@@ -652,7 +655,8 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
 
   Widget _photos() => _section(
     'صور واضحة تبيع أفضل'.tr,
-    'اختر حتى 12 صورة. نزيل الخلفية تلقائياً ونرفعها بصيغة شفافة. اجعل الصورة الأمامية أولاً لتكون صورة المنتج الرئيسية.'.tr,
+    'اختر حتى 12 صورة. نزيل الخلفية تلقائياً ونرفعها بصيغة شفافة. اجعل الصورة الأمامية أولاً لتكون صورة المنتج الرئيسية.'
+        .tr,
     [
       AppButton(
         label: _processing
@@ -701,7 +705,8 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                   AppBusyLabel(label: 'جاري إزالة الخلفية وتجهيز الصورة'.tr),
                 if (item.failed) ...[
                   Text(
-                    'تعذرت معالجة الصورة. أعد المحاولة أو احذفها لاختيار صورة أخرى.'.tr,
+                    'تعذرت معالجة الصورة. أعد المحاولة أو احذفها لاختيار صورة أخرى.'
+                        .tr,
                   ),
                   TextButton(
                     onPressed: AppHaptics.action(
@@ -771,10 +776,12 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
   );
   Widget _stock() => _section(
     'كل خيار وكمّيته'.tr,
-    'أضف كل لون ومقاس متاح مرة واحدة. يمكنك تعديل الكمية أو حذف الخيار قبل الحفظ.'.tr,
+    'أضف كل لون ومقاس متاح مرة واحدة. يمكنك تعديل الكمية أو حذف الخيار قبل الحفظ.'
+        .tr,
     [
       Text(
-        '${_variants.length} خيارات · ${_variants.fold<int>(0, (sum, v) => sum + v.stock)} قطعة متاحة'.tr,
+        '${_variants.length} خيارات · ${_variants.fold<int>(0, (sum, v) => sum + v.stock)} قطعة متاحة'
+            .tr,
       ),
       const SizedBox(height: 16),
       ...List.generate(_variants.length, (index) {
@@ -810,6 +817,15 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
         variant: AppButtonVariant.outlined,
         onPressed: () => _editVariant(),
       ),
+      const SizedBox(height: 16),
+      ProductSizeChartEditor(
+        sizes: _variants.map((v) => v.size).toSet(),
+        chart: _existingDetails['size_chart'],
+        onChanged: (chart) => setState(() {
+          _existingDetails = {..._existingDetails, 'size_chart': chart};
+          _dirty = true;
+        }),
+      ),
     ],
   );
   Widget _review() {
@@ -817,7 +833,8 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
     final matched = categories.where((c) => c.id == _categoryId);
     return _section(
       'راجع منتجك قبل النشر'.tr,
-      'تأكد من السعر والصورة الرئيسية والمخزون. يمكنك الرجوع لأي مرحلة لتعديلها.'.tr,
+      'تأكد من السعر والصورة الرئيسية والمخزون. يمكنك الرجوع لأي مرحلة لتعديلها.'
+          .tr,
       [
         if (_images.isNotEmpty)
           SizedBox(height: 220, child: _imagePreview(_images.first)),
@@ -847,7 +864,8 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
             ),
         const SizedBox(height: 12),
         Text(
-          '${_images.length} صور · ${_variants.length} خيارات · ${_variants.fold<int>(0, (sum, v) => sum + v.stock)} قطعة'.tr,
+          '${_images.length} صور · ${_variants.length} خيارات · ${_variants.fold<int>(0, (sum, v) => sum + v.stock)} قطعة'
+              .tr,
         ),
         const SizedBox(height: 16),
         Wrap(

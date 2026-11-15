@@ -17,8 +17,37 @@ import '../providers/admin_providers.dart';
 import '../widgets/admin_app_bar.dart';
 import '../widgets/admin_async_body.dart';
 
-class AdminCategoriesScreen extends ConsumerWidget {
+import '../../../../core/filtering/filter_models.dart';
+import '../../../../core/widgets/app_filter_bar.dart';
+
+class AdminCategoriesScreen extends ConsumerStatefulWidget {
   const AdminCategoriesScreen({super.key});
+
+  @override
+  ConsumerState<AdminCategoriesScreen> createState() =>
+      _AdminCategoriesScreenState();
+}
+
+class _AdminCategoriesScreenState extends ConsumerState<AdminCategoriesScreen> {
+  CatalogListFilterState _filter = CatalogListFilterState.empty;
+
+  static const _sortChoices = [
+    AppSortChoice(
+      value: DisplayOrderSort.displayOrder,
+      label: 'الترتيب الافتراضي',
+      icon: AppIcons.catalog,
+    ),
+    AppSortChoice(
+      value: DisplayOrderSort.nameAsc,
+      label: 'أبجدياً: أ - ي',
+      icon: AppIcons.arrowUp,
+    ),
+    AppSortChoice(
+      value: DisplayOrderSort.nameDesc,
+      label: 'أبجدياً: ي - أ',
+      icon: AppIcons.arrowDown,
+    ),
+  ];
 
   Future<void> _openForm(
     BuildContext context,
@@ -108,7 +137,7 @@ class AdminCategoriesScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final categories = ref.watch(adminCategoriesProvider);
     final busy = ref.watch(adminActionProvider).isLoading;
 
@@ -120,40 +149,143 @@ class AdminCategoriesScreen extends ConsumerWidget {
         emptyMessage: 'لا توجد تصنيفات بعد'.tr,
         isEmpty: (data) => data.isEmpty,
         onRetry: () => ref.invalidate(adminCategoriesProvider),
+        onRefresh: () => ref.refresh(adminCategoriesProvider.future),
         builder: (items) {
-          return ListView(
-            padding: AppSpacing.page,
-            children: items
-                .map(
-                  (item) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                    child: AppCard(
-                      onTap: busy
-                          ? null
-                          : () => _openForm(context, ref, category: item),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.name,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            item.isActive ? 'نشط'.tr : 'متوقف'.tr,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                          if (item.description != null &&
-                              item.description!.isNotEmpty) ...[
-                            const SizedBox(height: AppSpacing.xs),
-                            Text(item.description!),
-                          ],
-                        ],
+          final filtered = filterAdminCategories(items, _filter);
+          final activeCount = items.where((c) => c.isActive).length;
+          final inactiveCount = items.length - activeCount;
+
+          return Column(
+            children: [
+              AppFilterToolbar(
+                searchValue: _filter.search,
+                searchHint: 'ابحث باسم التصنيف أو المعرف...',
+                onSearchChanged: (val) =>
+                    setState(() => _filter = _filter.copyWith(search: val)),
+                sortLabel: _filter.sort.labelAr,
+                isDefaultSort: _filter.sort == DisplayOrderSort.displayOrder,
+                onOpenSort: () async {
+                  final selected = await showAppSortSheet<DisplayOrderSort>(
+                    context: context,
+                    current: _filter.sort,
+                    options: _sortChoices,
+                  );
+                  if (selected != null && mounted) {
+                    setState(() => _filter = _filter.copyWith(sort: selected));
+                  }
+                },
+                quickOptions: [
+                  AppQuickFilterOption(
+                    id: 'cat_all',
+                    label: 'الكل',
+                    count: items.length,
+                    selected: _filter.activeFilter == ActiveStateFilter.all,
+                    onTap: () => setState(
+                      () => _filter = _filter.copyWith(
+                        activeFilter: ActiveStateFilter.all,
                       ),
                     ),
                   ),
-                )
-                .toList(),
+                  AppQuickFilterOption(
+                    id: 'cat_active',
+                    label: ActiveStateFilter.active.labelAr,
+                    count: activeCount,
+                    selected: _filter.activeFilter == ActiveStateFilter.active,
+                    onTap: () => setState(() {
+                      final same =
+                          _filter.activeFilter == ActiveStateFilter.active;
+                      _filter = _filter.copyWith(
+                        activeFilter: same
+                            ? ActiveStateFilter.all
+                            : ActiveStateFilter.active,
+                      );
+                    }),
+                  ),
+                  AppQuickFilterOption(
+                    id: 'cat_inactive',
+                    label: ActiveStateFilter.inactive.labelAr,
+                    count: inactiveCount,
+                    selected:
+                        _filter.activeFilter == ActiveStateFilter.inactive,
+                    onTap: () => setState(() {
+                      final same =
+                          _filter.activeFilter == ActiveStateFilter.inactive;
+                      _filter = _filter.copyWith(
+                        activeFilter: same
+                            ? ActiveStateFilter.all
+                            : ActiveStateFilter.inactive,
+                      );
+                    }),
+                  ),
+                ],
+                totalCount: items.length,
+                filteredCount: filtered.length,
+                hasActiveCustomization: _filter.hasActiveFilters,
+                onClearAll: () =>
+                    setState(() => _filter = CatalogListFilterState.empty),
+                showCountWhenUnfiltered: true,
+              ),
+              Expanded(
+                child: filtered.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: AppSpacing.page,
+                        children: [
+                          AppFilterEmptyState(
+                            onReset: () => setState(
+                              () => _filter = CatalogListFilterState.empty,
+                            ),
+                          ),
+                        ],
+                      )
+                    : ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: AppSpacing.page,
+                        children: filtered
+                            .map(
+                              (item) => Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.sm,
+                                ),
+                                child: AppCard(
+                                  onTap: busy
+                                      ? null
+                                      : () => _openForm(
+                                          context,
+                                          ref,
+                                          category: item,
+                                        ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.name,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleLarge,
+                                      ),
+                                      const SizedBox(height: AppSpacing.xs),
+                                      Text(
+                                        item.isActive ? 'نشط'.tr : 'متوقف'.tr,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodyMedium,
+                                      ),
+                                      if (item.description != null &&
+                                          item.description!.isNotEmpty) ...[
+                                        const SizedBox(height: AppSpacing.xs),
+                                        Text(item.description!),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+              ),
+            ],
           );
         },
       ),
