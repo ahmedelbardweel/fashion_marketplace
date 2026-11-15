@@ -63,6 +63,7 @@ class AppNetworkImage extends StatelessWidget {
     this.color,
     this.colorBlendMode,
     this.alignment = Alignment.center,
+    this.contentPadding = EdgeInsets.zero,
   });
   final String url;
   final double? width, height;
@@ -72,6 +73,7 @@ class AppNetworkImage extends StatelessWidget {
   final Color? color;
   final BlendMode? colorBlendMode;
   final AlignmentGeometry alignment;
+  final EdgeInsetsGeometry contentPadding;
 
   Widget _bone() => Bone(width: width, height: height);
   @override
@@ -87,9 +89,18 @@ class AppNetworkImage extends StatelessWidget {
       color: color,
       colorBlendMode: colorBlendMode,
       alignment: alignment,
-      errorBuilder: errorBuilder,
-      loadingBuilder: (context, child, progress) =>
-          progress == null ? child : AppSkeleton(child: _bone()),
+      errorBuilder: errorBuilder == null
+          ? null
+          : (context, error, stackTrace) {
+              final widget = errorBuilder!(context, error, stackTrace);
+              if (contentPadding == EdgeInsets.zero) return widget;
+              return Padding(padding: contentPadding, child: widget);
+            },
+      loadingBuilder: (context, child, progress) {
+        if (progress != null) return AppSkeleton(child: _bone());
+        if (contentPadding == EdgeInsets.zero) return child;
+        return Padding(padding: contentPadding, child: child);
+      },
     );
   }
 }

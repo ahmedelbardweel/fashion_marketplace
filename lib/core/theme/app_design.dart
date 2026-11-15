@@ -741,7 +741,17 @@ abstract final class ProductDetailsDesign {
   static const double galleryMinHeight = 360;
   static const double galleryMaxHeight = 640;
   static Color get galleryBackground => AppColors.surfaceSubtle;
-  static const BoxFit galleryImageFit = BoxFit.cover;
+  static const BoxFit galleryImageFit = BoxFit.contain;
+
+  /// خلفية استوديو بيضاء نقية تبرز الملابس بمختلف ألوانها في الوضعين الليلي والنهاري.
+  static const RadialGradient studioGradient = RadialGradient(
+    center: Alignment(0, -0.08),
+    radius: 0.95,
+    colors: [Color(0xFFFFFFFF), Color(0xFFF7F8FA)],
+  );
+
+  static Color get studioBorderColor =>
+      AppColors.isDark ? const Color(0x1FFFFFFF) : AppColors.border;
 
   // --- الأزرار العائمة فوق المعرض ---
   static const double floatingButtonSize = 42;

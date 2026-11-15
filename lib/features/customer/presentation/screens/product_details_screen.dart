@@ -1,5 +1,6 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -42,6 +43,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   String? _selectedSize;
   int _quantity = 1;
   bool _togglingFavorite = false;
+  bool _isHeroCollapsed = false;
+  bool _isAutoSnapping = false;
+  bool _dragStartedCollapsed = false;
+  double _heroCollapseExtent = 320;
+  double _heroCollapseThreshold = 200;
 
   @override
   void initState() {
@@ -60,10 +66,67 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     super.dispose();
   }
 
+  Future<void> _snapHeroTo(double target) async {
+    if (!mounted || _isAutoSnapping || !_scrollController.hasClients) return;
+    final current = _scrollController.offset;
+    if ((current - target).abs() < 1.0) return;
+    _isAutoSnapping = true;
+    try {
+      await _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutQuart,
+      );
+    } finally {
+      _isAutoSnapping = false;
+    }
+  }
+
+  bool _handleHeroSnapNotification(ScrollNotification notification) {
+    if (notification.depth != 0 ||
+        notification.metrics.axis != Axis.vertical ||
+        _heroCollapseExtent <= 1.0) {
+      return false;
+    }
+
+    if (notification is ScrollStartNotification) {
+      if (notification.dragDetails != null) {
+        _isAutoSnapping = false;
+        _dragStartedCollapsed =
+            notification.metrics.pixels >= _heroCollapseExtent - 2.0;
+      }
+      return false;
+    }
+
+    if (notification is ScrollEndNotification && !_isAutoSnapping) {
+      final offset = notification.metrics.pixels;
+      final maxExtent = notification.metrics.maxScrollExtent;
+      if (offset > 0.5 &&
+          offset < _heroCollapseExtent - 0.5 &&
+          maxExtent > 1.0) {
+        final shouldCollapse = _dragStartedCollapsed
+            ? offset > _heroCollapseExtent * 0.70
+            : offset >= _heroCollapseExtent * 0.30;
+        final target = (shouldCollapse ? _heroCollapseExtent : 0.0).clamp(
+          0.0,
+          maxExtent,
+        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _snapHeroTo(target);
+        });
+      }
+    }
+    return false;
+  }
+
   void _onScroll() {
     if (!_scrollController.hasClients) return;
     final maxScroll = _scrollController.position.maxScrollExtent;
     final current = _scrollController.position.pixels;
+    final collapsed = current >= _heroCollapseThreshold;
+    if (collapsed != _isHeroCollapsed) {
+      setState(() => _isHeroCollapsed = collapsed);
+    }
     if (current >= maxScroll - 350) {
       _loadMoreProducts();
     }
@@ -595,11 +658,19 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         final isInCompare = compareList.any((p) => p.id == product.id);
         final reviews = reviewsAsync.value ?? <ProductReview>[];
         final screenHeight = MediaQuery.of(context).size.height;
+        final topPadding = MediaQuery.paddingOf(context).top;
+        final minGalleryHeight =
+            topPadding +
+            ProductDetailsDesign.floatingButtonSize +
+            (AppSpacing.sm * 2);
+        final stageHeight = (screenHeight * 0.48).clamp(300.0, 460.0);
         final galleryHeight =
-            (screenHeight * ProductDetailsDesign.galleryHeightFactor).clamp(
-              ProductDetailsDesign.galleryMinHeight,
-              ProductDetailsDesign.galleryMaxHeight,
-            );
+            minGalleryHeight + stageHeight + ProductDetailsDesign.contentOverlap;
+        _heroCollapseExtent = (galleryHeight - minGalleryHeight).clamp(
+          1.0,
+          double.infinity,
+        );
+        _heroCollapseThreshold = _heroCollapseExtent * 0.68;
 
         final specFields = <MapEntry<String, String>>[];
         if (product.categoryName != null &&
@@ -619,204 +690,58 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
           }
         }
 
-        return Scaffold(
-          backgroundColor: ProductDetailsDesign.pageBackground,
+        final isLoadingSkeleton =
+            productAsync.isLoading && !productAsync.hasValue;
+        final useDarkStatusIcons =
+            !isLoadingSkeleton && (!_isHeroCollapsed || !AppColors.isDark);
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness:
+                useDarkStatusIcons ? Brightness.dark : Brightness.light,
+            statusBarBrightness:
+                useDarkStatusIcons ? Brightness.light : Brightness.dark,
+          ),
+          child: Scaffold(
+            backgroundColor: ProductDetailsDesign.pageBackground,
           body: Stack(
             children: [
-              // 1) Main Scrollable Content (Editorial Hero Gallery + Overlapping Sheet)
+              // 1) Main Scrollable Content (Collapsing Hero Gallery + Editorial Sheet)
               AppRefreshIndicator(
-                edgeOffset: MediaQuery.paddingOf(context).top,
+                edgeOffset: topPadding + ProductDetailsDesign.floatingButtonSize + AppSpacing.sm,
                 onRefresh: () => Future.wait([
                   ref.refresh(
                     customerProductDetailsProvider(widget.productId).future,
                   ),
                   ref.refresh(productReviewsProvider(widget.productId).future),
                 ]),
-                child: SingleChildScrollView(
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: _handleHeroSnapNotification,
+                  child: CustomScrollView(
                   controller: _scrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Editorial Portrait Gallery — Distinct from grid cards:
-                    // edge-to-edge, tall portrait ratio, interactive zoom on tap,
-                    // floating virtual try-on pill, and thumbnail strip below.
-                    SizedBox(
-                      height: galleryHeight,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          if (product.images.isNotEmpty)
-                            PageView.builder(
-                              controller: _galleryController,
-                              itemCount: product.images.length,
-                              onPageChanged: (index) =>
-                                  setState(() => _currentImageIndex = index),
-                              itemBuilder: (context, index) {
-                                final img = product.images[index];
-                                return GestureDetector(
-                                  onTap: AppHaptics.action(
-                                    () => _openFullScreenGallery(
-                                      context,
-                                      product.images,
-                                      index,
-                                    ),
-                                  ),
-                                  child: ColoredBox(
-                                    color:
-                                        ProductDetailsDesign.galleryBackground,
-                                    child: AppNetworkImage(
-                                      img.filePath,
-                                      fit: ProductDetailsDesign.galleryImageFit,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                      errorBuilder: (_, _, _) => Center(
-                                        child: Icon(
-                                          AppIcons.garment,
-                                          size: 48,
-                                          color: AppColors.iconMuted,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            )
-                          else
-                            ColoredBox(
-                              color: ProductDetailsDesign.galleryBackground,
-                              child: Center(
-                                child: Icon(
-                                  AppIcons.garment,
-                                  size: 54,
-                                  color: AppColors.iconMuted,
-                                ),
-                              ),
-                            ),
-
-                          // Bottom controls over gallery: image counter + Try-On pill + Zoom button
-                          PositionedDirectional(
-                            start: AppSpacing.md,
-                            end: AppSpacing.md,
-                            bottom: ProductDetailsDesign.contentOverlap + 14,
-                            child: Row(
-                              children: [
-                                // Virtual Try-On quick pill on gallery
-                                Material(
-                                  color: ProductDetailsDesign
-                                      .tryOnPillBackground,
-                                  borderRadius: BorderRadius.circular(
-                                    AppRadii.pill,
-                                  ),
-                                  elevation: 0,
-                                  child: InkWell(
-                                    onTap: AppHaptics.action(
-                                      () => context.push(
-                                        AppRoutes.customerRealtimeTryonPath(
-                                          product.id,
-                                        ),
-                                      ),
-                                    ),
-                                    borderRadius: BorderRadius.circular(
-                                      AppRadii.pill,
-                                    ),
-                                    child: Container(
-                                      height:
-                                          ProductDetailsDesign.tryOnPillHeight,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 14,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(
-                                          AppRadii.pill,
-                                        ),
-                                        boxShadow: ProductDetailsDesign
-                                            .floatingButtonShadow,
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            AppIcons.tryOn,
-                                            size: 18,
-                                            color: ProductDetailsDesign
-                                                .tryOnPillIcon,
-                                          ),
-                                          SizedBox(width: 6),
-                                          Text(
-                                            'جرّبها عليك الآن'.tr,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: AppFont.bold,
-                                              color: ProductDetailsDesign
-                                                  .tryOnPillText,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const Spacer(),
-                                if (product.images.length > 1)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: ProductDetailsDesign
-                                          .counterBackground,
-                                      borderRadius: BorderRadius.circular(
-                                        AppRadii.pill,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      '${_currentImageIndex + 1} / ${product.images.length}',
-                                      style: const TextStyle(
-                                        color:
-                                            ProductDetailsDesign.counterText,
-                                        fontSize: ProductDetailsDesign
-                                            .counterTextSize,
-                                        fontWeight: AppFont.bold,
-                                      ),
-                                    ),
-                                  ),
-                                if (product.images.isNotEmpty) ...[
-                                  const SizedBox(width: AppSpacing.xs),
-                                  _FloatingCircleButton(
-                                    icon: AppIcons.fullscreen,
-                                    tooltip: 'تكبير الصورة'.tr,
-                                    onTap: () => _openFullScreenGallery(
-                                      context,
-                                      product.images,
-                                      _currentImageIndex,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ],
+                  slivers: [
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _HeroGallerySliverDelegate(
+                        maxHeight: galleryHeight,
+                        minHeight: minGalleryHeight,
+                        product: product,
+                        galleryController: _galleryController,
+                        currentImageIndex: _currentImageIndex,
+                        onPageChanged: (index) =>
+                            setState(() => _currentImageIndex = index),
+                        onOpenFullscreen: (index) => _openFullScreenGallery(
+                          context,
+                          product.images,
+                          index,
+                        ),
                       ),
                     ),
-
-                    // Overlapping Editorial Content Sheet
-                    Transform.translate(
-                      offset: const Offset(
-                        0,
-                        -ProductDetailsDesign.contentOverlap,
-                      ),
+                    SliverToBoxAdapter(
                       child: Container(
-                        decoration: BoxDecoration(
-                          color: ProductDetailsDesign.contentBackground,
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(
-                              ProductDetailsDesign.contentRadius,
-                            ),
-                          ),
-                        ),
-                        padding: ProductDetailsDesign.contentPadding,
+                        color: ProductDetailsDesign.contentBackground,
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -848,8 +773,13 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         width: ProductDetailsDesign.thumbSize,
                                         height: ProductDetailsDesign.thumbSize,
                                         decoration: BoxDecoration(
-                                          color: ProductDetailsDesign
-                                              .galleryBackground,
+                                          gradient: ProductDetailsDesign
+                                              .studioGradient,
+                                          borderRadius: BorderRadius.circular(
+                                            ProductDetailsDesign.thumbRadius,
+                                          ),
+                                        ),
+                                        foregroundDecoration: BoxDecoration(
                                           borderRadius: BorderRadius.circular(
                                             ProductDetailsDesign.thumbRadius,
                                           ),
@@ -868,7 +798,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                         clipBehavior: Clip.antiAlias,
                                         child: AppNetworkImage(
                                           product.images[idx].filePath,
-                                          fit: BoxFit.cover,
+                                          fit: BoxFit.contain,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          contentPadding:
+                                              const EdgeInsets.all(4),
                                         ),
                                       ),
                                     );
@@ -1530,11 +1464,11 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                       ),
                     ),
                   ],
+                  ),
                 ),
               ),
-              ),
 
-              // 2) Floating Top Bar over the Gallery (Back, Compare, Favorite, Cart)
+              // 2) Floating Top Bar over the Gallery (Back, Logo, Try-On, Compare, Favorite, Cart)
               Positioned(
                 top: 0,
                 left: 0,
@@ -1556,6 +1490,12 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         const SizedBox(width: AppSpacing.xs),
                         const AppLogoMark(),
                         const Spacer(),
+                        _AnimatedTryOnButton(
+                          onTap: () => context.push(
+                            AppRoutes.customerRealtimeTryonPath(product.id),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
                         _FloatingCircleButton(
                           icon: AppIcons.compare,
                           tooltip: isInCompare
@@ -1744,6 +1684,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
               ),
             ),
           ),
+        ),
         );
       },
       error: (err, _) => CustomerScaffold(
@@ -2069,9 +2010,15 @@ class _FullscreenGalleryPageState extends State<_FullscreenGalleryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: GalleryViewerDesign.background,
-      body: SafeArea(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
         child: Stack(
           children: [
             PageView.builder(
@@ -2079,12 +2026,20 @@ class _FullscreenGalleryPageState extends State<_FullscreenGalleryPage> {
               itemCount: widget.images.length,
               onPageChanged: (i) => setState(() => _index = i),
               itemBuilder: (context, index) {
-                return InteractiveViewer(
-                  maxScale: GalleryViewerDesign.maxZoom,
-                  child: Center(
-                    child: AppNetworkImage(
-                      widget.images[index].filePath,
-                      fit: BoxFit.contain,
+                return Container(
+                  decoration: BoxDecoration(
+                    gradient: ProductDetailsDesign.studioGradient,
+                  ),
+                  child: InteractiveViewer(
+                    maxScale: GalleryViewerDesign.maxZoom,
+                    child: Center(
+                      child: AppNetworkImage(
+                        widget.images[index].filePath,
+                        fit: BoxFit.contain,
+                        width: double.infinity,
+                        height: double.infinity,
+                        contentPadding: const EdgeInsets.all(AppSpacing.lg),
+                      ),
                     ),
                   ),
                 );
@@ -2129,6 +2084,265 @@ class _FullscreenGalleryPageState extends State<_FullscreenGalleryPage> {
               ),
             ),
           ],
+        ),
+      ),
+    ),
+    );
+  }
+}
+
+class _HeroGallerySliverDelegate extends SliverPersistentHeaderDelegate {
+  const _HeroGallerySliverDelegate({
+    required this.maxHeight,
+    required this.minHeight,
+    required this.product,
+    required this.galleryController,
+    required this.currentImageIndex,
+    required this.onPageChanged,
+    required this.onOpenFullscreen,
+  });
+
+  final double maxHeight;
+  final double minHeight;
+  final CustomerProduct product;
+  final PageController galleryController;
+  final int currentImageIndex;
+  final ValueChanged<int> onPageChanged;
+  final void Function(int index) onOpenFullscreen;
+
+  @override
+  double get maxExtent => maxHeight;
+
+  @override
+  double get minExtent => minHeight;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final range = (maxExtent - minExtent).clamp(1.0, double.infinity);
+    final raw = (shrinkOffset / range).clamp(0.0, 1.0);
+    final curved = Curves.easeOutCubic.transform(raw);
+    final imageScale = 1.0 - 0.16 * curved;
+    final imageOpacity = (1.0 - 1.15 * Curves.easeInCubic.transform(raw)).clamp(
+      0.0,
+      1.0,
+    );
+    final headerFade = Curves.easeInOutCubic.transform(
+      ((raw - 0.35) / 0.65).clamp(0.0, 1.0),
+    );
+    final controlsOpacity = (1.0 - raw * 2.4).clamp(0.0, 1.0);
+    final sheetProgress = Curves.easeInOutCubic.transform(raw);
+    final capHeight =
+        ProductDetailsDesign.contentOverlap * (1.0 - sheetProgress);
+    final capRadius = ProductDetailsDesign.contentRadius * (1.0 - sheetProgress);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(gradient: ProductDetailsDesign.studioGradient),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Full-bleed product image positioned cleanly below the top icons;
+          // moves smoothly upward and gently shrinks as the user scrolls down.
+          ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.topCenter,
+              minHeight: 0,
+              maxHeight: maxExtent,
+              child: SizedBox(
+                height: maxExtent,
+                child: Transform.translate(
+                  offset: Offset(0, -shrinkOffset * 0.48),
+                  child: Transform.scale(
+                    scale: imageScale,
+                    alignment: Alignment.center,
+                    child: Opacity(
+                      opacity: imageOpacity,
+                      child: product.images.isNotEmpty
+                          ? PageView.builder(
+                              controller: galleryController,
+                              itemCount: product.images.length,
+                              onPageChanged: onPageChanged,
+                              itemBuilder: (context, index) {
+                                final img = product.images[index];
+                                return GestureDetector(
+                                  onTap: AppHaptics.action(
+                                    () => onOpenFullscreen(index),
+                                  ),
+                                  behavior: HitTestBehavior.opaque,
+                                  child: AppNetworkImage(
+                                    img.filePath,
+                                    fit: ProductDetailsDesign.galleryImageFit,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    contentPadding: EdgeInsets.fromLTRB(
+                                      AppSpacing.lg,
+                                      minExtent + 8,
+                                      AppSpacing.lg,
+                                      ProductDetailsDesign.contentOverlap + 18,
+                                    ),
+                                    errorBuilder: (_, _, _) => Center(
+                                      child: Icon(
+                                        AppIcons.garment,
+                                        size: 48,
+                                        color: AppColors.iconMuted,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                          : Center(
+                              child: Icon(
+                                AppIcons.garment,
+                                size: 54,
+                                color: AppColors.iconMuted,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Cross-fade into solid header surface as the hero collapses upward
+          if (headerFade > 0.01)
+            IgnorePointer(
+              child: ColoredBox(
+                color: ProductDetailsDesign.contentBackground.withValues(
+                  alpha: headerFade,
+                ),
+              ),
+            ),
+
+          if (controlsOpacity > 0.02 && product.images.isNotEmpty)
+            PositionedDirectional(
+              start: AppSpacing.md,
+              end: AppSpacing.md,
+              bottom: ProductDetailsDesign.contentOverlap + 14,
+              child: IgnorePointer(
+                ignoring: controlsOpacity < 0.35,
+                child: Opacity(
+                  opacity: controlsOpacity,
+                  child: Row(
+                    children: [
+                      const Spacer(),
+                      if (product.images.length > 1)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: ProductDetailsDesign.counterBackground,
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                          ),
+                          child: Text(
+                            '${currentImageIndex + 1} / ${product.images.length}',
+                            style: const TextStyle(
+                              color: ProductDetailsDesign.counterText,
+                              fontSize: ProductDetailsDesign.counterTextSize,
+                              fontWeight: AppFont.bold,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(width: AppSpacing.xs),
+                      _FloatingCircleButton(
+                        icon: AppIcons.fullscreen,
+                        tooltip: 'تكبير الصورة'.tr,
+                        onTap: () => onOpenFullscreen(currentImageIndex),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          if (capHeight > 0.5)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: capHeight,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: ProductDetailsDesign.contentBackground,
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(capRadius),
+                  ),
+                ),
+              ),
+            ),
+
+          if (curved > 0.85)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Opacity(
+                opacity: ((curved - 0.85) / 0.15).clamp(0.0, 1.0),
+                child: Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: AppBarDesign.borderColor,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _HeroGallerySliverDelegate oldDelegate) {
+    return oldDelegate.maxHeight != maxHeight ||
+        oldDelegate.minHeight != minHeight ||
+        oldDelegate.product != product ||
+        oldDelegate.currentImageIndex != currentImageIndex;
+  }
+}
+
+class _AnimatedTryOnButton extends StatelessWidget {
+  const _AnimatedTryOnButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Flexible(
+      child: Tooltip(
+        message: 'جرّبها عليك الآن'.tr,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: AppHaptics.action(onTap),
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            child: Container(
+              height: ProductDetailsDesign.floatingButtonSize,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: ProductDetailsDesign.floatingButtonBackground,
+                borderRadius: BorderRadius.circular(AppRadii.pill),
+                boxShadow: ProductDetailsDesign.floatingButtonShadow,
+              ),
+              child: Center(
+                widthFactor: 1,
+                child: Text(
+                  'جرب الملابس'.tr,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: AppFont.bold,
+                    color: ProductDetailsDesign.floatingButtonIcon,
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

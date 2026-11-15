@@ -134,6 +134,7 @@ class _ProductGridCardState extends State<ProductGridCard> {
               child: Container(
                 decoration: BoxDecoration(
                   color: ProductCardDesign.imageBackground,
+                  gradient: ProductDetailsDesign.studioGradient,
                   borderRadius: imageRadius,
                   border: Border.all(
                     color: ProductCardDesign.imageBorderColor,
