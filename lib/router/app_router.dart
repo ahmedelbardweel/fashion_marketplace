@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/theme/app_theme.dart';
 import '../features/admin/presentation/screens/admin_banners_screen.dart';
 import '../features/admin/presentation/screens/admin_categories_screen.dart';
 import '../features/admin/presentation/screens/admin_dashboard_screen.dart';
@@ -18,6 +19,7 @@ import '../features/admin/presentation/screens/admin_users_screen.dart';
 import '../features/auth/domain/models/user_role.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
 import '../features/auth/presentation/screens/login_screen.dart';
+import '../features/auth/presentation/screens/onboarding_screen.dart';
 import '../features/auth/presentation/screens/register_choice_screen.dart';
 import '../features/auth/presentation/screens/register_customer_screen.dart';
 import '../features/auth/presentation/screens/register_shop_screen.dart';
@@ -66,6 +68,10 @@ class GoRouterRefresh extends ChangeNotifier {
       splashCompletedProvider,
       (previous, next) => notifyListeners(),
     );
+    ref.listen<bool>(
+      onboardingCompletedProvider,
+      (previous, next) => notifyListeners(),
+    );
   }
 }
 
@@ -91,6 +97,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         return isSplash ? null : AppRoutes.splash;
       }
 
+      final isOnboarding = location == AppRoutes.onboarding;
+      final onboardingDone = ref.read(onboardingCompletedProvider);
+
       final isAuthRoute =
           location == AppRoutes.login ||
           location == AppRoutes.register ||
@@ -102,10 +111,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (auth.status == AuthStatus.unauthenticated) {
-        if (isSplash) return AppRoutes.login;
+        if (isOnboarding) return null;
+        if (isSplash) {
+          return onboardingDone ? AppRoutes.login : AppRoutes.onboarding;
+        }
         if (isAuthRoute) return null;
-        return AppRoutes.login;
+        return onboardingDone ? AppRoutes.login : AppRoutes.onboarding;
       }
+
+      if (isOnboarding) return null;
 
       final user = auth.user;
       if (user == null) return AppRoutes.login;
@@ -175,6 +189,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.splash,
         builder: (context, state) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.onboarding,
+        builder: (context, state) => const OnboardingScreen(),
       ),
       GoRoute(
         path: AppRoutes.login,

@@ -1,6 +1,7 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -10,6 +11,7 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../../router/routes.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_action_sheet.dart';
@@ -90,7 +92,11 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                 setSheetState(() => isSaving = false);
               }
               if (mounted) {
-                showAppSnackBar(context, 'تعذر تحديث البيانات'.tr, isError: true);
+                showAppSnackBar(
+                  context,
+                  'تعذر تحديث البيانات'.tr,
+                  isError: true,
+                );
               }
             }
           }
@@ -238,9 +244,7 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
         builder: (ctx) {
           return CustomerActionSheet(
             title: Text('تسجيل الخروج'.tr),
-            content: Text(
-              'هل أنت متأكد من رغبتك في تسجيل الخروج من حسابك؟'.tr,
-            ),
+            content: Text('هل أنت متأكد من رغبتك في تسجيل الخروج من حسابك؟'.tr),
             actions: [
               TextButton(
                 onPressed: AppHaptics.action(() => Navigator.of(ctx).pop()),
@@ -283,7 +287,8 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                       SizedBox(width: AppSpacing.sm),
                       Expanded(
                         child: Text(
-                          'سيتم إيقاف حسابك وحذف بياناتك الشخصية ولن تتمكن من استعادتها مرة أخرى.'.tr,
+                          'سيتم إيقاف حسابك وحذف بياناتك الشخصية ولن تتمكن من استعادتها مرة أخرى.'
+                              .tr,
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: AppFont.semiBold,
@@ -328,7 +333,9 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                           }
                         }),
                   child: Text(
-                    isDeleting ? 'جاري حذف الحساب...'.tr : 'تأكيد حذف الحساب'.tr,
+                    isDeleting
+                        ? 'جاري حذف الحساب...'.tr
+                        : 'تأكيد حذف الحساب'.tr,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
@@ -376,169 +383,175 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(AppSpacing.md),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // User Header Card
-            AppCard(
-              onTap: _openEditProfileSheet,
-              child: Row(
-                children: [
-                  Container(
-                    width: ProfileDesign.avatarSize,
-                    height: ProfileDesign.avatarSize,
-                    decoration: BoxDecoration(
-                      color: ProfileDesign.avatarBackground,
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      initial,
-                      style: TextStyle(
-                        color: ProfileDesign.avatarText,
-                        fontSize: 26,
-                        fontWeight: AppFont.extraBold,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // User Header Card
+              AppCard(
+                onTap: _openEditProfileSheet,
+                child: Row(
+                  children: [
+                    Container(
+                      width: ProfileDesign.avatarSize,
+                      height: ProfileDesign.avatarSize,
+                      decoration: BoxDecoration(
+                        color: ProfileDesign.avatarBackground,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        initial,
+                        style: TextStyle(
+                          color: ProfileDesign.avatarText,
+                          fontSize: 26,
+                          fontWeight: AppFont.extraBold,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user?.fullName ?? 'عميل المتجر'.tr,
-                          style: TextStyle(
-                            fontSize: ProfileDesign.nameSize,
-                            fontWeight: ProfileDesign.nameWeight,
-                            color: AppColors.text,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          user?.email ?? '',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                        if (user?.phone != null &&
-                            user!.phone!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 2),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            '${user.phone!}${user.city != null && user.city!.trim().isNotEmpty ? ' · ${user.city}' : ''}',
+                            user?.fullName ?? 'عميل المتجر'.tr,
                             style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
+                              fontSize: ProfileDesign.nameSize,
+                              fontWeight: ProfileDesign.nameWeight,
+                              color: AppColors.text,
                             ),
                           ),
+                          const SizedBox(height: 2),
+                          Text(
+                            user?.email ?? '',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                          if (user?.phone != null &&
+                              user!.phone!.trim().isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              '${user.phone!}${user.city != null && user.city!.trim().isNotEmpty ? ' · ${user.city}' : ''}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: AppColors.primarySoft,
-                      borderRadius: BorderRadius.circular(AppRadii.sm),
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.primarySoft,
+                        borderRadius: BorderRadius.circular(AppRadii.sm),
+                      ),
+                      child: Icon(
+                        AppIcons.edit,
+                        size: 18,
+                        color: AppColors.primaryDark,
+                      ),
                     ),
-                    child: Icon(
-                      AppIcons.edit,
-                      size: 18,
-                      color: AppColors.primaryDark,
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: AppSpacing.md),
+
+              // Account & App Preferences
+              Text(
+                'إعدادات الحساب والتطبيق'.tr,
+                style: TextStyle(
+                  fontSize: SectionDesign.titleSize,
+                  fontWeight: SectionDesign.titleWeight,
+                  color: AppColors.text,
+                ),
+              ),
+              const SizedBox(height: SectionDesign.spacingBelow),
+
+              AppCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    _ProfileMenuRow(
+                      icon: AppIcons.edit,
+                      title: 'تعديل البيانات وعنوان التوصيل'.tr,
+                      subtitle:
+                          'الاسم، رقم الهاتف، المدينة، والعنوان التفصيلي'.tr,
+                      onTap: _openEditProfileSheet,
                     ),
-                  ),
-                ],
+                    const Divider(height: 1),
+                    _ProfileMenuRow(
+                      icon: themeMode == ThemeMode.dark
+                          ? IconsaxPlusLinear.moon
+                          : AppIcons.sun,
+                      title: 'مظهر التطبيق (الوضع الليلي / النهاري)'.tr,
+                      subtitle: themeMode == ThemeMode.dark
+                          ? 'الوضع الليلي (Dark Mode)'.tr
+                          : 'الوضع النهاري (Light Mode)'.tr,
+                      onTap: _openThemeSheet,
+                    ),
+                    const Divider(height: 1),
+                    _ProfileMenuRow(
+                      icon: IconsaxPlusLinear.global,
+                      title: 'لغة التطبيق'.tr,
+                      subtitle: locale.languageCode == 'en'
+                          ? 'English'
+                          : 'العربية'.tr,
+                      onTap: _openLanguageSheet,
+                    ),
+                    const Divider(height: 1),
+                    _ProfileMenuRow(
+                      icon: AppIcons.sparkles,
+                      title: 'جولة التطبيق'.tr,
+                      subtitle: 'استعرض ميزات التسوق وتجربة الملابس'.tr,
+                      onTap: () => context.push(AppRoutes.onboarding),
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(height: AppSpacing.md),
+              const SizedBox(height: AppSpacing.md),
 
-            // Account & App Preferences
-            Text(
-              'إعدادات الحساب والتطبيق'.tr,
-              style: TextStyle(
-                fontSize: SectionDesign.titleSize,
-                fontWeight: SectionDesign.titleWeight,
-                color: AppColors.text,
+              // Account Actions (Logout & Delete Account)
+              Text(
+                'إدارة الحساب'.tr,
+                style: TextStyle(
+                  fontSize: SectionDesign.titleSize,
+                  fontWeight: SectionDesign.titleWeight,
+                  color: AppColors.text,
+                ),
               ),
-            ),
-            const SizedBox(height: SectionDesign.spacingBelow),
+              const SizedBox(height: SectionDesign.spacingBelow),
 
-            AppCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _ProfileMenuRow(
-                    icon: AppIcons.edit,
-                    title: 'تعديل البيانات وعنوان التوصيل'.tr,
-                    subtitle: 'الاسم، رقم الهاتف، المدينة، والعنوان التفصيلي'.tr,
-                    onTap: _openEditProfileSheet,
-                  ),
-                  const Divider(height: 1),
-                  _ProfileMenuRow(
-                    icon: themeMode == ThemeMode.dark
-                        ? IconsaxPlusLinear.moon
-                        : AppIcons.sun,
-                    title: 'مظهر التطبيق (الوضع الليلي / النهاري)'.tr,
-                    subtitle: themeMode == ThemeMode.dark
-                        ? 'الوضع الليلي (Dark Mode)'.tr
-                        : 'الوضع النهاري (Light Mode)'.tr,
-                    onTap: _openThemeSheet,
-                  ),
-                  const Divider(height: 1),
-                  _ProfileMenuRow(
-                    icon: IconsaxPlusLinear.global,
-                    title: 'لغة التطبيق'.tr,
-                    subtitle: locale.languageCode == 'en'
-                        ? 'English'
-                        : 'العربية'.tr,
-                    onTap: _openLanguageSheet,
-                  ),
-                ],
+              AppCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    _ProfileMenuRow(
+                      icon: AppIcons.logout,
+                      title: 'تسجيل الخروج'.tr,
+                      subtitle: 'الخروج من حسابك الحالي على هذا الجهاز'.tr,
+                      onTap: _confirmLogout,
+                    ),
+                    const Divider(height: 1),
+                    _ProfileMenuRow(
+                      icon: AppIcons.delete,
+                      title: 'حذف الحساب'.tr,
+                      subtitle: 'إيقاف الحساب وحذف جميع البيانات نهائياً'.tr,
+                      isDestructive: true,
+                      onTap: _confirmDeleteAccount,
+                    ),
+                  ],
+                ),
               ),
-            ),
-
-
-
-            const SizedBox(height: AppSpacing.md),
-
-            // Account Actions (Logout & Delete Account)
-            Text(
-              'إدارة الحساب'.tr,
-              style: TextStyle(
-                fontSize: SectionDesign.titleSize,
-                fontWeight: SectionDesign.titleWeight,
-                color: AppColors.text,
-              ),
-            ),
-            const SizedBox(height: SectionDesign.spacingBelow),
-
-            AppCard(
-              padding: EdgeInsets.zero,
-              child: Column(
-                children: [
-                  _ProfileMenuRow(
-                    icon: AppIcons.logout,
-                    title: 'تسجيل الخروج'.tr,
-                    subtitle: 'الخروج من حسابك الحالي على هذا الجهاز'.tr,
-                    onTap: _confirmLogout,
-                  ),
-                  const Divider(height: 1),
-                  _ProfileMenuRow(
-                    icon: AppIcons.delete,
-                    title: 'حذف الحساب'.tr,
-                    subtitle: 'إيقاف الحساب وحذف جميع البيانات نهائياً'.tr,
-                    isDestructive: true,
-                    onTap: _confirmDeleteAccount,
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -589,10 +602,7 @@ class _ProfileMenuRow extends StatelessWidget {
       subtitle: subtitle != null
           ? Text(
               subtitle!,
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textMuted,
-              ),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             )
           : null,
       trailing: Icon(
@@ -664,10 +674,7 @@ class _SheetOptionTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textMuted,
-                    ),
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                   ),
                 ],
               ),

@@ -15,10 +15,12 @@ class AppPreferences {
   static const _themeKey = 'app_theme_mode';
   static const _localeKey = 'app_locale_code';
   static const _readNotificationsKey = 'app_read_notification_ids';
+  static const _onboardingCompletedKey = 'app_onboarding_completed';
 
   static SharedPreferences? _prefs;
   static ThemeMode initialThemeMode = ThemeMode.light;
   static Locale initialLocale = const Locale('ar');
+  static bool initialOnboardingCompleted = false;
 
   static Future<void> init() async {
     try {
@@ -40,6 +42,9 @@ class AppPreferences {
         initialLocale = const Locale('ar');
         AppLang.isEn = false;
       }
+
+      initialOnboardingCompleted =
+          _prefs?.getBool(_onboardingCompletedKey) ?? false;
     } catch (_) {
       // Fallback to defaults if storage is unavailable
     }
@@ -71,7 +76,18 @@ class AppPreferences {
     _prefs = prefs;
     await prefs.setStringList('${_readNotificationsKey}_$scope', ids.toList());
   }
+
+  static Future<void> setOnboardingCompleted([bool completed = true]) async {
+    initialOnboardingCompleted = completed;
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    _prefs = prefs;
+    await prefs.setBool(_onboardingCompletedKey, completed);
+  }
 }
+
+final onboardingCompletedProvider = StateProvider<bool>(
+  (ref) => AppPreferences.initialOnboardingCompleted,
+);
 
 class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   ThemeModeNotifier() : super(AppPreferences.initialThemeMode);

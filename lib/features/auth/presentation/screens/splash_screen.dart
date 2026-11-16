@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_design.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../providers/auth_provider.dart';
+import 'onboarding_screen.dart';
 
 final splashCompletedProvider = StateProvider<bool>((ref) => false);
 
@@ -18,6 +22,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   late final AnimationController _controller;
   late final Animation<double> _fade;
   late final Animation<double> _scale;
+  bool _warmedOnboarding = false;
 
   @override
   void initState() {
@@ -48,6 +53,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     Future.microtask(() {
       ref.read(authControllerProvider.notifier).restoreSession();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_warmedOnboarding && !ref.read(onboardingCompletedProvider)) {
+      _warmedOnboarding = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(OnboardingScreen.warmUpInitialSlides(context));
+        }
+      });
+    }
   }
 
   @override

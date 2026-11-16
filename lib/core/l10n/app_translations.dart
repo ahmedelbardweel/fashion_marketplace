@@ -46,10 +46,7 @@ class AppLang {
       RegExp(r'^إجمالي النتائج: (\d+)$'),
       (m) => 'Total results: ${m[1]}',
     ),
-    _PatternRule(
-      RegExp(r'^النتائج: (\d+)$'),
-      (m) => 'Results: ${m[1]}',
-    ),
+    _PatternRule(RegExp(r'^النتائج: (\d+)$'), (m) => 'Results: ${m[1]}'),
     _PatternRule(
       RegExp(r'^عرض المزيد \((\d+) منتجات\)$'),
       (m) => 'Load more (${m[1]} products)',
@@ -86,42 +83,15 @@ class AppLang {
       RegExp(r'^التقييم: (\d+)\+ نجوم$'),
       (m) => 'Rating: ${m[1]}+ stars',
     ),
-    _PatternRule(
-      RegExp(r'^(\d+)★ فأعلى$'),
-      (m) => '${m[1]}★ & up',
-    ),
-    _PatternRule(
-      RegExp(r'^(\d+) نجوم$'),
-      (m) => '${m[1]} stars',
-    ),
-    _PatternRule(
-      RegExp(r'^المقاس: (.+)$'),
-      (m) => 'Size: ${m[1]}',
-    ),
-    _PatternRule(
-      RegExp(r'^اللون: (.+)$'),
-      (m) => 'Color: ${m[1]}',
-    ),
-    _PatternRule(
-      RegExp(r'^المتجر: (.+)$'),
-      (m) => 'Shop: ${m[1]}',
-    ),
-    _PatternRule(
-      RegExp(r'^التصنيف: (.+)$'),
-      (m) => 'Category: ${m[1]}',
-    ),
-    _PatternRule(
-      RegExp(r'^المدينة: (.+)$'),
-      (m) => 'City: ${m[1]}',
-    ),
-    _PatternRule(
-      RegExp(r'^أقل من ([\d.]+)$'),
-      (m) => 'Under ₪${m[1]}',
-    ),
-    _PatternRule(
-      RegExp(r'^أكثر من ([\d.]+)$'),
-      (m) => 'Over ₪${m[1]}',
-    ),
+    _PatternRule(RegExp(r'^(\d+)★ فأعلى$'), (m) => '${m[1]}★ & up'),
+    _PatternRule(RegExp(r'^(\d+) نجوم$'), (m) => '${m[1]} stars'),
+    _PatternRule(RegExp(r'^المقاس: (.+)$'), (m) => 'Size: ${m[1]}'),
+    _PatternRule(RegExp(r'^اللون: (.+)$'), (m) => 'Color: ${m[1]}'),
+    _PatternRule(RegExp(r'^المتجر: (.+)$'), (m) => 'Shop: ${m[1]}'),
+    _PatternRule(RegExp(r'^التصنيف: (.+)$'), (m) => 'Category: ${m[1]}'),
+    _PatternRule(RegExp(r'^المدينة: (.+)$'), (m) => 'City: ${m[1]}'),
+    _PatternRule(RegExp(r'^أقل من ([\d.]+)$'), (m) => 'Under ₪${m[1]}'),
+    _PatternRule(RegExp(r'^أكثر من ([\d.]+)$'), (m) => 'Over ₪${m[1]}'),
     _PatternRule(
       RegExp(r'^([\d.]+)\s*-\s*([\d.]+)$'),
       (m) => '₪${m[1]} - ₪${m[2]}',
@@ -138,14 +108,8 @@ class AppLang {
       RegExp(r'^القطع المشتراة \((\d+)\)$'),
       (m) => 'Purchased Items (${m.group(1)})',
     ),
-    _PatternRule(
-      RegExp(r'^(\d+) قطع$'),
-      (m) => '${m.group(1)} items',
-    ),
-    _PatternRule(
-      RegExp(r'^(\d+) قطعة$'),
-      (m) => '${m.group(1)} pcs',
-    ),
+    _PatternRule(RegExp(r'^(\d+) قطع$'), (m) => '${m.group(1)} items'),
+    _PatternRule(RegExp(r'^(\d+) قطعة$'), (m) => '${m.group(1)} pcs'),
     _PatternRule(
       RegExp(r'^متبقي (\d+) فقط$'),
       (m) => 'Only ${m.group(1)} left',
@@ -186,42 +150,18 @@ class AppLang {
       RegExp(r'^تم تحديد الجسم \(المقاس: (.+)\)$'),
       (m) => 'Body detected (Size: ${m.group(1)})',
     ),
-    _PatternRule(
-      RegExp(r'^طلب #(.+)$'),
-      (m) => 'Order #${m.group(1)}',
-    ),
+    _PatternRule(RegExp(r'^طلب #(.+)$'), (m) => 'Order #${m.group(1)}'),
     _PatternRule(
       RegExp(r'^الطلب الحالي: (.+)$'),
       (m) => 'Current Order: ${tr(m.group(1)!)}',
     ),
-    _PatternRule(
-      RegExp(r'^المتجر: (.+)$'),
-      (m) => 'Shop: ${m.group(1)}',
-    ),
-    _PatternRule(
-      RegExp(r'^المحل: (.+)$'),
-      (m) => 'Shop: ${m.group(1)}',
-    ),
-    _PatternRule(
-      RegExp(r'^الكمية: (\d+)$'),
-      (m) => 'Qty: ${m.group(1)}',
-    ),
-    _PatternRule(
-      RegExp(r'^المواصفات: (.+)$'),
-      (m) => 'Specs: ${m.group(1)}',
-    ),
-    _PatternRule(
-      RegExp(r'^المقاس: (.+)$'),
-      (m) => 'Size: ${m.group(1)}',
-    ),
-    _PatternRule(
-      RegExp(r'^بحث: (.+)$'),
-      (m) => 'Search: ${m.group(1)}',
-    ),
-    _PatternRule(
-      RegExp(r'^السعر: (.+)$'),
-      (m) => 'Price: ${m.group(1)}',
-    ),
+    _PatternRule(RegExp(r'^المتجر: (.+)$'), (m) => 'Shop: ${m.group(1)}'),
+    _PatternRule(RegExp(r'^المحل: (.+)$'), (m) => 'Shop: ${m.group(1)}'),
+    _PatternRule(RegExp(r'^الكمية: (\d+)$'), (m) => 'Qty: ${m.group(1)}'),
+    _PatternRule(RegExp(r'^المواصفات: (.+)$'), (m) => 'Specs: ${m.group(1)}'),
+    _PatternRule(RegExp(r'^المقاس: (.+)$'), (m) => 'Size: ${m.group(1)}'),
+    _PatternRule(RegExp(r'^بحث: (.+)$'), (m) => 'Search: ${m.group(1)}'),
+    _PatternRule(RegExp(r'^السعر: (.+)$'), (m) => 'Price: ${m.group(1)}'),
     _PatternRule(
       RegExp(r'^تاريخ الإنشاء: (.+)$'),
       (m) => 'Created: ${m.group(1)}',
@@ -234,22 +174,10 @@ class AppLang {
       RegExp(r'^المرحلة (\d+): (.+)$'),
       (m) => 'Step ${m.group(1)}: ${tr(m.group(2)!)}',
     ),
-    _PatternRule(
-      RegExp(r'^التالي: (.+)$'),
-      (m) => 'Next: ${tr(m.group(1)!)}',
-    ),
-    _PatternRule(
-      RegExp(r'^تعديل (.+)$'),
-      (m) => 'Edit ${tr(m.group(1)!)}',
-    ),
-    _PatternRule(
-      RegExp(r'^صورة (\d+)$'),
-      (m) => 'Image ${m.group(1)}',
-    ),
-    _PatternRule(
-      RegExp(r'^(\d+)٪ مكتمل$'),
-      (m) => '${m.group(1)}% complete',
-    ),
+    _PatternRule(RegExp(r'^التالي: (.+)$'), (m) => 'Next: ${tr(m.group(1)!)}'),
+    _PatternRule(RegExp(r'^تعديل (.+)$'), (m) => 'Edit ${tr(m.group(1)!)}'),
+    _PatternRule(RegExp(r'^صورة (\d+)$'), (m) => 'Image ${m.group(1)}'),
+    _PatternRule(RegExp(r'^(\d+)٪ مكتمل$'), (m) => '${m.group(1)}% complete'),
     _PatternRule(
       RegExp(r'^(.+) مطلوب$'),
       (m) => '${tr(m.group(1)!)} is required',
@@ -345,11 +273,13 @@ class AppLang {
     'متاجر لديها منتجات فقط': 'Shops with products only',
     'عرض المتاجر التي نشرت منتجات فقط': 'Only show shops that have products',
     'مع تعليق فقط': 'With Comment Only',
-    'تقييمات تحتوي على تعليق نصي فقط': 'Only reviews that include text comments',
+    'تقييمات تحتوي على تعليق نصي فقط':
+        'Only reviews that include text comments',
     'بحث في الكتالوج، الماركة، اللون...': 'Search catalog, brand, color...',
     'ابحث في تشكيلة المتجر، اللون، المقاس...':
         'Search shop collection, color, size...',
-    'ابحث باسم المتجر، المدينة، الوصف...': 'Search shop name, city, description...',
+    'ابحث باسم المتجر، المدينة، الوصف...':
+        'Search shop name, city, description...',
     'ابحث برقم الطلب، المتجر، اسم المنتج...': 'Search order #, shop, item...',
     'ابحث في المفضلة، المتجر، اللون...': 'Search favorites, shop, color...',
     'ابحث في الإشعارات...': 'Search notifications...',
@@ -855,6 +785,151 @@ class AppLang {
     'جاري تحميل المزيد...': 'Loading more...',
     'تعذر تحميل الدفعة التالية': 'Could not load the next batch',
     'عرض المزيد': 'Load more',
+
+    // --- Onboarding (Customer & Shop) ---
+    'للمتسوّق': 'Shopper',
+    'للمتاجر': 'For Shops',
+    'تخطي': 'Skip',
+    'التالي': 'Next',
+    'ابدأ التسوق': 'Start Shopping',
+    'سجّل متجرك': 'Register Your Shop',
+    'لدي حساب متجر بالفعل': 'Already have a shop account',
+    'تم': 'Done',
+    'إغلاق': 'Close',
+    'جولة التطبيق': 'App Tour',
+    'استعرض ميزات التسوق وتجربة الملابس': 'Explore shopping & try-on features',
+    'جولة المتاجر': 'Shop Tour',
+    'تصفح منظم': 'Curated Browse',
+    'كل متاجرك المفضلة في مكان واحد': 'Your Favorite Stores in One Place',
+    'تصفح أزياء المتاجر المعتمدة حسب القسم والنوع، واستخدم الفلاتر للوصول للمقاس والسعر المناسب بسهولة.':
+        'Browse verified boutiques by category and type, and filter effortlessly by size, color, and price.',
+    'قياس بالكاميرا': 'Live Camera Try-On',
+    'جرّب القطعة قبل ما تطلبها': 'Try On Before You Order',
+    'افتح الكاميرا من مكانك، اختر منطقة اللبس المناسبة، وشاهد كيف تبدو القطعة عليك مباشرة قبل الشراء.':
+        'Open your camera from anywhere, choose the fit zone, and preview how the piece looks on you live.',
+    'اختيار دقيق': 'Confident Choice',
+    'اختر أدق بدون تردد': 'Pick With Confidence',
+    'قارن حتى 3 منتجات جنباً إلى جنب، احفظ اختياراتك في المفضلة، واطلع على التقييمات والمقاسات المتوفرة.':
+        'Compare up to 3 pieces side by side, save favorites, and check real reviews and stock.',
+    'سلة وتتبع': 'Order & Tracking',
+    'طلبك واضح من البداية للتسليم': 'Clear Tracking Until Delivery',
+    'أتمم طلبك بخطوات سريعة وتابع تجهيزه وشحنه لحظة بلحظة — أو أنشئ حساب متجر واعرض منتجاتك.':
+        'Check out quickly and track packing and delivery step by step — or join as a store.',
+    'واجهة متجرك': 'Storefront Setup',
+    'أنشئ واجهة متجرك بسهولة': 'Build Your Storefront Easily',
+    'أضف اسم متجرك وشعارك وصور المعرض خلال دقائق — ونُجهّز خلفية الشعار تلقائياً ليظهر بأناقة في الرئيسية.':
+        'Add your shop name, logo, and gallery in minutes — we clean your logo background automatically.',
+    'إدارة الكتالوج': 'Catalog Studio',
+    'أضف منتجاتك بصور صافية': 'Publish Crisp Product Cards',
+    'ارفع صور القطع لتتجهّز بخلفية بيضاء نظيفة تلقائياً، وحدد التصنيف والألوان والمقاسات والكميات بدقة.':
+        'Upload pieces onto clean studio backdrops and configure categories, colors, sizes, and stock.',
+    'ثقة المشتري': 'Shopper Confidence',
+    'عملاؤك يجرّبون القطعة قبل الطلب': 'Let Shoppers Try Pieces Live',
+    'كل قطعة منشورة تدعم المعاينة المباشرة بالكاميرا والمقارنة، مما يمنح العميل ثقة أكبر ويرفع نسبة إتمام الطلب.':
+        'Every published item supports live camera previews and comparison to boost buyer confidence.',
+    'الطلبات والأرباح': 'Orders & Sales',
+    'تابع طلباتك ومبيعاتك من مكان واحد': 'Manage Orders & Sales in One Place',
+    'استقبل إشعارات الطلبات فورياً، حدّث حالة التجهيز والشحن والتسليم، وراقب مبيعاتك ومخزونك بوضوح.':
+        'Get instant order alerts, update fulfillment status, and monitor sales and inventory.',
+    'متجر معتمد': 'Verified Shop',
+    'هودي قطن عصري': 'Modern Cotton Hoodie',
+    'معاينة مباشرة على مقاسك': 'Live preview fitted to you',
+    'جاكيت كاجوال': 'Casual Jacket',
+    'هودي كلاسيك': 'Classic Hoodie',
+    'قيد التجهيز الآن': 'Preparing now',
+    'تجهيز': 'Packing',
+    'شحن': 'Shipped',
+    'تسليم': 'Delivered',
+    'تريد البيع معنا؟ بدّل إلى تبويب «للمتاجر»':
+        'Want to sell here? Switch to the "For Shops" tab',
+    'متجرك المعتمد': 'Your Verified Shop',
+    'الشعار + الغلاف + المعرض': 'Logo + Cover + Gallery',
+    'تجهيز خلفية الشعار تلقائياً ليظهر بنظافة':
+        'Logo background cleaned automatically',
+    'صورة صافية': 'Clean Cutout',
+    'ملابس · هودي': 'Clothing · Hoodies',
+    'هودي شتوي مبطن': 'Fleece Winter Hoodie',
+    'معاينة فورية للمشتري': 'Instant preview for buyers',
+    'إشعار فوري لكل طلب جديد وتحديث سريع للحالة':
+        'Instant new-order alerts & quick status updates',
+    'قبل': 'Before',
+    'بعد': 'After',
+    'ملاءمة 98%': '98% Fit',
+    'الأنسب لك': 'Best Match',
+    'طلب جديد': 'New Order',
+    'جديد': 'New',
+    'مباشر': 'Live',
+    'إعداد سريع': 'Quick Setup',
+    'الخطوة 1 من 3': 'Step 1 of 3',
+    'الخطوة 2 من 3': 'Step 2 of 3',
+    'الخطوة 3 من 3': 'Step 3 of 3',
+    'كيف تستخدم التطبيق؟': 'How will you use Shopy?',
+    'اختر دورك لنجهّز لك التجربة والميزات المناسبة لك.':
+        'Choose your role so we tailor the right experience for you.',
+    'اختر لغة العرض واتجاه الواجهة المفضّلين لديك.':
+        'Pick your preferred display language and layout direction.',
+    'اختر الوضع المريح لعينيك ويمكنك تغييره لاحقاً.':
+        'Pick the appearance most comfortable for your eyes anytime.',
+    'متسوّق': 'Shopper',
+    'متجر': 'Shop',
+    'نهاري': 'Light',
+    'ليلي': 'Dark',
+    'صاحب محل': 'Shop Owner',
+    'مثال توضيحي': 'Sample Preview',
+    'تسجيل الدخول بجوجل': 'Sign in with Google',
+    'سجّل دخولك بسرعة وأمان عبر حساب Google أو بريدك الإلكتروني.':
+        'Sign in quickly and securely using Google or your email.',
+    'اكتشاف المنتجات': 'Discover Products',
+    'تصفّح التصنيفات وابحث باسم القطعة أو المتجر واستخدم الفلاتر للوصول لما يناسبك.':
+        'Browse categories, search by item or shop, and apply filters easily.',
+    'اختيار المنتج': 'Choose Your Piece',
+    'اختر اللون والمقاس والكمية المناسبة ثم اضغط إضافة إلى السلة.':
+        'Pick your color, size, and quantity, then tap Add to Cart.',
+    'مراجعة السلة': 'Review Cart',
+    'راجع القطع والكميات والمجموع في سلتك ثم اضغط إتمام الشراء.':
+        'Check your selected items, quantities, and total, then proceed to checkout.',
+    'إكمال الطلب': 'Complete Order',
+    'أدخل رقم الهاتف وطريقة الدفع وتأكد من الملخص ثم اضغط تأكيد الطلب الآن.':
+        'Enter your phone number and payment method, review summary, and confirm.',
+    'متابعة الطلب': 'Track Your Order',
+    'تابع حالة طلبك من صفحة «طلباتي» أولاً بأول حتى وصوله إليك.':
+        'Follow your order status step by step in "My Orders" until delivery.',
+    'استلام الطلب': 'Order Delivered',
+    'عند وصول الشحنة تتحدّث الحالة إلى «تم التوصيل» — هذه شاشة توضيحية فقط.':
+        'Once delivered, the status updates to Delivered — illustrative example only.',
+    'إنشاء حساب المحل والدخول': 'Create Shop Account & Sign In',
+    'أنشئ حساب متجرك بالبريد وكلمة المرور لتبدأ إعداد واجهتك في التطبيق.':
+        'Create your shop account with email and password to set up your storefront.',
+    'استكمال بيانات المحل': 'Complete Shop Profile',
+    'أضف وصف المحل والمدينة والسجل التجاري وارفع الشعار والصور ثم أرسل طلب الانضمام.':
+        'Add shop description, city, commercial register, logo & photos, then submit.',
+    'إضافة المنتجات والمخزون': 'Add Products & Stock',
+    'ارفع صور القطع وحدّد التصنيف والسعر والألوان والمقاسات والكميات ثم انشر المنتج.':
+        'Upload product images, set category, price, colors, sizes, and stock, then publish.',
+    'إدارة وتحديث الطلبات': 'Manage & Update Orders',
+    'استقبل طلبات العملاء وحدّث حالتها من التأكيد والتجهيز والشحن حتى التسليم.':
+        'Receive customer orders and update statuses from Confirm & Pack to Ship & Deliver.',
+    'اكتمال التسليم والمبيعات': 'Delivery Complete & Sales',
+    'عند تسليم الطلب تكتمل العملية وتنعكس الأرباح في صفحة المبيعات — مثال توضيحي.':
+        'Completed deliveries update your Sales & Revenue dashboard — sample preview.',
+    'تصفّح الأقسام في الرئيسية': 'Browse Home & Categories',
+    'استكشف العروض والأقسام الرئيسية وابحث أو فلتر للوصول السريع للمنتجات.':
+        'Explore banners, categories, search, and filters right from the Home tab.',
+    'البحث وفلترة المنتجات': 'Search & Filter Catalog',
+    'انتقل لتبويب المنتجات وحدّد التصنيف أو السعر أو المتوفر فقط لعرض النتائج فوراً.':
+        'Filter the full catalog by category, availability, or sort order in one tap.',
+    'اختيار القطعة والمقاس': 'Pick Piece, Color & Size',
+    'تظهر رسالة تأكيد الطلب ورقم التتبع للانتقال لمتابعة طلباتك — مثال توضيحي.':
+        'Your order confirmation and tracking number appear here — sample preview.',
+    'مراجعة سلة المشتريات': 'Review Shopping Cart',
+    'تحقق من القطع والكميات والإجمالي النهائي ثم اضغط إتمام الشراء.':
+        'Verify your items, quantities, and total, then tap Proceed to Checkout.',
+    'تأكيد الطلب والدفع': 'Confirm Order & Payment',
+    'أدخل رقم هاتف المستلم وطريقة الدفع ثم اضغط تأكيد الطلب الآن.':
+        'Confirm your phone number and payment method, then tap Confirm Order Now.',
+    'متابعة الطلب والاستلام': 'Track & Receive Order',
+    'راقب حالة طلبك في «طلباتي» حتى تتحول إلى «تم التوصيل» — مثال توضيحي.':
+        'Track your order status in My Orders until Delivered — sample preview.',
   };
 }
 
