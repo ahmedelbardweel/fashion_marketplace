@@ -13,7 +13,7 @@ import '../domain/models/decart_settings_status.dart';
 
 class AdminRepository {
   AdminRepository({SupabaseClient? client})
-      : _client = client ?? SupabaseConfig.client;
+    : _client = client ?? SupabaseConfig.client;
 
   final SupabaseClient _client;
 
@@ -39,10 +39,7 @@ class AdminRepository {
   }) async {
     final data = await _client.rpc(
       'admin_set_user_active',
-      params: {
-        'p_user_id': userId,
-        'p_is_active': isActive,
-      },
+      params: {'p_user_id': userId, 'p_is_active': isActive},
     );
     return AppUser.fromMap(asStringMap(data));
   }
@@ -69,10 +66,7 @@ class AdminRepository {
   }) async {
     final data = await _client.rpc(
       'admin_set_shop_suspended',
-      params: {
-        'p_shop_id': shopId,
-        'p_suspend': suspend,
-      },
+      params: {'p_shop_id': shopId, 'p_suspend': suspend},
     );
     return Shop.fromMap(asStringMap(data), forOwner: false);
   }
@@ -85,8 +79,7 @@ class AdminRepository {
         .order('created_at', ascending: false);
     return (rows as List)
         .map(
-          (row) =>
-              ShopMediaItem.fromMap(Map<String, dynamic>.from(row as Map)),
+          (row) => ShopMediaItem.fromMap(Map<String, dynamic>.from(row as Map)),
         )
         .toList();
   }
@@ -106,8 +99,7 @@ class AdminRepository {
         .order('created_at', ascending: false);
     return (rows as List)
         .map(
-          (row) =>
-              ShopDocument.fromMap(Map<String, dynamic>.from(row as Map)),
+          (row) => ShopDocument.fromMap(Map<String, dynamic>.from(row as Map)),
         )
         .toList();
   }
@@ -131,14 +123,18 @@ class AdminRepository {
     String? description,
     bool isActive = true,
     String? id,
+    String? parentId,
+    String? iconKey,
   }) async {
     final data = await _client.rpc(
-      'admin_upsert_category',
+      'admin_upsert_category_tree',
       params: {
         'p_name': name.trim(),
         'p_description': description,
         'p_is_active': isActive,
         'p_id': id,
+        'p_parent_id': parentId,
+        'p_icon_key': iconKey,
       },
     );
     return CatalogCategory.fromMap(asStringMap(data));
@@ -172,15 +168,18 @@ class AdminRepository {
     }
 
     final orderedQuery = switch (sort) {
-      ProductSortOption.priceAsc => query
-          .order('price', ascending: true)
-          .order('updated_at', ascending: false),
-      ProductSortOption.priceDesc => query
-          .order('price', ascending: false)
-          .order('updated_at', ascending: false),
-      ProductSortOption.nameAsc => query
-          .order('name', ascending: true)
-          .order('updated_at', ascending: false),
+      ProductSortOption.priceAsc =>
+        query
+            .order('price', ascending: true)
+            .order('updated_at', ascending: false),
+      ProductSortOption.priceDesc =>
+        query
+            .order('price', ascending: false)
+            .order('updated_at', ascending: false),
+      ProductSortOption.nameAsc =>
+        query
+            .order('name', ascending: true)
+            .order('updated_at', ascending: false),
       _ => query.order('updated_at', ascending: false),
     };
 
@@ -190,8 +189,7 @@ class AdminRepository {
 
     final items = rawRows
         .map(
-          (row) =>
-              AdminProduct.fromMap(Map<String, dynamic>.from(row as Map)),
+          (row) => AdminProduct.fromMap(Map<String, dynamic>.from(row as Map)),
         )
         .toList();
 
@@ -209,10 +207,7 @@ class AdminRepository {
   }) async {
     final data = await _client.rpc(
       'admin_set_product_status',
-      params: {
-        'p_product_id': productId,
-        'p_status': status,
-      },
+      params: {'p_product_id': productId, 'p_status': status},
     );
     return AdminProduct.fromMap(asStringMap(data));
   }
@@ -223,9 +218,7 @@ class AdminRepository {
         .select('*, shops(name), profiles!customer_id(email)')
         .order('created_at', ascending: false);
     return (rows as List)
-        .map(
-          (row) => AdminOrder.fromMap(Map<String, dynamic>.from(row as Map)),
-        )
+        .map((row) => AdminOrder.fromMap(Map<String, dynamic>.from(row as Map)))
         .toList();
   }
 
@@ -313,9 +306,10 @@ class AdminRepository {
   }
 
   Future<void> setDecartApiKey(String apiKey) async {
-    await _client.rpc('admin_set_decart_api_key', params: {
-      'p_api_key': apiKey.trim(),
-    });
+    await _client.rpc(
+      'admin_set_decart_api_key',
+      params: {'p_api_key': apiKey.trim()},
+    );
   }
 
   Future<List<PlatformSetting>> fetchSettings() async {
@@ -334,10 +328,7 @@ class AdminRepository {
   }) async {
     final data = await _client.rpc(
       'admin_update_setting',
-      params: {
-        'p_key': key,
-        'p_value': value,
-      },
+      params: {'p_key': key, 'p_value': value},
     );
     return PlatformSetting.fromMap(asStringMap(data));
   }

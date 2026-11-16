@@ -4,11 +4,16 @@ import 'package:skeletonizer/skeletonizer.dart';
 
 import '../theme/app_design.dart';
 
+export 'package:skeletonizer/skeletonizer.dart' show Bone;
+
 /// Skeletons reuse the real page builder; placeholders never enter providers.
 class AppSkeleton extends StatelessWidget {
   const AppSkeleton({super.key, required this.child, this.enabled = true});
   final Widget child;
   final bool enabled;
+
+  static bool isActive(BuildContext context) =>
+      Skeletonizer.maybeOf(context)?.enabled ?? false;
 
   @override
   Widget build(BuildContext context) => !enabled

@@ -898,6 +898,11 @@ abstract final class GalleryViewerDesign {
 //  الصفحة الرئيسية  —  HOME
 // -----------------------------------------------------------------------------
 abstract final class HomeDesign {
+  static const double departmentSquareSize = 52;
+  static const double departmentGridGap = 8;
+  static const double departmentIconSize = 26;
+  static const double departmentCornerRadius = AppRadii.input;
+  static const double departmentLabelSize = 11.5;
   static Color get pageBackground => AppColors.white;
 
   // --- البانرات ---
@@ -921,15 +926,15 @@ abstract final class HomeDesign {
   // --- التصنيفات ---
   static const double categoryHeight = 36;
 
-  // --- المحلات (دوائر مثل القصص) ---
-  static const double shopAvatarSize = 62;
-  static Color get shopAvatarBorder => AppColors.primary;
-  static const double shopAvatarBorderWidth = 2;
+  // --- المحلات (بطاقات مربعة بحواف ناعمة مثل التصنيفات) ---
+  static const double shopAvatarSize = 54;
+  static Color get shopAvatarBorder => Colors.transparent;
+  static const double shopAvatarBorderWidth = 0;
   static Color get shopAvatarBackground => AppColors.surfaceAlt;
   static Color get shopAvatarIcon => AppColors.icon;
-  static const double shopNameSize = 12;
-  static const FontWeight shopNameWeight = AppFont.semiBold;
-  static const double shopItemWidth = 68;
+  static const double shopNameSize = 11.5;
+  static const FontWeight shopNameWeight = AppFont.bold;
+  static const double shopItemWidth = 64;
 }
 
 // -----------------------------------------------------------------------------

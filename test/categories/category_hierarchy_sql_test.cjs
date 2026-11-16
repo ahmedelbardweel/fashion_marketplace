@@ -1,0 +1,32 @@
+const { PGlite } = require(process.env.PGLITE_MODULE || '@electric-sql/pglite');
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+(async () => {
+ const db = new PGlite();
+ await db.exec(`create role authenticated;
+ create table categories(id uuid primary key default gen_random_uuid(),name text unique not null,description text,is_active bool default true,sort_order int default 0);
+ create table products(id uuid primary key default gen_random_uuid(),category_id uuid references categories(id));
+ create function require_admin() returns void language plpgsql as $$ begin
+ if current_setting('test.admin',true) is distinct from 'yes' then raise exception 'admin required'; end if; end $$;
+ insert into categories(name) values ('هوديز وسويت شيرت');
+ insert into products(category_id) select id from categories;
+ set test.admin='yes';`);
+ const sql=fs.readFileSync('supabase/migrations/017_category_hierarchy.sql','utf8');
+ await db.exec(sql); await db.exec(sql);
+ const rows=(await db.query('select * from categories')).rows;
+ assert.equal(rows.filter(c=>c.parent_id===null).length,6);
+ assert.equal(rows.length,35);
+ const root=rows.find(c=>c.name==='ملابس').id;
+ const child=rows.find(c=>c.name==='هودي').id;
+ assert.equal(rows.find(c=>c.name==='هوديز وسويت شيرت').parent_id,root);
+ assert.equal((await db.query('select count(*)::int n from products')).rows[0].n,1);
+ await assert.rejects(db.query('update categories set parent_id=id where id=$1',[child]));
+ await assert.rejects(db.query('update categories set parent_id=$1 where id=$2',[child,root]));
+ await assert.rejects(db.query('insert into categories(name,parent_id) values ($1,$2)',['third level',child]));
+ await assert.rejects(db.query('delete from categories where id=$1',[root]));
+ await db.query("select admin_upsert_category_tree('ملابس نوم',null,true,null,$1)",[root]);
+ await db.exec("set test.admin='no'");
+ await assert.rejects(db.query("select admin_upsert_category_tree('unauthorized')"));
+ await db.close();
+ console.log('PASS: repeatable seed, six roots, hierarchy constraints, existing products preserved, admin-only writes');
+})().catch(e=>{console.error(e);process.exitCode=1;});

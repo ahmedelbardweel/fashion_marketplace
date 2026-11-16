@@ -14,6 +14,7 @@ import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/product_grid_card.dart';
 import '../../../../router/routes.dart';
+import '../../../admin/domain/models/catalog_models.dart';
 import '../../domain/models/shop.dart';
 import '../../domain/models/shop_product.dart';
 import '../providers/shop_catalog_providers.dart';
@@ -74,7 +75,10 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
     var draft = ref.read(shopProductFilterProvider);
     final shopCategories = ref.read(shopCategoriesProvider).value ?? const [];
     final categories = <String, String>{
-      for (final cat in shopCategories) cat.id: cat.name,
+      for (final entry in hierarchicalCategoryOptions(shopCategories))
+        entry.category.id: entry.parent == null
+            ? entry.category.name.tr
+            : '${entry.parent!.name.tr} · ${entry.category.name.tr}',
     };
     for (final item in items) {
       if (item.categoryId != null &&
@@ -230,7 +234,8 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'الحالة: ${product.statusLabel}\nالمخزون: ${product.totalStock}'.tr,
+              'الحالة: ${product.statusLabel}\nالمخزون: ${product.totalStock}'
+                  .tr,
             ),
             const SizedBox(height: AppSpacing.lg),
             AppButton(
@@ -324,7 +329,9 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Text(
-                          ref.read(shopCatalogRepositoryProvider).mapError(error),
+                          ref
+                              .read(shopCatalogRepositoryProvider)
+                              .mapError(error),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         AppButton(
@@ -350,9 +357,7 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: AppSpacing.page,
-                      children: [
-                        AppCard(child: Text('لا توجد منتجات بعد'.tr)),
-                      ],
+                      children: [AppCard(child: Text('لا توجد منتجات بعد'.tr))],
                     ),
                   );
                 }
@@ -417,11 +422,12 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
                               filter.status == null &&
                               filter.stockFilter == StockFilter.all,
                           onTap: () {
-                            ref.read(shopProductFilterProvider.notifier).state =
-                                filter.copyWith(
-                                  clearStatus: true,
-                                  stockFilter: StockFilter.all,
-                                );
+                            ref
+                                .read(shopProductFilterProvider.notifier)
+                                .state = filter.copyWith(
+                              clearStatus: true,
+                              stockFilter: StockFilter.all,
+                            );
                           },
                         ),
                         for (final st in const ['published', 'draft', 'hidden'])
@@ -447,12 +453,13 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
                           onTap: () {
                             final same =
                                 filter.stockFilter == StockFilter.lowStock;
-                            ref.read(shopProductFilterProvider.notifier).state =
-                                filter.copyWith(
-                                  stockFilter: same
-                                      ? StockFilter.all
-                                      : StockFilter.lowStock,
-                                );
+                            ref
+                                .read(shopProductFilterProvider.notifier)
+                                .state = filter.copyWith(
+                              stockFilter: same
+                                  ? StockFilter.all
+                                  : StockFilter.lowStock,
+                            );
                           },
                         ),
                         AppQuickFilterOption(
@@ -464,12 +471,13 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
                           onTap: () {
                             final same =
                                 filter.stockFilter == StockFilter.outOfStock;
-                            ref.read(shopProductFilterProvider.notifier).state =
-                                filter.copyWith(
-                                  stockFilter: same
-                                      ? StockFilter.all
-                                      : StockFilter.outOfStock,
-                                );
+                            ref
+                                .read(shopProductFilterProvider.notifier)
+                                .state = filter.copyWith(
+                              stockFilter: same
+                                  ? StockFilter.all
+                                  : StockFilter.outOfStock,
+                            );
                           },
                         ),
                       ],
@@ -545,11 +553,12 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
                                   AppFilterEmptyState(
                                     onReset: () =>
                                         ref
-                                            .read(
-                                              shopProductFilterProvider
-                                                  .notifier,
-                                            )
-                                            .state = ShopProductFilterState.empty,
+                                                .read(
+                                                  shopProductFilterProvider
+                                                      .notifier,
+                                                )
+                                                .state =
+                                            ShopProductFilterState.empty,
                                   ),
                                   if (productsState.hasMore)
                                     AppLoadMoreFooter(

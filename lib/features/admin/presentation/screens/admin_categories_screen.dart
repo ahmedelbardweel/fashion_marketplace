@@ -59,6 +59,25 @@ class _AdminCategoriesScreenState extends ConsumerState<AdminCategoriesScreen> {
       text: category?.description ?? '',
     );
     var isActive = category?.isActive ?? true;
+    var parentId = category?.parentId;
+    var iconKey = category?.iconKey;
+    final allCategories =
+        ref.read(adminCategoriesProvider).value ?? const <CatalogCategory>[];
+    final hasChildren = allCategories.any(
+      (c) => c.parentId == category?.id && category != null,
+    );
+    final parents = allCategories
+        .where((c) => c.parentId == null && c.id != category?.id)
+        .toList();
+    const iconOptions = <({String key, String label})>[
+      (key: '', label: 'أيقونة افتراضية'),
+      (key: 'clothing', label: 'ملابس'),
+      (key: 'shoes', label: 'أحذية'),
+      (key: 'accessories', label: 'إكسسوارات'),
+      (key: 'bags', label: 'حقائب'),
+      (key: 'electronics', label: 'إلكترونيات'),
+      (key: 'beauty', label: 'عطور وتجميل'),
+    ];
     final formKey = GlobalKey<FormState>();
 
     final saved = await AppBottomSheet.show<bool>(
@@ -93,6 +112,52 @@ class _AdminCategoriesScreenState extends ConsumerState<AdminCategoriesScreen> {
                       (value) => setModalState(() => isActive = value),
                     ),
                   ),
+                  DropdownButtonFormField<String>(
+                    initialValue: parentId ?? '',
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'التصنيف الرئيسي',
+                    ),
+                    items: [
+                      const DropdownMenuItem(
+                        value: '',
+                        child: Text('تصنيف رئيسي مستقل'),
+                      ),
+                      for (final parent in parents)
+                        DropdownMenuItem(
+                          value: parent.id,
+                          child: Text(parent.name),
+                        ),
+                    ],
+                    onChanged: hasChildren
+                        ? null
+                        : (value) => setModalState(() {
+                            parentId = value == '' ? null : value;
+                            if (parentId != null) iconKey = null;
+                          }),
+                  ),
+                  if (parentId == null) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    DropdownButtonFormField<String>(
+                      initialValue: iconOptions.any((o) => o.key == iconKey)
+                          ? iconKey
+                          : '',
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'أيقونة القسم الرئيسي',
+                      ),
+                      items: [
+                        for (final option in iconOptions)
+                          DropdownMenuItem(
+                            value: option.key,
+                            child: Text(option.label),
+                          ),
+                      ],
+                      onChanged: (value) => setModalState(
+                        () => iconKey = value == '' ? null : value,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.lg),
                   AppButton(
                     label: 'حفظ'.tr,
@@ -122,6 +187,8 @@ class _AdminCategoriesScreenState extends ConsumerState<AdminCategoriesScreen> {
       description: description,
       isActive: active,
       id: category?.id,
+      parentId: parentId,
+      iconKey: parentId == null ? iconKey : null,
     );
     if (!context.mounted) return;
     if (!ok) {
@@ -152,6 +219,14 @@ class _AdminCategoriesScreenState extends ConsumerState<AdminCategoriesScreen> {
         onRefresh: () => ref.refresh(adminCategoriesProvider.future),
         builder: (items) {
           final filtered = filterAdminCategories(items, _filter);
+          final byId = {for (final c in items) c.id: c};
+          final childCountByParent = <String, int>{};
+          for (final c in items) {
+            if (c.parentId != null) {
+              childCountByParent[c.parentId!] =
+                  (childCountByParent[c.parentId!] ?? 0) + 1;
+            }
+          }
           final activeCount = items.where((c) => c.isActive).length;
           final inactiveCount = items.length - activeCount;
 
@@ -267,7 +342,9 @@ class _AdminCategoriesScreenState extends ConsumerState<AdminCategoriesScreen> {
                                       ),
                                       const SizedBox(height: AppSpacing.xs),
                                       Text(
-                                        item.isActive ? 'نشط'.tr : 'متوقف'.tr,
+                                        item.parentId != null
+                                            ? 'فرعي ضمن: ${byId[item.parentId]?.name ?? 'قسم رئيسي'} · ${item.isActive ? 'نشط'.tr : 'متوقف'.tr}'
+                                            : 'قسم رئيسي${(childCountByParent[item.id] ?? 0) > 0 ? ' (${childCountByParent[item.id]} فرعي)' : ''} · ${item.isActive ? 'نشط'.tr : 'متوقف'.tr}',
                                         style: Theme.of(
                                           context,
                                         ).textTheme.bodyMedium,

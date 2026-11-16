@@ -76,6 +76,14 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
     final shops = ref.watch(customerShopsProvider).value ?? const [];
     final productsState = ref.watch(catalogProductsProvider);
     final compareList = ref.watch(productComparisonProvider);
+    final selectedCategory = categories
+        .where((c) => c.id == filter.categoryId)
+        .firstOrNull;
+    final departmentId = selectedCategory?.parentId ?? selectedCategory?.id;
+    final departments = categories.where((c) => c.parentId == null).toList();
+    final children = categories
+        .where((c) => c.parentId == departmentId && departmentId != null)
+        .toList();
 
     final quickOptions = <AppQuickFilterOption>[
       AppQuickFilterOption(
@@ -100,13 +108,13 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
             );
           },
         ),
-        for (final cat in categories)
+        for (final cat in departments)
           AppQuickFilterOption(
             id: 'cat_${cat.id}',
             label: cat.name,
-            selected: filter.categoryId == cat.id,
+            selected: departmentId == cat.id,
             onTap: () {
-              final selected = filter.categoryId == cat.id;
+              final selected = departmentId == cat.id;
               ref.read(productFilterProvider.notifier).state = selected
                   ? filter.copyWith(clearCategory: true)
                   : filter.copyWith(categoryId: cat.id);
@@ -131,6 +139,39 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
       showBack: false,
       body: Column(
         children: [
+          if (children.isNotEmpty)
+            Padding(
+              padding: AppSpacing.pageHorizontal,
+              child: SizedBox(
+                height: 52,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(end: 6),
+                      child: ChoiceChip(
+                        label: Text('عرض الكل'.tr),
+                        selected: filter.categoryId == departmentId,
+                        onSelected: (_) =>
+                            ref.read(productFilterProvider.notifier).state =
+                                filter.copyWith(categoryId: departmentId),
+                      ),
+                    ),
+                    for (final child in children)
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 6),
+                        child: ChoiceChip(
+                          label: Text(child.name.tr),
+                          selected: filter.categoryId == child.id,
+                          onSelected: (_) =>
+                              ref.read(productFilterProvider.notifier).state =
+                                  filter.copyWith(categoryId: child.id),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           DecoratedBox(
             decoration: BoxDecoration(
               color: CatalogDesign.toolbarBackground,
@@ -304,9 +345,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
               ),
               decoration: BoxDecoration(
                 color: AppColors.primarySoft,
-                border: Border(
-                  top: BorderSide(color: AppColors.primaryBorder),
-                ),
+                border: Border(top: BorderSide(color: AppColors.primaryBorder)),
               ),
               child: Row(
                 children: [

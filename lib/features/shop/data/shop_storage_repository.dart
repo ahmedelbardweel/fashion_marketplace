@@ -4,12 +4,18 @@ import 'package:path/path.dart' as p;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
+import '../../../core/utils/background_removal_service.dart';
 
 class ShopStorageRepository {
-  ShopStorageRepository({SupabaseClient? client})
-      : _client = client ?? SupabaseConfig.client;
+  ShopStorageRepository({
+    SupabaseClient? client,
+    Future<Uint8List> Function(Uint8List bytes)? removeBackground,
+  }) : _client = client ?? SupabaseConfig.client,
+       _removeBackground =
+           removeBackground ?? BackgroundRemovalService.instance.removeBackground;
 
   final SupabaseClient _client;
+  final Future<Uint8List> Function(Uint8List bytes) _removeBackground;
 
   Future<String> uploadBytes({
     required String bucket,
@@ -23,16 +29,32 @@ class ShopStorageRepository {
       throw StateError('يجب تسجيل الدخول أولاً');
     }
 
+    var uploadData = bytes;
+    var uploadName = fileName;
+    var uploadContentType = contentType;
+    if (folder == 'logo') {
+      try {
+        final cutout = await _removeBackground(bytes);
+        if (cutout.isNotEmpty) {
+          uploadData = cutout;
+          uploadName = '${p.basenameWithoutExtension(fileName)}.png';
+          uploadContentType = 'image/png';
+        }
+      } catch (_) {
+        // Silent fallback so logo uploads never block if cutout fails.
+      }
+    }
+
     final safeName =
-        '${DateTime.now().millisecondsSinceEpoch}_${p.basename(fileName)}';
+        '${DateTime.now().millisecondsSinceEpoch}_${p.basename(uploadName)}';
     final path = '$userId/$folder/$safeName';
 
     await _client.storage.from(bucket).uploadBinary(
           path,
-          bytes,
+          uploadData,
           fileOptions: FileOptions(
             upsert: true,
-            contentType: contentType,
+            contentType: uploadContentType,
           ),
         );
 

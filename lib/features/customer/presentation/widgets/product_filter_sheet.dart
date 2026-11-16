@@ -257,22 +257,33 @@ class _ProductFilterSheetBodyState extends State<_ProductFilterSheetBody> {
             },
           ),
         ),
-        if (widget.showCategorySection && widget.categories.isNotEmpty)
-          AppFilterSection(
-            title: 'التصنيف',
-            child: AppFilterChoiceWrap<String>(
-              options: widget.categories.map((c) => c.id).toList(),
-              selectedValue: _draft.categoryId,
-              allLabel: 'الكل',
-              labelBuilder: (id) =>
-                  widget.categories.firstWhere((c) => c.id == id).name,
-              onSelected: (id) => setState(
-                () => _draft = id == null
-                    ? _draft.copyWith(clearCategory: true)
-                    : _draft.copyWith(categoryId: id),
-              ),
-            ),
+        if (widget.showCategorySection && widget.categories.isNotEmpty) ...[
+          Builder(
+            builder: (context) {
+              final ordered = hierarchicalCategoryOptions(widget.categories);
+              final labelById = {
+                for (final entry in ordered)
+                  entry.category.id: entry.parent == null
+                      ? entry.category.name.tr
+                      : '${entry.parent!.name.tr} · ${entry.category.name.tr}',
+              };
+              return AppFilterSection(
+                title: 'التصنيف',
+                child: AppFilterChoiceWrap<String>(
+                  options: ordered.map((e) => e.category.id).toList(),
+                  selectedValue: _draft.categoryId,
+                  allLabel: 'الكل',
+                  labelBuilder: (id) => labelById[id] ?? id,
+                  onSelected: (id) => setState(
+                    () => _draft = id == null
+                        ? _draft.copyWith(clearCategory: true)
+                        : _draft.copyWith(categoryId: id),
+                  ),
+                ),
+              );
+            },
           ),
+        ],
         if (widget.showShopSection && widget.shops.isNotEmpty)
           AppFilterSection(
             title: 'المتجر',

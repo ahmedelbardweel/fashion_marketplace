@@ -20,6 +20,7 @@ import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../router/routes.dart';
+import '../../../admin/domain/models/catalog_models.dart';
 import '../providers/shop_catalog_providers.dart';
 import '../widgets/shop_shell.dart';
 
@@ -595,10 +596,15 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ...items.map(
-                (c) => DropdownMenuItem(
-                  value: c.id,
-                  child: Text(c.name, overflow: TextOverflow.ellipsis),
+              ...hierarchicalCategoryOptions(items).map(
+                (entry) => DropdownMenuItem(
+                  value: entry.category.id,
+                  child: Text(
+                    entry.parent == null
+                        ? '${entry.category.name.tr} (${'رئيسي'.tr})'
+                        : '${entry.parent!.name.tr} · ${entry.category.name.tr}',
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ],

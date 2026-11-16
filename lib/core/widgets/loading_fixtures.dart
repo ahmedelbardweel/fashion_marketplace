@@ -57,7 +57,7 @@ abstract final class LoadingFixtures {
     'logo_path': 'skeleton://logo',
     'cover_path': 'skeleton://cover',
   });
-  static final customerShops = copies(customerShop);
+  static final customerShops = copies(customerShop, 6);
   static final order = CustomerOrder.fromMap(
     map,
     items: [
@@ -70,7 +70,7 @@ abstract final class LoadingFixtures {
     ],
   );
   static final orders = copies(order);
-  static final categories = copies(CatalogCategory.fromMap(map));
+  static final categories = copies(CatalogCategory.fromMap(map), 6);
   static final banners = copies(AdminBanner.fromMap(map), 2);
   static final notifications = copies(AdminNotification.fromMap(map));
   static final adminProducts = copies(AdminProduct.fromMap(map));

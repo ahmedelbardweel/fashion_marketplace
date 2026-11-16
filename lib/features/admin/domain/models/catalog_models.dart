@@ -4,12 +4,16 @@ class CatalogCategory {
     required this.name,
     required this.isActive,
     this.description,
+    this.parentId,
+    this.iconKey,
   });
 
   final String id;
   final String name;
   final String? description;
   final bool isActive;
+  final String? parentId;
+  final String? iconKey;
 
   factory CatalogCategory.fromMap(Map<String, dynamic> map) {
     return CatalogCategory(
@@ -17,8 +21,59 @@ class CatalogCategory {
       name: map['name'] as String? ?? '',
       description: map['description'] as String?,
       isActive: map['is_active'] as bool? ?? true,
+      parentId: map['parent_id'] as String?,
+      iconKey: map['icon_key'] as String?,
     );
   }
+}
+
+/// Includes the selected category and all descendants, with cycle protection.
+Set<String> categoryBranchIds(List<CatalogCategory> categories, String id) {
+  final ids = <String>{id};
+  var changed = true;
+  while (changed) {
+    changed = false;
+    for (final category in categories) {
+      if (ids.contains(category.parentId) && ids.add(category.id)) {
+        changed = true;
+      }
+    }
+  }
+  return ids;
+}
+
+typedef CategoryOption = ({CatalogCategory category, CatalogCategory? parent});
+
+/// Orders categories cleanly as parent department followed by its sub-categories.
+List<CategoryOption> hierarchicalCategoryOptions(
+  List<CatalogCategory> categories,
+) {
+  final byId = {for (final c in categories) c.id: c};
+  final roots = <CatalogCategory>[];
+  final childrenByParent = <String, List<CatalogCategory>>{};
+  final orphans = <CatalogCategory>[];
+
+  for (final c in categories) {
+    if (c.parentId == null) {
+      roots.add(c);
+    } else if (byId.containsKey(c.parentId)) {
+      (childrenByParent[c.parentId!] ??= []).add(c);
+    } else {
+      orphans.add(c);
+    }
+  }
+
+  final ordered = <CategoryOption>[];
+  for (final root in roots) {
+    ordered.add((category: root, parent: null));
+    for (final child in childrenByParent[root.id] ?? const <CatalogCategory>[]) {
+      ordered.add((category: child, parent: root));
+    }
+  }
+  for (final orphan in orphans) {
+    ordered.add((category: orphan, parent: byId[orphan.parentId]));
+  }
+  return ordered;
 }
 
 class AdminProduct {
@@ -109,7 +164,8 @@ class AdminOrder {
       id: map['id'] as String,
       status: map['status'] as String? ?? 'pending',
       total: (map['total'] as num?)?.toDouble() ?? 0,
-      createdAt: DateTime.tryParse(map['created_at'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(map['created_at'] as String? ?? '') ??
           DateTime.now(),
       shopName: shop is Map ? shop['name'] as String? : null,
       customerEmail: customer is Map ? customer['email'] as String? : null,
@@ -178,7 +234,8 @@ class AdminNotification {
       title: map['title'] as String? ?? '',
       body: map['body'] as String? ?? '',
       audience: map['audience'] as String? ?? 'all',
-      createdAt: DateTime.tryParse(map['created_at'] as String? ?? '') ??
+      createdAt:
+          DateTime.tryParse(map['created_at'] as String? ?? '') ??
           DateTime.now(),
     );
   }

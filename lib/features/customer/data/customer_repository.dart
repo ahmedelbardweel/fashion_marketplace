@@ -13,7 +13,7 @@ import '../domain/models/customer_shop.dart';
 
 class CustomerRepository {
   CustomerRepository({SupabaseClient? client})
-      : _client = client ?? SupabaseConfig.client;
+    : _client = client ?? SupabaseConfig.client;
 
   final SupabaseClient _client;
 
@@ -87,22 +87,29 @@ class CustomerRepository {
           .select()
           .eq('is_active', true)
           .order('sort_order', ascending: true);
-      return (rows as List).map((row) => AdminBanner.fromMap(asStringMap(row))).toList();
+      return (rows as List)
+          .map((row) => AdminBanner.fromMap(asStringMap(row)))
+          .toList();
     } catch (_) {
       return const [];
     }
   }
 
   // Fetch Categories
-  Future<List<CatalogCategory>> getCategories() async {
+  Future<List<CatalogCategory>> getCategories({
+    bool throwOnError = false,
+  }) async {
     try {
       final rows = await _client
           .from('categories')
           .select()
           .eq('is_active', true)
           .order('sort_order', ascending: true);
-      return (rows as List).map((row) => CatalogCategory.fromMap(asStringMap(row))).toList();
+      return (rows as List)
+          .map((row) => CatalogCategory.fromMap(asStringMap(row)))
+          .toList();
     } catch (_) {
+      if (throwOnError) rethrow;
       return const [];
     }
   }
@@ -160,19 +167,26 @@ class CustomerRepository {
     int offset = 0,
     String? excludeProductId,
   }) async {
-    var query = _client.from('products').select('''
+    var query = _client
+        .from('products')
+        .select('''
       id, shop_id, category_id, name, description, details, price, status,
       shops:shop_id(name),
       categories:category_id(name),
       variants:product_variants(*),
       images:product_images(*)
-    ''').eq('status', 'published');
+    ''')
+        .eq('status', 'published');
 
     if (excludeProductId != null && excludeProductId.isNotEmpty) {
       query = query.neq('id', excludeProductId);
     }
     if (categoryId != null && categoryId.isNotEmpty) {
-      query = query.eq('category_id', categoryId);
+      final categories = await getCategories(throwOnError: true);
+      query = query.inFilter(
+        'category_id',
+        categoryBranchIds(categories, categoryId).toList(),
+      );
     }
     if (shopId != null && shopId.isNotEmpty) {
       query = query.eq('shop_id', shopId);
@@ -188,15 +202,18 @@ class CustomerRepository {
     }
 
     final orderedQuery = switch (sort) {
-      ProductSortOption.priceAsc => query
-          .order('price', ascending: true)
-          .order('created_at', ascending: false),
-      ProductSortOption.priceDesc => query
-          .order('price', ascending: false)
-          .order('created_at', ascending: false),
-      ProductSortOption.nameAsc => query
-          .order('name', ascending: true)
-          .order('created_at', ascending: false),
+      ProductSortOption.priceAsc =>
+        query
+            .order('price', ascending: true)
+            .order('created_at', ascending: false),
+      ProductSortOption.priceDesc =>
+        query
+            .order('price', ascending: false)
+            .order('created_at', ascending: false),
+      ProductSortOption.nameAsc =>
+        query
+            .order('name', ascending: true)
+            .order('created_at', ascending: false),
       _ => query.order('created_at', ascending: false),
     };
 
@@ -209,7 +226,8 @@ class CustomerRepository {
     final refined = applyCustomerProductFilter(
       mapped,
       ProductFilter(
-        categoryId: categoryId,
+        // The server already filtered the entire category branch. Filtering by
+        // the root ID here would incorrectly discard products in its children.
         shopId: shopId,
         minPrice: minPrice,
         maxPrice: maxPrice,
@@ -266,8 +284,9 @@ class CustomerRepository {
     return rows.map((row) {
       final map = asStringMap(row);
       final shopMap = row['shops'] is Map ? asStringMap(row['shops']) : null;
-      final catMap =
-          row['categories'] is Map ? asStringMap(row['categories']) : null;
+      final catMap = row['categories'] is Map
+          ? asStringMap(row['categories'])
+          : null;
 
       map['shop_name'] = shopMap?['name'] ?? 'متجر';
       map['category_name'] = catMap?['name'];
@@ -293,17 +312,23 @@ class CustomerRepository {
   // Fetch Product Details
   Future<CustomerProduct?> getProductDetails(String productId) async {
     try {
-      final row = await _client.from('products').select('''
+      final row = await _client
+          .from('products')
+          .select('''
         id, shop_id, category_id, name, description, details, price, status,
         shops:shop_id(name),
         categories:category_id(name),
         variants:product_variants(*),
         images:product_images(*)
-      ''').eq('id', productId).single();
+      ''')
+          .eq('id', productId)
+          .single();
 
       final map = asStringMap(row);
       final shopMap = row['shops'] is Map ? asStringMap(row['shops']) : null;
-      final catMap = row['categories'] is Map ? asStringMap(row['categories']) : null;
+      final catMap = row['categories'] is Map
+          ? asStringMap(row['categories'])
+          : null;
 
       map['shop_name'] = shopMap?['name'] ?? 'متجر';
       map['category_name'] = catMap?['name'];
@@ -396,7 +421,10 @@ class CustomerRepository {
 
     final from = offset < 0 ? 0 : offset;
     final to = from + limit - 1;
-    final rawRows = await _client.from('favorites').select('''
+    final rawRows =
+        await _client
+                .from('favorites')
+                .select('''
       product:products(
         id, shop_id, category_id, name, description, details, price, status,
         shops:shop_id(name),
@@ -405,9 +433,10 @@ class CustomerRepository {
         images:product_images(*)
       )
     ''')
-        .eq('customer_id', userId)
-        .order('created_at', ascending: false)
-        .range(from, to) as List;
+                .eq('customer_id', userId)
+                .order('created_at', ascending: false)
+                .range(from, to)
+            as List;
 
     return PaginatedPage<CustomerProduct>(
       items: _mapFavoriteRows(rawRows),
@@ -430,9 +459,12 @@ class CustomerRepository {
       final pData = row['product'];
       if (pData == null || pData is! Map) continue;
       final map = asStringMap(pData);
-      final shopMap = pData['shops'] is Map ? asStringMap(pData['shops']) : null;
-      final catMap =
-          pData['categories'] is Map ? asStringMap(pData['categories']) : null;
+      final shopMap = pData['shops'] is Map
+          ? asStringMap(pData['shops'])
+          : null;
+      final catMap = pData['categories'] is Map
+          ? asStringMap(pData['categories'])
+          : null;
 
       map['shop_name'] = shopMap?['name'] ?? 'متجر';
       map['category_name'] = catMap?['name'];
@@ -460,14 +492,20 @@ class CustomerRepository {
   // Reviews
   Future<List<ProductReview>> getProductReviews(String productId) async {
     try {
-      final rows = await _client.from('product_reviews').select('''
+      final rows = await _client
+          .from('product_reviews')
+          .select('''
         id, product_id, customer_id, rating, comment, created_at,
         profiles:customer_id(full_name)
-      ''').eq('product_id', productId).order('created_at', ascending: false);
+      ''')
+          .eq('product_id', productId)
+          .order('created_at', ascending: false);
 
       return (rows as List).map((row) {
         final map = asStringMap(row);
-        final profile = row['profiles'] is Map ? asStringMap(row['profiles']) : null;
+        final profile = row['profiles'] is Map
+            ? asStringMap(row['profiles'])
+            : null;
         map['customer_name'] = profile?['full_name'] ?? 'عميل';
         return ProductReview.fromMap(map);
       }).toList();
@@ -484,16 +522,13 @@ class CustomerRepository {
     final userId = currentUserId;
     if (userId == null) throw StateError('يجب تسجيل الدخول');
 
-    await _client.from('product_reviews').upsert(
-      {
-        'customer_id': userId,
-        'product_id': productId,
-        'rating': rating,
-        'comment': comment?.trim(),
-        'created_at': DateTime.now().toIso8601String(),
-      },
-      onConflict: 'customer_id,product_id',
-    );
+    await _client.from('product_reviews').upsert({
+      'customer_id': userId,
+      'product_id': productId,
+      'rating': rating,
+      'comment': comment?.trim(),
+      'created_at': DateTime.now().toIso8601String(),
+    }, onConflict: 'customer_id,product_id');
   }
 
   // Cart persistence in Supabase
@@ -523,9 +558,12 @@ class CustomerRepository {
         final pMap = asStringMap(pData);
         if (pMap['status']?.toString() != 'published') continue;
 
-        final shopMap = pData['shops'] is Map ? asStringMap(pData['shops']) : null;
+        final shopMap = pData['shops'] is Map
+            ? asStringMap(pData['shops'])
+            : null;
         final shopName = shopMap?['name']?.toString() ?? 'متجر';
-        final productId = pMap['id']?.toString() ?? r['product_id']?.toString() ?? '';
+        final productId =
+            pMap['id']?.toString() ?? r['product_id']?.toString() ?? '';
         final shopId = pMap['shop_id']?.toString() ?? '';
         final productName = pMap['name']?.toString() ?? 'منتج';
         final unitPrice = (pMap['price'] as num?)?.toDouble() ?? 0.0;
@@ -594,18 +632,17 @@ class CustomerRepository {
     final userId = currentUserId;
     if (userId == null) return;
     try {
-      await _client.from('cart_items').upsert(
-        {
-          'customer_id': userId,
-          'product_id': productId,
-          'variant_id': (variantId == null || variantId.isEmpty) ? null : variantId,
-          'color': color,
-          'size': size,
-          'quantity': quantity,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
-        onConflict: 'customer_id,product_id,color,size',
-      );
+      await _client.from('cart_items').upsert({
+        'customer_id': userId,
+        'product_id': productId,
+        'variant_id': (variantId == null || variantId.isEmpty)
+            ? null
+            : variantId,
+        'color': color,
+        'size': size,
+        'quantity': quantity,
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'customer_id,product_id,color,size');
     } catch (_) {}
   }
 
@@ -661,8 +698,12 @@ class CustomerRepository {
         if (pData == null || pData is! Map) continue;
         final map = asStringMap(pData);
         if (map['status']?.toString() != 'published') continue;
-        final shopMap = pData['shops'] is Map ? asStringMap(pData['shops']) : null;
-        final catMap = pData['categories'] is Map ? asStringMap(pData['categories']) : null;
+        final shopMap = pData['shops'] is Map
+            ? asStringMap(pData['shops'])
+            : null;
+        final catMap = pData['categories'] is Map
+            ? asStringMap(pData['categories'])
+            : null;
         map['shop_name'] = shopMap?['name'] ?? 'متجر';
         map['category_name'] = catMap?['name'];
 
@@ -693,13 +734,10 @@ class CustomerRepository {
     final userId = currentUserId;
     if (userId == null) return;
     try {
-      await _client.from('comparison_items').upsert(
-        {
-          'customer_id': userId,
-          'product_id': productId,
-        },
-        onConflict: 'customer_id,product_id',
-      );
+      await _client.from('comparison_items').upsert({
+        'customer_id': userId,
+        'product_id': productId,
+      }, onConflict: 'customer_id,product_id');
     } catch (_) {}
   }
 
@@ -772,11 +810,15 @@ class CustomerRepository {
     final userId = currentUserId;
     if (userId == null) return const [];
     try {
-      final rows = await _client.from('orders').select('''
+      final rows = await _client
+          .from('orders')
+          .select('''
         *,
         shops:shop_id(name),
         items:order_items(*)
-      ''').eq('customer_id', userId).order('created_at', ascending: false);
+      ''')
+          .eq('customer_id', userId)
+          .order('created_at', ascending: false);
 
       return (rows as List).map((row) {
         final map = asStringMap(row);
@@ -796,11 +838,15 @@ class CustomerRepository {
 
   Future<CustomerOrder?> getOrderDetails(String orderId) async {
     try {
-      final row = await _client.from('orders').select('''
+      final row = await _client
+          .from('orders')
+          .select('''
         *,
         shops:shop_id(name),
         items:order_items(*)
-      ''').eq('id', orderId).single();
+      ''')
+          .eq('id', orderId)
+          .single();
 
       final map = asStringMap(row);
       final shopMap = row['shops'] is Map ? asStringMap(row['shops']) : null;
@@ -824,7 +870,9 @@ class CustomerRepository {
           .select()
           .inFilter('audience', ['all', 'customer'])
           .order('created_at', ascending: false);
-      return (rows as List).map((r) => AdminNotification.fromMap(asStringMap(r))).toList();
+      return (rows as List)
+          .map((r) => AdminNotification.fromMap(asStringMap(r)))
+          .toList();
     } catch (_) {
       return const [];
     }

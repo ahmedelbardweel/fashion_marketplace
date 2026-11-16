@@ -45,25 +45,29 @@ final adminStatsProvider = FutureProvider.autoDispose<AdminStats>((ref) async {
   return ref.watch(adminRepositoryProvider).fetchStats();
 });
 
-final adminUsersProvider =
-    FutureProvider.autoDispose<List<AppUser>>((ref) async {
+final adminUsersProvider = FutureProvider.autoDispose<List<AppUser>>((
+  ref,
+) async {
   if (!_isAdmin(ref)) return const [];
   return ref.watch(adminRepositoryProvider).fetchUsers();
 });
 
-final adminManagedShopsProvider =
-    FutureProvider.autoDispose<List<Shop>>((ref) async {
+final adminManagedShopsProvider = FutureProvider.autoDispose<List<Shop>>((
+  ref,
+) async {
   if (!_isAdmin(ref)) return const [];
   return ref.watch(adminRepositoryProvider).fetchManagedShops();
 });
 
 final adminCategoriesProvider =
     FutureProvider.autoDispose<List<CatalogCategory>>((ref) async {
-  if (!_isAdmin(ref)) return const [];
-  return ref.watch(adminRepositoryProvider).fetchCategories();
-});
+      if (!_isAdmin(ref)) return const [];
+      return ref.watch(adminRepositoryProvider).fetchCategories();
+    });
 
-final adminProductFilterProvider = StateProvider<AdminProductFilterState>((ref) {
+final adminProductFilterProvider = StateProvider<AdminProductFilterState>((
+  ref,
+) {
   return AdminProductFilterState.empty;
 });
 
@@ -157,75 +161,75 @@ class PaginatedAdminProductsNotifier
   }
 }
 
-final adminProductsPaginatedProvider = StateNotifierProvider.autoDispose<
-  PaginatedAdminProductsNotifier,
-  PaginatedListState<AdminProduct>
->((ref) {
-  final isAdmin = _isAdmin(ref);
-  final repository = ref.watch(adminRepositoryProvider);
-  final initialFilter = ref.read(adminProductFilterProvider);
-  final notifier = PaginatedAdminProductsNotifier(
-    repository: repository,
-    isAdmin: isAdmin,
-    initialFilter: initialFilter,
-  );
-  ref.listen<AdminProductFilterState>(
-    adminProductFilterProvider,
-    (previous, next) => notifier.updateFilter(next),
-  );
-  return notifier;
-});
+final adminProductsPaginatedProvider =
+    StateNotifierProvider.autoDispose<
+      PaginatedAdminProductsNotifier,
+      PaginatedListState<AdminProduct>
+    >((ref) {
+      final isAdmin = _isAdmin(ref);
+      final repository = ref.watch(adminRepositoryProvider);
+      final initialFilter = ref.read(adminProductFilterProvider);
+      final notifier = PaginatedAdminProductsNotifier(
+        repository: repository,
+        isAdmin: isAdmin,
+        initialFilter: initialFilter,
+      );
+      ref.listen<AdminProductFilterState>(
+        adminProductFilterProvider,
+        (previous, next) => notifier.updateFilter(next),
+      );
+      return notifier;
+    });
 
-final adminOrdersProvider =
-    FutureProvider.autoDispose<List<AdminOrder>>((ref) async {
+final adminOrdersProvider = FutureProvider.autoDispose<List<AdminOrder>>((
+  ref,
+) async {
   if (!_isAdmin(ref)) return const [];
   return ref.watch(adminRepositoryProvider).fetchOrders();
 });
 
-final adminBannersProvider =
-    FutureProvider.autoDispose<List<AdminBanner>>((ref) async {
+final adminBannersProvider = FutureProvider.autoDispose<List<AdminBanner>>((
+  ref,
+) async {
   if (!_isAdmin(ref)) return const [];
   return ref.watch(adminRepositoryProvider).fetchBanners();
 });
 
 final adminNotificationsProvider =
     FutureProvider.autoDispose<List<AdminNotification>>((ref) async {
-  if (!_isAdmin(ref)) return const [];
-  return ref.watch(adminRepositoryProvider).fetchNotifications();
-});
+      if (!_isAdmin(ref)) return const [];
+      return ref.watch(adminRepositoryProvider).fetchNotifications();
+    });
 
 final adminDecartStatusProvider =
     FutureProvider.autoDispose<DecartSettingsStatus>((ref) async {
-  if (!_isAdmin(ref)) throw StateError('Admin access required');
-  return ref.watch(adminRepositoryProvider).fetchDecartStatus();
-});
+      if (!_isAdmin(ref)) throw StateError('Admin access required');
+      return ref.watch(adminRepositoryProvider).fetchDecartStatus();
+    });
 
-final adminSettingsProvider =
-    FutureProvider.autoDispose<List<PlatformSetting>>((ref) async {
-  if (!_isAdmin(ref)) return const [];
-  return ref.watch(adminRepositoryProvider).fetchSettings();
-});
-
-final adminShopDocumentsProvider =
-    FutureProvider.autoDispose.family<List<ShopDocument>, String>(
-  (ref, shopId) async {
+final adminSettingsProvider = FutureProvider.autoDispose<List<PlatformSetting>>(
+  (ref) async {
     if (!_isAdmin(ref)) return const [];
-    return ref.watch(adminRepositoryProvider).fetchShopDocuments(shopId);
+    return ref.watch(adminRepositoryProvider).fetchSettings();
   },
 );
 
-final adminShopImagesProvider =
-    FutureProvider.autoDispose.family<List<ShopMediaItem>, String>(
-  (ref, shopId) async {
-    if (!_isAdmin(ref)) return const [];
-    return ref.watch(adminRepositoryProvider).fetchShopImages(shopId);
-  },
-);
+final adminShopDocumentsProvider = FutureProvider.autoDispose
+    .family<List<ShopDocument>, String>((ref, shopId) async {
+      if (!_isAdmin(ref)) return const [];
+      return ref.watch(adminRepositoryProvider).fetchShopDocuments(shopId);
+    });
+
+final adminShopImagesProvider = FutureProvider.autoDispose
+    .family<List<ShopMediaItem>, String>((ref, shopId) async {
+      if (!_isAdmin(ref)) return const [];
+      return ref.watch(adminRepositoryProvider).fetchShopImages(shopId);
+    });
 
 final adminActionProvider =
     StateNotifierProvider<AdminActionController, AsyncValue<void>>(
-  (ref) => AdminActionController(ref),
-);
+      (ref) => AdminActionController(ref),
+    );
 
 class AdminActionController extends StateNotifier<AsyncValue<void>> {
   AdminActionController(this._ref) : super(const AsyncValue.data(null));
@@ -248,10 +252,7 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
 
   String errorMessage(Object error) => _repo.mapError(error);
 
-  Future<bool> setUserActive({
-    required String userId,
-    required bool isActive,
-  }) {
+  Future<bool> setUserActive({required String userId, required bool isActive}) {
     return _run(() async {
       await _repo.setUserActive(userId: userId, isActive: isActive);
       _ref.invalidate(adminUsersProvider);
@@ -276,6 +277,8 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
     String? description,
     bool isActive = true,
     String? id,
+    String? parentId,
+    String? iconKey,
   }) {
     return _run(() async {
       await _repo.upsertCategory(
@@ -283,6 +286,8 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
         description: description,
         isActive: isActive,
         id: id,
+        parentId: parentId,
+        iconKey: iconKey,
       );
       _ref.invalidate(adminCategoriesProvider);
       _ref.invalidate(adminStatsProvider);
@@ -346,10 +351,7 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
     });
   }
 
-  Future<bool> updateSetting({
-    required String key,
-    required String value,
-  }) {
+  Future<bool> updateSetting({required String key, required String value}) {
     return _run(() async {
       await _repo.updateSetting(key: key, value: value);
       _ref.invalidate(adminSettingsProvider);
