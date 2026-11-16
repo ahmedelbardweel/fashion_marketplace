@@ -930,6 +930,10 @@ class AppLang {
     'متابعة الطلب والاستلام': 'Track & Receive Order',
     'راقب حالة طلبك في «طلباتي» حتى تتحول إلى «تم التوصيل» — مثال توضيحي.':
         'Track your order status in My Orders until Delivered — sample preview.',
+    'بس هيك خلصنا': 'And that’s it — you’re all set!',
+    'مرحباً، ابدأ الآن': 'Welcome! Start now',
+    'مرحباً': 'Hello',
+    'ابدأ الآن': 'Start Now',
   };
 }
 

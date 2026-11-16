@@ -75,8 +75,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     super.dispose();
   }
 
+  static int get _totalPages => _customerSlides.length + 1;
+
   Future<void> _nextStep() async {
-    if (_stepIndex < _customerSlides.length - 1) {
+    if (_stepIndex < _totalPages - 1) {
       await _pageController.nextPage(
         duration: AppMotion.normal,
         curve: AppMotion.curve,
@@ -112,11 +114,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
     final isAuthenticated = auth.status == AuthStatus.authenticated;
-    final isLast = _stepIndex == _customerSlides.length - 1;
+    final totalPages = _totalPages;
+    final isLast = _stepIndex == totalPages - 1;
 
     final primaryLabel = !isLast
         ? 'التالي'.tr
-        : (isAuthenticated ? 'تم'.tr : 'ابدأ التسوق'.tr);
+        : (isAuthenticated ? 'تم'.tr : 'ابدأ الآن'.tr);
 
     return Scaffold(
       backgroundColor: AuthDesign.pageBackground,
@@ -164,19 +167,26 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   ),
                 ),
 
-                // 2) Customer Walkthrough Slides (isolated repaint layer for smooth paging)
+                // 2) Customer Walkthrough Slides + Yellow Welcome iPhone Finale
                 Expanded(
                   child: RepaintBoundary(
                     child: PageView.builder(
                       controller: _pageController,
                       physics: const BouncingScrollPhysics(),
-                      itemCount: _customerSlides.length,
+                      itemCount: totalPages,
                       onPageChanged: (index) =>
                           setState(() => _stepIndex = index),
-                      itemBuilder: (context, index) => _TourSlideBody(
-                        key: ValueKey('customer_slide_$index'),
-                        slide: _customerSlides[index],
-                      ),
+                      itemBuilder: (context, index) {
+                        if (index == _customerSlides.length) {
+                          return const _FinaleOnboardingSlide(
+                            key: ValueKey('customer_finale_slide'),
+                          );
+                        }
+                        return _TourSlideBody(
+                          key: ValueKey('customer_slide_$index'),
+                          slide: _customerSlides[index],
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -194,7 +204,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(_customerSlides.length, (i) {
+                        children: List.generate(totalPages, (i) {
                           final active = i == _stepIndex;
                           return AnimatedContainer(
                             duration: AppMotion.fast,
@@ -467,6 +477,154 @@ class _TourSlideBodyState extends State<_TourSlideBody>
               ),
               SizedBox(height: compact ? 4 : 10),
             ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// =============================================================================
+//  Final Slide: Animated Waving Hand Emoji + Bold "مرحباً" Centered
+// =============================================================================
+
+class _FinaleOnboardingSlide extends StatefulWidget {
+  const _FinaleOnboardingSlide({super.key});
+
+  @override
+  State<_FinaleOnboardingSlide> createState() => _FinaleOnboardingSlideState();
+}
+
+class _FinaleOnboardingSlideState extends State<_FinaleOnboardingSlide>
+    with TickerProviderStateMixin {
+  late final AnimationController _enterController;
+  late final AnimationController _waveController;
+  late final Animation<Offset> _emojiSlide;
+  late final Animation<double> _emojiFade;
+  late final Animation<double> _emojiScale;
+  late final Animation<Offset> _textSlide;
+  late final Animation<double> _textFade;
+
+  @override
+  void initState() {
+    super.initState();
+    _enterController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 560),
+    );
+    _waveController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat();
+
+    _emojiSlide = Tween<Offset>(begin: const Offset(0, 0.24), end: Offset.zero)
+        .animate(
+          CurvedAnimation(parent: _enterController, curve: Curves.easeOutQuart),
+        );
+    _emojiFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _enterController,
+        curve: const Interval(0.0, 0.70, curve: Curves.easeOut),
+      ),
+    );
+    _emojiScale = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _enterController, curve: Curves.easeOutBack),
+    );
+    _textSlide = Tween<Offset>(begin: const Offset(0, 0.22), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _enterController,
+            curve: const Interval(0.16, 1.0, curve: Curves.easeOutCubic),
+          ),
+        );
+    _textFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _enterController,
+        curve: const Interval(0.16, 0.90, curve: Curves.easeOut),
+      ),
+    );
+
+    _enterController.forward();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _enterController.value = 1.0;
+      _waveController.stop();
+    } else if (!_waveController.isAnimating) {
+      _waveController.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _enterController.dispose();
+    _waveController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxHeight < 460;
+
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RepaintBoundary(
+                  child: FadeTransition(
+                    opacity: _emojiFade,
+                    child: SlideTransition(
+                      position: _emojiSlide,
+                      child: ScaleTransition(
+                        scale: _emojiScale,
+                        child: AnimatedBuilder(
+                          animation: _waveController,
+                          builder: (context, child) {
+                            final wt = _waveController.value;
+                            final activeWave = wt < 0.72
+                                ? math.sin((wt / 0.72) * math.pi * 4)
+                                : 0.0;
+                            return Transform.rotate(
+                              angle: activeWave * 0.26,
+                              alignment: const Alignment(0.25, 0.70),
+                              child: child,
+                            );
+                          },
+                          child: Text(
+                            '👋',
+                            style: TextStyle(fontSize: compact ? 68 : 88),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(height: compact ? AppSpacing.md : AppSpacing.lg),
+                FadeTransition(
+                  opacity: _textFade,
+                  child: SlideTransition(
+                    position: _textSlide,
+                    child: Text(
+                      'مرحباً'.tr,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: compact ? 30 : 38,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.text,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },

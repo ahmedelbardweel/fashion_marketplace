@@ -60,9 +60,15 @@ void main() {
       await tester.tap(find.text('التالي'));
       await tester.pump(const Duration(milliseconds: 350));
       expect(find.text('متابعة الطلب والاستلام'), findsOneWidget);
-      expect(find.text('ابدأ التسوق'), findsOneWidget);
 
-      await tester.tap(find.text('ابدأ التسوق'));
+      await tester.tap(find.text('التالي'));
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.text('👋'), findsOneWidget);
+      expect(find.text('مرحباً'), findsOneWidget);
+      expect(find.text('بس هيك خلصنا'), findsNothing);
+      expect(find.text('ابدأ الآن'), findsOneWidget);
+
+      await tester.tap(find.text('ابدأ الآن'));
       await tester.pump(const Duration(milliseconds: 200));
       expect(finished, isTrue);
       expect(AppPreferences.initialOnboardingCompleted, isTrue);
