@@ -16,6 +16,8 @@ class AppPreferences {
   static const _localeKey = 'app_locale_code';
   static const _readNotificationsKey = 'app_read_notification_ids';
   static const _onboardingCompletedKey = 'app_onboarding_completed';
+  static const _notificationsEnabledKey = 'app_push_notifications_enabled';
+  static const _notificationPromptedKey = 'app_push_notification_prompted';
 
   static SharedPreferences? _prefs;
   static ThemeMode initialThemeMode = ThemeMode.light;
@@ -75,6 +77,26 @@ class AppPreferences {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     _prefs = prefs;
     await prefs.setStringList('${_readNotificationsKey}_$scope', ids.toList());
+  }
+
+  static bool getNotificationsEnabled() {
+    return _prefs?.getBool(_notificationsEnabledKey) ?? true;
+  }
+
+  static Future<void> setNotificationsEnabled(bool enabled) async {
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    _prefs = prefs;
+    await prefs.setBool(_notificationsEnabledKey, enabled);
+  }
+
+  static bool getNotificationPrompted() {
+    return _prefs?.getBool(_notificationPromptedKey) ?? false;
+  }
+
+  static Future<void> setNotificationPrompted([bool prompted = true]) async {
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    _prefs = prefs;
+    await prefs.setBool(_notificationPromptedKey, prompted);
   }
 
   static Future<void> setOnboardingCompleted([bool completed = true]) async {

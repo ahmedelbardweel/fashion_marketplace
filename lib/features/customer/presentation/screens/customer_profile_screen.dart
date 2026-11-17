@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/notifications/push_notification_settings_card.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/snackbar_utils.dart';
@@ -511,6 +512,8 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                       subtitle: 'استعرض ميزات التسوق وتجربة الملابس'.tr,
                       onTap: () => context.push(AppRoutes.onboarding),
                     ),
+                    const Divider(height: 1),
+                    const PushNotificationSettingsRow(),
                   ],
                 ),
               ),

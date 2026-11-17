@@ -202,12 +202,41 @@ class _CustomerNotificationsScreenState
                                           ),
                                         ),
                                         const SizedBox(height: 6),
-                                        Text(
-                                          dateStr,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: AppColors.textMuted,
-                                          ),
+                                        Row(
+                                          children: [
+                                            Text(
+                                              dateStr,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: AppColors.textMuted,
+                                              ),
+                                            ),
+                                            if (notif.isSentByShop) ...[
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                  horizontal: 6,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.primarySoft,
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                    AppRadii.pill,
+                                                  ),
+                                                ),
+                                                child: Text(
+                                                  'من المتجر'.tr,
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: AppFont.bold,
+                                                    color: AppColors.primaryDark,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ],
                                     ),

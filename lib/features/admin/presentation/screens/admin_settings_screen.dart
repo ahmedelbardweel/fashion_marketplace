@@ -4,6 +4,7 @@ import '../../../../core/widgets/loading_fixtures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/notifications/push_notification_settings_card.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/utils/validators.dart';
@@ -91,6 +92,8 @@ class AdminSettingsScreen extends ConsumerWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: AppSpacing.page,
           children: [
+          const PushNotificationSettingsCard(),
+          const SizedBox(height: AppSpacing.md),
           const DecartSettingsCard(),
           const SizedBox(height: AppSpacing.md),
           settings.skeletonWhen(

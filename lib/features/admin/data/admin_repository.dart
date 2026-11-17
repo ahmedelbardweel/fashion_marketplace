@@ -297,7 +297,14 @@ class AdminRepository {
         'p_audience': audience,
       },
     );
-    return AdminNotification.fromMap(asStringMap(data));
+    final created = AdminNotification.fromMap(asStringMap(data));
+    try {
+      await _client.functions.invoke(
+        'send-push-notification',
+        body: {'notification_id': created.id},
+      );
+    } catch (_) {}
+    return created;
   }
 
   Future<DecartSettingsStatus> fetchDecartStatus() async {

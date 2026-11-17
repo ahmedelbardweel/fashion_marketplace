@@ -722,10 +722,34 @@ class AppLang {
 
     // --- Notifications ---
     'إشعارات الطلبات والتنبيهات': 'Order Updates & Alerts',
+    'استلام التنبيهات وإرسال إشعارات للعملاء':
+        'Receive alerts and send notifications to customers',
     'لا توجد إشعارات حالياً': 'No Notifications Yet',
     'لا توجد إشعارات جديدة': 'No New Notifications',
     'ستصلك هنا العروض الحصرية وتحديثات طلباتك':
         'Exclusive offers and order status updates will appear here',
+    'إشعارات الهاتف': 'Push Notifications',
+    'مفعّلة — تصلك التنبيهات والطلبات فوراً':
+        'Enabled — receiving alerts and order updates instantly',
+    'متوقفة مؤقتاً من التطبيق': 'Paused in app settings',
+    'غير مسموحة — اضغط لتفعيل صلاحية الإشعارات':
+        'Permission denied — tap to enable notifications',
+    'فعّل الإشعارات لاستلام العروض وتحديثات الطلبات':
+        'Enable notifications for offers and order updates',
+    'تفعيل': 'Enable',
+    'تم تفعيل الإشعارات بنجاح': 'Notifications enabled successfully',
+    'يرجى السماح بالإشعارات من إعدادات الجهاز لتصلك التنبيهات':
+        'Please allow notifications in device settings to receive alerts',
+    'إرسال إشعار للعملاء': 'Send Notification to Customers',
+    'عملاء المحل': 'Shop Customers',
+    'جميع العملاء': 'All Customers',
+    'سيصل الإشعار للعملاء الذين طلبوا من محلك سابقاً':
+        'Will be sent to customers who previously ordered from your shop',
+    'سيصل الإشعار كعرض عام لجميع عملاء التطبيق':
+        'Will be sent as a broadcast offer to all app customers',
+    'مرسل من محلك': 'Sent by your shop',
+    'إشعاراتي المرسلة': 'Sent by Me',
+    'من المتجر': 'From Shop',
 
     // --- Virtual Try-On ---
     'تجربة الملابس — Decart': 'Virtual Try-On — Decart',

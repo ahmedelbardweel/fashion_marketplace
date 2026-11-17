@@ -209,6 +209,9 @@ class AdminNotification {
     required this.body,
     required this.audience,
     required this.createdAt,
+    this.shopId,
+    this.senderRole = 'system',
+    this.targetScope = 'audience',
   });
 
   final String id;
@@ -216,8 +219,19 @@ class AdminNotification {
   final String body;
   final String audience;
   final DateTime createdAt;
+  final String? shopId;
+  final String senderRole;
+  final String targetScope;
+
+  bool get isSentByShop => senderRole == 'shop';
 
   String get audienceLabel {
+    if (targetScope == 'shop_customers') {
+      return 'عملاء المحل';
+    }
+    if (targetScope == 'all_customers') {
+      return 'جميع العملاء';
+    }
     switch (audience) {
       case 'customer':
         return 'المستخدمون';
@@ -237,6 +251,9 @@ class AdminNotification {
       createdAt:
           DateTime.tryParse(map['created_at'] as String? ?? '') ??
           DateTime.now(),
+      shopId: map['shop_id'] as String?,
+      senderRole: map['sender_role'] as String? ?? 'system',
+      targetScope: map['target_scope'] as String? ?? 'audience',
     );
   }
 }

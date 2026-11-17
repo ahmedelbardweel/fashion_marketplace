@@ -321,4 +321,15 @@ class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
       _ref.invalidate(shopDocumentsProvider);
     });
   }
+
+  Future<bool> sendNotification({
+    required String title,
+    required String body,
+    String scope = 'shop_customers',
+  }) {
+    return _run(() async {
+      await _repo.sendNotification(title: title, body: body, scope: scope);
+      _ref.invalidate(shopNotificationsProvider);
+    });
+  }
 }

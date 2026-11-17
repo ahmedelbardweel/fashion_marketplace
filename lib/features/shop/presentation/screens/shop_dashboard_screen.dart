@@ -148,7 +148,7 @@ class ShopDashboardScreen extends ConsumerWidget {
               ShopFeatureTile(
                 code: 'SHOP-20',
                 title: 'الإشعارات'.tr,
-                subtitle: 'إشعارات الطلبات والتنبيهات'.tr,
+                subtitle: 'استلام التنبيهات وإرسال إشعارات للعملاء'.tr,
                 badge: unreadNotifications == 0
                     ? null
                     : (unreadNotifications > 99

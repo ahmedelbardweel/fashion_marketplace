@@ -197,6 +197,7 @@ class ShopOrder {
     required this.status,
     required this.total,
     required this.createdAt,
+    this.customerId,
     this.customerEmail,
     this.customerName,
   });
@@ -205,6 +206,7 @@ class ShopOrder {
   final String status;
   final double total;
   final DateTime createdAt;
+  final String? customerId;
   final String? customerEmail;
   final String? customerName;
 
@@ -234,6 +236,7 @@ class ShopOrder {
     return ShopOrder(
       id: map['id'] as String,
       status: map['status'] as String? ?? 'pending',
+      customerId: map['customer_id'] as String?,
       total: (map['total'] as num?)?.toDouble() ?? 0,
       createdAt:
           DateTime.tryParse(map['created_at'] as String? ?? '')?.toLocal() ??

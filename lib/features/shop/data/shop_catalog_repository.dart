@@ -217,18 +217,36 @@ class ShopCatalogRepository {
       'shop_update_order_status',
       params: {'p_order_id': orderId, 'p_status': status},
     );
-    return ShopOrder.fromMap(asStringMap(data));
+    final updated = ShopOrder.fromMap(asStringMap(data));
+    final customerId = updated.customerId;
+    if (customerId != null && customerId.isNotEmpty) {
+      try {
+        final rows = await _client
+            .from('notifications')
+            .select('id')
+            .eq('target_user_id', customerId)
+            .eq('sender_role', 'shop')
+            .order('created_at', ascending: false)
+            .limit(1);
+        final list = rows as List;
+        if (list.isNotEmpty) {
+          final notifId = (list.first as Map)['id'] as String?;
+          if (notifId != null && notifId.isNotEmpty) {
+            await _client.functions.invoke(
+              'send-push-notification',
+              body: {'notification_id': notifId},
+            );
+          }
+        }
+      } catch (_) {}
+    }
+    return updated;
   }
 
   Future<List<AdminNotification>> fetchNotifications() async {
-    final userId = _client.auth.currentUser?.id;
-    final filter = userId == null
-        ? 'audience.eq.all,audience.eq.shop'
-        : 'audience.eq.all,audience.eq.shop,target_user_id.eq.$userId';
     final rows = await _client
         .from('notifications')
         .select()
-        .or(filter)
         .order('created_at', ascending: false);
     return (rows as List)
         .map(
@@ -236,6 +254,29 @@ class ShopCatalogRepository {
               AdminNotification.fromMap(Map<String, dynamic>.from(row as Map)),
         )
         .toList();
+  }
+
+  Future<AdminNotification> sendNotification({
+    required String title,
+    required String body,
+    String scope = 'shop_customers',
+  }) async {
+    final data = await _client.rpc(
+      'shop_send_notification',
+      params: {
+        'p_title': title.trim(),
+        'p_body': body.trim(),
+        'p_scope': scope,
+      },
+    );
+    final created = AdminNotification.fromMap(asStringMap(data));
+    try {
+      await _client.functions.invoke(
+        'send-push-notification',
+        body: {'notification_id': created.id},
+      );
+    } catch (_) {}
+    return created;
   }
 
   Future<Shop> setMedia({String? logoPath, String? coverPath}) async {
