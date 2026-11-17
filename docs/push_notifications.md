@@ -1,31 +1,21 @@
-# Notifications Setup (Pure Supabase — No Firebase)
+# Push Notifications Setup (Android & iOS)
 
-This project uses a **100% Supabase-powered** notification system without Firebase:
+The app supports:
+- **Runtime permission requests** on Android 13+ (`POST_NOTIFICATIONS`) and iOS (`UNUserNotificationCenter`), prompted automatically after login and toggleable in Profile/Settings.
+- **Foreground instant banners** via Supabase Realtime (`public.notifications` `INSERT`).
+- **Background/killed-app push**:
+  - **Android & iOS via FCM**: Add `FIREBASE_*` keys to `config/mobile.env` / `.env` and set `FIREBASE_SERVICE_ACCOUNT_JSON` secret in Supabase Edge Functions (plus APNs `.p8` in Firebase Console for iOS).
+  - **Direct iOS APNs without Firebase**: Set `APNS_KEY_P8`, `APNS_KEY_ID`, `APNS_TEAM_ID`, and `APNS_BUNDLE_ID` in Supabase Edge Functions.
+  - **Android fallback sync without Firebase**: `workmanager` periodically checks for missed notifications when FCM keys are not configured.
+- **Admin & Shop sending**:
+  - Admin (`AdminNotificationsScreen`) -> `admin_send_notification` -> `send-push-notification`
+  - Approved Shop Owner (`ShopNotificationsScreen`) -> `shop_send_notification` (`shop_customers` or `all_customers`) -> `send-push-notification`
+  - Order status updates (`shop_update_order_status`) -> `send-push-notification`
 
-1. **Permissions & Local System Banners (`flutter_local_notifications`)**
-   - Requests OS notification permissions on Android 13+ (`POST_NOTIFICATIONS`) and iOS (`UNUserNotificationCenter`) after login and from Profile/Settings.
-   - Displays native OS banners with sound when notifications arrive.
-2. **Instant Foreground Alerts (Supabase Realtime)**
-   - Subscribes to `public.notifications` `INSERT` events so active sessions on Android & iOS show banners and update unread badges immediately.
-3. **Android Background Sync (`workmanager`)**
-   - Periodically polls Supabase in the background (~every 15 minutes when online) and raises native Android OS notifications for any new items, plus checks for missed notifications on app resume.
-4. **Direct iOS APNs Delivery from Supabase (Optional for Closed/Killed iPhone)**
-   - `ios/Runner/AppDelegate.swift` exposes the native APNs token over `fashion/apns` and syncs it to `public.device_push_tokens` via `register_push_token`.
-   - `supabase/functions/send-push-notification/index.ts` sends push notifications directly to Apple APNs HTTP/2 without Firebase.
-
-## Setup Steps
-
+## Deploy Backend
 1. Run `supabase/migrations/018_push_notifications.sql` in Supabase SQL Editor.
-2. *(Optional — needed only for iPhone background/killed push)* Deploy the Edge Function and configure Apple APNs secrets:
+2. Deploy `supabase/functions/send-push-notification`:
    ```bash
    supabase functions deploy send-push-notification
-   supabase secrets set APNS_KEY_ID="YOUR_KEY_ID"
-   supabase secrets set APNS_TEAM_ID="YOUR_TEAM_ID"
-   supabase secrets set APNS_BUNDLE_ID="com.example.fashionMarketplace"
-   supabase secrets set APNS_KEY_P8="-----BEGIN PRIVATE KEY-----
-...
------END PRIVATE KEY-----"
-   # Set APNS_USE_SANDBOX="true" for Xcode debug builds, or "false" for TestFlight/App Store
-   supabase secrets set APNS_USE_SANDBOX="false"
    ```
-3. Sign the iOS app in Xcode with a paid Apple Developer Team that has the **Push Notifications** capability enabled (`Background Modes -> Remote notifications` is already configured in `ios/Runner/Info.plist`).
+3. Configure `FIREBASE_SERVICE_ACCOUNT_JSON` (for FCM Android+iOS) and/or `APNS_KEY_P8`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID` (for direct iOS APNs) as Edge Function Secrets.

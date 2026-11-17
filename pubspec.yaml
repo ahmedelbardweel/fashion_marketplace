@@ -35,6 +35,8 @@ dependencies:
   shared_preferences: ^2.3.5
   flutter_local_notifications: ">=22.0.0 <23.0.0"
   workmanager: ^0.10.10
+  firebase_core: ">=4.14.0 <5.0.0"
+  firebase_messaging: ">=16.6.0 <17.0.0"
 
 dev_dependencies:
   flutter_test:

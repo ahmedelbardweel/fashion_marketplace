@@ -18,12 +18,14 @@ class PushNotificationState {
     this.permissionStatus = PushPermissionStatus.unknown,
     this.notificationsEnabled = true,
     this.isRequesting = false,
+    this.fcmReady = false,
     this.hasToken = false,
   });
 
   final PushPermissionStatus permissionStatus;
   final bool notificationsEnabled;
   final bool isRequesting;
+  final bool fcmReady;
   final bool hasToken;
 
   bool get isEffectivelyActive =>
@@ -33,12 +35,14 @@ class PushNotificationState {
     PushPermissionStatus? permissionStatus,
     bool? notificationsEnabled,
     bool? isRequesting,
+    bool? fcmReady,
     bool? hasToken,
   }) {
     return PushNotificationState(
       permissionStatus: permissionStatus ?? this.permissionStatus,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       isRequesting: isRequesting ?? this.isRequesting,
+      fcmReady: fcmReady ?? this.fcmReady,
       hasToken: hasToken ?? this.hasToken,
     );
   }
@@ -108,12 +112,13 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
     if (!mounted) return;
     state = state.copyWith(
       permissionStatus: status,
+      fcmReady: PushNotificationService.instance.isFirebaseReady,
       hasToken: PushNotificationService.instance.currentToken != null,
     );
   }
 
-  /// Syncs notification permission, APNs token (on iOS), Realtime alerts,
-  /// and Android background sync whenever the authenticated user changes.
+  /// Syncs notification permission, FCM/APNs token registration, Realtime
+  /// alerts, and Android fallback background sync whenever auth state changes.
   Future<void> handleAuthUser(AppUser? user) async {
     final client = _client;
     if (user == null) {
@@ -177,6 +182,7 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
       if (mounted) {
         state = state.copyWith(
           permissionStatus: status,
+          fcmReady: PushNotificationService.instance.isFirebaseReady,
           hasToken: token != null,
         );
       }
@@ -185,7 +191,7 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
     }
   }
 
-  /// Prompts the user explicitly (from Profile / Settings) and enables sync.
+  /// Prompts the user explicitly (from Profile / Settings) and registers token.
   Future<PushPermissionStatus> requestPermissionAndEnable() async {
     if (state.isRequesting) return state.permissionStatus;
     state = state.copyWith(isRequesting: true);
@@ -223,6 +229,7 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
           permissionStatus: status,
           notificationsEnabled: enabled ? true : state.notificationsEnabled,
           isRequesting: false,
+          fcmReady: PushNotificationService.instance.isFirebaseReady,
           hasToken: token != null || state.hasToken,
         );
       }
