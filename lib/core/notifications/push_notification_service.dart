@@ -290,8 +290,6 @@ class PushNotificationService {
       });
 
       await _onTokenRefreshSub?.cancel();
-      // FCM HTTP v1 targets registration tokens; onRegistered emits FIDs.
-      // ignore: deprecated_member_use
       _onTokenRefreshSub = messaging.onTokenRefresh.listen((newToken) {
         _currentToken = newToken;
         if (_lastSyncedUserId != null) {
@@ -518,8 +516,6 @@ class PushNotificationService {
         // Wait briefly for APNs token if available; FCM still returns token once APNs is ready.
         await FirebaseMessaging.instance.getAPNSToken();
       }
-      // FCM HTTP v1 targets registration tokens rather than installation IDs.
-      // ignore: deprecated_member_use
       final token = await FirebaseMessaging.instance.getToken();
       if (token == null || token.trim().isEmpty) return null;
       _currentToken = token;
