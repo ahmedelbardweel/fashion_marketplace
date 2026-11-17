@@ -1,5 +1,6 @@
-// Deploy with JWT verification enabled. Dispatches FCM HTTP v1 push notifications
-// for authoritative rows in public.notifications using FIREBASE_SERVICE_ACCOUNT_JSON.
+// Deploy with JWT verification enabled.
+// Pure Supabase push dispatcher: sends directly to Apple APNs (HTTP/2) using
+// APNS_KEY_P8 / APNS_KEY_ID / APNS_TEAM_ID / APNS_BUNDLE_ID secrets (no Firebase).
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -12,12 +13,6 @@ const respond = (body: unknown, status = 200) =>
     status,
     headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
   });
-
-interface ServiceAccount {
-  project_id: string;
-  client_email: string;
-  private_key: string;
-}
 
 interface NotificationRow {
   id: string;
@@ -51,6 +46,7 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
   const body = pem
     .replace(/-----BEGIN PRIVATE KEY-----/g, '')
     .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\\n/g, '')
     .replace(/\s+/g, '');
   const binary = atob(body);
   const bytes = new Uint8Array(binary.length);
@@ -60,50 +56,33 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-async function getGoogleAccessToken(account: ServiceAccount): Promise<string> {
-  const now = Math.floor(Date.now() / 1000);
-  const header = base64UrlEncode(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const claim = base64UrlEncode(
-    JSON.stringify({
-      iss: account.client_email,
-      scope: 'https://www.googleapis.com/auth/firebase.messaging',
-      aud: 'https://oauth2.googleapis.com/token',
-      iat: now,
-      exp: now + 3600,
-    }),
-  );
-  const signingInput = `${header}.${claim}`;
-  const key = await crypto.subtle.importKey(
+async function createApnsJwt(
+  p8Pem: string,
+  keyId: string,
+  teamId: string,
+): Promise<string> {
+  const iat = Math.floor(Date.now() / 1000);
+  const header = base64UrlEncode(JSON.stringify({ alg: 'ES256', kid: keyId }));
+  const claims = base64UrlEncode(JSON.stringify({ iss: teamId, iat }));
+  const signingInput = `${header}.${claims}`;
+
+  const cryptoKey = await crypto.subtle.importKey(
     'pkcs8',
-    pemToArrayBuffer(account.private_key),
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    pemToArrayBuffer(p8Pem),
+    { name: 'ECDSA', namedCurve: 'P-256' },
     false,
     ['sign'],
   );
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    key,
+
+  // WebCrypto ECDSA returns IEEE P1363 raw (r || s) 64-byte signature,
+  // which is the exact format required by ES256 JWS.
+  const sigBuffer = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    cryptoKey,
     new TextEncoder().encode(signingInput),
   );
-  const jwt = `${signingInput}.${base64UrlEncode(new Uint8Array(signature))}`;
 
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt,
-    }),
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!tokenRes.ok) {
-    throw new Error(`OAuth token error: ${tokenRes.status}`);
-  }
-  const tokenJson = await tokenRes.json();
-  if (!tokenJson.access_token) {
-    throw new Error('Missing access_token from Google OAuth');
-  }
-  return tokenJson.access_token as string;
+  return `${signingInput}.${base64UrlEncode(new Uint8Array(sigBuffer))}`;
 }
 
 async function supabaseGet<T>(
@@ -159,7 +138,6 @@ async function resolveTargetUserIds(
     ids = profiles.map((p) => p.id).filter(Boolean);
   }
 
-  // Do not push broadcast back to the sender's own account.
   return ids.filter((id) => id !== callerId);
 }
 
@@ -208,7 +186,6 @@ Deno.serve(async (request: Request) => {
       return respond({ error: 'Notification not found' }, 404);
     }
 
-    // Verify caller owns the notification or is an admin.
     const callerProfiles = await supabaseGet<Array<{ role: string }>>(
       url,
       serviceKey,
@@ -220,89 +197,74 @@ Deno.serve(async (request: Request) => {
       return respond({ error: 'Forbidden' }, 403);
     }
 
-    const serviceAccountRaw = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
-    if (!serviceAccountRaw) {
+    const apnsKeyP8 = Deno.env.get('APNS_KEY_P8');
+    const apnsKeyId = Deno.env.get('APNS_KEY_ID');
+    const apnsTeamId = Deno.env.get('APNS_TEAM_ID');
+    const apnsBundleId =
+      Deno.env.get('APNS_BUNDLE_ID') ?? 'com.example.fashionMarketplace';
+    const apnsHost = Deno.env.get('APNS_USE_SANDBOX') === 'true'
+      ? 'https://api.sandbox.push.apple.com'
+      : 'https://api.push.apple.com';
+
+    if (!apnsKeyP8 || !apnsKeyId || !apnsTeamId) {
       return respond({
         ok: true,
         sent: 0,
         skipped: true,
-        reason: 'FIREBASE_SERVICE_ACCOUNT_JSON not configured',
+        reason: 'APNs secrets not configured',
       });
     }
 
-    const serviceAccount = JSON.parse(serviceAccountRaw) as ServiceAccount;
     const targetUserIds = await resolveTargetUserIds(url, serviceKey, notif, caller.id);
     if (targetUserIds.length === 0) {
       return respond({ ok: true, sent: 0, totalTokens: 0 });
     }
 
-    // Fetch enabled device tokens in chunks to keep query URLs compact.
-    const tokens: PushTokenRow[] = [];
+    const iosTokens: PushTokenRow[] = [];
     const chunkSize = 50;
     for (let i = 0; i < targetUserIds.length; i += chunkSize) {
       const chunk = targetUserIds.slice(i, i + chunkSize).join(',');
       const batch = await supabaseGet<PushTokenRow[]>(
         url,
         serviceKey,
-        `device_push_tokens?select=id,token,platform,user_id&notifications_enabled=eq.true&user_id=in.(${chunk})`,
+        `device_push_tokens?select=id,token,platform,user_id&platform=eq.ios&notifications_enabled=eq.true&user_id=in.(${chunk})`,
       );
-      tokens.push(...batch);
+      iosTokens.push(...batch);
     }
 
-    if (tokens.length === 0) {
+    if (iosTokens.length === 0) {
       return respond({ ok: true, sent: 0, totalTokens: 0 });
     }
 
-    const accessToken = await getGoogleAccessToken(serviceAccount);
-    const fcmEndpoint = `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`;
-
+    const jwt = await createApnsJwt(apnsKeyP8, apnsKeyId, apnsTeamId);
     let sent = 0;
     const staleTokenIds: string[] = [];
 
     await Promise.all(
-      tokens.map(async (entry) => {
-        const messageBody = {
-          message: {
-            token: entry.token,
-            notification: {
-              title: notif.title,
-              body: notif.body,
-            },
-            data: {
-              notification_id: notif.id,
-              audience: notif.audience,
-              sender_role: notif.sender_role ?? 'system',
-              target_scope: notif.target_scope ?? 'audience',
-              shop_id: notif.shop_id ?? '',
-            },
-            android: {
-              priority: 'HIGH',
-              notification: {
-                channel_id: 'shopy_notifications',
-                sound: 'default',
-              },
-            },
-            apns: {
-              headers: {
-                'apns-priority': '10',
-              },
-              payload: {
-                aps: {
-                  sound: 'default',
-                  badge: 1,
-                },
-              },
-            },
-          },
-        };
-
-        const res = await fetch(fcmEndpoint, {
+      iosTokens.map(async (entry) => {
+        const res = await fetch(`${apnsHost}/3/device/${entry.token}`, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
+            authorization: `bearer ${jwt}`,
+            'apns-topic': apnsBundleId,
+            'apns-push-type': 'alert',
+            'apns-priority': '10',
+            'content-type': 'application/json',
           },
-          body: JSON.stringify(messageBody),
+          body: JSON.stringify({
+            aps: {
+              alert: {
+                title: notif.title,
+                body: notif.body,
+              },
+              sound: 'default',
+              badge: 1,
+            },
+            notification_id: notif.id,
+            audience: notif.audience,
+            sender_role: notif.sender_role ?? 'system',
+            target_scope: notif.target_scope ?? 'audience',
+          }),
           signal: AbortSignal.timeout(10000),
         });
 
@@ -311,9 +273,11 @@ Deno.serve(async (request: Request) => {
           return;
         }
 
-        const errText = await res.text().catch(() => '');
-        if (errText.includes('UNREGISTERED') || errText.includes('NOT_FOUND')) {
-          staleTokenIds.push(entry.id);
+        if (res.status === 410 || res.status === 400) {
+          const text = await res.text().catch(() => '');
+          if (text.includes('Unregistered') || text.includes('BadDeviceToken')) {
+            staleTokenIds.push(entry.id);
+          }
         }
       }),
     );
@@ -335,7 +299,7 @@ Deno.serve(async (request: Request) => {
     return respond({
       ok: true,
       sent,
-      totalTokens: tokens.length,
+      totalTokens: iosTokens.length,
       cleanedTokens: staleTokenIds.length,
     });
   } catch {

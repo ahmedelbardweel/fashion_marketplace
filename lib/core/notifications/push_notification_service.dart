@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:workmanager/workmanager.dart';
 
+import '../../config/supabase_config.dart';
 import '../../features/admin/domain/models/catalog_models.dart';
 
 enum PushPermissionStatus {
@@ -24,18 +26,51 @@ extension PushPermissionStatusX on PushPermissionStatus {
       this == PushPermissionStatus.provisional;
 }
 
-/// Top-level background handler required by firebase_messaging when the app is
-/// terminated or in the background.
+const String _bgSyncUniqueName = 'shopy_notifications_bg_sync';
+const String _bgSyncTaskName = 'shopyNotificationsSync';
+const String _lastSyncIsoKey = 'app_notifications_last_sync_iso';
+const String _shownNotifIdsKey = 'app_notifications_shown_ids';
+
+/// Top-level Workmanager entry point for Android background notification sync
+/// without Firebase.
 @pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  try {
-    await dotenv.load(fileName: '.env');
-  } catch (_) {}
-  await PushNotificationService.initializeFirebaseIfConfigured();
+void pushNotificationsBackgroundDispatcher() {
+  Workmanager().executeTask((taskName, inputData) async {
+    if (taskName != _bgSyncTaskName) return true;
+    try {
+      await dotenv.load(fileName: '.env');
+    } catch (_) {}
+
+    try {
+      try {
+        Supabase.instance.client;
+      } catch (_) {
+        await SupabaseConfig.initialize();
+      }
+      final client = Supabase.instance.client;
+      final user = client.auth.currentUser;
+      if (user == null) return true;
+
+      final prefs = await SharedPreferences.getInstance();
+      final enabled = prefs.getBool('app_push_notifications_enabled') ?? true;
+      if (!enabled) return true;
+
+      await PushNotificationService.instance.initialize(
+        registerBackgroundWorker: false,
+      );
+      await PushNotificationService.instance.checkAndNotifyMissed(
+        client,
+        userId: user.id,
+        prefs: prefs,
+      );
+    } catch (_) {}
+    return true;
+  });
 }
 
-/// Coordinates FCM remote push notifications, local OS notification banners,
-/// runtime permission prompts (iOS & Android 13+), and Supabase token sync.
+/// Coordinates runtime notification permissions (iOS & Android 13+),
+/// local OS notification banners, Supabase Realtime foreground alerts,
+/// Android Workmanager background checks, and native iOS APNs token sync.
 class PushNotificationService {
   PushNotificationService._();
 
@@ -46,20 +81,19 @@ class PushNotificationService {
   static const String androidChannelDescription =
       'تنبيهات الطلبات والعروض وإشعارات المتاجر والإدارة';
 
+  static const MethodChannel _apnsChannel = MethodChannel('fashion/apns');
+
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
-  bool _firebaseReady = false;
-  String? _currentToken;
+  bool _apnsListenerRegistered = false;
+  bool _workmanagerInitialized = false;
+  String? _currentApnsToken;
   String? _lastSyncedUserId;
   bool _lastSyncedEnabled = true;
 
   final Set<String> _recentlyDisplayedIds = <String>{};
-
-  StreamSubscription<RemoteMessage>? _onMessageSub;
-  StreamSubscription<RemoteMessage>? _onOpenedSub;
-  StreamSubscription<String>? _onTokenRefreshSub;
   RealtimeChannel? _realtimeChannel;
 
   final StreamController<Map<String, dynamic>> _tapController =
@@ -70,8 +104,7 @@ class PushNotificationService {
   Stream<Map<String, dynamic>> get onNotificationTap => _tapController.stream;
   Stream<void> get onIncomingNotification => _incomingRefreshController.stream;
 
-  bool get isFirebaseReady => _firebaseReady;
-  String? get currentToken => _currentToken;
+  String? get currentToken => _currentApnsToken;
 
   static String get currentPlatformName {
     if (kIsWeb) return 'web';
@@ -85,89 +118,17 @@ class PushNotificationService {
     }
   }
 
-  /// Reads optional FirebaseOptions from `.env` so both Android & iOS can
-  /// initialize FCM cleanly without requiring native config files in git.
-  static FirebaseOptions? firebaseOptionsFromEnv() {
-    if (!dotenv.isInitialized) return null;
-    final env = dotenv.env;
-    final projectId = (env['FIREBASE_PROJECT_ID'] ?? '').trim();
-    final senderId = (env['FIREBASE_MESSAGING_SENDER_ID'] ?? '').trim();
-    if (projectId.isEmpty || senderId.isEmpty) return null;
-
-    final storageBucket = (env['FIREBASE_STORAGE_BUCKET'] ?? '').trim();
-    final bucket = storageBucket.isEmpty ? null : storageBucket;
-
-    if (kIsWeb) {
-      final apiKey = (env['FIREBASE_WEB_API_KEY'] ?? '').trim();
-      final appId = (env['FIREBASE_WEB_APP_ID'] ?? '').trim();
-      if (apiKey.isEmpty || appId.isEmpty) return null;
-      return FirebaseOptions(
-        apiKey: apiKey,
-        appId: appId,
-        messagingSenderId: senderId,
-        projectId: projectId,
-        storageBucket: bucket,
-        authDomain: (env['FIREBASE_AUTH_DOMAIN'] ?? '').trim().isEmpty
-            ? null
-            : env['FIREBASE_AUTH_DOMAIN']!.trim(),
-      );
-    }
-
-    if (defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.macOS) {
-      final apiKey = (env['FIREBASE_IOS_API_KEY'] ?? '').trim();
-      final appId = (env['FIREBASE_IOS_APP_ID'] ?? '').trim();
-      if (apiKey.isEmpty || appId.isEmpty) return null;
-      final bundleId = (env['FIREBASE_IOS_BUNDLE_ID'] ?? '').trim();
-      return FirebaseOptions(
-        apiKey: apiKey,
-        appId: appId,
-        messagingSenderId: senderId,
-        projectId: projectId,
-        storageBucket: bucket,
-        iosBundleId: bundleId.isEmpty
-            ? 'com.example.fashionMarketplace'
-            : bundleId,
-      );
-    }
-
-    final apiKey = (env['FIREBASE_ANDROID_API_KEY'] ?? '').trim();
-    final appId = (env['FIREBASE_ANDROID_APP_ID'] ?? '').trim();
-    if (apiKey.isEmpty || appId.isEmpty) return null;
-    return FirebaseOptions(
-      apiKey: apiKey,
-      appId: appId,
-      messagingSenderId: senderId,
-      projectId: projectId,
-      storageBucket: bucket,
-    );
-  }
-
-  /// Initializes Firebase Core if env options or native GoogleService files are present.
-  static Future<bool> initializeFirebaseIfConfigured() async {
-    try {
-      if (Firebase.apps.isNotEmpty) return true;
-      final options = firebaseOptionsFromEnv();
-      if (options != null) {
-        await Firebase.initializeApp(options: options);
-        return true;
-      }
-      await Firebase.initializeApp();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<void> initialize() async {
+  Future<void> initialize({bool registerBackgroundWorker = true}) async {
     if (_initialized) return;
     _initialized = true;
 
     await _initializeLocalPlugin();
+    _setupApnsBridge();
 
-    _firebaseReady = await initializeFirebaseIfConfigured();
-    if (_firebaseReady) {
-      await _setupFirebaseMessagingListeners();
+    if (registerBackgroundWorker &&
+        !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.android) {
+      await _initializeAndroidBackgroundWorker();
     }
   }
 
@@ -240,75 +201,63 @@ class PushNotificationService {
     } catch (_) {}
   }
 
-  Future<void> _setupFirebaseMessagingListeners() async {
-    try {
-      final messaging = FirebaseMessaging.instance;
+  void _setupApnsBridge() {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return;
+    if (_apnsListenerRegistered) return;
+    _apnsListenerRegistered = true;
 
-      if (!kIsWeb &&
-          (defaultTargetPlatform == TargetPlatform.iOS ||
-              defaultTargetPlatform == TargetPlatform.macOS)) {
-        await messaging.setForegroundNotificationPresentationOptions(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
-      }
-
-      await _onMessageSub?.cancel();
-      _onMessageSub = FirebaseMessaging.onMessage.listen((message) {
-        _incomingRefreshController.add(null);
-        final title = message.notification?.title ??
-            (message.data['title'] as String?) ??
-            'Shopy';
-        final body = message.notification?.body ??
-            (message.data['body'] as String?) ??
-            '';
-        final notifId =
-            (message.data['notification_id'] as String?) ??
-            message.messageId ??
-            '${title}_${body}_${DateTime.now().millisecondsSinceEpoch}';
-
-        // On iOS, APNs foreground banner is shown via setForegroundNotificationPresentationOptions.
-        // On Android, FCM does not display a banner while foregrounded, so we show a local notification.
-        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-          unawaited(
-            showLocalNotification(
-              id: notifId,
-              title: title,
-              body: body,
-              data: message.data,
-            ),
-          );
-        } else {
-          _rememberDisplayedId(notifId);
-        }
-      });
-
-      await _onOpenedSub?.cancel();
-      _onOpenedSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
-        _tapController.add(message.data);
-      });
-
-      await _onTokenRefreshSub?.cancel();
-      _onTokenRefreshSub = messaging.onTokenRefresh.listen((newToken) {
-        _currentToken = newToken;
-        if (_lastSyncedUserId != null) {
-          try {
-            unawaited(
-              _registerTokenRpc(
+    _apnsChannel.setMethodCallHandler((call) async {
+      if (call.method == 'onToken' && call.arguments is String) {
+        final token = (call.arguments as String).trim();
+        if (token.isNotEmpty) {
+          _currentApnsToken = token;
+          if (_lastSyncedUserId != null) {
+            try {
+              await _registerTokenRpc(
                 Supabase.instance.client,
-                token: newToken,
+                token: token,
                 enabled: _lastSyncedEnabled,
-              ),
-            );
-          } catch (_) {}
+              );
+            } catch (_) {}
+          }
         }
-      });
-
-      final initialMessage = await messaging.getInitialMessage();
-      if (initialMessage != null) {
-        _tapController.add(initialMessage.data);
+      } else if (call.method == 'onMessage') {
+        _incomingRefreshController.add(null);
       }
+    });
+  }
+
+  Future<void> _initializeAndroidBackgroundWorker() async {
+    if (_workmanagerInitialized) return;
+    try {
+      await Workmanager().initialize(pushNotificationsBackgroundDispatcher);
+      _workmanagerInitialized = true;
+    } catch (_) {}
+  }
+
+  Future<void> ensureBackgroundSyncScheduled({required bool enabled}) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    await _initializeAndroidBackgroundWorker();
+    if (!_workmanagerInitialized) return;
+    try {
+      if (!enabled) {
+        await Workmanager().cancelByUniqueName(_bgSyncUniqueName);
+        return;
+      }
+      await Workmanager().registerPeriodicTask(
+        _bgSyncUniqueName,
+        _bgSyncTaskName,
+        frequency: const Duration(minutes: 15),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+        constraints: Constraints(networkType: NetworkType.connected),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> cancelBackgroundSync() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await Workmanager().cancelByUniqueName(_bgSyncUniqueName);
     } catch (_) {}
   }
 
@@ -322,16 +271,7 @@ class PushNotificationService {
 
   /// Checks current OS permission without triggering a user prompt.
   Future<PushPermissionStatus> checkPermissionStatus() async {
-    if (kIsWeb) {
-      if (_firebaseReady) {
-        try {
-          final settings = await FirebaseMessaging.instance
-              .getNotificationSettings();
-          return _mapAuthorizationStatus(settings.authorizationStatus);
-        } catch (_) {}
-      }
-      return PushPermissionStatus.unknown;
-    }
+    if (kIsWeb) return PushPermissionStatus.unknown;
 
     try {
       if (defaultTargetPlatform == TargetPlatform.android) {
@@ -358,12 +298,6 @@ class PushNotificationService {
           return PushPermissionStatus.denied;
         }
       }
-
-      if (_firebaseReady) {
-        final settings = await FirebaseMessaging.instance
-            .getNotificationSettings();
-        return _mapAuthorizationStatus(settings.authorizationStatus);
-      }
     } catch (_) {}
 
     return PushPermissionStatus.unknown;
@@ -380,12 +314,7 @@ class PushNotificationService {
               AndroidFlutterLocalNotificationsPlugin
             >();
         final granted = await androidPlugin?.requestNotificationsPermission();
-        if (granted == true) {
-          if (_firebaseReady) {
-            await FirebaseMessaging.instance.requestPermission();
-          }
-          return PushPermissionStatus.granted;
-        }
+        if (granted == true) return PushPermissionStatus.granted;
         final alreadyEnabled = await androidPlugin?.areNotificationsEnabled();
         if (alreadyEnabled == true) return PushPermissionStatus.granted;
         return PushPermissionStatus.denied;
@@ -394,17 +323,6 @@ class PushNotificationService {
 
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       try {
-        if (_firebaseReady) {
-          final settings = await FirebaseMessaging.instance.requestPermission(
-            alert: true,
-            badge: true,
-            sound: true,
-            provisional: false,
-          );
-          final mapped = _mapAuthorizationStatus(settings.authorizationStatus);
-          if (mapped.isGranted) return mapped;
-        }
-
         final iosPlugin = _localNotifications
             .resolvePlatformSpecificImplementation<
               IOSFlutterLocalNotificationsPlugin
@@ -414,42 +332,21 @@ class PushNotificationService {
           badge: true,
           sound: true,
         );
-        if (granted == true) return PushPermissionStatus.granted;
+        if (granted == true) {
+          try {
+            await _apnsChannel.invokeMethod<void>('register');
+          } catch (_) {}
+          return PushPermissionStatus.granted;
+        }
         return PushPermissionStatus.denied;
-      } catch (_) {}
-    }
-
-    if (_firebaseReady) {
-      try {
-        final settings = await FirebaseMessaging.instance.requestPermission(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
-        return _mapAuthorizationStatus(settings.authorizationStatus);
       } catch (_) {}
     }
 
     return PushPermissionStatus.unknown;
   }
 
-  PushPermissionStatus _mapAuthorizationStatus(AuthorizationStatus status) {
-    switch (status) {
-      case AuthorizationStatus.authorized:
-        return PushPermissionStatus.granted;
-      case AuthorizationStatus.provisional:
-        return PushPermissionStatus.provisional;
-      case AuthorizationStatus.denied:
-        return PushPermissionStatus.denied;
-      case AuthorizationStatus.deniedPermanently:
-        return PushPermissionStatus.permanentlyDenied;
-      case AuthorizationStatus.notDetermined:
-        return PushPermissionStatus.unknown;
-    }
-  }
-
-  /// Displays a local notification banner unless this notification ID was
-  /// already displayed recently (deduplicating FCM + Realtime).
+  /// Displays a local OS notification banner unless this notification ID was
+  /// already displayed recently.
   Future<void> showLocalNotification({
     required String id,
     required String title,
@@ -461,7 +358,7 @@ class PushNotificationService {
     if (id.isNotEmpty && _recentlyDisplayedIds.contains(id)) return;
     _rememberDisplayedId(id);
 
-    await initialize();
+    await initialize(registerBackgroundWorker: false);
 
     const androidDetails = AndroidNotificationDetails(
       androidChannelId,
@@ -499,7 +396,8 @@ class PushNotificationService {
     } catch (_) {}
   }
 
-  /// Fetches the current FCM token and upserts it into Supabase.
+  /// Fetches the native iOS APNs token (when signed with Push capability) and
+  /// upserts it into Supabase.
   Future<String?> syncTokenWithSupabase(
     SupabaseClient client, {
     required String userId,
@@ -509,16 +407,14 @@ class PushNotificationService {
     _lastSyncedEnabled = enabled;
 
     await initialize();
-    if (!_firebaseReady) return null;
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return null;
 
     try {
-      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-        // Wait briefly for APNs token if available; FCM still returns token once APNs is ready.
-        await FirebaseMessaging.instance.getAPNSToken();
-      }
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token == null || token.trim().isEmpty) return null;
-      _currentToken = token;
+      await _apnsChannel.invokeMethod<void>('register');
+      final token = (await _apnsChannel.invokeMethod<String>('getToken'))
+          ?.trim();
+      if (token == null || token.isEmpty) return null;
+      _currentApnsToken = token;
       await _registerTokenRpc(client, token: token, enabled: enabled);
       return token;
     } catch (_) {
@@ -549,24 +445,85 @@ class PushNotificationService {
     try {
       await client.rpc(
         'set_push_notifications_enabled',
-        params: {'p_enabled': enabled, 'p_token': _currentToken},
+        params: {'p_enabled': enabled, 'p_token': _currentApnsToken},
       );
     } catch (_) {}
   }
 
   Future<void> unregisterToken(SupabaseClient client) async {
-    final token = _currentToken;
+    final token = _currentApnsToken;
     _lastSyncedUserId = null;
     await stopRealtimeListener(client);
+    await cancelBackgroundSync();
     if (token == null || token.isEmpty) return;
     try {
       await client.rpc('unregister_push_token', params: {'p_token': token});
     } catch (_) {}
   }
 
+  /// Queries Supabase for newly created notifications since the last background
+  /// check and displays local OS banners for unseen items.
+  Future<void> checkAndNotifyMissed(
+    SupabaseClient client, {
+    required String userId,
+    SharedPreferences? prefs,
+  }) async {
+    try {
+      final storage = prefs ?? await SharedPreferences.getInstance();
+      final lastSyncIso = storage.getString('${_lastSyncIsoKey}_$userId');
+      final shownList =
+          storage.getStringList('${_shownNotifIdsKey}_$userId') ?? <String>[];
+      final shownIds = shownList.toSet();
+      final nowIso = DateTime.now().toUtc().toIso8601String();
+
+      // First run establishes baseline without flooding historical alerts.
+      if (lastSyncIso == null || lastSyncIso.isEmpty) {
+        await storage.setString('${_lastSyncIsoKey}_$userId', nowIso);
+        return;
+      }
+
+      final rows = await client
+          .from('notifications')
+          .select()
+          .gt('created_at', lastSyncIso)
+          .order('created_at', ascending: true)
+          .limit(10);
+
+      final list = rows as List;
+      for (final raw in list) {
+        final map = Map<String, dynamic>.from(raw as Map);
+        final notif = AdminNotification.fromMap(map);
+        final createdBy = map['created_by'] as String?;
+        if (createdBy == userId || shownIds.contains(notif.id)) continue;
+
+        shownIds.add(notif.id);
+        await showLocalNotification(
+          id: notif.id,
+          title: notif.title,
+          body: notif.body,
+          data: <String, dynamic>{
+            'notification_id': notif.id,
+            'audience': notif.audience,
+            'sender_role': notif.senderRole,
+          },
+        );
+      }
+
+      if (list.isNotEmpty) {
+        _incomingRefreshController.add(null);
+      }
+
+      final trimmed = shownIds.toList();
+      if (trimmed.length > 100) {
+        trimmed.removeRange(0, trimmed.length - 100);
+      }
+      await storage.setStringList('${_shownNotifIdsKey}_$userId', trimmed);
+      await storage.setString('${_lastSyncIsoKey}_$userId', nowIso);
+    } catch (_) {}
+  }
+
   /// Listens to new rows in `public.notifications` via Supabase Realtime so
-  /// foreground banners and unread badges update instantaneously even before
-  /// Firebase keys are configured.
+  /// foreground banners and unread badges update instantaneously.
   void startRealtimeListener(
     SupabaseClient client, {
     required String userId,
@@ -575,7 +532,9 @@ class PushNotificationService {
   }) {
     unawaited(stopRealtimeListener(client));
     try {
-      final channel = client.channel('public:notifications:$userId:${DateTime.now().microsecondsSinceEpoch}');
+      final channel = client.channel(
+        'public:notifications:$userId:${DateTime.now().microsecondsSinceEpoch}',
+      );
       channel
           .onPostgresChanges(
             event: PostgresChangeEvent.insert,
@@ -588,7 +547,6 @@ class PushNotificationService {
                 Map<String, dynamic>.from(row),
               );
 
-              // Skip notifications authored by the current user themselves.
               final createdBy = row['created_by'] as String?;
               if (createdBy == userId) {
                 _incomingRefreshController.add(null);

@@ -6,6 +6,9 @@ import MediaPipeTasksVision
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var bodyAnalysis: BodyAnalysisHandler?
+  private var apnsChannel: FlutterMethodChannel?
+  private var apnsToken: String?
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -15,8 +18,57 @@ import MediaPipeTasksVision
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
+  override func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    let token = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+    apnsToken = token
+    DispatchQueue.main.async { [weak self] in
+      self?.apnsChannel?.invokeMethod("onToken", arguments: token)
+    }
+    super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    DispatchQueue.main.async { [weak self] in
+      self?.apnsChannel?.invokeMethod("onMessage", arguments: userInfo)
+    }
+    super.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
+  }
+
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
+    if let apnsRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "FashionApnsBridge") {
+      let channel = FlutterMethodChannel(name: "fashion/apns", binaryMessenger: apnsRegistrar.messenger())
+      apnsChannel = channel
+      channel.setMethodCallHandler { [weak self] call, result in
+        switch call.method {
+        case "getToken":
+          result(self?.apnsToken)
+        case "register":
+          DispatchQueue.main.async {
+            UIApplication.shared.registerForRemoteNotifications()
+          }
+          result(nil)
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
+    }
+
     guard let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "FashionBodyAnalysis") else { return }
     let handler = BodyAnalysisHandler()
     bodyAnalysis = handler
