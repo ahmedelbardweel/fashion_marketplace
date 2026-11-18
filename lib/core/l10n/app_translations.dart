@@ -337,8 +337,8 @@ class AppLang {
     'وجّه الكاميرا نحو القدمين والكاحلين في إضاءة واضحة.':
         'Keep your feet and ankles visible in good light.',
     // --- App & Navigation ---
-    'ملابسي': 'Shopy',
-    'Shopy': 'Shopy',
+    'ملابسي': 'وصلة',
+    'وصلة': 'وصلة',
     'أو': 'OR',
     'المتابعة باستخدام Google': 'Continue with Google',
     'تعذر تسجيل الدخول عبر Google': 'Failed to sign in with Google',
@@ -887,7 +887,7 @@ class AppLang {
     'الخطوة 1 من 3': 'Step 1 of 3',
     'الخطوة 2 من 3': 'Step 2 of 3',
     'الخطوة 3 من 3': 'Step 3 of 3',
-    'كيف تستخدم التطبيق؟': 'How will you use Shopy?',
+    'كيف تستخدم التطبيق؟': 'How will you use وصلة?',
     'اختر دورك لنجهّز لك التجربة والميزات المناسبة لك.':
         'Choose your role so we tailor the right experience for you.',
     'اختر لغة العرض واتجاه الواجهة المفضّلين لديك.':

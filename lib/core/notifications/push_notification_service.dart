@@ -106,7 +106,7 @@ class PushNotificationService {
   static final PushNotificationService instance = PushNotificationService._();
 
   static const String androidChannelId = 'shopy_notifications';
-  static const String androidChannelName = 'إشعارات Shopy';
+  static const String androidChannelName = 'إشعارات وصلة';
   static const String androidChannelDescription =
       'تنبيهات الطلبات والعروض وإشعارات المتاجر والإدارة';
 
@@ -367,7 +367,7 @@ class PushNotificationService {
         _incomingRefreshController.add(null);
         final title = message.notification?.title ??
             (message.data['title'] as String?) ??
-            'Shopy';
+            'وصلة';
         final body = message.notification?.body ??
             (message.data['body'] as String?) ??
             '';

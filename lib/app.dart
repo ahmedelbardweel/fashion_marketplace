@@ -131,8 +131,8 @@ class _FashionMarketplaceAppState extends ConsumerState<FashionMarketplaceApp> {
     AppLang.isEn = locale.languageCode == 'en';
 
     return MaterialApp.router(
-      title: 'Shopy',
-      onGenerateTitle: (_) => 'Shopy',
+      title: 'وصلة',
+      onGenerateTitle: (_) => 'وصلة',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
