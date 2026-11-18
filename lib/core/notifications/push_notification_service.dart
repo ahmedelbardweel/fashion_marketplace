@@ -3,8 +3,11 @@ import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'dart:ui';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,6 +16,9 @@ import 'package:workmanager/workmanager.dart';
 
 import '../../config/supabase_config.dart';
 import '../../features/admin/domain/models/catalog_models.dart';
+import '../offline/local_database.dart';
+import '../offline/network_monitor_service.dart';
+import '../offline/offline_sync_engine.dart';
 
 enum PushPermissionStatus {
   unknown,
@@ -50,6 +56,10 @@ void pushNotificationsBackgroundDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
     if (taskName != _bgSyncTaskName) return true;
     try {
+      WidgetsFlutterBinding.ensureInitialized();
+      DartPluginRegistrant.ensureInitialized();
+    } catch (_) {}
+    try {
       await dotenv.load(fileName: '.env');
     } catch (_) {}
 
@@ -62,6 +72,13 @@ void pushNotificationsBackgroundDispatcher() {
       final client = Supabase.instance.client;
       final user = client.auth.currentUser;
       if (user == null) return true;
+
+      // Flush any encrypted offline actions queued while offline
+      try {
+        await LocalDatabase.instance.initialize();
+        await NetworkMonitorService.instance.initialize();
+        await OfflineSyncEngine.instance.syncPendingActions();
+      } catch (_) {}
 
       final prefs = await SharedPreferences.getInstance();
       final enabled = prefs.getBool('app_push_notifications_enabled') ?? true;
@@ -241,6 +258,11 @@ class PushNotificationService {
         requestAlertPermission: false,
         requestBadgePermission: false,
         requestSoundPermission: false,
+        defaultPresentAlert: true,
+        defaultPresentBanner: true,
+        defaultPresentList: true,
+        defaultPresentSound: true,
+        defaultPresentBadge: true,
       );
       const initSettings = InitializationSettings(
         android: androidSettings,
@@ -602,6 +624,8 @@ class PushNotificationService {
     );
     const darwinDetails = DarwinNotificationDetails(
       presentAlert: true,
+      presentBanner: true,
+      presentList: true,
       presentBadge: true,
       presentSound: true,
     );

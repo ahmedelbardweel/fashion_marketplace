@@ -74,19 +74,29 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      unawaited(refreshStatus());
-      final client = _client;
-      final user = _ref.read(authControllerProvider).user;
-      if (client != null &&
-          user != null &&
-          this.state.isEffectivelyActive) {
-        unawaited(
-          PushNotificationService.instance.checkAndNotifyMissed(
-            client,
-            userId: user.id,
-          ),
-        );
-      }
+      unawaited(_onAppResumed());
+    }
+  }
+
+  Future<void> _onAppResumed() async {
+    await refreshStatus();
+    final client = _client;
+    final user = _ref.read(authControllerProvider).user;
+    if (client == null || user == null) return;
+
+    final showBanner =
+        state.permissionStatus.isGranted && state.notificationsEnabled;
+    PushNotificationService.instance.startRealtimeListener(
+      client,
+      userId: user.id,
+      role: user.role.name,
+      showForegroundBanner: showBanner,
+    );
+    if (showBanner) {
+      await PushNotificationService.instance.checkAndNotifyMissed(
+        client,
+        userId: user.id,
+      );
     }
   }
 

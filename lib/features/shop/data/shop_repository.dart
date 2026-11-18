@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
+import '../../../core/offline/local_database.dart';
+import '../../../core/offline/network_monitor_service.dart';
 import '../../../core/utils/map_utils.dart';
 import '../domain/models/shop.dart';
 
@@ -12,19 +16,44 @@ class ShopRepository {
       : _client = client ?? SupabaseConfig.client;
 
   final SupabaseClient _client;
+  final LocalDatabase _localDb = LocalDatabase.instance;
+
+  Future<String?> _resolveUserId() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid != null && uid.isNotEmpty) return uid;
+    final activeProfile = await _localDb.getActiveSessionProfile();
+    return activeProfile?.id;
+  }
 
   Future<Shop?> fetchMyShop() async {
-    final userId = _client.auth.currentUser?.id;
+    final userId = await _resolveUserId();
     if (userId == null) return null;
 
-    final data = await _client
-        .from('shops')
-        .select('*, owner:profiles!owner_id(full_name, email, phone)')
-        .eq('owner_id', userId)
-        .maybeSingle();
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final data = await _client
+            .from('shops')
+            .select('*, owner:profiles!owner_id(full_name, email, phone)')
+            .eq('owner_id', userId)
+            .maybeSingle();
 
-    if (data == null) return null;
-    return Shop.fromMap(Map<String, dynamic>.from(data), forOwner: true);
+        if (data == null) return null;
+        final shop = Shop.fromMap(
+          Map<String, dynamic>.from(data),
+          forOwner: true,
+        );
+        unawaited(_localDb.saveFullShop(shop));
+        return shop;
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+
+    return _localDb.getShopByOwnerId(userId);
   }
 
   Future<Shop> completeShopProfile({
@@ -49,30 +78,55 @@ class ShopRepository {
       },
     );
 
-    return Shop.fromMap(asStringMap(data), forOwner: true);
+    final shop = Shop.fromMap(asStringMap(data), forOwner: true);
+    await _localDb.saveFullShop(shop);
+    return shop;
   }
 
   Future<Shop> submitApplication() async {
     final data = await _client.rpc('submit_shop_application');
-    return Shop.fromMap(asStringMap(data), forOwner: true);
+    final shop = Shop.fromMap(asStringMap(data), forOwner: true);
+    await _localDb.saveFullShop(shop);
+    return shop;
   }
 
   Future<List<Shop>> fetchAllApplications() async {
-    final rows = await _client
-        .from('shops')
-        .select(_shopWithOwner)
-        .neq('status', 'draft')
-        .order('submitted_at', ascending: true);
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final rows = await _client
+            .from('shops')
+            .select(_shopWithOwner)
+            .neq('status', 'draft')
+            .order('submitted_at', ascending: true);
 
-    final shops = (rows as List)
-        .map(
-          (row) => Shop.fromMap(
-            Map<String, dynamic>.from(row as Map),
-            forOwner: false,
-          ),
-        )
-        .toList();
+        final shops = (rows as List)
+            .map(
+              (row) => Shop.fromMap(
+                Map<String, dynamic>.from(row as Map),
+                forOwner: false,
+              ),
+            )
+            .toList();
 
+        shops.sort((a, b) {
+          final pendingCompare = (a.status == ShopStatus.pending ? 0 : 1)
+              .compareTo(b.status == ShopStatus.pending ? 0 : 1);
+          if (pendingCompare != 0) return pendingCompare;
+          return (b.submittedAt ?? DateTime(0))
+              .compareTo(a.submittedAt ?? DateTime(0));
+        });
+        unawaited(_localDb.saveFullShops(shops));
+        return shops;
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+
+    final shops = await _localDb.getAllNonDraftShops();
     shops.sort((a, b) {
       final pendingCompare = (a.status == ShopStatus.pending ? 0 : 1)
           .compareTo(b.status == ShopStatus.pending ? 0 : 1);
@@ -84,13 +138,30 @@ class ShopRepository {
   }
 
   Future<Shop?> fetchShopById(String shopId) async {
-    final data = await _client
-        .from('shops')
-        .select(_shopWithOwner)
-        .eq('id', shopId)
-        .maybeSingle();
-    if (data == null) return null;
-    return Shop.fromMap(Map<String, dynamic>.from(data), forOwner: false);
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final data = await _client
+            .from('shops')
+            .select(_shopWithOwner)
+            .eq('id', shopId)
+            .maybeSingle();
+        if (data == null) return null;
+        final shop = Shop.fromMap(
+          Map<String, dynamic>.from(data),
+          forOwner: false,
+        );
+        unawaited(_localDb.saveFullShop(shop));
+        return shop;
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+
+    return _localDb.getShopById(shopId, forOwner: false);
   }
 
   Future<Shop> reviewApplication({
@@ -107,7 +178,21 @@ class ShopRepository {
       },
     );
 
-    return Shop.fromMap(asStringMap(data), forOwner: false);
+    final shop = Shop.fromMap(asStringMap(data), forOwner: false);
+    await _localDb.saveFullShop(shop);
+    return shop;
+  }
+
+  bool _isNetworkError(Object error) {
+    final msg = error.toString().toLowerCase();
+    return msg.contains('socketexception') ||
+        msg.contains('failed host lookup') ||
+        msg.contains('clientexception') ||
+        msg.contains('connection closed') ||
+        msg.contains('connection refused') ||
+        msg.contains('network is unreachable') ||
+        msg.contains('timed out') ||
+        msg.contains('xmlhttprequest error');
   }
 
   String mapError(Object error) {

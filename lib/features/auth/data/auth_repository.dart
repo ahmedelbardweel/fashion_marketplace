@@ -1,9 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
+import '../../../core/offline/background_preloader_service.dart';
+import '../../../core/offline/local_database.dart';
+import '../../../core/offline/network_monitor_service.dart';
+import '../../../core/offline/offline_sync_engine.dart';
 import '../domain/models/app_user.dart';
 import '../domain/models/user_role.dart';
 
@@ -12,6 +18,7 @@ class AuthRepository {
     : _client = client ?? SupabaseConfig.client;
 
   final SupabaseClient _client;
+  final LocalDatabase _localDb = LocalDatabase.instance;
 
   Session? get currentSession => _client.auth.currentSession;
   User? get currentAuthUser => _client.auth.currentUser;
@@ -20,23 +27,47 @@ class AuthRepository {
 
   Future<AppUser?> fetchCurrentProfile() async {
     final user = currentAuthUser;
-    if (user == null) return null;
-
-    Map<String, dynamic>? data;
-    for (var attempt = 0; attempt < 5; attempt++) {
-      final res = await _client
-          .from('profiles')
-          .select()
-          .eq('id', user.id)
-          .maybeSingle();
-      if (res != null) {
-        data = Map<String, dynamic>.from(res);
-        break;
+    if (user == null) {
+      // Offline session fallback if encrypted profile exists locally
+      if (!NetworkMonitorService.instance.isOnline) {
+        return _localDb.getActiveSessionProfile();
       }
-      await Future<void>.delayed(const Duration(milliseconds: 250));
+      return null;
     }
 
-    if (data == null) return null;
+    if (!NetworkMonitorService.instance.isOnline) {
+      final cached =
+          await _localDb.getUserProfile(user.id) ??
+          await _localDb.getActiveSessionProfile();
+      if (cached != null) return cached;
+    }
+
+    Map<String, dynamic>? data;
+    try {
+      for (var attempt = 0; attempt < 5; attempt++) {
+        final res = await _client
+            .from('profiles')
+            .select()
+            .eq('id', user.id)
+            .maybeSingle();
+        if (res != null) {
+          data = Map<String, dynamic>.from(res);
+          break;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+    } catch (_) {
+      NetworkMonitorService.instance.reportNetworkFailure();
+      final cached =
+          await _localDb.getUserProfile(user.id) ??
+          await _localDb.getActiveSessionProfile();
+      if (cached != null) return cached;
+      return null;
+    }
+
+    if (data == null) {
+      return await _localDb.getUserProfile(user.id);
+    }
 
     final currentFullName = (data['full_name'] as String?)?.trim();
     if (currentFullName == null || currentFullName.isEmpty) {
@@ -49,7 +80,15 @@ class AuthRepository {
       }
     }
 
-    return AppUser.fromMap(data);
+    final profile = AppUser.fromMap(data);
+    await _localDb.saveUserProfile(profile, isCurrentSession: true);
+    unawaited(
+      BackgroundPreloaderService.instance.preloadAllSilently(
+        currentUser: profile,
+      ),
+    );
+    unawaited(OfflineSyncEngine.instance.syncPendingActions());
+    return profile;
   }
 
   /// يفتح نافذة اختيار حساب Google الأصلية (Bottom Sheet داخل التطبيق) على أندرويد وآيفون
@@ -186,6 +225,13 @@ class AuthRepository {
     }
 
     final profile = await _waitForProfile(response.user!.id);
+    await _localDb.saveUserProfile(profile, isCurrentSession: true);
+    unawaited(
+      BackgroundPreloaderService.instance.preloadAllSilently(
+        currentUser: profile,
+        force: true,
+      ),
+    );
     return profile;
   }
 
@@ -218,6 +264,13 @@ class AuthRepository {
     }
 
     final profile = await _waitForProfile(response.user!.id);
+    await _localDb.saveUserProfile(profile, isCurrentSession: true);
+    unawaited(
+      BackgroundPreloaderService.instance.preloadAllSilently(
+        currentUser: profile,
+        force: true,
+      ),
+    );
     return profile;
   }
 
@@ -238,7 +291,10 @@ class AuthRepository {
   }
 
   Future<void> signOut() async {
-    await _client.auth.signOut();
+    await _localDb.clearActiveSession();
+    try {
+      await _client.auth.signOut();
+    } catch (_) {}
   }
 
   String mapAuthError(Object error) {

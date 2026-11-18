@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   app_links_linux
   file_selector_linux
   flutter_onnxruntime
+  flutter_secure_storage_linux
   flutter_webrtc
   url_launcher_linux
 )

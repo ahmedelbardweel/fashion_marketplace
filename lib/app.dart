@@ -7,10 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/notifications/push_notification_provider.dart';
 import 'core/notifications/push_notification_service.dart';
+import 'core/offline/background_preloader_service.dart';
+import 'core/offline/offline_providers.dart';
+import 'core/offline/offline_sync_engine.dart';
 import 'core/theme/app_design.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/domain/models/user_role.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
+import 'features/customer/presentation/providers/customer_providers.dart';
 import 'router/app_router.dart';
 import 'router/routes.dart';
 
@@ -40,6 +44,12 @@ class _FashionMarketplaceAppState extends ConsumerState<FashionMarketplaceApp> {
               .read(pushNotificationControllerProvider.notifier)
               .handleAuthUser(auth.user),
         );
+        unawaited(
+          BackgroundPreloaderService.instance.preloadAllSilently(
+            currentUser: auth.user,
+          ),
+        );
+        unawaited(OfflineSyncEngine.instance.syncPendingActions());
       }
     });
   }
@@ -79,9 +89,40 @@ class _FashionMarketplaceAppState extends ConsumerState<FashionMarketplaceApp> {
               .read(pushNotificationControllerProvider.notifier)
               .handleAuthUser(nextUser),
         );
+        if (nextUser != null) {
+          unawaited(
+            BackgroundPreloaderService.instance.preloadAllSilently(
+              currentUser: nextUser,
+              force: true,
+            ),
+          );
+          unawaited(OfflineSyncEngine.instance.syncPendingActions());
+        }
       }
     });
 
+    // When offline sync finishes pushing queued actions to Supabase,
+    // refresh active providers so official server IDs & states are reflected.
+    ref.listen<AsyncValue<SyncStatusSnapshot>>(syncStatusProvider, (
+      previous,
+      next,
+    ) {
+      final wasSyncing = previous?.valueOrNull?.isSyncing ?? false;
+      final nowSyncing = next.valueOrNull?.isSyncing ?? false;
+      if (wasSyncing && !nowSyncing) {
+        ref.invalidate(customerOrdersProvider);
+        ref.invalidate(customerBannersProvider);
+        ref.invalidate(customerCategoriesProvider);
+        ref.invalidate(customerShopsProvider);
+        unawaited(ref.read(cartProvider.notifier).loadFromRemote());
+        unawaited(
+          ref.read(productComparisonProvider.notifier).loadFromRemote(),
+        );
+      }
+    });
+
+    ref.watch(pushNotificationControllerProvider);
+    ref.watch(syncStatusProvider);
     final router = ref.watch(goRouterProvider);
     final themeMode = ref.watch(themeModeProvider);
     final locale = ref.watch(appLocaleProvider);

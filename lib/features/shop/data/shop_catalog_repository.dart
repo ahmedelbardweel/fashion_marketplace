@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
 import '../../../core/filtering/filter_models.dart';
+import '../../../core/offline/local_database.dart';
+import '../../../core/offline/network_monitor_service.dart';
+import '../../../core/offline/offline_sync_engine.dart';
 import '../../../core/pagination/paginated_state.dart';
 import '../../../core/utils/map_utils.dart';
 import '../../admin/domain/models/catalog_models.dart';
@@ -13,36 +18,139 @@ class ShopCatalogRepository {
     : _client = client ?? SupabaseConfig.client;
 
   final SupabaseClient _client;
+  final LocalDatabase _localDb = LocalDatabase.instance;
 
   static const _productSelect =
       '*, categories(name), product_variants(*), product_images(*)';
 
+  Future<String?> _resolveUserId() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid != null && uid.isNotEmpty) return uid;
+    final activeProfile = await _localDb.getActiveSessionProfile();
+    return activeProfile?.id;
+  }
+
+  Future<String?> _resolveCurrentShopId() async {
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final shopId = await _client.rpc('current_shop_id');
+        if (shopId != null) return shopId.toString();
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        }
+      }
+    }
+    final userId = await _resolveUserId();
+    if (userId == null) return null;
+    final cachedShop = await _localDb.getShopByOwnerId(userId);
+    return cachedShop?.id;
+  }
+
   Future<ShopProduct> saveProductForm(Map<String, dynamic> data) async {
-    final result = await _client.rpc(
-      'shop_save_product_form',
-      params: {'p_data': data},
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final result = await _client.rpc(
+          'shop_save_product_form',
+          params: {'p_data': data},
+        );
+        final product = ShopProduct.fromMap(asStringMap(result));
+        await _localDb.saveShopProducts([product]);
+        return product;
+      } catch (e) {
+        if (!_isNetworkError(e)) rethrow;
+        NetworkMonitorService.instance.reportNetworkFailure();
+      }
+    }
+
+    final userId = await _resolveUserId();
+    final shopId = await _resolveCurrentShopId();
+    if (userId == null || shopId == null) {
+      throw StateError('تعذر حفظ المنتج بدون جلسة محل صالحة');
+    }
+
+    final productId =
+        (data['id']?.toString().isNotEmpty ?? false)
+            ? data['id'].toString()
+            : 'offline_prod_${DateTime.now().millisecondsSinceEpoch}';
+
+    final localProduct = ShopProduct(
+      id: productId,
+      shopId: shopId,
+      name: data['name']?.toString() ?? '',
+      description: data['description']?.toString(),
+      price: (data['price'] as num?)?.toDouble() ?? 0.0,
+      status: data['status']?.toString() ?? 'draft',
+      categoryId: data['category_id']?.toString(),
+      details: Map<String, dynamic>.from(data['details'] as Map? ?? {}),
     );
-    return ShopProduct.fromMap(asStringMap(result));
+    await _localDb.saveShopProducts([localProduct]);
+
+    await OfflineSyncEngine.instance.enqueue(
+      id: 'shop_save_product_$productId',
+      userId: userId,
+      actionType: 'shop_save_product_form',
+      entityId: productId,
+      payload: {'data': data},
+    );
+    return localProduct;
   }
 
   Future<ShopStats> fetchStats() async {
-    final data = await _client.rpc('shop_dashboard_stats');
-    return ShopStats.fromMap(asStringMap(data));
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final data = await _client.rpc('shop_dashboard_stats');
+        return ShopStats.fromMap(asStringMap(data));
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+
+    final shopId = await _resolveCurrentShopId();
+    if (shopId == null) {
+      return const ShopStats(
+        products: 0,
+        publishedProducts: 0,
+        orders: 0,
+        pendingOrders: 0,
+        salesTotal: 0,
+        stockUnits: 0,
+      );
+    }
+    return _localDb.computeShopStats(shopId);
   }
 
   Future<List<CatalogCategory>> fetchActiveCategories() async {
-    final rows = await _client
-        .from('categories')
-        .select()
-        .eq('is_active', true)
-        .order('sort_order')
-        .order('name');
-    return (rows as List)
-        .map(
-          (row) =>
-              CatalogCategory.fromMap(Map<String, dynamic>.from(row as Map)),
-        )
-        .toList();
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final rows = await _client
+            .from('categories')
+            .select()
+            .eq('is_active', true)
+            .order('sort_order')
+            .order('name');
+        final categories = (rows as List)
+            .map(
+              (row) => CatalogCategory.fromMap(
+                Map<String, dynamic>.from(row as Map),
+              ),
+            )
+            .toList();
+        unawaited(_localDb.saveCategories(categories));
+        return categories;
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+    return _localDb.getCategories(activeOnly: true);
   }
 
   Future<PaginatedPage<ShopProduct>> fetchMyProductsPage({
@@ -55,57 +163,87 @@ class ShopCatalogRepository {
     String? search,
     ProductSortOption sort = ProductSortOption.newest,
   }) async {
-    final shopId = await _client.rpc('current_shop_id');
+    final shopId = await _resolveCurrentShopId();
     if (shopId == null) {
       return const PaginatedPage<ShopProduct>(items: [], rawCount: 0);
     }
 
-    var query = _client
-        .from('products')
-        .select(_productSelect)
-        .eq('shop_id', shopId)
-        .neq('status', 'deleted');
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        var query = _client
+            .from('products')
+            .select(_productSelect)
+            .eq('shop_id', shopId)
+            .neq('status', 'deleted');
 
-    if (status != null && status.isNotEmpty) {
-      query = query.eq('status', status);
-    }
-    if (categoryId != null && categoryId.isNotEmpty) {
-      query = query.eq('category_id', categoryId);
-    }
-    if (minPrice != null) {
-      query = query.gte('price', minPrice);
-    }
-    if (maxPrice != null) {
-      query = query.lte('price', maxPrice);
-    }
-    if (search != null && search.trim().isNotEmpty) {
-      query = query.ilike('name', '%${search.trim()}%');
+        if (status != null && status.isNotEmpty) {
+          query = query.eq('status', status);
+        }
+        if (categoryId != null && categoryId.isNotEmpty) {
+          query = query.eq('category_id', categoryId);
+        }
+        if (minPrice != null) {
+          query = query.gte('price', minPrice);
+        }
+        if (maxPrice != null) {
+          query = query.lte('price', maxPrice);
+        }
+        if (search != null && search.trim().isNotEmpty) {
+          query = query.ilike('name', '%${search.trim()}%');
+        }
+
+        final orderedQuery = switch (sort) {
+          ProductSortOption.priceAsc =>
+            query
+                .order('price', ascending: true)
+                .order('updated_at', ascending: false),
+          ProductSortOption.priceDesc =>
+            query
+                .order('price', ascending: false)
+                .order('updated_at', ascending: false),
+          ProductSortOption.nameAsc =>
+            query
+                .order('name', ascending: true)
+                .order('updated_at', ascending: false),
+          _ => query.order('updated_at', ascending: false),
+        };
+
+        final from = offset < 0 ? 0 : offset;
+        final to = from + limit - 1;
+        final rawRows = await orderedQuery.range(from, to) as List;
+
+        final items = rawRows
+            .map(
+              (row) =>
+                  ShopProduct.fromMap(Map<String, dynamic>.from(row as Map)),
+            )
+            .toList();
+        unawaited(_localDb.saveShopProducts(items));
+
+        return PaginatedPage<ShopProduct>(
+          items: items,
+          rawCount: rawRows.length,
+        );
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
     }
 
-    final orderedQuery = switch (sort) {
-      ProductSortOption.priceAsc => query
-          .order('price', ascending: true)
-          .order('updated_at', ascending: false),
-      ProductSortOption.priceDesc => query
-          .order('price', ascending: false)
-          .order('updated_at', ascending: false),
-      ProductSortOption.nameAsc => query
-          .order('name', ascending: true)
-          .order('updated_at', ascending: false),
-      _ => query.order('updated_at', ascending: false),
-    };
-
-    final from = offset < 0 ? 0 : offset;
-    final to = from + limit - 1;
-    final rawRows = await orderedQuery.range(from, to) as List;
-
-    final items = rawRows
-        .map(
-          (row) => ShopProduct.fromMap(Map<String, dynamic>.from(row as Map)),
-        )
-        .toList();
-
-    return PaginatedPage<ShopProduct>(items: items, rawCount: rawRows.length);
+    return _localDb.getShopProductsPage(
+      shopId: shopId,
+      limit: limit,
+      offset: offset,
+      status: status,
+      categoryId: categoryId,
+      minPrice: minPrice,
+      maxPrice: maxPrice,
+      search: search,
+      sort: sort,
+    );
   }
 
   Future<List<ShopProduct>> fetchMyProducts() async {
@@ -114,13 +252,26 @@ class ShopCatalogRepository {
   }
 
   Future<ShopProduct?> fetchProduct(String productId) async {
-    final data = await _client
-        .from('products')
-        .select(_productSelect)
-        .eq('id', productId)
-        .maybeSingle();
-    if (data == null) return null;
-    return ShopProduct.fromMap(Map<String, dynamic>.from(data));
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final data = await _client
+            .from('products')
+            .select(_productSelect)
+            .eq('id', productId)
+            .maybeSingle();
+        if (data == null) return null;
+        final product = ShopProduct.fromMap(Map<String, dynamic>.from(data));
+        unawaited(_localDb.saveShopProducts([product]));
+        return product;
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+    return _localDb.getShopProductById(productId);
   }
 
   Future<ShopProduct> upsertProduct({
@@ -150,12 +301,36 @@ class ShopCatalogRepository {
     required String productId,
     required String status,
   }) async {
-    final data = await _client.rpc(
-      'shop_set_product_status',
-      params: {'p_product_id': productId, 'p_status': status},
-    );
-    final product = ShopProduct.fromMap(asStringMap(data));
-    return (await fetchProduct(product.id)) ?? product;
+    await _localDb.updateProductStatusLocal(productId, status);
+
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final data = await _client.rpc(
+          'shop_set_product_status',
+          params: {'p_product_id': productId, 'p_status': status},
+        );
+        final product = ShopProduct.fromMap(asStringMap(data));
+        return (await fetchProduct(product.id)) ?? product;
+      } catch (e) {
+        if (!_isNetworkError(e)) rethrow;
+        NetworkMonitorService.instance.reportNetworkFailure();
+      }
+    }
+
+    final userId = await _resolveUserId();
+    if (userId != null) {
+      await OfflineSyncEngine.instance.enqueue(
+        id: 'shop_prod_status_$productId',
+        userId: userId,
+        actionType: 'shop_set_product_status',
+        entityId: productId,
+        payload: {'product_id': productId, 'status': status},
+      );
+    }
+
+    final cached = await _localDb.getShopProductById(productId);
+    if (cached != null) return cached;
+    throw StateError('تعذر العثور على المنتج محلياً');
   }
 
   Future<ProductVariant> upsertVariant({
@@ -195,65 +370,129 @@ class ShopCatalogRepository {
   }
 
   Future<List<ShopOrder>> fetchOrders() async {
-    final shopId = await _client.rpc('current_shop_id');
+    final shopId = await _resolveCurrentShopId();
     if (shopId == null) return const [];
 
-    final rows = await _client
-        .from('orders')
-        .select('*, customer:profiles!customer_id(full_name, email)')
-        .eq('shop_id', shopId)
-        .order('created_at', ascending: false);
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final rows = await _client
+            .from('orders')
+            .select('*, customer:profiles!customer_id(full_name, email)')
+            .eq('shop_id', shopId)
+            .order('created_at', ascending: false);
 
-    return (rows as List)
-        .map((row) => ShopOrder.fromMap(Map<String, dynamic>.from(row as Map)))
-        .toList();
+        final orders = (rows as List)
+            .map(
+              (row) => ShopOrder.fromMap(Map<String, dynamic>.from(row as Map)),
+            )
+            .toList();
+        unawaited(_localDb.saveShopOrders(shopId, orders));
+        return orders;
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+
+    return _localDb.getShopOrders(shopId);
   }
 
   Future<ShopOrder> updateOrderStatus({
     required String orderId,
     required String status,
   }) async {
-    final data = await _client.rpc(
-      'shop_update_order_status',
-      params: {'p_order_id': orderId, 'p_status': status},
-    );
-    final updated = ShopOrder.fromMap(asStringMap(data));
-    final customerId = updated.customerId;
-    if (customerId != null && customerId.isNotEmpty) {
+    await _localDb.updateOrderStatusLocal(orderId, status);
+
+    if (NetworkMonitorService.instance.isOnline) {
       try {
-        final rows = await _client
-            .from('notifications')
-            .select('id')
-            .eq('target_user_id', customerId)
-            .eq('sender_role', 'shop')
-            .order('created_at', ascending: false)
-            .limit(1);
-        final list = rows as List;
-        if (list.isNotEmpty) {
-          final notifId = (list.first as Map)['id'] as String?;
-          if (notifId != null && notifId.isNotEmpty) {
-            await _client.functions.invoke(
-              'send-push-notification',
-              body: {'notification_id': notifId},
-            );
-          }
+        final data = await _client.rpc(
+          'shop_update_order_status',
+          params: {'p_order_id': orderId, 'p_status': status},
+        );
+        final updated = ShopOrder.fromMap(asStringMap(data));
+        final customerId = updated.customerId;
+        if (customerId != null && customerId.isNotEmpty) {
+          try {
+            final rows = await _client
+                .from('notifications')
+                .select('id')
+                .eq('target_user_id', customerId)
+                .eq('sender_role', 'shop')
+                .order('created_at', ascending: false)
+                .limit(1);
+            final list = rows as List;
+            if (list.isNotEmpty) {
+              final notifId = (list.first as Map)['id'] as String?;
+              if (notifId != null && notifId.isNotEmpty) {
+                await _client.functions.invoke(
+                  'send-push-notification',
+                  body: {'notification_id': notifId},
+                );
+              }
+            }
+          } catch (_) {}
         }
-      } catch (_) {}
+        return updated;
+      } catch (e) {
+        if (!_isNetworkError(e)) rethrow;
+        NetworkMonitorService.instance.reportNetworkFailure();
+      }
     }
-    return updated;
+
+    final userId = await _resolveUserId();
+    if (userId != null) {
+      await OfflineSyncEngine.instance.enqueue(
+        id: 'shop_order_status_$orderId',
+        userId: userId,
+        actionType: 'shop_update_order_status',
+        entityId: orderId,
+        payload: {'order_id': orderId, 'status': status},
+      );
+    }
+
+    final shopId = await _resolveCurrentShopId();
+    final orders = shopId != null
+        ? await _localDb.getShopOrders(shopId)
+        : const <ShopOrder>[];
+    return orders.firstWhere(
+      (o) => o.id == orderId,
+      orElse: () => ShopOrder(
+        id: orderId,
+        status: status,
+        total: 0,
+        createdAt: DateTime.now(),
+      ),
+    );
   }
 
   Future<List<AdminNotification>> fetchNotifications() async {
-    final rows = await _client
-        .from('notifications')
-        .select()
-        .order('created_at', ascending: false);
-    return (rows as List)
-        .map(
-          (row) =>
-              AdminNotification.fromMap(Map<String, dynamic>.from(row as Map)),
-        )
-        .toList();
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final rows = await _client
+            .from('notifications')
+            .select()
+            .order('created_at', ascending: false);
+        final list = (rows as List)
+            .map(
+              (row) => AdminNotification.fromMap(
+                Map<String, dynamic>.from(row as Map),
+              ),
+            )
+            .toList();
+        unawaited(_localDb.saveNotifications(list));
+        return list;
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+    return _localDb.getNotifications();
   }
 
   Future<AdminNotification> sendNotification({
@@ -284,7 +523,9 @@ class ShopCatalogRepository {
       'shop_set_media',
       params: {'p_logo_path': logoPath, 'p_cover_path': coverPath},
     );
-    return Shop.fromMap(asStringMap(data), forOwner: true);
+    final shop = Shop.fromMap(asStringMap(data), forOwner: true);
+    await _localDb.saveFullShop(shop);
+    return shop;
   }
 
   Future<ShopMediaItem> addShopImage({
@@ -310,33 +551,63 @@ class ShopCatalogRepository {
   }
 
   Future<List<ShopMediaItem>> fetchShopImages() async {
-    final shopId = await _client.rpc('current_shop_id');
+    final shopId = await _resolveCurrentShopId();
     if (shopId == null) return const [];
-    final rows = await _client
-        .from('shop_images')
-        .select()
-        .eq('shop_id', shopId)
-        .order('created_at', ascending: false);
-    return (rows as List)
-        .map(
-          (row) => ShopMediaItem.fromMap(Map<String, dynamic>.from(row as Map)),
-        )
-        .toList();
+
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final rows = await _client
+            .from('shop_images')
+            .select()
+            .eq('shop_id', shopId)
+            .order('created_at', ascending: false);
+        final items = (rows as List)
+            .map(
+              (row) =>
+                  ShopMediaItem.fromMap(Map<String, dynamic>.from(row as Map)),
+            )
+            .toList();
+        unawaited(_localDb.saveShopImages(shopId, items));
+        return items;
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+    return _localDb.getShopImages(shopId);
   }
 
   Future<List<ShopMediaItem>> fetchDocuments() async {
-    final shopId = await _client.rpc('current_shop_id');
+    final shopId = await _resolveCurrentShopId();
     if (shopId == null) return const [];
-    final rows = await _client
-        .from('shop_documents')
-        .select()
-        .eq('shop_id', shopId)
-        .order('created_at', ascending: false);
-    return (rows as List)
-        .map(
-          (row) => ShopMediaItem.fromMap(Map<String, dynamic>.from(row as Map)),
-        )
-        .toList();
+
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final rows = await _client
+            .from('shop_documents')
+            .select()
+            .eq('shop_id', shopId)
+            .order('created_at', ascending: false);
+        final docs = (rows as List)
+            .map(
+              (row) =>
+                  ShopMediaItem.fromMap(Map<String, dynamic>.from(row as Map)),
+            )
+            .toList();
+        unawaited(_localDb.saveShopDocuments(shopId, docs));
+        return docs;
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+    return _localDb.getShopDocuments(shopId);
   }
 
   Future<Shop> updateProfile({
@@ -348,19 +619,83 @@ class ShopCatalogRepository {
     required String ownerName,
     required String phone,
   }) async {
-    final data = await _client.rpc(
-      'shop_update_profile',
-      params: {
-        'p_shop_name': shopName,
-        'p_description': description,
-        'p_city': city,
-        'p_address': address,
-        'p_commercial_register': commercialRegister,
-        'p_owner_name': ownerName,
-        'p_phone': phone,
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final data = await _client.rpc(
+          'shop_update_profile',
+          params: {
+            'p_shop_name': shopName,
+            'p_description': description,
+            'p_city': city,
+            'p_address': address,
+            'p_commercial_register': commercialRegister,
+            'p_owner_name': ownerName,
+            'p_phone': phone,
+          },
+        );
+        final shop = Shop.fromMap(asStringMap(data), forOwner: true);
+        await _localDb.saveFullShop(shop);
+        return shop;
+      } catch (e) {
+        if (!_isNetworkError(e)) rethrow;
+        NetworkMonitorService.instance.reportNetworkFailure();
+      }
+    }
+
+    final userId = await _resolveUserId();
+    final existing = userId != null
+        ? await _localDb.getShopByOwnerId(userId)
+        : null;
+    if (userId == null || existing == null) {
+      throw StateError('تعذر تحديث بيانات المحل بدون اتصال');
+    }
+
+    final updatedShop = Shop(
+      id: existing.id,
+      ownerId: existing.ownerId,
+      name: shopName,
+      description: description,
+      city: city,
+      address: address,
+      commercialRegister: commercialRegister,
+      logoPath: existing.logoPath,
+      coverPath: existing.coverPath,
+      status: existing.status,
+      visibleStatus: existing.visibleStatus,
+      ownerName: ownerName,
+      ownerEmail: existing.ownerEmail,
+      ownerPhone: phone,
+    );
+    await _localDb.saveFullShop(updatedShop);
+
+    await OfflineSyncEngine.instance.enqueue(
+      id: 'shop_update_profile_${existing.id}',
+      userId: userId,
+      actionType: 'shop_update_profile',
+      entityId: existing.id,
+      payload: {
+        'shop_name': shopName,
+        'description': description,
+        'city': city,
+        'address': address,
+        'commercial_register': commercialRegister,
+        'owner_name': ownerName,
+        'phone': phone,
       },
     );
-    return Shop.fromMap(asStringMap(data), forOwner: true);
+    return updatedShop;
+  }
+
+  bool _isNetworkError(Object error) {
+    final msg = error.toString().toLowerCase();
+    return msg.contains('socketexception') ||
+        msg.contains('failed host lookup') ||
+        msg.contains('clientexception') ||
+        msg.contains('connection closed') ||
+        msg.contains('connection refused') ||
+        msg.contains('network is unreachable') ||
+        msg.contains('timed out') ||
+        msg.contains('xmlhttprequest error');
   }
 
   String mapError(Object error) {

@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/offline/local_database.dart';
+import '../../../../core/offline/network_monitor_service.dart';
 import '../../data/auth_repository.dart';
 import '../../domain/models/app_user.dart';
 import '../../domain/models/user_role.dart';
@@ -74,6 +76,18 @@ class AuthController extends StateNotifier<AuthSessionState> {
     _repository.authStateChanges.listen((data) async {
       final event = data.event;
       if (event == AuthChangeEvent.signedOut) {
+        if (!NetworkMonitorService.instance.isOnline) {
+          // Preserve offline session if token refresh failed due to no internet
+          final cachedUser = await LocalDatabase.instance
+              .getActiveSessionProfile();
+          if (cachedUser != null && cachedUser.isActive) {
+            state = AuthSessionState(
+              status: AuthStatus.authenticated,
+              user: cachedUser,
+            );
+            return;
+          }
+        }
         state = const AuthSessionState(status: AuthStatus.unauthenticated);
         return;
       }
@@ -89,12 +103,41 @@ class AuthController extends StateNotifier<AuthSessionState> {
     try {
       final session = _repository.currentSession;
       if (session == null) {
+        if (!NetworkMonitorService.instance.isOnline) {
+          final offlineProfile = await LocalDatabase.instance
+              .getActiveSessionProfile();
+          if (offlineProfile != null && offlineProfile.isActive) {
+            state = AuthSessionState(
+              status: AuthStatus.authenticated,
+              user: offlineProfile,
+            );
+            return;
+          }
+        }
         state = const AuthSessionState(status: AuthStatus.unauthenticated);
         return;
       }
 
       final profile = await _repository.fetchCurrentProfile();
-      if (profile == null || !profile.isActive) {
+      if (profile == null) {
+        final offlineProfile =
+            await LocalDatabase.instance.getUserProfile(session.user.id) ??
+            await LocalDatabase.instance.getActiveSessionProfile();
+        if (offlineProfile != null && offlineProfile.isActive) {
+          state = AuthSessionState(
+            status: AuthStatus.authenticated,
+            user: offlineProfile,
+          );
+          return;
+        }
+        if (NetworkMonitorService.instance.isOnline) {
+          await _repository.signOut();
+        }
+        state = const AuthSessionState(status: AuthStatus.unauthenticated);
+        return;
+      }
+
+      if (!profile.isActive) {
         await _repository.signOut();
         state = const AuthSessionState(status: AuthStatus.unauthenticated);
         return;
@@ -105,6 +148,15 @@ class AuthController extends StateNotifier<AuthSessionState> {
         user: profile,
       );
     } catch (_) {
+      final offlineProfile = await LocalDatabase.instance
+          .getActiveSessionProfile();
+      if (offlineProfile != null && offlineProfile.isActive) {
+        state = AuthSessionState(
+          status: AuthStatus.authenticated,
+          user: offlineProfile,
+        );
+        return;
+      }
       state = const AuthSessionState(status: AuthStatus.unauthenticated);
     }
   }
@@ -226,6 +278,7 @@ class AuthController extends StateNotifier<AuthSessionState> {
   }
 
   void setUser(AppUser user) {
+    LocalDatabase.instance.saveUserProfile(user, isCurrentSession: true);
     state = AuthSessionState(
       status: AuthStatus.authenticated,
       user: user,
