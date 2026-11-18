@@ -14,6 +14,8 @@ import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/product_grid_card.dart';
 import '../../../../router/routes.dart';
 import '../../../admin/domain/models/catalog_models.dart';
+import '../../../auth/domain/models/app_user.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/models/customer_product.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
@@ -44,9 +46,11 @@ class CustomerHomeScreen extends ConsumerWidget {
     final shopsAsync = ref.watch(customerShopsProvider);
     final productsState = ref.watch(homeProductsProvider);
     final homeFilter = ref.watch(homeProductFilterProvider);
+    final currentUser = ref.watch(authControllerProvider).user;
 
     return CustomerScaffold(
-      title: 'السوق العصري'.tr,
+      title: 'مرحباً'.tr,
+      titleWidget: _HomeGreetingHeader(user: currentUser),
       currentNavIndex: 0,
       showBack: false,
       showProfile: true,
@@ -64,7 +68,7 @@ class CustomerHomeScreen extends ConsumerWidget {
           onLoadMore: ref.read(homeProductsProvider.notifier).loadMore,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+            padding: const EdgeInsets.only(bottom: AppSpacing.xs),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -81,16 +85,44 @@ class CustomerHomeScreen extends ConsumerWidget {
                   error: (_, _) => const SizedBox.shrink(),
                 ),
 
-                // 2) Approved Shops (Rounded-square logo tiles matching department strip)
+                // 2) Category Department Strip (top 6 categories)
+                categoriesAsync.skeletonWhen(
+                  placeholder: LoadingFixtures.categories,
+                  data: (categories) => CategoryDepartmentGrid(
+                    categories: categories,
+                    onSelected: (category) {
+                      ref.read(productFilterProvider.notifier).state =
+                          ProductFilter(categoryId: category.id);
+                      context.push(AppRoutes.customerCatalog);
+                    },
+                  ),
+                  error: (_, _) => const SizedBox.shrink(),
+                ),
+
+                // 3) Approved Shops (below categories) (Rounded-square logo tiles matching department strip)
                 shopsAsync.skeletonWhen(
                   placeholder: LoadingFixtures.customerShops,
                   data: (shops) {
                     if (shops.isEmpty) return const SizedBox.shrink();
                     final isSkeleton = AppSkeleton.isActive(context);
+                    final header = AppSectionHeader(
+                      title: 'المتاجر المعتمدة'.tr,
+                      actionLabel: 'تصفح الكل'.tr,
+                      onAction: AppHaptics.action(
+                        () => context.push(AppRoutes.customerShops),
+                      ),
+                    );
                     if (isSkeleton) {
-                      return Padding(
-                        padding: const EdgeInsets.only(top: AppSpacing.sm),
-                        child: LayoutBuilder(
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          header,
+                          const SizedBox(height: AppSpacing.sm),
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.sm,
+                            ),
+                            child: LayoutBuilder(
                           builder: (context, constraints) {
                             final availableWidth =
                                 (constraints.maxWidth -
@@ -160,13 +192,20 @@ class CustomerHomeScreen extends ConsumerWidget {
                               child: row,
                             );
                           },
-                        ),
+                            ),
+                          ),
+                        ],
                       );
                     }
-                    return Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.sm),
-                      child: SizedBox(
-                        height: HomeDesign.shopAvatarSize + 24,
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        header,
+                        const SizedBox(height: AppSpacing.sm),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: SizedBox(
+                            height: HomeDesign.shopAvatarSize + 24,
                         child: ListView.separated(
                           padding: AppSpacing.pageHorizontal,
                           scrollDirection: Axis.horizontal,
@@ -256,25 +295,13 @@ class CustomerHomeScreen extends ConsumerWidget {
                                 ),
                               ),
                             );
-                          },
+                              },
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     );
                   },
-                  error: (_, _) => const SizedBox.shrink(),
-                ),
-
-                // 3) Category Department Strip
-                categoriesAsync.skeletonWhen(
-                  placeholder: LoadingFixtures.categories,
-                  data: (categories) => CategoryDepartmentGrid(
-                    categories: categories,
-                    onSelected: (category) {
-                      ref.read(productFilterProvider.notifier).state =
-                          ProductFilter(categoryId: category.id);
-                      context.push(AppRoutes.customerCatalog);
-                    },
-                  ),
                   error: (_, _) => const SizedBox.shrink(),
                 ),
 
@@ -567,21 +594,14 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
               final b = widget.banners[index];
               final hasImage =
                   b.imagePath != null && b.imagePath!.trim().isNotEmpty;
-              const bannerShape = _TaperedBannerBorder(
-                radius: HomeDesign.bannerRadius,
-                bottomInset: HomeDesign.bannerBottomInset,
-              );
-              return Padding(
-                padding: AppSpacing.pageHorizontal,
-                child: Material(
-                  color: HomeDesign.bannerBackground,
-                  shape: bannerShape,
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: AppHaptics.action(
-                      () => context.push(AppRoutes.customerCatalog),
-                    ),
-                    customBorder: bannerShape,
+              return Material(
+                color: HomeDesign.bannerBackground,
+                borderRadius: BorderRadius.zero,
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: AppHaptics.action(
+                    () => context.push(AppRoutes.customerCatalog),
+                  ),
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
@@ -628,8 +648,7 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
                         ],
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                            horizontal:
-                                AppSpacing.lg + HomeDesign.bannerBottomInset,
+                            horizontal: AppSpacing.lg,
                             vertical: AppSpacing.md,
                           ),
                           child: Column(
@@ -733,7 +752,6 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
                           ),
                         ),
                       ],
-                    ),
                   ),
                 ),
               );
@@ -773,91 +791,115 @@ class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
   }
 }
 
-/// شكل بطاقة البانر: عرض أوسع من الأعلى ويضيق تدريجياً نحو الأسفل مع زوايا دائرية ناعمة.
-class _TaperedBannerBorder extends OutlinedBorder {
-  const _TaperedBannerBorder({
-    this.radius = 18,
-    this.bottomInset = 18,
-    super.side,
-  });
+class _HomeGreetingHeader extends StatelessWidget {
+  const _HomeGreetingHeader({required this.user});
 
-  final double radius;
-  final double bottomInset;
+  final AppUser? user;
 
   @override
-  OutlinedBorder copyWith({
-    BorderSide? side,
-    double? radius,
-    double? bottomInset,
-  }) {
-    return _TaperedBannerBorder(
-      side: side ?? this.side,
-      radius: radius ?? this.radius,
-      bottomInset: bottomInset ?? this.bottomInset,
-    );
-  }
+  Widget build(BuildContext context) {
+    final fullName = user?.fullName?.trim();
+    final email = user?.email.trim() ?? '';
+    final city = user?.city?.trim() ?? '';
+    final address = user?.address?.trim() ?? '';
+    final location = city.isNotEmpty ? city : address;
 
-  @override
-  Path getInnerPath(Rect rect, {TextDirection? textDirection}) {
-    return _buildPath(rect.deflate(side.strokeInset));
-  }
+    final greetingName = (fullName != null && fullName.isNotEmpty)
+        ? fullName
+        : (email.contains('@') ? email.split('@').first : 'بك'.tr);
 
-  @override
-  Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
-    return _buildPath(rect);
-  }
-
-  Path _buildPath(Rect rect) {
-    final inset = bottomInset.clamp(0.0, rect.width * 0.25);
-    final r = radius.clamp(0.0, rect.height * 0.35);
-
-    final tl = Offset(rect.left, rect.top);
-    final tr = Offset(rect.right, rect.top);
-    final br = Offset(rect.right - inset, rect.bottom);
-    final bl = Offset(rect.left + inset, rect.bottom);
-
-    final vertices = [tl, tr, br, bl];
-    final path = Path();
-
-    for (var i = 0; i < vertices.length; i++) {
-      final prev = vertices[(i - 1 + vertices.length) % vertices.length];
-      final curr = vertices[i];
-      final next = vertices[(i + 1) % vertices.length];
-
-      final toPrev = prev - curr;
-      final toNext = next - curr;
-      final prevLen = toPrev.distance;
-      final nextLen = toNext.distance;
-
-      final minSide = prevLen < nextLen ? prevLen : nextLen;
-      final cornerOffset = r.clamp(0.0, minSide * 0.45);
-      final pStart = curr + (toPrev / prevLen) * cornerOffset;
-      final pEnd = curr + (toNext / nextLen) * cornerOffset;
-
-      if (i == 0) {
-        path.moveTo(pStart.dx, pStart.dy);
-      } else {
-        path.lineTo(pStart.dx, pStart.dy);
-      }
-      path.quadraticBezierTo(curr.dx, curr.dy, pEnd.dx, pEnd.dy);
-    }
-
-    path.close();
-    return path;
-  }
-
-  @override
-  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
-    if (side.style == BorderStyle.none || side.width <= 0) return;
-    canvas.drawPath(getOuterPath(rect), side.toPaint());
-  }
-
-  @override
-  ShapeBorder scale(double t) {
-    return _TaperedBannerBorder(
-      side: side.scale(t),
-      radius: radius * t,
-      bottomInset: bottomInset * t,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          '${'مرحباً'.tr}${AppLang.isEn ? ',' : '،'} $greetingName 👋',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: AppBarDesign.titleWeight,
+            color: AppBarDesign.titleColor,
+            height: 1.15,
+          ),
+        ),
+        if (email.isNotEmpty || location.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              if (email.isNotEmpty)
+                Flexible(
+                  flex: 3,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        AppIcons.mail,
+                        size: 11.5,
+                        color: AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          email,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: AppFont.medium,
+                            color: AppColors.textMuted,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (email.isNotEmpty && location.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  child: Text(
+                    '•',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textMuted,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+              if (location.isNotEmpty)
+                Flexible(
+                  flex: 2,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        AppIcons.location,
+                        size: 11.5,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          location,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: AppFont.semiBold,
+                            color: AppColors.textSecondary,
+                            height: 1.2,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }

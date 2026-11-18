@@ -184,7 +184,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     const SizedBox(height: AppSpacing.md),
                     AppButton(
                       label: 'إنشاء حساب جديد'.tr,
-                      variant: AppButtonVariant.outlined,
+                      variant: AppButtonVariant.secondary,
                       onPressed: (auth.isBusy || auth.isGoogleBusy)
                           ? null
                           : () => context.push(AppRoutes.register),

@@ -9,119 +9,10 @@ import '../../features/customer/domain/models/customer_shop.dart';
 import '../../features/shop/domain/models/shop.dart';
 import '../../features/shop/domain/models/shop_product.dart';
 import '../search/smart_search_sheets.dart';
+import '../search/text_search_engine.dart';
 import '../search/visual_search_service.dart';
 
-/// Normalizes Arabic & English text for forgiving, diacritic-insensitive search.
-///
-/// Unifies hamza forms (`أ إ آ ٱ` -> `ا`), `ة` -> `ه`, `ى`/`ئ` -> `ي`,
-/// `ؤ` -> `و`, strips tashkeel & tatweel, and collapses extra whitespace.
-String normalizeSearchText(String? input) {
-  if (input == null || input.isEmpty) return '';
-  final buffer = StringBuffer();
-  var previousWasSpace = true;
-
-  for (final rune in input.toLowerCase().runes) {
-    // Strip Arabic diacritics (tashkeel) & tatweel (kashida).
-    if ((rune >= 0x064B && rune <= 0x065F) ||
-        rune == 0x0670 ||
-        rune == 0x0640) {
-      continue;
-    }
-
-    int mapped = rune;
-    switch (rune) {
-      case 0x0622: // آ
-      case 0x0623: // أ
-      case 0x0625: // إ
-      case 0x0671: // ٱ
-        mapped = 0x0627; // ا
-      case 0x0629: // ة
-        mapped = 0x0647; // ه
-      case 0x0649: // ى
-      case 0x0626: // ئ
-        mapped = 0x064A; // ي
-      case 0x0624: // ؤ
-        mapped = 0x0648; // و
-    }
-
-    final char = String.fromCharCode(mapped);
-    final isSpace = char.trim().isEmpty;
-    if (isSpace) {
-      if (!previousWasSpace) {
-        buffer.write(' ');
-        previousWasSpace = true;
-      }
-    } else {
-      buffer.write(char);
-      previousWasSpace = false;
-    }
-  }
-
-  return buffer.toString().trim();
-}
-
-/// Bidirectional equivalence classes for Arabic/English colors (masculine,
-/// feminine, plural, shades), sizes, and fashion garment terms.
-const List<List<String>> _kSearchEquivalenceGroups = [
-  // Colors
-  ['ازرق', 'زرقاء', 'زرقا', 'زرق', 'سماوي', 'لبني', 'بيبي بلو', 'بلو', 'blue', 'sky', 'cyan'],
-  ['كحلي', 'كحليه', 'كحلي غامق', 'ازرق غامق', 'نيفي', 'navy'],
-  ['اسود', 'سوداء', 'سودا', 'سود', 'فحمي', 'بلاك', 'black', 'dark'],
-  ['ابيض', 'بيضاء', 'بيضا', 'بيض', 'سكري', 'عاجي', 'وايت', 'white', 'ivory'],
-  ['احمر', 'حمراء', 'حمرا', 'حمر', 'عنابي', 'نبيتي', 'خمري', 'مارون', 'red', 'burgundy', 'maroon'],
-  ['اخضر', 'خضراء', 'خضرا', 'خضر', 'زيتي', 'زيتوني', 'فستقي', 'نعناعي', 'green', 'olive', 'mint'],
-  ['اصفر', 'صفراء', 'صفرا', 'صفر', 'ذهبي', 'خردلي', 'كموني', 'yellow', 'gold', 'mustard'],
-  ['بيج', 'بيجي', 'رملي', 'كريمي', 'اوف وايت', 'جملي', 'كافيه', 'beige', 'cream', 'camel'],
-  ['بني', 'بنيه', 'عسلي', 'شوكولاته', 'هافان', 'اسمر', 'سمراء', 'brown', 'chocolate'],
-  ['رمادي', 'رماديه', 'رصاصي', 'فضي', 'سلفر', 'فيراني', 'gray', 'grey', 'silver'],
-  ['وردي', 'ورديه', 'زهري', 'زهريه', 'بمبي', 'بينك', 'فوشيا', 'روز', 'pink', 'rose', 'magenta'],
-  ['بنفسجي', 'بنفسجيه', 'موف', 'ليلكي', 'لافندر', 'purple', 'violet', 'lavender'],
-  ['برتقالي', 'برتقاليه', 'اورنج', 'مشمشي', 'مرجاني', 'orange', 'coral'],
-  // Sizes
-  ['xs', 'اكس سمول', 'صغير جدا', 'xsmall'],
-  ['s', 'سمول', 'صغير', 'small'],
-  ['m', 'ميديم', 'ميديوم', 'وسط', 'متوسط', 'medium'],
-  ['l', 'لارج', 'كبير', 'large'],
-  ['xl', 'اكس لارج', 'كبير جدا', 'xlarge'],
-  ['xxl', '2xl', 'دبل اكس', 'تو اكس', 'اكسين لارج'],
-  ['3xl', 'xxxl', 'ثري اكس'],
-  // Garments & Departments
-  ['هودي', 'هوديز', 'سويت شيرت', 'سويتشيرت', 'بلوفر', 'hoodie', 'sweatshirt', 'pullover'],
-  ['قميص', 'قمصان', 'شميز', 'shirt'],
-  ['تيشيرت', 'تي شيرت', 'تيشرت', 'بلوزه', 'بلوزات', 'توب', 'tshirt', 't-shirt', 'top', 'blouse'],
-  ['بنطلون', 'بناطيل', 'بنطال', 'جينز', 'شروال', 'pants', 'jeans', 'trousers', 'denim'],
-  ['جاكيت', 'جواكيت', 'جكيت', 'معطف', 'بالطو', 'كوت', 'بليزر', 'jacket', 'coat', 'blazer'],
-  ['فستان', 'فساتين', 'دريس', 'dress', 'gown'],
-  ['تنوره', 'تنانير', 'جيبه', 'skirt'],
-  ['عبايه', 'عبايات', 'عباءه', 'جلابيه', 'abaya'],
-  ['حذاء', 'احذيه', 'شوز', 'سنيكرز', 'كوتشي', 'جزمه', 'صندل', 'بوت', 'shoes', 'sneakers', 'boots'],
-  ['حقيبه', 'حقائب', 'شنطه', 'شنط', 'bag', 'handbag'],
-  ['بدله', 'بدل', 'طقم', 'ترنج', 'ترينج', 'suit', 'set', 'tracksuit'],
-  ['رجالي', 'رجال', 'شبابي', 'ولادي', 'men', 'mens'],
-  ['نسائي', 'نساء', 'حريمي', 'بناتي', 'ستاتي', 'سيدات', 'women', 'womens', 'ladies'],
-  ['اطفال', 'ولادي', 'بناتي', 'بيبي', 'kids', 'children'],
-];
-
-/// Strips leading Arabic definite article `ال` when word length > 3.
-String _stripArabicDefiniteArticle(String token) {
-  if (token.startsWith('ال') && token.length > 3) {
-    return token.substring(2);
-  }
-  return token;
-}
-
-/// Expands a normalized search token into all equivalent morphological forms & synonyms.
-Set<String> _expandTokenEquivalents(String token) {
-  final bare = _stripArabicDefiniteArticle(token);
-  final equivalents = <String>{token, bare};
-
-  for (final group in _kSearchEquivalenceGroups) {
-    if (group.contains(token) || group.contains(bare)) {
-      equivalents.addAll(group);
-    }
-  }
-  return equivalents;
-}
+export '../search/text_search_engine.dart';
 
 /// Extracts all string and numeric values from a nested JSON map (such as `product.details`).
 List<String> _flattenJsonMapValues(Map<String, dynamic> map) {
@@ -146,47 +37,6 @@ List<String> _flattenJsonMapValues(Map<String, dynamic> map) {
 
   visit(map);
   return out;
-}
-
-/// Checks whether every whitespace-separated token in [query] (or any of its
-/// morphological/synonym equivalents) matches any value in [fields].
-bool matchesSearchTokens(String? query, Iterable<String?> fields) {
-  final normalizedQuery = normalizeSearchText(query);
-  if (normalizedQuery.isEmpty) return true;
-
-  final tokens = normalizedQuery.split(' ').where((t) => t.isNotEmpty).toList();
-  final haystackWords = <String>{};
-  final haystackBuffer = StringBuffer();
-
-  for (final f in fields) {
-    if (f == null || f.trim().isEmpty) continue;
-    final norm = normalizeSearchText(f);
-    if (norm.isEmpty) continue;
-    haystackBuffer.write(norm);
-    haystackBuffer.write(' ');
-    for (final w in norm.split(' ')) {
-      if (w.isNotEmpty) {
-        haystackWords.add(w);
-        haystackWords.add(_stripArabicDefiniteArticle(w));
-      }
-    }
-  }
-
-  final haystack = haystackBuffer.toString().trim();
-  if (haystack.isEmpty) return false;
-
-  return tokens.every((token) {
-    final equivalents = _expandTokenEquivalents(token);
-    for (final eq in equivalents) {
-      if (eq.length <= 2) {
-        // Short tokens (like sizes 's', 'm', 'l', 'xl') must match whole words
-        if (haystackWords.contains(eq)) return true;
-      } else {
-        if (haystack.contains(eq)) return true;
-      }
-    }
-    return false;
-  });
 }
 
 /// Checks whether [value] lies within optional inclusive [min]..[max] bounds.
@@ -599,6 +449,68 @@ class ProductFilter {
   );
 }
 
+/// Builds weighted searchable fields covering every product attribute stored
+/// in the database (name, category, shop, colors, sizes, details JSON, price…).
+List<SearchField> buildCustomerProductSearchFields(CustomerProduct product) {
+  final colors = product.availableColors;
+  final galleryUrls = <String>[
+    if (product.coverImage != null && product.coverImage!.trim().isNotEmpty)
+      product.coverImage!,
+    for (final img in product.images) if (img.kind != '3d_model') img.filePath,
+  ];
+  // Image-detected colors are only a fallback when the seller set no colors,
+  // so studio backgrounds never cause false color matches.
+  final detected = colors.isEmpty
+      ? galleryUrls
+            .expand(VisualSearchService.instance.getCachedProductImageColors)
+            .toSet()
+            .toList()
+      : const <String>[];
+  return [
+    SearchField(product.name, 4.0),
+    SearchField(product.categoryName, 3.0),
+    SearchField(colors.join(' '), 3.0),
+    SearchField(
+      product.variants.map((v) => '${v.color} ${v.size}').join(' '),
+      2.6,
+    ),
+    SearchField(product.availableSizes.join(' '), 2.6),
+    SearchField(_flattenJsonMapValues(product.details).join(' '), 2.0),
+    SearchField(product.description, 1.6),
+    SearchField(product.shopName, 1.5),
+    SearchField(
+      '${product.price.toInt()} ${product.price.toStringAsFixed(0)} ${product.price}',
+      1.2,
+    ),
+    SearchField(detected.join(' '), 0.8),
+    SearchField(product.id, 0.5),
+  ];
+}
+
+double? _tighterMin(double? a, double? b) {
+  if (a == null) return b;
+  if (b == null) return a;
+  return a > b ? a : b;
+}
+
+double? _tighterMax(double? a, double? b) {
+  if (a == null) return b;
+  if (b == null) return a;
+  return a < b ? a : b;
+}
+
+double _visualScoreFor(VisualSearchQuery query, CustomerProduct p) {
+  return VisualSearchService.instance.scoreTextAndColorMetadata(
+    query: query,
+    productColors: p.variants.map((v) => v.color),
+    productName: p.name,
+    productDescription: p.description,
+    categoryName: p.categoryName,
+    productImageUrl: p.coverImage,
+    productImageUrls: p.images.where((i) => i.kind != '3d_model').map((i) => i.filePath),
+  );
+}
+
 List<CustomerProduct> applyCustomerProductFilter(
   List<CustomerProduct> products,
   ProductFilter filter,
@@ -606,26 +518,32 @@ List<CustomerProduct> applyCustomerProductFilter(
   final normColor = normalizeSearchText(filter.color);
   final normSize = normalizeSearchText(filter.size);
   final activeVisual = ActiveVisualSearchStore.instance.currentQuery.value;
+  final query = PreparedSearchQuery.parse(filter.search);
+  final minPrice = _tighterMin(filter.minPrice, query.intent.minPrice);
+  final maxPrice = _tighterMax(filter.maxPrice, query.intent.maxPrice);
 
-  final filtered = products.where((product) {
+  final scored = <({CustomerProduct product, double score, int index})>[];
+
+  for (var i = 0; i < products.length; i++) {
+    final product = products[i];
     if (filter.categoryId != null &&
         filter.categoryId!.isNotEmpty &&
         product.categoryId != filter.categoryId) {
-      return false;
+      continue;
     }
     if (filter.shopId != null &&
         filter.shopId!.isNotEmpty &&
         product.shopId != filter.shopId) {
-      return false;
+      continue;
     }
-    if (!matchesNumberRange(product.price, filter.minPrice, filter.maxPrice)) {
-      return false;
+    if (!matchesNumberRange(product.price, minPrice, maxPrice)) {
+      continue;
     }
     if (filter.inStockOnly && product.totalStock <= 0) {
-      return false;
+      continue;
     }
     if (filter.minRating != null && product.ratingAvg < filter.minRating!) {
-      return false;
+      continue;
     }
     if (normColor.isNotEmpty) {
       final hasColor = product.variants.any(
@@ -634,7 +552,7 @@ List<CustomerProduct> applyCustomerProductFilter(
             (!filter.inStockOnly || v.stock > 0) &&
             normalizeSearchText(v.color) == normColor,
       );
-      if (!hasColor) return false;
+      if (!hasColor) continue;
     }
     if (normSize.isNotEmpty) {
       final hasSize = product.variants.any(
@@ -643,72 +561,44 @@ List<CustomerProduct> applyCustomerProductFilter(
             (!filter.inStockOnly || v.stock > 0) &&
             normalizeSearchText(v.size) == normSize,
       );
-      if (!hasSize) return false;
+      if (!hasSize) continue;
     }
-    final detectedImageColors = VisualSearchService.instance
-        .getCachedProductImageColors(product.coverImage);
 
-    final textMatches = matchesSearchTokens(filter.search, [
-      product.id,
-      product.name,
-      product.description,
-      product.categoryName,
-      product.shopName,
-      product.price.toStringAsFixed(0),
-      product.price.toString(),
-      ...product.availableColors,
-      ...product.availableSizes,
-      ...product.variants.map((v) => '${v.color} ${v.size} ${v.stock}'),
-      ..._flattenJsonMapValues(product.details),
-      ...detectedImageColors,
-    ]);
-    if (!textMatches) {
-      if (activeVisual != null && filter.hasSearch) {
-        final visualScore = VisualSearchService.instance
-            .scoreTextAndColorMetadata(
-              query: activeVisual,
-              productColors: product.variants.map((v) => v.color),
-              productName: product.name,
-              productDescription: product.description,
-              categoryName: product.categoryName,
-              productImageUrl: product.coverImage,
-            );
-        if (visualScore >= 0.45) {
-          return true;
-        }
+    final visualScore = activeVisual != null
+        ? _visualScoreFor(activeVisual, product)
+        : 0.0;
+
+    var relevance = visualScore * 10.0;
+    if (query.hasTextTokens) {
+      final textScore = query.score(buildCustomerProductSearchFields(product));
+      if (textScore == null) {
+        // Image search: keep visually similar items even if the generated
+        // color/keyword text differs from the seller's wording.
+        if (activeVisual == null || visualScore < 0.38) continue;
+      } else {
+        relevance += textScore;
       }
-      return false;
     }
-    return true;
-  }).toList();
 
-  if (activeVisual != null &&
-      filter.hasSearch &&
-      filter.sort == ProductSortOption.newest) {
-    filtered.sort((a, b) {
-      final scoreA = VisualSearchService.instance.scoreTextAndColorMetadata(
-        query: activeVisual,
-        productColors: a.variants.map((v) => v.color),
-        productName: a.name,
-        productDescription: a.description,
-        categoryName: a.categoryName,
-        productImageUrl: a.coverImage,
-      );
-      final scoreB = VisualSearchService.instance.scoreTextAndColorMetadata(
-        query: activeVisual,
-        productColors: b.variants.map((v) => v.color),
-        productName: b.name,
-        productDescription: b.description,
-        categoryName: b.categoryName,
-        productImageUrl: b.coverImage,
-      );
-      return scoreB.compareTo(scoreA);
+    scored.add((product: product, score: relevance, index: i));
+  }
+
+  final rankByRelevance =
+      filter.sort == ProductSortOption.newest &&
+      (query.hasTextTokens || activeVisual != null);
+  if (rankByRelevance) {
+    scored.sort((a, b) {
+      final byScore = b.score.compareTo(a.score);
+      if (byScore != 0) return byScore;
+      return a.index.compareTo(b.index); // stable: newest first on ties
     });
   }
 
+  final filtered = scored.map((e) => e.product).toList();
+
   switch (filter.sort) {
     case ProductSortOption.newest:
-      break; // Preserves incoming repository chronological order.
+      break; // Relevance (when searching) or repository chronological order.
     case ProductSortOption.priceAsc:
       filtered.sort((a, b) => a.price.compareTo(b.price));
     case ProductSortOption.priceDesc:
@@ -740,11 +630,9 @@ List<CustomerProduct> computeSimilarCustomerProducts(
   if (pool.isEmpty) return const [];
 
   final activeVisual = ActiveVisualSearchStore.instance.currentQuery.value;
-  final normSearch = normalizeSearchText(filter.search);
-  final searchTokens = normSearch
-      .split(' ')
-      .where((t) => t.isNotEmpty)
-      .toList();
+  final query = PreparedSearchQuery.parse(filter.search);
+  final minPrice = _tighterMin(filter.minPrice, query.intent.minPrice);
+  final maxPrice = _tighterMax(filter.maxPrice, query.intent.maxPrice);
   final normFilterColor = normalizeSearchText(filter.color);
   final normFilterSize = normalizeSearchText(filter.size);
 
@@ -761,62 +649,37 @@ List<CustomerProduct> computeSimilarCustomerProducts(
 
     // 1. Visual similarity if an image search is active
     if (activeVisual != null) {
-      score +=
-          VisualSearchService.instance.scoreTextAndColorMetadata(
-            query: activeVisual,
-            productColors: p.variants.map((v) => v.color),
-            productName: p.name,
-            productDescription: p.description,
-            categoryName: p.categoryName,
-            productImageUrl: p.coverImage,
-          ) *
-          3.0;
+      score += _visualScoreFor(activeVisual, p) * 3.0;
     }
 
-    // 2. Partial token & synonym overlap with search query across all fields
-    if (searchTokens.isNotEmpty) {
-      final detectedColors = VisualSearchService.instance
-          .getCachedProductImageColors(p.coverImage);
-      final haystack = normalizeSearchText(
-        '${p.name} ${p.description ?? ''} ${p.categoryName ?? ''} ${p.shopName} '
-        '${p.price.toStringAsFixed(0)} ${p.variants.map((v) => '${v.color} ${v.size}').join(' ')} '
-        '${_flattenJsonMapValues(p.details).join(' ')} ${detectedColors.join(' ')}',
-      );
-      for (final token in searchTokens) {
-        final equivalents = _expandTokenEquivalents(token);
-        var matchedEq = false;
-        for (final eq in equivalents) {
-          if (eq.length >= 2 && haystack.contains(eq)) {
-            score += (eq == token) ? 1.5 : 1.35;
-            matchedEq = true;
-            break;
-          }
-        }
-        if (!matchedEq && token.length >= 3) {
-          final prefix = token.substring(0, 3);
-          if (haystack.contains(prefix)) {
-            score += 0.65;
-          }
-        }
+    // 2. Partial token, synonym, stem & typo overlap across all fields
+    if (query.hasTextTokens) {
+      score += query.partialScore(buildCustomerProductSearchFields(p));
+    }
+
+    // 3. Price proximity to the requested range
+    if (minPrice != null || maxPrice != null) {
+      if (matchesNumberRange(p.price, minPrice, maxPrice)) {
+        score += 1.0;
+      } else {
+        final target = p.price < (minPrice ?? 0) ? minPrice! : (maxPrice ?? p.price);
+        final distance = (p.price - target).abs() / (target <= 0 ? 1 : target);
+        score += (1.0 - distance).clamp(0.0, 1.0) * 0.5;
       }
     }
 
-    // 3. Category, Color, Size & Stock proximity
+    // 4. Category, Color, Size & Stock proximity
     if (filter.categoryId != null &&
         filter.categoryId!.isNotEmpty &&
         p.categoryId == filter.categoryId) {
       score += 1.2;
     }
     if (normFilterColor.isNotEmpty &&
-        p.variants.any(
-          (v) => normalizeSearchText(v.color).contains(normFilterColor),
-        )) {
+        p.variants.any((v) => areSearchTermsEquivalent(v.color, filter.color))) {
       score += 1.0;
     }
     if (normFilterSize.isNotEmpty &&
-        p.variants.any(
-          (v) => normalizeSearchText(v.size) == normFilterSize,
-        )) {
+        p.variants.any((v) => normalizeSearchText(v.size) == normFilterSize)) {
       score += 0.7;
     }
     if (p.totalStock > 0) {
@@ -883,18 +746,39 @@ List<CustomerShop> filterCustomerShops(
   CustomerShopFilter filter,
 ) {
   final normCity = normalizeSearchText(filter.city);
-  final filtered = shops.where((shop) {
-    if (filter.onlyWithProducts && shop.productsCount <= 0) return false;
+  final query = PreparedSearchQuery.parse(filter.search);
+  final scored = <({CustomerShop shop, double score, int index})>[];
+
+  for (var i = 0; i < shops.length; i++) {
+    final shop = shops[i];
+    if (filter.onlyWithProducts && shop.productsCount <= 0) continue;
     if (normCity.isNotEmpty && normalizeSearchText(shop.city) != normCity) {
-      return false;
+      continue;
     }
-    return matchesSearchTokens(filter.search, [
-      shop.name,
-      shop.description,
-      shop.city,
-      shop.address,
-    ]);
-  }).toList();
+    var score = 0.0;
+    if (query.hasTextTokens) {
+      final s = query.score([
+        SearchField(shop.name, 4.0),
+        SearchField(shop.city, 2.5),
+        SearchField(shop.description, 1.8),
+        SearchField(shop.address, 1.2),
+      ]);
+      if (s == null) continue;
+      score = s;
+    }
+    scored.add((shop: shop, score: score, index: i));
+  }
+
+  if (query.hasTextTokens &&
+      (filter.sort == ShopSortOption.defaultOrder ||
+          filter.sort == ShopSortOption.newest)) {
+    scored.sort((a, b) {
+      final byScore = b.score.compareTo(a.score);
+      return byScore != 0 ? byScore : a.index.compareTo(b.index);
+    });
+  }
+
+  final filtered = scored.map((e) => e.shop).toList();
 
   switch (filter.sort) {
     case ShopSortOption.defaultOrder:
@@ -1160,38 +1044,64 @@ List<ShopProduct> filterShopProducts(
   List<ShopProduct> products,
   ShopProductFilterState filter,
 ) {
-  final filtered = products.where((product) {
+  final query = PreparedSearchQuery.parse(filter.search);
+  final minPrice = _tighterMin(filter.minPrice, query.intent.minPrice);
+  final maxPrice = _tighterMax(filter.maxPrice, query.intent.maxPrice);
+  final scored = <({ShopProduct product, double score, int index})>[];
+
+  for (var i = 0; i < products.length; i++) {
+    final product = products[i];
     if (filter.status != null &&
         filter.status!.isNotEmpty &&
         product.status != filter.status) {
-      return false;
+      continue;
     }
     if (filter.categoryId != null &&
         filter.categoryId!.isNotEmpty &&
         product.categoryId != filter.categoryId) {
-      return false;
+      continue;
     }
     if (!filter.stockFilter.matchesStock(product.totalStock)) {
-      return false;
+      continue;
     }
-    if (!matchesNumberRange(product.price, filter.minPrice, filter.maxPrice)) {
-      return false;
+    if (!matchesNumberRange(product.price, minPrice, maxPrice)) {
+      continue;
     }
-    final detectedImageColors = VisualSearchService.instance
-        .getCachedProductImageColors(product.coverImage);
-    return matchesSearchTokens(filter.search, [
-      product.id,
-      product.name,
-      product.description,
-      product.categoryName,
-      product.statusLabel,
-      product.price.toStringAsFixed(0),
-      product.price.toString(),
-      ...product.variants.map((v) => '${v.color} ${v.size} ${v.stock}'),
-      ..._flattenJsonMapValues(product.details),
-      ...detectedImageColors,
-    ]);
-  }).toList();
+    var score = 0.0;
+    if (query.hasTextTokens) {
+      final detectedImageColors = VisualSearchService.instance
+          .getCachedProductImageColors(product.coverImage);
+      final s = query.score([
+        SearchField(product.name, 4.0),
+        SearchField(product.categoryName, 3.0),
+        SearchField(
+          product.variants.map((v) => '${v.color} ${v.size} ${v.stock}').join(' '),
+          2.6,
+        ),
+        SearchField(_flattenJsonMapValues(product.details).join(' '), 2.0),
+        SearchField(product.description, 1.6),
+        SearchField(product.statusLabel, 1.4),
+        SearchField(
+          '${product.price.toInt()} ${product.price.toStringAsFixed(0)} ${product.price}',
+          1.2,
+        ),
+        SearchField(detectedImageColors.join(' '), 0.8),
+        SearchField(product.id, 0.5),
+      ]);
+      if (s == null) continue;
+      score = s;
+    }
+    scored.add((product: product, score: score, index: i));
+  }
+
+  if (query.hasTextTokens && filter.sort == ProductSortOption.newest) {
+    scored.sort((a, b) {
+      final byScore = b.score.compareTo(a.score);
+      return byScore != 0 ? byScore : a.index.compareTo(b.index);
+    });
+  }
+
+  final filtered = scored.map((e) => e.product).toList();
 
   switch (filter.sort) {
     case ProductSortOption.newest:
@@ -1284,36 +1194,57 @@ List<AdminProduct> filterAdminProducts(
 ) {
   final normShop = normalizeSearchText(filter.shopName);
   final normCategory = normalizeSearchText(filter.categoryName);
+  final query = PreparedSearchQuery.parse(filter.search);
+  final minPrice = _tighterMin(filter.minPrice, query.intent.minPrice);
+  final maxPrice = _tighterMax(filter.maxPrice, query.intent.maxPrice);
+  final scored = <({AdminProduct product, double score, int index})>[];
 
-  final filtered = products.where((product) {
+  for (var i = 0; i < products.length; i++) {
+    final product = products[i];
     if (filter.status != null &&
         filter.status!.isNotEmpty &&
         product.status != filter.status) {
-      return false;
+      continue;
     }
     if (normShop.isNotEmpty &&
         normalizeSearchText(product.shopName) != normShop) {
-      return false;
+      continue;
     }
     if (normCategory.isNotEmpty &&
         normalizeSearchText(product.categoryName) != normCategory) {
-      return false;
+      continue;
     }
-    if (!matchesNumberRange(product.price, filter.minPrice, filter.maxPrice)) {
-      return false;
+    if (!matchesNumberRange(product.price, minPrice, maxPrice)) {
+      continue;
     }
-    return matchesSearchTokens(filter.search, [
-      product.id,
-      product.name,
-      product.description,
-      product.shopName,
-      product.categoryName,
-      product.price.toStringAsFixed(0),
-      product.price.toString(),
-      product.statusLabel,
-      product.status,
-    ]);
-  }).toList();
+    var score = 0.0;
+    if (query.hasTextTokens) {
+      final s = query.score([
+        SearchField(product.name, 4.0),
+        SearchField(product.categoryName, 2.8),
+        SearchField(product.shopName, 2.5),
+        SearchField(product.description, 1.6),
+        SearchField('${product.statusLabel} ${product.status}', 1.3),
+        SearchField(
+          '${product.price.toInt()} ${product.price.toStringAsFixed(0)} ${product.price}',
+          1.2,
+        ),
+        SearchField(product.id, 0.5),
+      ]);
+      if (s == null) continue;
+      score = s;
+    }
+    scored.add((product: product, score: score, index: i));
+  }
+
+  if (query.hasTextTokens && filter.sort == ProductSortOption.newest) {
+    scored.sort((a, b) {
+      final byScore = b.score.compareTo(a.score);
+      return byScore != 0 ? byScore : a.index.compareTo(b.index);
+    });
+  }
+
+  final filtered = scored.map((e) => e.product).toList();
 
   switch (filter.sort) {
     case ProductSortOption.newest:

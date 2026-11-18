@@ -908,10 +908,10 @@ abstract final class HomeDesign {
 
   // --- البانرات ---
   static const double bannerHeight = 196;
-  static const double bannerRadius = AppRadii.lg;
+  static const double bannerRadius = 0;
   /// مقدار تضييق عرض بطاقة البانر من الأسفل من كل جهة (يزداد العرض كلما اتجهنا للأعلى).
-  static const double bannerBottomInset = 18;
-  static const double bannerViewportFraction = 0.9;
+  static const double bannerBottomInset = 0;
+  static const double bannerViewportFraction = 1.0;
   static Color get bannerBackground => AppColors.primary;
   static const Color bannerTitle = AppPalette.white;
   static const double bannerTitleSize = 21;

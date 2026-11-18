@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_design.dart';
 import 'app_skeleton.dart';
 
-enum AppButtonVariant { filled, outlined, text }
+enum AppButtonVariant { filled, outlined, secondary, text }
 
 class AppButton extends StatelessWidget {
   const AppButton({
@@ -56,6 +56,23 @@ class AppButton extends StatelessWidget {
       case AppButtonVariant.outlined:
         button = OutlinedButton(
           onPressed: AppHaptics.action(effectiveOnPressed),
+          child: child,
+        );
+      case AppButtonVariant.secondary:
+        button = OutlinedButton(
+          onPressed: AppHaptics.action(effectiveOnPressed),
+          style: OutlinedButton.styleFrom(
+            backgroundColor: AuthDesign.socialButtonBackground,
+            foregroundColor: AuthDesign.socialButtonForeground,
+            side: BorderSide(
+              color: AuthDesign.socialButtonBorder,
+              width: AppBorders.width,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(ButtonDesign.radius),
+            ),
+            minimumSize: const Size(64, ButtonDesign.height),
+          ),
           child: child,
         );
       case AppButtonVariant.text:

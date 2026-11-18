@@ -372,7 +372,7 @@ class AdminRepository {
           _ => query.order('updated_at', ascending: false),
         };
 
-        final effectiveLimit = hasSearch ? 60 : limit;
+        final effectiveLimit = hasSearch ? kSearchPoolSize : limit;
         final from = offset < 0 ? 0 : offset;
         final to = from + effectiveLimit - 1;
         final rawRows = await orderedQuery.range(from, to) as List;

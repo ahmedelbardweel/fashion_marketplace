@@ -8,6 +8,8 @@ import '../../../../core/notifications/read_notifications_provider.dart';
 export '../../../../core/notifications/read_notifications_provider.dart';
 import '../../../../core/pagination/paginated_state.dart';
 export '../../../../core/pagination/paginated_state.dart';
+import '../../../../core/search/smart_search_sheets.dart';
+import '../../../../core/search/visual_search_service.dart';
 
 import '../../../admin/domain/models/catalog_models.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -118,12 +120,30 @@ class PaginatedCustomerProductsNotifier
            limit: limit,
          ),
          itemId: (item) => item.id,
-       );
+       ) {
+    ActiveVisualSearchStore.instance.currentQuery.addListener(
+      _onVisualSearchChanged,
+    );
+  }
 
   final CustomerRepository _repository;
   final String? shopId;
   ProductFilter _filter;
+  VisualSearchQuery? _lastVisualQuery =
+      ActiveVisualSearchStore.instance.currentQuery.value;
   Timer? _searchDebounce;
+
+  void _onVisualSearchChanged() {
+    scheduleMicrotask(() {
+      if (!mounted) return;
+      final current = ActiveVisualSearchStore.instance.currentQuery.value;
+      if (!identical(current, _lastVisualQuery)) {
+        _lastVisualQuery = current;
+        _searchDebounce?.cancel();
+        _resetForCurrentFilter();
+      }
+    });
+  }
 
   static Future<PaginatedPage<CustomerProduct>> _fetchFilterPage({
     required CustomerRepository repository,
@@ -151,12 +171,17 @@ class PaginatedCustomerProductsNotifier
   ProductFilter get filter => _filter;
 
   void updateFilter(ProductFilter next, {bool force = false}) {
-    if (!force && next == _filter) return;
+    final activeVisual = ActiveVisualSearchStore.instance.currentQuery.value;
+    final visualChanged = !identical(activeVisual, _lastVisualQuery);
+    if (!force && !visualChanged && next == _filter) return;
     final searchChanged = next.search != _filter.search;
     _filter = next;
+    _lastVisualQuery = activeVisual;
     _searchDebounce?.cancel();
 
-    if (searchChanged && (next.search?.trim().isNotEmpty ?? false)) {
+    if (!visualChanged &&
+        searchChanged &&
+        (next.search?.trim().isNotEmpty ?? false)) {
       _searchDebounce = Timer(const Duration(milliseconds: 350), () {
         if (!mounted) return;
         _resetForCurrentFilter();
@@ -188,6 +213,9 @@ class PaginatedCustomerProductsNotifier
 
   @override
   void dispose() {
+    ActiveVisualSearchStore.instance.currentQuery.removeListener(
+      _onVisualSearchChanged,
+    );
     _searchDebounce?.cancel();
     super.dispose();
   }

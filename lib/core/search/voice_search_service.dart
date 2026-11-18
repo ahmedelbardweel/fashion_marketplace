@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
+import 'text_search_engine.dart';
+
 /// Spoken filler words stripped from natural-language voice queries so that
 /// conversational phrases like "بدي قميص رجالي لونه أسود" become "قميص رجالي أسود".
 const Set<String> _kSpokenStopWords = {
@@ -50,6 +52,44 @@ const Set<String> _kSpokenStopWords = {
   'قطعة',
   'ملابس',
   'لبس',
+  // Levantine / Gulf / Egyptian conversational fillers
+  'بدّي',
+  'بدنا',
+  'ممكن',
+  'حابب',
+  'حاب',
+  'حابه',
+  'نفسي',
+  'ودي',
+  'عندكم',
+  'عندك',
+  'فيه',
+  'موجود',
+  'اللي',
+  'الي',
+  'يكون',
+  'شي',
+  'اشي',
+  'إشي',
+  'حاجة',
+  'حاجه',
+  'لون',
+  'لونو',
+  'مقاسو',
+  'قياس',
+  'كمان',
+  'طيب',
+  'يعني',
+  'هيك',
+  'هاد',
+  'هذا',
+  'هذه',
+  'هاي',
+  'لي',
+  'بليز',
+  'some',
+  'any',
+  'get',
   'search',
   'find',
   'show',
@@ -72,28 +112,79 @@ const Set<String> _kSpokenStopWords = {
 const Map<String, String> _kSpokenSynonyms = {
   'تيشرت': 'تيشيرت',
   'تيرشيرت': 'تيشيرت',
+  'تشيرت': 'تيشيرت',
   't-shirt': 'تيشيرت',
   'جكيت': 'جاكيت',
+  'جاكت': 'جاكيت',
   'بنطال': 'بنطلون',
   'بناطيل': 'بنطلون',
   'شوز': 'حذاء',
   'جزمه': 'حذاء',
-  'جزمة': 'حذاء',
+  'كوتشي': 'حذاء',
+  'سنيكرز': 'حذاء',
   'بوت': 'حذاء',
   'شنطه': 'حقيبة',
-  'شنطة': 'حقيبة',
   'عبايه': 'عباية',
   'بلوزه': 'بلوزة',
   'تنوره': 'تنورة',
+  'بيجامه': 'بيجامة',
   'درزن': '',
   'كحلى': 'كحلي',
   'بيجي': 'بيج',
   'روز': 'وردي',
   'زهري': 'وردي',
   'بمبي': 'وردي',
+  'بينك': 'وردي',
   'رمادى': 'رمادي',
   'رصاصي': 'رمادي',
+  'سكني': 'رمادي',
+  'تحت ال': 'تحت',
+  'فوق ال': 'فوق',
 };
+
+final Set<String> _kNormalizedStopWords = _kSpokenStopWords
+    .map(normalizeSearchText)
+    .where((s) => s.isNotEmpty)
+    .toSet();
+
+/// Fashion domain bias phrases supplied to platform speech recognizers.
+const List<String> _kVoiceContextualPhrases = [
+  'هودي',
+  'سويت شيرت',
+  'تيشيرت',
+  'قميص',
+  'بنطلون',
+  'جينز',
+  'فستان',
+  'عباية',
+  'جاكيت',
+  'بلوفر',
+  'حذاء',
+  'حقيبة',
+  'طقم',
+  'بيجامة',
+  'أوفر سايز',
+  'أسود',
+  'أبيض',
+  'أزرق',
+  'كحلي',
+  'أحمر',
+  'بيج',
+  'رمادي',
+  'وردي',
+  'زيتوني',
+  'رجالي',
+  'نسائي',
+  'أطفال',
+  'شيكل',
+  'أقل من',
+  'XS',
+  'S',
+  'M',
+  'L',
+  'XL',
+  'XXL',
+];
 
 /// Cleans a raw spoken transcript into crisp, high-accuracy search keywords
 /// while preserving product names, colors, sizes, shop names, and numbers.
@@ -103,6 +194,19 @@ String cleanVoiceSearchQuery(String rawTranscript) {
       .replaceAll('تي شرت', 'تيشيرت')
       .replaceAll('أوف وايت', 'بيج')
       .replaceAll('اوف وايت', 'بيج')
+      .replaceAll('إكس إكس إل', 'XXL')
+      .replaceAll('دبل إكس لارج', 'XXL')
+      .replaceAll('دبل إكس', 'XXL')
+      .replaceAll('إكس لارج', 'XL')
+      .replaceAll('اكس لارج', 'XL')
+      .replaceAll('إكس سمول', 'XS')
+      .replaceAll('اكس سمول', 'XS')
+      .replaceAllMapped(
+        RegExp(
+          r'(^|\s)(تحت|فوق|اقل من|أقل من|اكثر من|أكثر من|ارخص من|أرخص من|اعلى من|أعلى من|بحدود|لحد|من)\s+ال\s*(\d+)',
+        ),
+        (m) => '${m[1]}${m[2]} ${m[3]}',
+      )
       .replaceAll(RegExp(r'[،,.؟?!؛:"«»()\[\]{}\-_]'), ' ')
       .trim();
   if (cleaned.isEmpty) return '';
@@ -113,13 +217,21 @@ String cleanVoiceSearchQuery(String rawTranscript) {
       .toList();
 
   final kept = <String>[];
+  String? prevNorm;
   for (final word in words) {
-    final lower = word.toLowerCase();
-    if (_kSpokenStopWords.contains(lower)) continue;
-    final mapped = _kSpokenSynonyms[lower] ?? word;
-    if (mapped.isNotEmpty) {
-      kept.add(mapped);
+    final norm = normalizeSearchText(word);
+    if (norm.isEmpty) continue;
+    if (_kSpokenStopWords.contains(word.toLowerCase()) ||
+        _kNormalizedStopWords.contains(norm)) {
+      continue;
     }
+    final mapped =
+        _kSpokenSynonyms[word.toLowerCase()] ?? _kSpokenSynonyms[norm] ?? word;
+    if (mapped.isEmpty) continue;
+    final mappedNorm = normalizeSearchText(mapped);
+    if (mappedNorm == prevNorm) continue; // drop STT stutter repetitions
+    prevNorm = mappedNorm;
+    kept.add(mapped);
   }
 
   if (kept.isEmpty) return cleaned;
@@ -132,6 +244,33 @@ bool isArabicSpeech(String text) {
   final arabicMatches = RegExp(r'[\u0600-\u06FF]').allMatches(text).length;
   final latinMatches = RegExp(r'[a-zA-Z]').allMatches(text).length;
   return arabicMatches >= latinMatches;
+}
+
+/// Picks the most catalog-relevant transcript among the recognizer's
+/// alternatives: confidence plus a bonus for every recognized fashion term
+/// (colors, sizes, garments, materials) and price number.
+String pickBestVoiceTranscript(List<({String text, double confidence})> options) {
+  if (options.isEmpty) return '';
+  var bestText = options.first.text;
+  var bestScore = double.negativeInfinity;
+  for (var i = 0; i < options.length; i++) {
+    final option = options[i];
+    final cleaned = cleanVoiceSearchQuery(option.text);
+    if (cleaned.trim().isEmpty) continue;
+    var known = 0;
+    for (final word in normalizeSearchText(cleaned).split(' ')) {
+      if (word.isEmpty) continue;
+      if (isKnownSearchTerm(word) || RegExp(r'^\d+$').hasMatch(word)) known++;
+    }
+    final confidence = option.confidence > 0 ? option.confidence : 0.5;
+    // Slight preference for the recognizer's own ranking order.
+    final score = confidence + known * 0.25 - i * 0.02;
+    if (score > bestScore) {
+      bestScore = score;
+      bestText = option.text;
+    }
+  }
+  return bestText;
 }
 
 class VoiceSearchService {
@@ -231,17 +370,25 @@ class VoiceSearchService {
     isListeningNotifier.value = true;
 
     await _speech.listen(
-      localeId: autoLocale,
-      listenFor: const Duration(seconds: 25),
-      pauseFor: const Duration(milliseconds: 2200),
       listenOptions: SpeechListenOptions(
+        localeId: autoLocale,
+        listenFor: const Duration(seconds: 25),
+        pauseFor: const Duration(milliseconds: 2200),
         partialResults: true,
         cancelOnError: false,
-        listenMode: ListenMode.dictation,
+        // Search mode uses the recognizer's short-query (web search) language
+        // model, which is far more accurate for product keywords than dictation.
+        listenMode: ListenMode.search,
+        contextualPhrases: _kVoiceContextualPhrases,
       ),
       onSoundLevelChange: onSoundLevelChange,
       onResult: (SpeechRecognitionResult result) {
-        final raw = result.recognizedWords.trim();
+        final raw = result.finalResult && result.alternates.length > 1
+            ? pickBestVoiceTranscript([
+                for (final alt in result.alternates)
+                  (text: alt.recognizedWords.trim(), confidence: alt.confidence),
+              ]).trim()
+            : result.recognizedWords.trim();
         final processed = cleanVoiceSearchQuery(raw);
         if (result.finalResult) {
           isListeningNotifier.value = false;

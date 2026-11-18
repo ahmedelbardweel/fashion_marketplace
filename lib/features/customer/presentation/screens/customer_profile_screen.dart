@@ -247,16 +247,22 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
             title: Text('تسجيل الخروج'.tr),
             content: Text('هل أنت متأكد من رغبتك في تسجيل الخروج من حسابك؟'.tr),
             actions: [
-              TextButton(
-                onPressed: AppHaptics.action(() => Navigator.of(ctx).pop()),
-                child: Text('إلغاء'.tr),
-              ),
               ElevatedButton(
                 onPressed: AppHaptics.action(() {
                   Navigator.of(ctx).pop();
                   ref.read(authControllerProvider.notifier).signOut();
                 }),
                 child: Text('تسجيل الخروج'.tr),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.isDark
+                      ? const Color(0xFF2A2A2A)
+                      : AppPalette.gray200,
+                  foregroundColor: AppColors.text,
+                ),
+                onPressed: AppHaptics.action(() => Navigator.of(ctx).pop()),
+                child: Text('إلغاء'.tr),
               ),
             ],
           );

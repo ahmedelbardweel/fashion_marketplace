@@ -12,12 +12,14 @@ class CustomerAppBar extends ConsumerWidget implements PreferredSizeWidget {
   const CustomerAppBar({
     super.key,
     required this.title,
+    this.titleWidget,
     this.showBack = true,
     this.showProfile = false,
     this.actions,
   });
 
   final String title;
+  final Widget? titleWidget;
   final bool showBack;
   final bool showProfile;
   final List<Widget>? actions;
@@ -66,16 +68,18 @@ class CustomerAppBar extends ConsumerWidget implements PreferredSizeWidget {
                   const AppLogoMark(),
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(
-                    child: Text(
-                      AppLang.tr(title),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: AppBarDesign.titleSize,
-                        fontWeight: AppBarDesign.titleWeight,
-                        color: AppBarDesign.titleColor,
-                      ),
-                    ),
+                    child:
+                        titleWidget ??
+                        Text(
+                          AppLang.tr(title),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: AppBarDesign.titleSize,
+                            fontWeight: AppBarDesign.titleWeight,
+                            color: AppBarDesign.titleColor,
+                          ),
+                        ),
                   ),
                   const SizedBox(width: AppSpacing.xs),
                   ...?actions,
@@ -326,6 +330,7 @@ class CustomerScaffold extends StatelessWidget {
   const CustomerScaffold({
     super.key,
     required this.title,
+    this.titleWidget,
     required this.body,
     this.currentNavIndex,
     this.showBack = true,
@@ -338,6 +343,7 @@ class CustomerScaffold extends StatelessWidget {
   });
 
   final String title;
+  final Widget? titleWidget;
   final Widget body;
   final int? currentNavIndex;
   final bool showBack;
@@ -354,6 +360,7 @@ class CustomerScaffold extends StatelessWidget {
       backgroundColor: AppColors.background,
       appBar: CustomerAppBar(
         title: title,
+        titleWidget: titleWidget,
         showBack: showBack,
         showProfile: showProfile,
         actions: actions,

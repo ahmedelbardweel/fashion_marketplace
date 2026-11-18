@@ -374,7 +374,8 @@ class CustomerRepository {
           );
         }
 
-        final effectiveLimit = hasSearchQuery ? 60 : limit;
+        // Wide search pool: covers the whole catalog for typical store sizes.
+        final effectiveLimit = hasSearchQuery ? kSearchPoolSize : limit;
         final from = offset < 0 ? 0 : offset;
         final to = from + effectiveLimit - 1;
         final rawRows = await orderedQuery.range(from, to) as List;
@@ -386,14 +387,24 @@ class CustomerRepository {
         if (hasSearchQuery) {
           final isVisual =
               ActiveVisualSearchStore.instance.currentQuery.value != null;
-          await Future.wait(
-            mapped.take(24).map(
-              (p) => VisualSearchService.instance.getProductImageHistogram(
+          final warm = VisualSearchService.instance.warmProductImages(
+            [
+              for (final p in mapped) ...[
                 p.coverImage,
-                downloadIfMissing: isVisual,
-              ),
-            ),
+                if (isVisual) ...p.images.where((i) => i.kind != '3d_model').map((i) => i.filePath),
+              ],
+            ],
+            downloadIfMissing: isVisual,
+            maxImages: isVisual ? 250 : 60,
+            concurrency: 8,
           );
+          // Image search needs descriptors before ranking; text search only
+          // uses them as a bonus, so it never waits for image analysis.
+          if (isVisual) {
+            await warm;
+          } else {
+            unawaited(warm);
+          }
         }
 
         final activeFilter = ProductFilter(
@@ -439,7 +450,7 @@ class CustomerRepository {
             ''')
                 .eq('status', 'published')
                 .order('created_at', ascending: false)
-                .limit(36) as List;
+                .limit(120) as List;
             fallbackPool = _mapProductRows(fallbackRows, favoriteIds);
             unawaited(_localDb.saveCustomerProducts(fallbackPool));
           }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -1249,7 +1250,7 @@ class LocalDatabase {
       where: whereClauses.join(' AND '),
       whereArgs: whereArgs,
       orderBy: orderBy,
-      limit: hasSearchQuery ? 60 : limit,
+      limit: hasSearchQuery ? kLocalSearchPoolSize : limit,
       offset: offset < 0 ? 0 : offset,
     );
 
@@ -1262,14 +1263,22 @@ class LocalDatabase {
     if (hasSearchQuery) {
       final isVisual =
           ActiveVisualSearchStore.instance.currentQuery.value != null;
-      await Future.wait(
-        mapped.take(24).map(
-          (p) => VisualSearchService.instance.getProductImageHistogram(
+      final warm = VisualSearchService.instance.warmProductImages(
+        [
+          for (final p in mapped) ...[
             p.coverImage,
-            downloadIfMissing: isVisual,
-          ),
-        ),
+            if (isVisual) ...p.images.where((i) => i.kind != '3d_model').map((i) => i.filePath),
+          ],
+        ],
+        downloadIfMissing: false,
+        maxImages: isVisual ? 250 : 60,
+        concurrency: 8,
       );
+      if (isVisual) {
+        await warm;
+      } else {
+        unawaited(warm);
+      }
     }
 
     final refined = applyCustomerProductFilter(
@@ -1294,7 +1303,7 @@ class LocalDatabase {
           'products',
           where: "status = 'published'",
           orderBy: 'created_at DESC',
-          limit: 36,
+          limit: 200,
         );
         fallbackPool = await _hydrateCustomerProducts(allRows, favoriteIds);
       }
@@ -1513,18 +1522,16 @@ class LocalDatabase {
       where: whereClauses.join(' AND '),
       whereArgs: whereArgs,
       orderBy: orderBy,
-      limit: hasSearch ? 60 : limit,
+      limit: hasSearch ? kLocalSearchPoolSize : limit,
       offset: offset < 0 ? 0 : offset,
     );
 
     final allItems = await _hydrateShopProducts(rawRows);
     if (hasSearch) {
-      await Future.wait(
-        allItems.take(24).map(
-          (p) => VisualSearchService.instance.getProductImageHistogram(
-            p.coverImage,
-            downloadIfMissing: false,
-          ),
+      unawaited(
+        VisualSearchService.instance.warmProductImages(
+          allItems.map((p) => p.coverImage),
+          maxImages: 40,
         ),
       );
     }
@@ -1698,7 +1705,7 @@ class LocalDatabase {
       where: whereClauses.join(' AND '),
       whereArgs: whereArgs,
       orderBy: orderBy,
-      limit: hasSearch ? 60 : limit,
+      limit: hasSearch ? kLocalSearchPoolSize : limit,
       offset: offset < 0 ? 0 : offset,
     );
 
