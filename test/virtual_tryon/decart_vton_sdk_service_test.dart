@@ -207,4 +207,29 @@ void main() {
     await service.dispose();
     expect(client.disposeCalls, 1);
   });
+
+  test('accepts JWT and ek_ client tokens while rejecting empty and dct_ keys', () {
+    expect(validateVtonClientToken(' eyJhbGciOi.abc.xyz '), 'eyJhbGciOi.abc.xyz');
+    expect(validateVtonClientToken('ek_live_123'), 'ek_live_123');
+    expect(
+      () => validateVtonClientToken('dct_wasla_123456'),
+      throwsA(
+        isA<DecartVtonException>().having(
+          (e) => e.code,
+          'code',
+          VtonErrorCode.invalidApiKey,
+        ),
+      ),
+    );
+    expect(
+      () => validateVtonClientToken('   '),
+      throwsA(
+        isA<DecartVtonException>().having(
+          (e) => e.code,
+          'code',
+          VtonErrorCode.invalidApiKey,
+        ),
+      ),
+    );
+  });
 }

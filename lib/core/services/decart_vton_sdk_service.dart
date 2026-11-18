@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:decart_vton_flutter/decart_vton_flutter.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 
@@ -36,57 +37,301 @@ abstract class VtonClient {
   Future<void> dispose();
 }
 
+/// Validates a short-lived Decart client token minted by `decart-session`.
+///
+/// Decart `/v1/client/tokens` returns JWT tokens (`eyJ...`) as well as `ek_...`
+/// keys; `decart_vton_flutter: ^1.0.1` rejects JWTs in Dart because it checks
+/// `startsWith('ek_')`, whereas the native Android/iOS SDKs accept any valid
+/// client token. Still rejects empty strings and permanent `dct_` keys.
+@visibleForTesting
+String validateVtonClientToken(String raw) {
+  final token = raw.trim();
+  if (token.isEmpty || token.startsWith('dct_')) {
+    throw const DecartVtonException.local(
+      VtonErrorCode.invalidApiKey,
+      'Invalid or permanent credential returned from client token endpoint.',
+    );
+  }
+  return token;
+}
+
 class _LiveVtonClient implements VtonClient {
-  _LiveVtonClient() : _sdk = DecartVton();
+  _LiveVtonClient({
+    MethodChannel? methods,
+    EventChannel? eventsChannel,
+  }) : _methods = methods ?? const MethodChannel('ai.decart.vton/methods'),
+       _eventsChannel =
+           eventsChannel ?? const EventChannel('ai.decart.vton/events');
 
-  final DecartVton _sdk;
+  final MethodChannel _methods;
+  final EventChannel _eventsChannel;
+  final StreamController<VtonEvent> _eventsController =
+      StreamController<VtonEvent>.broadcast();
+
+  StreamSubscription<dynamic>? _nativeEvents;
+  Future<void> _tail = Future<void>.value();
+  VtonClientTokenProvider? _tokenProvider;
+  VtonLogLevel _logLevel = VtonLogLevel.warn;
+  bool _initialized = false;
+  bool _disposed = false;
+  bool _credentialUnused = false;
+  VtonConnectionState _connectionState = VtonConnectionState.disconnected;
+  VtonCameraFacing _facing = VtonCameraFacing.front;
 
   @override
-  Stream<VtonEvent> get events => _sdk.events;
+  Stream<VtonEvent> get events => _eventsController.stream;
 
   @override
-  bool get isInitialized => _sdk.isInitialized;
+  bool get isInitialized => _initialized;
 
   @override
-  VtonConnectionState get connectionState => _sdk.connectionState;
+  VtonConnectionState get connectionState => _connectionState;
 
   @override
-  VtonCameraFacing get cameraFacing => _sdk.cameraFacing;
+  VtonCameraFacing get cameraFacing => _facing;
+
+  Future<T> _serialize<T>(Future<T> Function() op) {
+    final res = _tail.then((_) => op());
+    _tail = res.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return res;
+  }
 
   @override
   Future<void> initialize({
     required VtonClientTokenProvider clientTokenProvider,
     VtonLogLevel logLevel = VtonLogLevel.warn,
     bool force = false,
-  }) => _sdk.initialize(
-    clientTokenProvider: clientTokenProvider,
-    logLevel: logLevel,
-    force: force,
-  );
+  }) => _serialize(() async {
+    if (_disposed) return;
+    if (_initialized && !force) return;
+    _tokenProvider = clientTokenProvider;
+    _logLevel = logLevel;
+    await _refreshNativeClient();
+    _attachNativeEvents();
+  });
+
+  Future<void> _refreshNativeClient() async {
+    final provider = _tokenProvider;
+    if (provider == null) {
+      throw const DecartVtonException.local(
+        VtonErrorCode.notInitialized,
+        'Client token provider is not configured.',
+      );
+    }
+    final token = validateVtonClientToken(await provider());
+    if (_initialized) {
+      await _invokeVoid('release', const <String, Object?>{});
+      _initialized = false;
+      _credentialUnused = false;
+    }
+    try {
+      await _invokeVoid('initialize', <String, Object?>{
+        'clientToken': token,
+        'signalingBaseUrl': 'wss://api.decart.ai',
+        'httpBaseUrl': 'https://api.decart.ai',
+        'logLevel': _logLevel.name,
+      });
+      _initialized = true;
+      _credentialUnused = true;
+    } catch (_) {
+      _initialized = false;
+      _credentialUnused = false;
+      rethrow;
+    }
+  }
+
+  void _attachNativeEvents() {
+    if (_nativeEvents != null) return;
+    _nativeEvents = _eventsChannel.receiveBroadcastStream().listen(
+      _onNativeEvent,
+      onError: (Object error, StackTrace _) {
+        final vtonError = error is PlatformException
+            ? _convert(error)
+            : DecartVtonException(VtonErrorCode.unknown, error.toString());
+        if (!_eventsController.isClosed) {
+          _eventsController.add(VtonErrorOccurred(vtonError));
+        }
+      },
+    );
+  }
+
+  void _onNativeEvent(dynamic raw) {
+    if (raw is! Map) return;
+    final map = raw.cast<Object?, Object?>();
+    final VtonEvent? event = switch (map['type'] as String?) {
+      'connectionState' => VtonConnectionStateChanged(
+        VtonConnectionState.fromWire(map['state'] as String?),
+      ),
+      'sessionStarted' => map['sessionId'] is String
+          ? VtonSessionStarted(
+              sessionId: map['sessionId'] as String,
+              subscribeToken: map['subscribeToken'] as String?,
+            )
+          : null,
+      'generationTick' => VtonGenerationTick(
+        Duration(
+          milliseconds: (((map['seconds'] as num?)?.toDouble() ?? 0) * 1000)
+              .round(),
+        ),
+      ),
+      'remoteStreamUpdated' => const VtonRemoteStreamUpdated(),
+      'localStreamUpdated' => const VtonLocalStreamUpdated(),
+      'connectionQuality' => VtonConnectionQualityChanged(
+        quality: VtonConnectionQuality.fromWire(map['quality'] as String?),
+        roundTripMs: (map['roundTripMs'] as num?)?.round(),
+        packetLoss: (map['packetLoss'] as num?)?.toDouble(),
+        jitterMs: (map['jitterMs'] as num?)?.round(),
+      ),
+      'error' => VtonErrorOccurred(
+        DecartVtonException(
+          VtonErrorCode.fromNative(map['code'] as String?),
+          (map['message'] as String?) ?? 'Unknown native error',
+          nativeCode: map['code'] as String?,
+          details: map['details'],
+        ),
+      ),
+      _ => null,
+    };
+    if (event == null) return;
+    if (event is VtonConnectionStateChanged) {
+      _connectionState = event.state;
+    }
+    if (!_eventsController.isClosed) _eventsController.add(event);
+  }
 
   @override
   Future<void> connect({
     required VtonModel model,
     VtonOutfit? initialOutfit,
     VtonCameraFacing camera = VtonCameraFacing.front,
-  }) => _sdk.connect(
-    model: model,
-    initialOutfit: initialOutfit,
-    camera: camera,
-  );
+  }) => _serialize(() async {
+    if (_disposed) return;
+    if (!_initialized) {
+      throw const DecartVtonException.local(
+        VtonErrorCode.notInitialized,
+        'Native client is not initialized.',
+      );
+    }
+
+    var reusedInitial = false;
+    if (_credentialUnused) {
+      _credentialUnused = false;
+      reusedInitial = true;
+    } else {
+      await _refreshNativeClient();
+      _credentialUnused = false;
+    }
+
+    _facing = camera;
+    final args = <String, Object?>{
+      'model': model.id,
+      'width': model.width,
+      'height': model.height,
+      'fps': model.fps,
+      'supportsReferenceImage': model.supportsReferenceImage,
+      'facing': camera.name,
+      'mirror': VtonMirrorMode.auto.name,
+      'resolution': null,
+      'connectTimeoutMs': 30000,
+      'video': const VtonVideoConfig().toMap(),
+      'prompt': initialOutfit?.prompt,
+      'referenceImage': initialOutfit?.referenceImage,
+      'referenceImagePath': initialOutfit?.hasReferenceImagePath == true
+          ? initialOutfit!.referenceImagePath!.trim()
+          : null,
+      'enhance': initialOutfit?.enhance ?? true,
+    };
+
+    try {
+      await _invoke<Map<Object?, Object?>>('connect', args);
+    } on DecartVtonException catch (error) {
+      if (!reusedInitial || error.code != VtonErrorCode.invalidApiKey) rethrow;
+      await _refreshNativeClient();
+      _credentialUnused = false;
+      await _invoke<Map<Object?, Object?>>('connect', args);
+    }
+  });
 
   @override
-  Future<void> setOutfit({required VtonOutfit outfit}) =>
-      _sdk.setOutfit(outfit: outfit);
+  Future<void> setOutfit({required VtonOutfit outfit}) => _serialize(() async {
+    if (_disposed) return;
+    await _invokeVoid('setOutfit', <String, Object?>{
+      'prompt': outfit.hasPrompt ? outfit.prompt!.trim() : null,
+      'referenceImage': outfit.hasReferenceImageBytes
+          ? outfit.referenceImage
+          : null,
+      'referenceImagePath': outfit.hasReferenceImagePath
+          ? outfit.referenceImagePath!.trim()
+          : null,
+      'enhance': outfit.enhance,
+      'timeoutMs': 30000,
+    });
+  });
 
   @override
-  Future<VtonCameraFacing> switchCamera() => _sdk.switchCamera();
+  Future<VtonCameraFacing> switchCamera() => _serialize(() async {
+    final target = _facing.flipped;
+    final res = await _invoke<Map<Object?, Object?>>(
+      'switchCamera',
+      <String, Object?>{'facing': target.name},
+    );
+    _facing = res?['facing'] == VtonCameraFacing.back.name
+        ? VtonCameraFacing.back
+        : VtonCameraFacing.front;
+    return _facing;
+  });
 
   @override
-  Future<void> disconnect() => _sdk.disconnect();
+  Future<void> disconnect() => _serialize(() async {
+    if (_disposed || !_initialized) return;
+    await _invokeVoid('disconnect', const <String, Object?>{});
+    _connectionState = VtonConnectionState.disconnected;
+  });
 
   @override
-  Future<void> dispose() => _sdk.dispose();
+  Future<void> dispose() => _serialize(() async {
+    if (_disposed) return;
+    _disposed = true;
+    await _nativeEvents?.cancel();
+    _nativeEvents = null;
+    if (_initialized) {
+      try {
+        await _invokeVoid('release', const <String, Object?>{});
+      } on DecartVtonException {
+        // Best-effort native release on teardown.
+      }
+    }
+    _initialized = false;
+    await _eventsController.close();
+  });
+
+  Future<T?> _invoke<T>(String method, Map<String, Object?> args) async {
+    try {
+      return await _methods.invokeMethod<T>(method, args);
+    } on PlatformException catch (e, s) {
+      Error.throwWithStackTrace(_convert(e), s);
+    } on MissingPluginException catch (e, s) {
+      Error.throwWithStackTrace(
+        DecartVtonException(
+          VtonErrorCode.notInitialized,
+          'decart_vton_flutter plugin is not registered. (${e.message})',
+        ),
+        s,
+      );
+    }
+  }
+
+  Future<void> _invokeVoid(String method, Map<String, Object?> args) async {
+    await _invoke<void>(method, args);
+  }
+
+  static DecartVtonException _convert(PlatformException e) =>
+      DecartVtonException(
+        VtonErrorCode.fromNative(e.code),
+        e.message ?? 'Platform error',
+        nativeCode: e.code,
+        details: e.details,
+      );
 }
 
 bool get isVtonNativePlatformSupported =>
