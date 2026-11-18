@@ -671,7 +671,8 @@ abstract final class ProductCardDesign {
   static Color get imageBackground => AppColors.surfaceAlt;
   static Color get imageBorderColor => AppColors.border;
   static const double imageBorderWidth = 1;
-  static const BoxFit imageFit = BoxFit.cover;
+  static const BoxFit imageFit = BoxFit.contain;
+  static const EdgeInsets imageInnerPadding = EdgeInsets.all(14);
   static Color get placeholderIcon => AppColors.iconMuted;
 
   // --- البطاقة ---

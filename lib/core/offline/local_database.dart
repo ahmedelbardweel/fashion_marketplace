@@ -1259,11 +1259,14 @@ class LocalDatabase {
 
     final mapped = await _hydrateCustomerProducts(rawRows, favoriteIds);
 
-    if (ActiveVisualSearchStore.instance.currentQuery.value != null) {
+    if (hasSearchQuery) {
+      final isVisual =
+          ActiveVisualSearchStore.instance.currentQuery.value != null;
       await Future.wait(
         mapped.take(24).map(
           (p) => VisualSearchService.instance.getProductImageHistogram(
             p.coverImage,
+            downloadIfMissing: isVisual,
           ),
         ),
       );
@@ -1470,6 +1473,14 @@ class LocalDatabase {
       );
     }
 
+    final hasSearch = search != null && search.trim().isNotEmpty;
+    if (hasSearch && offset > 0) {
+      return const PaginatedPage<shop_models.ShopProduct>(
+        items: [],
+        rawCount: 0,
+      );
+    }
+
     final whereClauses = <String>['shop_id = ?', "status != 'deleted'"];
     final whereArgs = <Object?>[shopId];
 
@@ -1481,17 +1492,13 @@ class LocalDatabase {
       whereClauses.add('category_id = ?');
       whereArgs.add(categoryId);
     }
-    if (minPrice != null) {
+    if (!hasSearch && minPrice != null) {
       whereClauses.add('price >= ?');
       whereArgs.add(minPrice);
     }
-    if (maxPrice != null) {
+    if (!hasSearch && maxPrice != null) {
       whereClauses.add('price <= ?');
       whereArgs.add(maxPrice);
-    }
-    if (search != null && search.trim().isNotEmpty) {
-      whereClauses.add('LOWER(name) LIKE ?');
-      whereArgs.add('%${search.trim().toLowerCase()}%');
     }
 
     final orderBy = switch (sort) {
@@ -1506,14 +1513,47 @@ class LocalDatabase {
       where: whereClauses.join(' AND '),
       whereArgs: whereArgs,
       orderBy: orderBy,
-      limit: limit,
+      limit: hasSearch ? 60 : limit,
       offset: offset < 0 ? 0 : offset,
     );
 
-    final items = await _hydrateShopProducts(rawRows);
+    final allItems = await _hydrateShopProducts(rawRows);
+    if (hasSearch) {
+      await Future.wait(
+        allItems.take(24).map(
+          (p) => VisualSearchService.instance.getProductImageHistogram(
+            p.coverImage,
+            downloadIfMissing: false,
+          ),
+        ),
+      );
+    }
+
+    final items = hasSearch
+        ? filterShopProducts(
+            allItems,
+            ShopProductFilterState(
+              search: search,
+              status: status,
+              categoryId: categoryId,
+              minPrice: minPrice,
+              maxPrice: maxPrice,
+              sort: sort,
+            ),
+          )
+        : allItems;
+
+    if (items.isEmpty && offset == 0 && allItems.isNotEmpty) {
+      return PaginatedPage<shop_models.ShopProduct>(
+        items: allItems.take(limit).toList(),
+        rawCount: 0,
+        isSimilarFallback: true,
+      );
+    }
+
     return PaginatedPage<shop_models.ShopProduct>(
       items: items,
-      rawCount: rawRows.length,
+      rawCount: hasSearch ? 0 : rawRows.length,
     );
   }
 
@@ -1625,6 +1665,11 @@ class LocalDatabase {
       return const PaginatedPage<AdminProduct>(items: [], rawCount: 0);
     }
 
+    final hasSearch = search != null && search.trim().isNotEmpty;
+    if (hasSearch && offset > 0) {
+      return const PaginatedPage<AdminProduct>(items: [], rawCount: 0);
+    }
+
     final whereClauses = <String>["status != 'deleted'"];
     final whereArgs = <Object?>[];
 
@@ -1632,17 +1677,13 @@ class LocalDatabase {
       whereClauses.add('status = ?');
       whereArgs.add(status);
     }
-    if (minPrice != null) {
+    if (!hasSearch && minPrice != null) {
       whereClauses.add('price >= ?');
       whereArgs.add(minPrice);
     }
-    if (maxPrice != null) {
+    if (!hasSearch && maxPrice != null) {
       whereClauses.add('price <= ?');
       whereArgs.add(maxPrice);
-    }
-    if (search != null && search.trim().isNotEmpty) {
-      whereClauses.add('LOWER(name) LIKE ?');
-      whereArgs.add('%${search.trim().toLowerCase()}%');
     }
 
     final orderBy = switch (sort) {
@@ -1657,11 +1698,11 @@ class LocalDatabase {
       where: whereClauses.join(' AND '),
       whereArgs: whereArgs,
       orderBy: orderBy,
-      limit: limit,
+      limit: hasSearch ? 60 : limit,
       offset: offset < 0 ? 0 : offset,
     );
 
-    final items = rawRows
+    final allItems = rawRows
         .map(
           (r) => AdminProduct(
             id: r['id']?.toString() ?? '',
@@ -1675,7 +1716,31 @@ class LocalDatabase {
         )
         .toList();
 
-    return PaginatedPage<AdminProduct>(items: items, rawCount: rawRows.length);
+    final items = hasSearch
+        ? filterAdminProducts(
+            allItems,
+            AdminProductFilterState(
+              search: search,
+              status: status,
+              minPrice: minPrice,
+              maxPrice: maxPrice,
+              sort: sort,
+            ),
+          )
+        : allItems;
+
+    if (items.isEmpty && offset == 0 && allItems.isNotEmpty) {
+      return PaginatedPage<AdminProduct>(
+        items: allItems.take(limit).toList(),
+        rawCount: 0,
+        isSimilarFallback: true,
+      );
+    }
+
+    return PaginatedPage<AdminProduct>(
+      items: items,
+      rawCount: hasSearch ? 0 : rawRows.length,
+    );
   }
 
   Future<void> updateProductStatusLocal(String productId, String status) async {

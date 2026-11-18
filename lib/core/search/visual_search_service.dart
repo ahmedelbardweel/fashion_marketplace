@@ -180,6 +180,16 @@ class VisualSearchService {
   final Map<String, List<double>> _productHistogramCache =
       <String, List<double>>{};
 
+  /// In-memory cache of detected dominant garment color names for product image URLs.
+  final Map<String, List<String>> _productColorsCache =
+      <String, List<String>>{};
+
+  /// Returns the cached detected garment colors for a product image URL if already analyzed.
+  List<String> getCachedProductImageColors(String? imageUrl) {
+    if (imageUrl == null || imageUrl.trim().isEmpty) return const [];
+    return _productColorsCache[imageUrl.trim()] ?? const [];
+  }
+
   /// Analyzes an image from bytes (in a background isolate) and returns a
   /// [VisualSearchQuery] containing dominant garment colors & visual histogram.
   Future<VisualSearchQuery> analyzeImageBytes(
@@ -215,20 +225,43 @@ class VisualSearchService {
     );
   }
 
-  /// Pre-computes or retrieves the visual histogram of a cached product image file.
-  Future<List<double>?> getProductImageHistogram(String? imageUrl) async {
+  /// Pre-computes or retrieves the visual histogram and dominant garment colors
+  /// of a cached product image file.
+  Future<List<double>?> getProductImageHistogram(
+    String? imageUrl, {
+    bool downloadIfMissing = true,
+  }) async {
     if (kIsWeb || imageUrl == null || imageUrl.trim().isEmpty) return null;
     final cleanUrl = imageUrl.trim();
     final existing = _productHistogramCache[cleanUrl];
     if (existing != null) return existing;
 
     File? file = OfflineImageCacheService.instance.getCachedFileSync(cleanUrl);
-    file ??= await OfflineImageCacheService.instance.getOrDownloadFile(cleanUrl);
+    if (file == null && downloadIfMissing) {
+      file = await OfflineImageCacheService.instance.getOrDownloadFile(cleanUrl);
+    }
     if (file == null || !file.existsSync()) return null;
 
     try {
       final bytes = await file.readAsBytes();
-      final hist = await compute(_extractHistogramOnlyIsolate, bytes);
+      final rawMap = await compute(_analyzeImageIsolate, {
+        'bytes': bytes,
+        'hint': '',
+      });
+      final hist = (rawMap['histogram'] as List? ?? const [])
+          .map((e) => (e as num).toDouble())
+          .toList();
+      final primary = rawMap['primaryColorName'] as String? ?? '';
+      final secondaries = List<String>.from(
+        rawMap['secondaryColorNames'] as List? ?? const [],
+      );
+      final colors = <String>[
+        if (primary.isNotEmpty) primary,
+        ...secondaries,
+      ];
+      if (colors.isNotEmpty) {
+        _productColorsCache[cleanUrl] = colors;
+      }
       if (hist.isNotEmpty) {
         _productHistogramCache[cleanUrl] = hist;
         return hist;
@@ -457,70 +490,6 @@ Map<String, dynamic> _analyzeImageIsolate(Map<String, dynamic> input) {
     'aspectRatio': aspectRatio,
     'keywords': _extractKeywordsFromHint(hint),
   };
-}
-
-List<double> _extractHistogramOnlyIsolate(Uint8List bytes) {
-  final decoded = img.decodeImage(bytes);
-  if (decoded == null) return const [];
-  final resized = img.copyResize(decoded, width: 64, height: 64);
-
-  var borderR = 0.0, borderG = 0.0, borderB = 0.0;
-  var borderCount = 0;
-  for (var y = 0; y < 64; y++) {
-    for (var x = 0; x < 64; x++) {
-      if (x < 4 || x >= 60 || y < 4 || y >= 60) {
-        final p = resized.getPixel(x, y);
-        borderR += p.r;
-        borderG += p.g;
-        borderB += p.b;
-        borderCount++;
-      }
-    }
-  }
-  if (borderCount > 0) {
-    borderR /= borderCount;
-    borderG /= borderCount;
-    borderB /= borderCount;
-  }
-
-  final histogram = List<double>.filled(64, 0.0);
-  for (var y = 6; y < 58; y++) {
-    for (var x = 8; x < 56; x++) {
-      final pixel = resized.getPixel(x, y);
-      if (pixel.a < 40) continue;
-      final r = pixel.r.toDouble();
-      final g = pixel.g.toDouble();
-      final b = pixel.b.toDouble();
-
-      final distToBorder = math.sqrt(
-        math.pow(r - borderR, 2) +
-            math.pow(g - borderG, 2) +
-            math.pow(b - borderB, 2),
-      );
-      final bgPenalty = distToBorder < 18.0 ? 0.15 : 1.0;
-      final dx = (x - 32.0) / 32.0;
-      final dy = (y - 32.0) / 32.0;
-      final centerWeight = math.max(0.25, 1.0 - (dx * dx + dy * dy) * 0.85);
-      final weight = centerWeight * bgPenalty;
-
-      final rBin = (r ~/ 64).clamp(0, 3);
-      final gBin = (g ~/ 64).clamp(0, 3);
-      final bBin = (b ~/ 64).clamp(0, 3);
-      histogram[(rBin * 16) + (gBin * 4) + bBin] += weight;
-    }
-  }
-
-  var norm = 0.0;
-  for (final v in histogram) {
-    norm += v * v;
-  }
-  norm = math.sqrt(norm);
-  if (norm > 1e-9) {
-    for (var i = 0; i < histogram.length; i++) {
-      histogram[i] = histogram[i] / norm;
-    }
-  }
-  return histogram;
 }
 
 _ColorPrototype _findClosestColorPrototype(double r, double g, double b) {

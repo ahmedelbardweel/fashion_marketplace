@@ -183,36 +183,6 @@ class _AppSearchFieldState extends State<AppSearchField> {
     super.dispose();
   }
 
-  Future<void> _handleVoiceSearch() async {
-    final spoken = await showVoiceSearchSheet(context);
-    if (!mounted || spoken == null || spoken.trim().isEmpty) return;
-    ActiveVisualSearchStore.instance.clear();
-    final cleaned = spoken.trim();
-    _controller.value = TextEditingValue(
-      text: cleaned,
-      selection: TextSelection.collapsed(offset: cleaned.length),
-    );
-    setState(() {});
-    widget.onChanged(cleaned);
-  }
-
-  Future<void> _handleVisualSearch() async {
-    final visualResult = await showVisualSearchSheet(context);
-    if (!mounted || visualResult == null) return;
-    ActiveVisualSearchStore.instance.setQuery(visualResult);
-    final parts = <String>[
-      ...visualResult.inferredKeywords,
-      visualResult.primaryColorName,
-    ];
-    final queryText = parts.join(' ').trim();
-    _controller.value = TextEditingValue(
-      text: queryText,
-      selection: TextSelection.collapsed(offset: queryText.length),
-    );
-    setState(() {});
-    widget.onChanged(queryText);
-  }
-
   @override
   Widget build(BuildContext context) {
     final hasText = _controller.text.isNotEmpty;
@@ -223,93 +193,60 @@ class _AppSearchFieldState extends State<AppSearchField> {
         borderRadius: BorderRadius.circular(AppBarDesign.searchRadius),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              autofocus: widget.autofocus,
-              onChanged: (text) {
-                if (text.isEmpty) {
-                  ActiveVisualSearchStore.instance.clear();
-                }
-                setState(() {});
-                widget.onChanged(text);
-              },
-              onSubmitted: widget.onSubmitted,
-              textInputAction: TextInputAction.search,
-              cursorColor: InputDesign.cursor,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: AppFont.medium,
-                color: AppColors.text,
-              ),
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                filled: false,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.sm,
-                  vertical: 11,
-                ),
-                hintText: widget.hint.tr,
-                hintStyle: TextStyle(
-                  fontSize: 13.5,
-                  color: AppBarDesign.searchHint,
-                ),
-                prefixIcon: Icon(
-                  AppIcons.search,
-                  size: 19,
-                  color: AppBarDesign.searchIcon,
-                ),
-              ),
-            ),
+      child: TextField(
+        controller: _controller,
+        autofocus: widget.autofocus,
+        onChanged: (text) {
+          if (text.isEmpty) {
+            ActiveVisualSearchStore.instance.clear();
+          }
+          setState(() {});
+          widget.onChanged(text);
+        },
+        onSubmitted: widget.onSubmitted,
+        textInputAction: TextInputAction.search,
+        cursorColor: InputDesign.cursor,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: AppFont.medium,
+          color: AppColors.text,
+        ),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          filled: false,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: 11,
           ),
-          if (hasText)
-            IconButton(
-              tooltip: 'مسح البحث'.tr,
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              onPressed: AppHaptics.action(() {
-                ActiveVisualSearchStore.instance.clear();
-                _controller.clear();
-                setState(() {});
-                widget.onChanged('');
-              }),
-              icon: Icon(
-                AppIcons.close,
-                size: 17,
-                color: AppColors.iconMuted,
-              ),
-            ),
-          IconButton(
-            tooltip: 'بحث صوتي'.tr,
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
-            onPressed: AppHaptics.action(_handleVoiceSearch),
-            icon: Icon(
-              Icons.mic_none_rounded,
-              size: 20,
-              color: AppColors.primaryDark,
-            ),
+          hintText: widget.hint.tr,
+          hintStyle: TextStyle(
+            fontSize: 13.5,
+            color: AppBarDesign.searchHint,
           ),
-          IconButton(
-            tooltip: 'بحث بالصورة'.tr,
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
-            onPressed: AppHaptics.action(_handleVisualSearch),
-            icon: Icon(
-              Icons.camera_alt_outlined,
-              size: 19,
-              color: AppColors.primaryDark,
-            ),
+          prefixIcon: Icon(
+            AppIcons.search,
+            size: 19,
+            color: AppBarDesign.searchIcon,
           ),
-          const SizedBox(width: 4),
-        ],
+          suffixIcon: hasText
+              ? IconButton(
+                  tooltip: 'مسح البحث'.tr,
+                  onPressed: AppHaptics.action(() {
+                    ActiveVisualSearchStore.instance.clear();
+                    _controller.clear();
+                    setState(() {});
+                    widget.onChanged('');
+                  }),
+                  icon: Icon(
+                    AppIcons.close,
+                    size: 18,
+                    color: AppColors.iconMuted,
+                  ),
+                )
+              : null,
+        ),
       ),
     );
   }
@@ -357,6 +294,29 @@ class AppFilterToolbar extends StatelessWidget {
   final bool showCountWhenUnfiltered;
   final bool showingSimilarFallback;
 
+  Future<void> _handleVisualSearch(BuildContext context) async {
+    final visualResult = await showVisualSearchSheet(context);
+    if (!context.mounted || visualResult == null) return;
+    ActiveVisualSearchStore.instance.setQuery(visualResult);
+    final parts = <String>[
+      ...visualResult.inferredKeywords,
+      visualResult.primaryColorName,
+    ];
+    final queryText = parts.join(' ').trim();
+    onSearchChanged(queryText);
+  }
+
+  void _handleVoiceSearch(BuildContext context) {
+    VoiceSearchFloatingOverlay.show(
+      context: context,
+      onResult: (spoken) {
+        if (spoken.trim().isEmpty) return;
+        ActiveVisualSearchStore.instance.clear();
+        onSearchChanged(spoken.trim());
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final showStatsRow =
@@ -383,6 +343,31 @@ class AppFilterToolbar extends StatelessWidget {
                   hint: searchHint,
                   onChanged: onSearchChanged,
                 ),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              ValueListenableBuilder<bool>(
+                valueListenable: VoiceSearchFloatingOverlay.isActiveNotifier,
+                builder: (context, isVoiceActive, _) {
+                  return _CircleToolbarButton(
+                    tooltip: 'بحث صوتي'.tr,
+                    icon: IconsaxPlusLinear.microphone_2,
+                    isActive: isVoiceActive,
+                    onTap: () => _handleVoiceSearch(context),
+                  );
+                },
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              ValueListenableBuilder<VisualSearchQuery?>(
+                valueListenable: ActiveVisualSearchStore.instance.currentQuery,
+                builder: (context, visualQuery, _) {
+                  return _CircleToolbarButton(
+                    tooltip: 'بحث بالصورة'.tr,
+                    icon: AppIcons.camera,
+                    isActive:
+                        visualQuery != null && searchValue.trim().isNotEmpty,
+                    onTap: () => _handleVisualSearch(context),
+                  );
+                },
               ),
               if (onOpenSort != null &&
                   quickOptions.isEmpty &&
@@ -509,18 +494,9 @@ class AppFilterToolbar extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             Row(
               children: [
-                if (showingSimilarFallback)
-                  Expanded(
-                    child: Text(
-                      'نتائج مشابهة مقترحة'.tr,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: AppFont.bold,
-                        color: AppColors.primaryDark,
-                      ),
-                    ),
-                  )
-                else if (filteredCount != null && totalCount != null)
+                if (!showingSimilarFallback &&
+                    filteredCount != null &&
+                    totalCount != null)
                   Expanded(
                     child: Text(
                       hasActiveCustomization
@@ -535,7 +511,7 @@ class AppFilterToolbar extends StatelessWidget {
                       ),
                     ),
                   )
-                else if (filteredCount != null)
+                else if (!showingSimilarFallback && filteredCount != null)
                   Expanded(
                     child: Text(
                       AppLang.tr('النتائج: $filteredCount'),
@@ -575,27 +551,15 @@ class AppFilterToolbar extends StatelessWidget {
               ],
             ),
           ],
-          if (showingSimilarFallback) ...[
-            const SizedBox(height: AppSpacing.xs),
-            AppSimilarResultsBanner(
-              onClear: () {
-                ActiveVisualSearchStore.instance.clear();
-                if (onClearAll != null) {
-                  onClearAll!();
-                } else {
-                  onSearchChanged('');
-                }
-              },
-            ),
-          ],
+          if (showingSimilarFallback) const AppSimilarResultsBanner(),
         ],
       ),
     );
   }
 }
 
-/// Banner displayed when an exact search/visual query has 0 direct hits and
-/// similar products are shown instead.
+/// Clean minimal banner displayed when an exact search/visual query has 0 direct
+/// hits and similar products are shown below it.
 class AppSimilarResultsBanner extends StatelessWidget {
   const AppSimilarResultsBanner({
     super.key,
@@ -607,56 +571,72 @@ class AppSimilarResultsBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.md,
-        vertical: 10,
+        vertical: 14,
       ),
       decoration: BoxDecoration(
         color: AppColors.surfaceSubtle,
         borderRadius: BorderRadius.circular(AppRadii.md),
-        border: Border.all(color: AppColors.primaryBorder),
+        border: Border.all(color: AppColors.border),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
+      alignment: Alignment.center,
+      child: Text(
+        'لا توجد منتجات مطابقة'.tr,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 13.5,
+          fontWeight: AppFont.semiBold,
+          color: AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+}
+
+class _CircleToolbarButton extends StatelessWidget {
+  const _CircleToolbarButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    this.isActive = false,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool isActive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: isActive ? AppColors.primarySoft : AppColors.surfaceAlt,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: AppHaptics.action(onTap),
+          child: Container(
+            width: AppBarDesign.searchHeight,
+            height: AppBarDesign.searchHeight,
             decoration: BoxDecoration(
-              color: AppColors.primarySoft,
               shape: BoxShape.circle,
+              border: Border.all(
+                color: isActive ? AppColors.primaryBorder : AppColors.border,
+              ),
             ),
+            alignment: Alignment.center,
             child: Icon(
-              Icons.auto_awesome_rounded,
-              size: 18,
-              color: AppColors.primaryDark,
+              icon,
+              size: 19,
+              color: isActive
+                  ? AppColors.primaryDark
+                  : CatalogDesign.filterButtonIcon,
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'لا يوجد منتج مطابق تماماً لبحثك'.tr,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: AppFont.bold,
-                    color: AppColors.text,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'إليك المنتجات الأكثر تشابهاً في المتجر بناءً على اللون والمواصفات'
-                      .tr,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

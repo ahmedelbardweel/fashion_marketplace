@@ -7,7 +7,6 @@ import 'package:image_picker/image_picker.dart';
 import '../theme/app_design.dart';
 import '../utils/app_haptics.dart';
 import '../widgets/app_bottom_sheet.dart';
-import '../widgets/app_button.dart';
 import 'visual_search_service.dart';
 import 'voice_search_service.dart';
 
@@ -33,12 +32,74 @@ class ActiveVisualSearchStore {
   }
 }
 
-/// Opens the interactive voice search bottom sheet and returns the spoken query.
-Future<String?> showVoiceSearchSheet(BuildContext context) {
-  return AppBottomSheet.show<String>(
-    context: context,
-    child: const _VoiceSearchSheetBody(),
+/// Manages the ChatGPT-style floating voice orb overlay at the bottom of the screen
+/// (no bottom sheet, non-blocking, 60/120fps CustomPainter waveform).
+class VoiceSearchFloatingOverlay {
+  VoiceSearchFloatingOverlay._();
+
+  static OverlayEntry? _activeEntry;
+  static final ValueNotifier<bool> isActiveNotifier = ValueNotifier<bool>(
+    false,
   );
+
+  static bool get isActive => _activeEntry != null;
+
+  static void show({
+    required BuildContext context,
+    required ValueChanged<String> onResult,
+  }) {
+    if (_activeEntry != null) {
+      dismiss();
+      return;
+    }
+
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _ChatGptVoiceOrbOverlayWidget(
+        onSubmit: (text) {
+          dismiss();
+          if (text.trim().isNotEmpty) {
+            onResult(text.trim());
+          }
+        },
+        onCancel: () {
+          unawaited(VoiceSearchService.instance.cancelListening());
+          dismiss();
+        },
+      ),
+    );
+
+    _activeEntry = entry;
+    isActiveNotifier.value = true;
+    overlay.insert(entry);
+  }
+
+  static void dismiss() {
+    final entry = _activeEntry;
+    _activeEntry = null;
+    isActiveNotifier.value = false;
+    try {
+      entry?.remove();
+    } catch (_) {}
+  }
+}
+
+/// Legacy helper kept for backward compatibility if called anywhere else;
+/// delegates to the floating overlay and resolves with the spoken string.
+Future<String?> showVoiceSearchSheet(BuildContext context) {
+  final completer = Completer<String?>();
+  VoiceSearchFloatingOverlay.show(
+    context: context,
+    onResult: (text) {
+      if (!completer.isCompleted) {
+        completer.complete(text);
+      }
+    },
+  );
+  return completer.future;
 }
 
 /// Opens the visual search bottom sheet (Camera or Gallery), analyzes the
@@ -50,314 +111,367 @@ Future<VisualSearchQuery?> showVisualSearchSheet(BuildContext context) {
   );
 }
 
-class _VoiceSearchSheetBody extends StatefulWidget {
-  const _VoiceSearchSheetBody();
+// =============================================================================
+// ChatGPT-Style Floating Bottom Voice Orb & Real-Time Waveform Overlay
+// =============================================================================
+
+class _ChatGptVoiceOrbOverlayWidget extends StatefulWidget {
+  const _ChatGptVoiceOrbOverlayWidget({
+    required this.onSubmit,
+    required this.onCancel,
+  });
+
+  final ValueChanged<String> onSubmit;
+  final VoidCallback onCancel;
 
   @override
-  State<_VoiceSearchSheetBody> createState() => _VoiceSearchSheetBodyState();
+  State<_ChatGptVoiceOrbOverlayWidget> createState() =>
+      _ChatGptVoiceOrbOverlayWidgetState();
 }
 
-class _VoiceSearchSheetBodyState extends State<_VoiceSearchSheetBody>
+class _ChatGptVoiceOrbOverlayWidgetState
+    extends State<_ChatGptVoiceOrbOverlayWidget>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseController;
-  String _recognizedText = '';
-  String _selectedLang = AppLang.isEn ? 'en' : 'ar';
-  double _soundLevel = 0.0;
-  bool _isListening = false;
-  String? _errorMessage;
-  bool _autoPopped = false;
+  late final AnimationController _waveController;
+  final ValueNotifier<double> _soundLevel = ValueNotifier<double>(0.0);
+  final ValueNotifier<String> _liveTranscript = ValueNotifier<String>('');
+  final ValueNotifier<String?> _errorText = ValueNotifier<String?>(null);
+
+  Timer? _silenceSubmitTimer;
+  bool _submitted = false;
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
+    _waveController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1100),
-    )..repeat(reverse: true);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _startRecording());
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _beginListening());
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
-    unawaited(VoiceSearchService.instance.stopListening());
+    _silenceSubmitTimer?.cancel();
+    _waveController.dispose();
+    _soundLevel.dispose();
+    _liveTranscript.dispose();
+    _errorText.dispose();
     super.dispose();
   }
 
-  Future<void> _startRecording() async {
-    setState(() {
-      _errorMessage = null;
-      _isListening = true;
-    });
-
+  Future<void> _beginListening() async {
     try {
       await VoiceSearchService.instance.startListening(
-        preferredLanguageCode: _selectedLang,
         onSoundLevelChange: (level) {
-          if (!mounted) return;
-          setState(() {
-            _soundLevel = level.clamp(-2.0, 10.0);
-          });
+          // Normalize typical speech_to_text dB range (-2..10) into (0.0..1.0)
+          final normalized = ((level + 2.0) / 10.0).clamp(0.05, 1.0);
+          _soundLevel.value = normalized;
         },
-        onResult: (text, isFinal) {
-          if (!mounted) return;
-          setState(() {
-            _recognizedText = text;
-            if (isFinal) {
-              _isListening = false;
-            }
-          });
-          if (isFinal && text.trim().isNotEmpty && !_autoPopped) {
-            _autoPopped = true;
-            Future<void>.delayed(const Duration(milliseconds: 350), () {
-              if (mounted) {
-                Navigator.of(context).pop(text.trim());
+        onStatus: (status) {
+          if ((status == 'done' || status == 'notListening') &&
+              !_submitted &&
+              _liveTranscript.value.trim().isNotEmpty) {
+            _finishAndSubmit();
+          }
+        },
+        onError: (err) {
+          if (_liveTranscript.value.trim().isNotEmpty) {
+            _finishAndSubmit();
+          } else {
+            _errorText.value = 'لم نتمكن من سماعك، حاول مرة أخرى'.tr;
+            Future<void>.delayed(const Duration(milliseconds: 1500), () {
+              if (mounted && !_submitted) {
+                widget.onCancel();
               }
             });
           }
         },
+        onResult: (text, isFinal) {
+          _liveTranscript.value = text;
+          _silenceSubmitTimer?.cancel();
+
+          if (isFinal && text.trim().isNotEmpty) {
+            _finishAndSubmit();
+          } else if (text.trim().isNotEmpty) {
+            // Auto-submit smoothly after 1.6s of silence once words are spoken
+            _silenceSubmitTimer = Timer(
+              const Duration(milliseconds: 1600),
+              _finishAndSubmit,
+            );
+          }
+        },
       );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isListening = false;
-        _errorMessage =
-            'تعذر الوصول إلى الميكروفون. تأكد من منح صلاحية التسجيل الصوتي.'.tr;
+    } catch (_) {
+      _errorText.value = 'تأكد من منح صلاحية الميكروفون'.tr;
+      Future<void>.delayed(const Duration(milliseconds: 1600), () {
+        if (mounted && !_submitted) {
+          widget.onCancel();
+        }
       });
     }
   }
 
-  Future<void> _toggleLanguage(String lang) async {
-    if (_selectedLang == lang) return;
-    await VoiceSearchService.instance.stopListening();
-    if (!mounted) return;
-    setState(() {
-      _selectedLang = lang;
-      _recognizedText = '';
-    });
-    await _startRecording();
+  void _finishAndSubmit() {
+    if (_submitted) return;
+    _submitted = true;
+    _silenceSubmitTimer?.cancel();
+    unawaited(VoiceSearchService.instance.stopListening());
+    final cleaned = cleanVoiceSearchQuery(_liveTranscript.value);
+    widget.onSubmit(cleaned);
   }
 
   @override
   Widget build(BuildContext context) {
-    return AppBottomSheetScaffold(
-      title: 'البحث الصوتي الذكي'.tr,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'تحدث باسم المنتج، اللون، المتجر، أو القسم'.tr,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12.5,
-              color: AppColors.textMuted,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          // Language selector pills
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _LangChip(
-                label: 'العربية',
-                selected: _selectedLang == 'ar',
-                onTap: () => _toggleLanguage('ar'),
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              _LangChip(
-                label: 'English',
-                selected: _selectedLang == 'en',
-                onTap: () => _toggleLanguage('en'),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-
-          // Animated Microphone Wave Circle
-          GestureDetector(
-            onTap: AppHaptics.action(() {
-              if (_isListening) {
-                VoiceSearchService.instance.stopListening();
-                setState(() => _isListening = false);
-              } else {
-                _startRecording();
-              }
-            }),
-            child: AnimatedBuilder(
-              animation: _pulseController,
-              builder: (context, _) {
-                final boost = _isListening
-                    ? (_pulseController.value * 14.0) +
-                          (math.max(0.0, _soundLevel) * 1.8)
-                    : 0.0;
-                return SizedBox(
-                  width: 120,
-                  height: 120,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      if (_isListening)
-                        Container(
-                          width: 88 + boost,
-                          height: 88 + boost,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.primary.withValues(alpha: 0.14),
-                          ),
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: math.max(bottomInset + 84, 96),
+      child: Material(
+        color: Colors.transparent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Live Speech Bubble (automatically detects RTL Arabic vs LTR English)
+            ValueListenableBuilder<String?>(
+              valueListenable: _errorText,
+              builder: (context, err, _) {
+                return ValueListenableBuilder<String>(
+                  valueListenable: _liveTranscript,
+                  builder: (context, transcript, _) {
+                    final display =
+                        err ??
+                        (transcript.isEmpty
+                            ? 'تحدث الآن...'.tr
+                            : transcript);
+                    final isAr = isArabicSpeech(display);
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      constraints: const BoxConstraints(maxWidth: 320),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface.withValues(alpha: 0.96),
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                        border: Border.all(
+                          color: err != null
+                              ? AppColors.error
+                              : AppColors.primaryBorder,
                         ),
-                      Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _isListening
-                              ? AppColors.primary
-                              : AppColors.surfaceAlt,
-                          border: Border.all(
-                            color: _isListening
-                                ? AppColors.primaryDark
-                                : AppColors.borderStrong,
-                            width: 2,
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x22000000),
+                            blurRadius: 16,
+                            offset: Offset(0, 6),
                           ),
-                        ),
-                        child: Icon(
-                          _isListening
-                              ? Icons.mic_rounded
-                              : Icons.mic_none_rounded,
-                          size: 34,
-                          color: _isListening
-                              ? AppColors.onPrimary
-                              : AppColors.icon,
+                        ],
+                      ),
+                      child: Directionality(
+                        textDirection: isAr
+                            ? TextDirection.rtl
+                            : TextDirection.ltr,
+                        child: Text(
+                          display,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: transcript.isEmpty
+                                ? AppFont.medium
+                                : AppFont.bold,
+                            color: err != null
+                                ? AppColors.error
+                                : (transcript.isEmpty
+                                      ? AppColors.textMuted
+                                      : AppColors.text),
+                          ),
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 );
               },
             ),
-          ),
 
-          const SizedBox(height: AppSpacing.md),
+            const SizedBox(height: 12),
 
-          Text(
-            _errorMessage ??
-                (_isListening
-                    ? 'جارٍ الاستماع... تكلم الآن'.tr
-                    : 'اضغط على المايكروفون للتحدث'.tr),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13.5,
-              fontWeight: AppFont.semiBold,
-              color: _errorMessage != null
-                  ? AppColors.error
-                  : (_isListening ? AppColors.primaryDark : AppColors.textMuted),
-            ),
-          ),
-
-          const SizedBox(height: AppSpacing.md),
-
-          // Live recognized text box
-          Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(minHeight: 56),
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: 12,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceSubtle,
-              borderRadius: BorderRadius.circular(AppRadii.md),
-              border: Border.all(color: AppColors.border),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              _recognizedText.isEmpty
-                  ? 'مثال: "قميص رجالي أسود" أو "فستان سهرة بيج"'.tr
-                  : _recognizedText,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: _recognizedText.isEmpty
-                    ? AppFont.regular
-                    : AppFont.bold,
-                color: _recognizedText.isEmpty
-                    ? AppColors.textMuted
-                    : AppColors.text,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppSpacing.lg),
-
-          Row(
-            children: [
-              Expanded(
-                child: AppButton(
-                  label: 'إلغاء'.tr,
-                  variant: AppButtonVariant.outlined,
-                  onPressed: () => Navigator.of(context).pop(),
+            // ChatGPT-style Floating Wave Orb + Quick Cancel Button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Cancel (X) Circle
+                GestureDetector(
+                  onTap: AppHaptics.action(widget.onCancel),
+                  child: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.borderStrong),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x1F000000),
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      AppIcons.close,
+                      size: 19,
+                      color: AppColors.icon,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: AppButton(
-                  label: 'بحث الآن'.tr,
-                  leading: Icon(AppIcons.search, size: 18),
-                  onPressed: _recognizedText.trim().isEmpty
-                      ? null
-                      : () {
-                          final cleaned = cleanVoiceSearchQuery(
-                            _recognizedText,
-                          );
-                          Navigator.of(context).pop(cleaned);
-                        },
+
+                const SizedBox(width: 14),
+
+                // Main ChatGPT-style Animated Waveform Circle Orb
+                RepaintBoundary(
+                  child: GestureDetector(
+                    onTap: AppHaptics.action(() {
+                      if (_liveTranscript.value.trim().isNotEmpty) {
+                        _finishAndSubmit();
+                      } else {
+                        widget.onCancel();
+                      }
+                    }),
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([
+                        _waveController,
+                        _soundLevel,
+                      ]),
+                      builder: (context, _) {
+                        final level = _soundLevel.value;
+                        final haloScale = 1.0 + (level * 0.28);
+                        return SizedBox(
+                          width: 84,
+                          height: 84,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              Transform.scale(
+                                scale: haloScale,
+                                child: Container(
+                                  width: 68,
+                                  height: 68,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.18,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                width: 66,
+                                height: 66,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.primary,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.38,
+                                      ),
+                                      blurRadius: 18,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: CustomPaint(
+                                  painter: _ChatGptWaveOrbPainter(
+                                    phase: _waveController.value,
+                                    amplitude: level,
+                                    color: AppColors.onPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _LangChip extends StatelessWidget {
-  const _LangChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
+/// High-performance 60/120fps CustomPainter drawing the ChatGPT-style
+/// fluid vertical voice bars inside the floating circle orb.
+class _ChatGptWaveOrbPainter extends CustomPainter {
+  const _ChatGptWaveOrbPainter({
+    required this.phase,
+    required this.amplitude,
+    required this.color,
   });
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
+  final double phase;
+  final double amplitude;
+  final Color color;
 
   @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(AppRadii.pill),
-      onTap: AppHaptics.action(onTap),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primarySoft : AppColors.surfaceSubtle,
-          borderRadius: BorderRadius.circular(AppRadii.pill),
-          border: Border.all(
-            color: selected ? AppColors.primaryBorder : AppColors.border,
-          ),
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    const barCount = 5;
+    const barWidth = 4.2;
+    const spacing = 4.6;
+    const totalWidth = (barCount * barWidth) + ((barCount - 1) * spacing);
+    final startX = (size.width - totalWidth) / 2.0;
+    final centerY = size.height / 2.0;
+
+    // Envelope weights so center bars are taller like ChatGPT voice mode
+    const weights = [0.48, 0.78, 1.0, 0.78, 0.48];
+    final effectiveAmp = math.max(0.18, amplitude);
+
+    for (var i = 0; i < barCount; i++) {
+      final wave = math.sin((phase * 2 * math.pi) + (i * 0.95));
+      final dynamicFactor = 0.35 + (0.65 * ((wave + 1.0) / 2.0));
+      final barHeight =
+          (8.0 + (22.0 * effectiveAmp * weights[i] * dynamicFactor)).clamp(
+            6.0,
+            30.0,
+          );
+
+      final left = startX + i * (barWidth + spacing);
+      final rrect = RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(left + barWidth / 2.0, centerY),
+          width: barWidth,
+          height: barHeight,
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: selected ? AppFont.bold : AppFont.medium,
-            color: selected ? AppColors.primaryDark : AppColors.textSecondary,
-          ),
-        ),
-      ),
-    );
+        const Radius.circular(99),
+      );
+      canvas.drawRRect(rrect, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ChatGptWaveOrbPainter oldDelegate) {
+    return oldDelegate.phase != phase ||
+        oldDelegate.amplitude != amplitude ||
+        oldDelegate.color != color;
   }
 }
+
+// =============================================================================
+// Visual Image Search Sheet (Camera / Gallery)
+// =============================================================================
 
 class _VisualSearchSheetBody extends StatefulWidget {
   const _VisualSearchSheetBody();
@@ -380,9 +494,9 @@ class _VisualSearchSheetBodyState extends State<_VisualSearchSheetBody> {
     try {
       final picked = await _picker.pickImage(
         source: source,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 88,
+        maxWidth: 960,
+        maxHeight: 960,
+        imageQuality: 85,
       );
       if (picked == null) {
         if (mounted) setState(() => _analyzing = false);
@@ -464,7 +578,7 @@ class _VisualSearchSheetBodyState extends State<_VisualSearchSheetBody> {
               children: [
                 Expanded(
                   child: _VisualSourceCard(
-                    icon: Icons.camera_alt_rounded,
+                    icon: AppIcons.camera,
                     title: 'تصوير بالكاميرا'.tr,
                     subtitle: 'التقط صورة مباشرة للمنتج'.tr,
                     onTap: () => _pickAndAnalyze(ImageSource.camera),
@@ -473,7 +587,7 @@ class _VisualSearchSheetBodyState extends State<_VisualSearchSheetBody> {
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: _VisualSourceCard(
-                    icon: Icons.photo_library_rounded,
+                    icon: Icons.photo_library_outlined,
                     title: 'رفع من الهاتف'.tr,
                     subtitle: 'اختر صورة من المعرض'.tr,
                     onTap: () => _pickAndAnalyze(ImageSource.gallery),
@@ -529,7 +643,7 @@ class _VisualSourceCard extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.primaryBorder),
                 ),
-                child: Icon(icon, size: 26, color: AppColors.primaryDark),
+                child: Icon(icon, size: 25, color: AppColors.primaryDark),
               ),
               const SizedBox(height: AppSpacing.sm),
               Text(

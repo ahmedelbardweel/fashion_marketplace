@@ -160,6 +160,9 @@ class _ProductGridCardState extends State<ProductGridCard> {
                           : AppNetworkImage(
                               widget.imageUrl!,
                               fit: ProductCardDesign.imageFit,
+                              alignment: Alignment.center,
+                              contentPadding:
+                                  ProductCardDesign.imageInnerPadding,
                               width: double.infinity,
                               height: double.infinity,
                               errorBuilder: (_, _, _) => Center(

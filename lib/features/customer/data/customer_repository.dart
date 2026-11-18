@@ -383,11 +383,14 @@ class CustomerRepository {
         final mapped = _mapProductRows(rawRows, favoriteIds);
         unawaited(_localDb.saveCustomerProducts(mapped));
 
-        if (ActiveVisualSearchStore.instance.currentQuery.value != null) {
+        if (hasSearchQuery) {
+          final isVisual =
+              ActiveVisualSearchStore.instance.currentQuery.value != null;
           await Future.wait(
             mapped.take(24).map(
               (p) => VisualSearchService.instance.getProductImageHistogram(
                 p.coverImage,
+                downloadIfMissing: isVisual,
               ),
             ),
           );

@@ -60,20 +60,133 @@ String normalizeSearchText(String? input) {
   return buffer.toString().trim();
 }
 
-/// Checks whether every whitespace-separated token in [query] matches any
-/// value in [fields] after normalization.
+/// Bidirectional equivalence classes for Arabic/English colors (masculine,
+/// feminine, plural, shades), sizes, and fashion garment terms.
+const List<List<String>> _kSearchEquivalenceGroups = [
+  // Colors
+  ['ازرق', 'زرقاء', 'زرقا', 'زرق', 'سماوي', 'لبني', 'بيبي بلو', 'بلو', 'blue', 'sky', 'cyan'],
+  ['كحلي', 'كحليه', 'كحلي غامق', 'ازرق غامق', 'نيفي', 'navy'],
+  ['اسود', 'سوداء', 'سودا', 'سود', 'فحمي', 'بلاك', 'black', 'dark'],
+  ['ابيض', 'بيضاء', 'بيضا', 'بيض', 'سكري', 'عاجي', 'وايت', 'white', 'ivory'],
+  ['احمر', 'حمراء', 'حمرا', 'حمر', 'عنابي', 'نبيتي', 'خمري', 'مارون', 'red', 'burgundy', 'maroon'],
+  ['اخضر', 'خضراء', 'خضرا', 'خضر', 'زيتي', 'زيتوني', 'فستقي', 'نعناعي', 'green', 'olive', 'mint'],
+  ['اصفر', 'صفراء', 'صفرا', 'صفر', 'ذهبي', 'خردلي', 'كموني', 'yellow', 'gold', 'mustard'],
+  ['بيج', 'بيجي', 'رملي', 'كريمي', 'اوف وايت', 'جملي', 'كافيه', 'beige', 'cream', 'camel'],
+  ['بني', 'بنيه', 'عسلي', 'شوكولاته', 'هافان', 'اسمر', 'سمراء', 'brown', 'chocolate'],
+  ['رمادي', 'رماديه', 'رصاصي', 'فضي', 'سلفر', 'فيراني', 'gray', 'grey', 'silver'],
+  ['وردي', 'ورديه', 'زهري', 'زهريه', 'بمبي', 'بينك', 'فوشيا', 'روز', 'pink', 'rose', 'magenta'],
+  ['بنفسجي', 'بنفسجيه', 'موف', 'ليلكي', 'لافندر', 'purple', 'violet', 'lavender'],
+  ['برتقالي', 'برتقاليه', 'اورنج', 'مشمشي', 'مرجاني', 'orange', 'coral'],
+  // Sizes
+  ['xs', 'اكس سمول', 'صغير جدا', 'xsmall'],
+  ['s', 'سمول', 'صغير', 'small'],
+  ['m', 'ميديم', 'ميديوم', 'وسط', 'متوسط', 'medium'],
+  ['l', 'لارج', 'كبير', 'large'],
+  ['xl', 'اكس لارج', 'كبير جدا', 'xlarge'],
+  ['xxl', '2xl', 'دبل اكس', 'تو اكس', 'اكسين لارج'],
+  ['3xl', 'xxxl', 'ثري اكس'],
+  // Garments & Departments
+  ['هودي', 'هوديز', 'سويت شيرت', 'سويتشيرت', 'بلوفر', 'hoodie', 'sweatshirt', 'pullover'],
+  ['قميص', 'قمصان', 'شميز', 'shirt'],
+  ['تيشيرت', 'تي شيرت', 'تيشرت', 'بلوزه', 'بلوزات', 'توب', 'tshirt', 't-shirt', 'top', 'blouse'],
+  ['بنطلون', 'بناطيل', 'بنطال', 'جينز', 'شروال', 'pants', 'jeans', 'trousers', 'denim'],
+  ['جاكيت', 'جواكيت', 'جكيت', 'معطف', 'بالطو', 'كوت', 'بليزر', 'jacket', 'coat', 'blazer'],
+  ['فستان', 'فساتين', 'دريس', 'dress', 'gown'],
+  ['تنوره', 'تنانير', 'جيبه', 'skirt'],
+  ['عبايه', 'عبايات', 'عباءه', 'جلابيه', 'abaya'],
+  ['حذاء', 'احذيه', 'شوز', 'سنيكرز', 'كوتشي', 'جزمه', 'صندل', 'بوت', 'shoes', 'sneakers', 'boots'],
+  ['حقيبه', 'حقائب', 'شنطه', 'شنط', 'bag', 'handbag'],
+  ['بدله', 'بدل', 'طقم', 'ترنج', 'ترينج', 'suit', 'set', 'tracksuit'],
+  ['رجالي', 'رجال', 'شبابي', 'ولادي', 'men', 'mens'],
+  ['نسائي', 'نساء', 'حريمي', 'بناتي', 'ستاتي', 'سيدات', 'women', 'womens', 'ladies'],
+  ['اطفال', 'ولادي', 'بناتي', 'بيبي', 'kids', 'children'],
+];
+
+/// Strips leading Arabic definite article `ال` when word length > 3.
+String _stripArabicDefiniteArticle(String token) {
+  if (token.startsWith('ال') && token.length > 3) {
+    return token.substring(2);
+  }
+  return token;
+}
+
+/// Expands a normalized search token into all equivalent morphological forms & synonyms.
+Set<String> _expandTokenEquivalents(String token) {
+  final bare = _stripArabicDefiniteArticle(token);
+  final equivalents = <String>{token, bare};
+
+  for (final group in _kSearchEquivalenceGroups) {
+    if (group.contains(token) || group.contains(bare)) {
+      equivalents.addAll(group);
+    }
+  }
+  return equivalents;
+}
+
+/// Extracts all string and numeric values from a nested JSON map (such as `product.details`).
+List<String> _flattenJsonMapValues(Map<String, dynamic> map) {
+  final out = <String>[];
+  void visit(dynamic value) {
+    if (value == null) return;
+    if (value is String) {
+      if (value.trim().isNotEmpty) out.add(value);
+    } else if (value is num || value is bool) {
+      out.add(value.toString());
+    } else if (value is Map) {
+      for (final entry in value.entries) {
+        out.add(entry.key.toString());
+        visit(entry.value);
+      }
+    } else if (value is Iterable) {
+      for (final item in value) {
+        visit(item);
+      }
+    }
+  }
+
+  visit(map);
+  return out;
+}
+
+/// Checks whether every whitespace-separated token in [query] (or any of its
+/// morphological/synonym equivalents) matches any value in [fields].
 bool matchesSearchTokens(String? query, Iterable<String?> fields) {
   final normalizedQuery = normalizeSearchText(query);
   if (normalizedQuery.isEmpty) return true;
 
-  final tokens = normalizedQuery.split(' ');
-  final haystack = fields
-      .where((f) => f != null && f.trim().isNotEmpty)
-      .map(normalizeSearchText)
-      .join(' ');
+  final tokens = normalizedQuery.split(' ').where((t) => t.isNotEmpty).toList();
+  final haystackWords = <String>{};
+  final haystackBuffer = StringBuffer();
+
+  for (final f in fields) {
+    if (f == null || f.trim().isEmpty) continue;
+    final norm = normalizeSearchText(f);
+    if (norm.isEmpty) continue;
+    haystackBuffer.write(norm);
+    haystackBuffer.write(' ');
+    for (final w in norm.split(' ')) {
+      if (w.isNotEmpty) {
+        haystackWords.add(w);
+        haystackWords.add(_stripArabicDefiniteArticle(w));
+      }
+    }
+  }
+
+  final haystack = haystackBuffer.toString().trim();
   if (haystack.isEmpty) return false;
 
-  return tokens.every(haystack.contains);
+  return tokens.every((token) {
+    final equivalents = _expandTokenEquivalents(token);
+    for (final eq in equivalents) {
+      if (eq.length <= 2) {
+        // Short tokens (like sizes 's', 'm', 'l', 'xl') must match whole words
+        if (haystackWords.contains(eq)) return true;
+      } else {
+        if (haystack.contains(eq)) return true;
+      }
+    }
+    return false;
+  });
 }
 
 /// Checks whether [value] lies within optional inclusive [min]..[max] bounds.
@@ -532,14 +645,22 @@ List<CustomerProduct> applyCustomerProductFilter(
       );
       if (!hasSize) return false;
     }
+    final detectedImageColors = VisualSearchService.instance
+        .getCachedProductImageColors(product.coverImage);
+
     final textMatches = matchesSearchTokens(filter.search, [
+      product.id,
       product.name,
       product.description,
       product.categoryName,
       product.shopName,
+      product.price.toStringAsFixed(0),
+      product.price.toString(),
       ...product.availableColors,
       ...product.availableSizes,
-      ...product.variants.map((v) => '${v.color} ${v.size}'),
+      ...product.variants.map((v) => '${v.color} ${v.size} ${v.stock}'),
+      ..._flattenJsonMapValues(product.details),
+      ...detectedImageColors,
     ]);
     if (!textMatches) {
       if (activeVisual != null && filter.hasSearch) {
@@ -652,15 +773,26 @@ List<CustomerProduct> computeSimilarCustomerProducts(
           3.0;
     }
 
-    // 2. Partial token & substring overlap with search query
+    // 2. Partial token & synonym overlap with search query across all fields
     if (searchTokens.isNotEmpty) {
+      final detectedColors = VisualSearchService.instance
+          .getCachedProductImageColors(p.coverImage);
       final haystack = normalizeSearchText(
-        '${p.name} ${p.description ?? ''} ${p.categoryName ?? ''} ${p.shopName} ${p.variants.map((v) => '${v.color} ${v.size}').join(' ')}',
+        '${p.name} ${p.description ?? ''} ${p.categoryName ?? ''} ${p.shopName} '
+        '${p.price.toStringAsFixed(0)} ${p.variants.map((v) => '${v.color} ${v.size}').join(' ')} '
+        '${_flattenJsonMapValues(p.details).join(' ')} ${detectedColors.join(' ')}',
       );
       for (final token in searchTokens) {
-        if (haystack.contains(token)) {
-          score += 1.5;
-        } else if (token.length >= 3) {
+        final equivalents = _expandTokenEquivalents(token);
+        var matchedEq = false;
+        for (final eq in equivalents) {
+          if (eq.length >= 2 && haystack.contains(eq)) {
+            score += (eq == token) ? 1.5 : 1.35;
+            matchedEq = true;
+            break;
+          }
+        }
+        if (!matchedEq && token.length >= 3) {
           final prefix = token.substring(0, 3);
           if (haystack.contains(prefix)) {
             score += 0.65;
@@ -1045,12 +1177,19 @@ List<ShopProduct> filterShopProducts(
     if (!matchesNumberRange(product.price, filter.minPrice, filter.maxPrice)) {
       return false;
     }
+    final detectedImageColors = VisualSearchService.instance
+        .getCachedProductImageColors(product.coverImage);
     return matchesSearchTokens(filter.search, [
+      product.id,
       product.name,
       product.description,
       product.categoryName,
       product.statusLabel,
-      ...product.variants.map((v) => '${v.color} ${v.size}'),
+      product.price.toStringAsFixed(0),
+      product.price.toString(),
+      ...product.variants.map((v) => '${v.color} ${v.size} ${v.stock}'),
+      ..._flattenJsonMapValues(product.details),
+      ...detectedImageColors,
     ]);
   }).toList();
 
@@ -1164,10 +1303,14 @@ List<AdminProduct> filterAdminProducts(
       return false;
     }
     return matchesSearchTokens(filter.search, [
+      product.id,
       product.name,
       product.description,
       product.shopName,
       product.categoryName,
+      product.price.toStringAsFixed(0),
+      product.price.toString(),
+      product.statusLabel,
       product.status,
     ]);
   }).toList();
