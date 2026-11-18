@@ -142,13 +142,15 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
               enabled: !_saving,
               decoration: InputDecoration(
                 labelText: 'مفتاح Decart الجديد'.tr,
-                hintText: 'dct_new-app_…',
+                hintText: 'dct_wasla_…',
               ),
               validator: (value) =>
-                  RegExp(r'^dct_(app|new-app)_[A-Za-z0-9]{20,512}$')
+                  RegExp(
+                        r'^dct_[A-Za-z0-9][A-Za-z0-9-]{0,63}_[A-Za-z0-9_-]{20,512}$',
+                      )
                       .hasMatch(value?.trim() ?? '')
                   ? null
-                  : 'أدخل مفتاح Decart صالحاً يبدأ بـ dct_app_ أو dct_new-app_'.tr,
+                  : 'أدخل مفتاح Decart صالحاً يبدأ بـ dct_ (مثل dct_wasla_ أو dct_app_)'.tr,
             ),
             const SizedBox(height: AppSpacing.sm),
             Text(

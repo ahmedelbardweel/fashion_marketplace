@@ -19,7 +19,7 @@ export async function resolveDecartApiKey(
   const savedKey: unknown = await response.json();
   if (savedKey === null) return legacyKey;
   if (typeof savedKey !== 'string' || savedKey.trim() !== savedKey ||
-      !/^dct_(app|new-app)_[A-Za-z0-9]{20,512}$/.test(savedKey)) {
+      !/^dct_[A-Za-z0-9][A-Za-z0-9-]{0,63}_[A-Za-z0-9_-]{20,512}$/.test(savedKey)) {
     throw new Error('Invalid secret storage response');
   }
   return savedKey;

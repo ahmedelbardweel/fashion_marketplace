@@ -45,7 +45,7 @@ Future<void> _mount(WidgetTester tester, _Repository repo) async {
 }
 
 void main() {
-  for (final prefix in ['dct_app_', 'dct_new-app_']) {
+  for (final prefix in ['dct_app_', 'dct_new-app_', 'dct_wasla_']) {
     testWidgets('$prefix keys can be saved and are cleared afterwards', (
       tester,
     ) async {
@@ -68,7 +68,8 @@ void main() {
   for (final key in [
     'dct_app_short',
     'dct_new-app_short',
-    'dct_unknown_12345678901234567890',
+    'dct__12345678901234567890',
+    'invalid_wasla_12345678901234567890',
     'dct_new-app_1234567890 1234567890',
     'dct_new-app_${'a' * 513}',
   ]) {
