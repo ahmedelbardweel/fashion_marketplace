@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
+import '../../../../core/offline/offline_image_cache_service.dart';
 import '../../../../core/painters/garment_overlay_painter.dart';
 import '../../../../core/services/garment_fitter.dart';
 import '../../../../core/theme/app_design.dart';
@@ -334,8 +335,13 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
 
   Future<ui.Image?> _fetchUiImage(String url) async {
     try {
+      final cachedFile = await OfflineImageCacheService.instance
+          .getOrDownloadFile(url);
+      final ImageProvider provider = cachedFile != null
+          ? FileImage(cachedFile)
+          : NetworkImage(url);
       final completer = Completer<ui.Image>();
-      final stream = NetworkImage(url)
+      final stream = provider
           .resolve(const ImageConfiguration(size: Size(900, 900)));
 
       late ImageStreamListener listener;

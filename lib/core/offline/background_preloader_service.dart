@@ -87,6 +87,7 @@ class BackgroundPreloaderService {
       }
 
       _lastFullPreloadAt = DateTime.now();
+      unawaited(_db.prefetchAllCachedImageUrls());
       debugPrint(
         '[BackgroundPreloaderService] Silent full database preload completed.',
       );

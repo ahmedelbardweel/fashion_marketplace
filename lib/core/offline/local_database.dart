@@ -17,6 +17,7 @@ import '../../features/customer/domain/models/customer_product.dart'
 import '../../features/customer/domain/models/customer_shop.dart';
 import '../../features/shop/domain/models/shop.dart';
 import '../../features/shop/domain/models/shop_product.dart' as shop_models;
+import 'offline_image_cache_service.dart';
 import 'offline_security_service.dart';
 
 class SyncOutboxRecord {
@@ -92,6 +93,7 @@ class LocalDatabase {
 
   Future<void> initialize() async {
     await OfflineSecurityService.instance.initialize();
+    await OfflineImageCacheService.instance.initialize();
     await database;
   }
 
@@ -591,6 +593,9 @@ class LocalDatabase {
       }
       await batch.commit(noResult: true);
     });
+    OfflineImageCacheService.instance.prefetchUrlsSilently(
+      banners.map((b) => b.imagePath),
+    );
   }
 
   Future<List<AdminBanner>> getBanners({bool activeOnly = true}) async {
@@ -708,6 +713,9 @@ class LocalDatabase {
       }
       await batch.commit(noResult: true);
     });
+    OfflineImageCacheService.instance.prefetchUrlsSilently(
+      shops.expand((s) => [s.logoPath, s.coverPath]),
+    );
   }
 
   Future<void> saveFullShop(Shop shop, {int? productsCount}) async {
@@ -745,6 +753,10 @@ class LocalDatabase {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     });
+    OfflineImageCacheService.instance.prefetchUrlsSilently([
+      shop.logoPath,
+      shop.coverPath,
+    ]);
   }
 
   Future<void> saveFullShops(List<Shop> shops) async {
@@ -784,6 +796,9 @@ class LocalDatabase {
       }
       await batch.commit(noResult: true);
     });
+    OfflineImageCacheService.instance.prefetchUrlsSilently(
+      shops.expand((s) => [s.logoPath, s.coverPath]),
+    );
   }
 
   Future<List<CustomerShop>> getCustomerShops() async {
@@ -1060,6 +1075,9 @@ class LocalDatabase {
 
       await batch.commit(noResult: true);
     });
+    OfflineImageCacheService.instance.prefetchUrlsSilently(
+      products.expand((p) => p.images.map((img) => img.filePath)),
+    );
   }
 
   Future<void> saveShopProducts(List<shop_models.ShopProduct> products) async {
@@ -1135,6 +1153,9 @@ class LocalDatabase {
 
       await batch.commit(noResult: true);
     });
+    OfflineImageCacheService.instance.prefetchUrlsSilently(
+      products.expand((p) => p.images.map((img) => img.filePath)),
+    );
   }
 
   Future<PaginatedPage<customer_models.CustomerProduct>> getCustomerProductsPage({
@@ -2871,5 +2892,53 @@ class LocalDatabase {
     await _writeLock.synchronized(() async {
       await db.delete('sync_outbox', where: 'id = ?', whereArgs: [id]);
     });
+  }
+
+  /// Ensures all image URLs stored across local SQLite tables (banners, shops,
+  /// products, shop gallery, order items) are queued for disk caching.
+  Future<void> prefetchAllCachedImageUrls() async {
+    final db = await database;
+    if (db == null) return;
+
+    try {
+      final urls = <String?>[];
+
+      final bannerRows = await db.query('banners', columns: ['image_path']);
+      for (final r in bannerRows) {
+        urls.add(r['image_path']?.toString());
+      }
+
+      final shopRows = await db.query(
+        'shops',
+        columns: ['logo_path', 'cover_path'],
+      );
+      for (final r in shopRows) {
+        urls.add(r['logo_path']?.toString());
+        urls.add(r['cover_path']?.toString());
+      }
+
+      final prodImgRows = await db.query(
+        'product_images',
+        columns: ['file_path'],
+      );
+      for (final r in prodImgRows) {
+        urls.add(r['file_path']?.toString());
+      }
+
+      final shopImgRows = await db.query('shop_images', columns: ['file_path']);
+      for (final r in shopImgRows) {
+        urls.add(r['file_path']?.toString());
+      }
+
+      final orderItemRows = await db.query(
+        'order_items',
+        columns: ['image_path'],
+      );
+      for (final r in orderItemRows) {
+        urls.add(r['image_path']?.toString());
+      }
+
+      OfflineImageCacheService.instance.prefetchUrlsSilently(urls);
+    } catch (_) {}
   }
 }

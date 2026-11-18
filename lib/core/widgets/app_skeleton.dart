@@ -1,7 +1,11 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
+import '../offline/offline_image_cache_service.dart';
 import '../theme/app_design.dart';
 
 export 'package:skeletonizer/skeletonizer.dart' show Bone;
@@ -54,8 +58,9 @@ extension SkeletonAsyncValue<T> on AsyncValue<T> {
   );
 }
 
-/// Keeps the real image bounds while loading, without fetching placeholder URLs.
-class AppNetworkImage extends StatelessWidget {
+/// Offline-capable network image widget with persistent disk caching and
+/// automatic skeleton placeholder while loading.
+class AppNetworkImage extends StatefulWidget {
   const AppNetworkImage(
     this.url, {
     super.key,
@@ -80,31 +85,121 @@ class AppNetworkImage extends StatelessWidget {
   final AlignmentGeometry alignment;
   final EdgeInsetsGeometry contentPadding;
 
-  Widget _bone() => Bone(width: width, height: height);
+  @override
+  State<AppNetworkImage> createState() => _AppNetworkImageState();
+}
+
+class _AppNetworkImageState extends State<AppNetworkImage> {
+  File? _cachedFile;
+  bool _resolvingDisk = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolveFromCacheOrDownload();
+  }
+
+  @override
+  void didUpdateWidget(covariant AppNetworkImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _cachedFile = null;
+      _resolvingDisk = false;
+      _resolveFromCacheOrDownload();
+    }
+  }
+
+  void _resolveFromCacheOrDownload() {
+    if (kIsWeb || widget.url.trim().isEmpty) return;
+
+    final syncFile = OfflineImageCacheService.instance.getCachedFileSync(
+      widget.url,
+    );
+    if (syncFile != null) {
+      _cachedFile = syncFile;
+      return;
+    }
+
+    if (!OfflineImageCacheService.instance.isReady) {
+      return;
+    }
+
+    _resolvingDisk = true;
+    final targetUrl = widget.url;
+    OfflineImageCacheService.instance.getOrDownloadFile(targetUrl).then((file) {
+      if (!mounted || widget.url != targetUrl) return;
+      setState(() {
+        _cachedFile = file;
+        _resolvingDisk = false;
+      });
+    });
+  }
+
+  Widget _bone() => Bone(width: widget.width, height: widget.height);
+
+  Widget _wrapPadding(Widget child) {
+    if (widget.contentPadding == EdgeInsets.zero) return child;
+    return Padding(padding: widget.contentPadding, child: child);
+  }
+
+  Widget _buildError(BuildContext context, Object error, StackTrace? stack) {
+    if (widget.errorBuilder != null) {
+      return _wrapPadding(widget.errorBuilder!(context, error, stack));
+    }
+    return _wrapPadding(
+      SizedBox(
+        width: widget.width,
+        height: widget.height,
+        child: const Center(child: Icon(Icons.broken_image_outlined)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (Skeletonizer.maybeOf(context)?.enabled ?? false) return _bone();
+
+    final file =
+        _cachedFile ??
+        OfflineImageCacheService.instance.getCachedFileSync(widget.url);
+
+    if (file != null) {
+      return _wrapPadding(
+        Image.file(
+          file,
+          width: widget.width,
+          height: widget.height,
+          fit: widget.fit,
+          cacheWidth: widget.cacheWidth,
+          cacheHeight: widget.cacheHeight,
+          color: widget.color,
+          colorBlendMode: widget.colorBlendMode,
+          alignment: widget.alignment,
+          errorBuilder: _buildError,
+        ),
+      );
+    }
+
+    if (_resolvingDisk) {
+      return AppSkeleton(child: _bone());
+    }
+
+    // Fallback when disk cache service is not initialized (e.g. Web or unit tests)
+    // or if disk download failed while online.
     return Image.network(
-      url,
-      width: width,
-      height: height,
-      fit: fit,
-      cacheWidth: cacheWidth,
-      cacheHeight: cacheHeight,
-      color: color,
-      colorBlendMode: colorBlendMode,
-      alignment: alignment,
-      errorBuilder: errorBuilder == null
-          ? null
-          : (context, error, stackTrace) {
-              final widget = errorBuilder!(context, error, stackTrace);
-              if (contentPadding == EdgeInsets.zero) return widget;
-              return Padding(padding: contentPadding, child: widget);
-            },
+      widget.url,
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      cacheWidth: widget.cacheWidth,
+      cacheHeight: widget.cacheHeight,
+      color: widget.color,
+      colorBlendMode: widget.colorBlendMode,
+      alignment: widget.alignment,
+      errorBuilder: widget.errorBuilder == null ? null : _buildError,
       loadingBuilder: (context, child, progress) {
         if (progress != null) return AppSkeleton(child: _bone());
-        if (contentPadding == EdgeInsets.zero) return child;
-        return Padding(padding: contentPadding, child: child);
+        return _wrapPadding(child);
       },
     );
   }
