@@ -395,6 +395,7 @@ class CustomerHomeScreen extends ConsumerWidget {
                       ? null
                       : productsState.items.length,
                   hasActiveCustomization: homeFilter.hasActiveFilters,
+                  showingSimilarFallback: productsState.isSimilarFallback,
                   onClearAll: () =>
                       ref.read(homeProductFilterProvider.notifier).state =
                           ProductFilter.empty,

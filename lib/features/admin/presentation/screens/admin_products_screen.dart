@@ -382,6 +382,7 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen> {
                     ? null
                     : items.length,
                 hasActiveCustomization: filter.hasActiveFilters,
+                showingSimilarFallback: productsState.isSimilarFallback,
                 onClearAll: () =>
                     ref.read(adminProductFilterProvider.notifier).state =
                         AdminProductFilterState.empty,

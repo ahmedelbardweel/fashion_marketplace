@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../filtering/filter_models.dart';
+import '../search/smart_search_sheets.dart';
+import '../search/visual_search_service.dart';
 import '../theme/app_design.dart';
 import '../utils/app_haptics.dart';
 import 'app_bottom_sheet.dart';
@@ -181,6 +183,36 @@ class _AppSearchFieldState extends State<AppSearchField> {
     super.dispose();
   }
 
+  Future<void> _handleVoiceSearch() async {
+    final spoken = await showVoiceSearchSheet(context);
+    if (!mounted || spoken == null || spoken.trim().isEmpty) return;
+    ActiveVisualSearchStore.instance.clear();
+    final cleaned = spoken.trim();
+    _controller.value = TextEditingValue(
+      text: cleaned,
+      selection: TextSelection.collapsed(offset: cleaned.length),
+    );
+    setState(() {});
+    widget.onChanged(cleaned);
+  }
+
+  Future<void> _handleVisualSearch() async {
+    final visualResult = await showVisualSearchSheet(context);
+    if (!mounted || visualResult == null) return;
+    ActiveVisualSearchStore.instance.setQuery(visualResult);
+    final parts = <String>[
+      ...visualResult.inferredKeywords,
+      visualResult.primaryColorName,
+    ];
+    final queryText = parts.join(' ').trim();
+    _controller.value = TextEditingValue(
+      text: queryText,
+      selection: TextSelection.collapsed(offset: queryText.length),
+    );
+    setState(() {});
+    widget.onChanged(queryText);
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasText = _controller.text.isNotEmpty;
@@ -191,56 +223,93 @@ class _AppSearchFieldState extends State<AppSearchField> {
         borderRadius: BorderRadius.circular(AppBarDesign.searchRadius),
         border: Border.all(color: AppColors.border),
       ),
-      child: TextField(
-        controller: _controller,
-        autofocus: widget.autofocus,
-        onChanged: (text) {
-          setState(() {});
-          widget.onChanged(text);
-        },
-        onSubmitted: widget.onSubmitted,
-        textInputAction: TextInputAction.search,
-        cursorColor: InputDesign.cursor,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: AppFont.medium,
-          color: AppColors.text,
-        ),
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          filled: false,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: 11,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              autofocus: widget.autofocus,
+              onChanged: (text) {
+                if (text.isEmpty) {
+                  ActiveVisualSearchStore.instance.clear();
+                }
+                setState(() {});
+                widget.onChanged(text);
+              },
+              onSubmitted: widget.onSubmitted,
+              textInputAction: TextInputAction.search,
+              cursorColor: InputDesign.cursor,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: AppFont.medium,
+                color: AppColors.text,
+              ),
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: 11,
+                ),
+                hintText: widget.hint.tr,
+                hintStyle: TextStyle(
+                  fontSize: 13.5,
+                  color: AppBarDesign.searchHint,
+                ),
+                prefixIcon: Icon(
+                  AppIcons.search,
+                  size: 19,
+                  color: AppBarDesign.searchIcon,
+                ),
+              ),
+            ),
           ),
-          hintText: widget.hint.tr,
-          hintStyle: TextStyle(
-            fontSize: 13.5,
-            color: AppBarDesign.searchHint,
+          if (hasText)
+            IconButton(
+              tooltip: 'مسح البحث'.tr,
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              onPressed: AppHaptics.action(() {
+                ActiveVisualSearchStore.instance.clear();
+                _controller.clear();
+                setState(() {});
+                widget.onChanged('');
+              }),
+              icon: Icon(
+                AppIcons.close,
+                size: 17,
+                color: AppColors.iconMuted,
+              ),
+            ),
+          IconButton(
+            tooltip: 'بحث صوتي'.tr,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+            onPressed: AppHaptics.action(_handleVoiceSearch),
+            icon: Icon(
+              Icons.mic_none_rounded,
+              size: 20,
+              color: AppColors.primaryDark,
+            ),
           ),
-          prefixIcon: Icon(
-            AppIcons.search,
-            size: 19,
-            color: AppBarDesign.searchIcon,
+          IconButton(
+            tooltip: 'بحث بالصورة'.tr,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+            onPressed: AppHaptics.action(_handleVisualSearch),
+            icon: Icon(
+              Icons.camera_alt_outlined,
+              size: 19,
+              color: AppColors.primaryDark,
+            ),
           ),
-          suffixIcon: hasText
-              ? IconButton(
-                  tooltip: 'مسح البحث'.tr,
-                  onPressed: AppHaptics.action(() {
-                    _controller.clear();
-                    setState(() {});
-                    widget.onChanged('');
-                  }),
-                  icon: Icon(
-                    AppIcons.close,
-                    size: 18,
-                    color: AppColors.iconMuted,
-                  ),
-                )
-              : null,
-        ),
+          const SizedBox(width: 4),
+        ],
       ),
     );
   }
@@ -267,6 +336,7 @@ class AppFilterToolbar extends StatelessWidget {
     this.onClearAll,
     this.padding,
     this.showCountWhenUnfiltered = false,
+    this.showingSimilarFallback = false,
   });
 
   final String searchValue;
@@ -285,6 +355,7 @@ class AppFilterToolbar extends StatelessWidget {
   final VoidCallback? onClearAll;
   final EdgeInsetsGeometry? padding;
   final bool showCountWhenUnfiltered;
+  final bool showingSimilarFallback;
 
   @override
   Widget build(BuildContext context) {
@@ -332,6 +403,71 @@ class AppFilterToolbar extends StatelessWidget {
               ],
             ],
           ),
+          ValueListenableBuilder<VisualSearchQuery?>(
+            valueListenable: ActiveVisualSearchStore.instance.currentQuery,
+            builder: (context, visualQuery, _) {
+              if (visualQuery == null || searchValue.trim().isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.xs),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    border: Border.all(color: AppColors.primaryBorder),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(AppRadii.xs),
+                        child: Image.memory(
+                          visualQuery.imageBytes,
+                          width: 30,
+                          height: 30,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      _ColorDot(color: visualQuery.primarySwatch, size: 12),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${'بحث بالصورة'.tr}: ${visualQuery.allColorNames.join(' / ')}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: AppFont.bold,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                      ),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(AppRadii.pill),
+                        onTap: AppHaptics.action(() {
+                          ActiveVisualSearchStore.instance.clear();
+                          onSearchChanged('');
+                        }),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            AppIcons.close,
+                            size: 16,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
           if (quickOptions.isNotEmpty || onOpenSort != null) ...[
             const SizedBox(height: AppSpacing.sm),
             SizedBox(
@@ -373,7 +509,18 @@ class AppFilterToolbar extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             Row(
               children: [
-                if (filteredCount != null && totalCount != null)
+                if (showingSimilarFallback)
+                  Expanded(
+                    child: Text(
+                      'نتائج مشابهة مقترحة'.tr,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: AppFont.bold,
+                        color: AppColors.primaryDark,
+                      ),
+                    ),
+                  )
+                else if (filteredCount != null && totalCount != null)
                   Expanded(
                     child: Text(
                       hasActiveCustomization
@@ -403,7 +550,10 @@ class AppFilterToolbar extends StatelessWidget {
                   const Spacer(),
                 if (hasActiveCustomization && onClearAll != null)
                   TextButton.icon(
-                    onPressed: AppHaptics.action(onClearAll),
+                    onPressed: AppHaptics.action(() {
+                      ActiveVisualSearchStore.instance.clear();
+                      onClearAll!();
+                    }),
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppSpacing.sm,
@@ -425,6 +575,87 @@ class AppFilterToolbar extends StatelessWidget {
               ],
             ),
           ],
+          if (showingSimilarFallback) ...[
+            const SizedBox(height: AppSpacing.xs),
+            AppSimilarResultsBanner(
+              onClear: () {
+                ActiveVisualSearchStore.instance.clear();
+                if (onClearAll != null) {
+                  onClearAll!();
+                } else {
+                  onSearchChanged('');
+                }
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Banner displayed when an exact search/visual query has 0 direct hits and
+/// similar products are shown instead.
+class AppSimilarResultsBanner extends StatelessWidget {
+  const AppSimilarResultsBanner({
+    super.key,
+    this.onClear,
+  });
+
+  final VoidCallback? onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        border: Border.all(color: AppColors.primaryBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppColors.primarySoft,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.auto_awesome_rounded,
+              size: 18,
+              color: AppColors.primaryDark,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'لا يوجد منتج مطابق تماماً لبحثك'.tr,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: AppFont.bold,
+                    color: AppColors.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'إليك المنتجات الأكثر تشابهاً في المتجر بناءً على اللون والمواصفات'
+                      .tr,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

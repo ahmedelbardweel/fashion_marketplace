@@ -188,10 +188,6 @@ class ShopCatalogRepository {
         if (maxPrice != null) {
           query = query.lte('price', maxPrice);
         }
-        if (search != null && search.trim().isNotEmpty) {
-          query = query.ilike('name', '%${search.trim()}%');
-        }
-
         final orderedQuery = switch (sort) {
           ProductSortOption.priceAsc =>
             query
@@ -208,21 +204,49 @@ class ShopCatalogRepository {
           _ => query.order('updated_at', ascending: false),
         };
 
+        final hasSearch = search != null && search.trim().isNotEmpty;
+        if (hasSearch && offset > 0) {
+          return const PaginatedPage<ShopProduct>(items: [], rawCount: 0);
+        }
+
+        final effectiveLimit = hasSearch ? 60 : limit;
         final from = offset < 0 ? 0 : offset;
-        final to = from + limit - 1;
+        final to = from + effectiveLimit - 1;
         final rawRows = await orderedQuery.range(from, to) as List;
 
-        final items = rawRows
+        final allFetched = rawRows
             .map(
               (row) =>
                   ShopProduct.fromMap(Map<String, dynamic>.from(row as Map)),
             )
             .toList();
-        unawaited(_localDb.saveShopProducts(items));
+        unawaited(_localDb.saveShopProducts(allFetched));
+
+        final items = hasSearch
+            ? filterShopProducts(
+                allFetched,
+                ShopProductFilterState(
+                  search: search,
+                  status: status,
+                  categoryId: categoryId,
+                  minPrice: minPrice,
+                  maxPrice: maxPrice,
+                  sort: sort,
+                ),
+              )
+            : allFetched;
+
+        if (items.isEmpty && offset == 0 && allFetched.isNotEmpty) {
+          return PaginatedPage<ShopProduct>(
+            items: allFetched.take(limit).toList(),
+            rawCount: 0,
+            isSimilarFallback: true,
+          );
+        }
 
         return PaginatedPage<ShopProduct>(
           items: items,
-          rawCount: rawRows.length,
+          rawCount: hasSearch ? 0 : rawRows.length,
         );
       } catch (e) {
         if (_isNetworkError(e)) {

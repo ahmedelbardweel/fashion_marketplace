@@ -532,6 +532,7 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
                           ? null
                           : items.length,
                       hasActiveCustomization: filter.hasActiveFilters,
+                      showingSimilarFallback: productsState.isSimilarFallback,
                       onClearAll: () =>
                           ref.read(shopProductFilterProvider.notifier).state =
                               ShopProductFilterState.empty,

@@ -44,6 +44,8 @@ dependencies:
   crypto: ^3.0.6
   pointycastle: ^4.0.0
   synchronized: ^3.3.0
+  image: ^4.2.0
+  speech_to_text: ^7.0.0
 
 dev_dependencies:
   flutter_test:

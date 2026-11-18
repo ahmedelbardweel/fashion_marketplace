@@ -201,6 +201,7 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
                   ? null
                   : productsState.items.length,
               hasActiveCustomization: filter.hasActiveFilters,
+              showingSimilarFallback: productsState.isSimilarFallback,
               onClearAll: () => ref.read(productFilterProvider.notifier).state =
                   ProductFilter.empty,
               showCountWhenUnfiltered:

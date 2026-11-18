@@ -69,9 +69,13 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>رفع شعار وصور المحل والمنتجات</string>
+	<string>رفع شعار وصور المحل والمنتجات والبحث بالصورة</string>
 	<key>NSCameraUsageDescription</key>
-	<string>التقاط صور للمنتجات وتجربة الملابس</string>
+	<string>التقاط صور للمنتجات وتجربة الملابس والبحث بالصورة</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>استخدام الميكروفون للبحث الصوتي عن المنتجات</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>تحويل الصوت إلى نص للبحث السريع عن المنتجات</string>
 	<key>FlutterDeepLinkingEnabled</key>
 	<false/>
 	<key>GIDClientID</key>

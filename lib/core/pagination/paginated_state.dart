@@ -9,6 +9,7 @@ class PaginatedPage<T> {
     required this.items,
     this.rawCount,
     this.totalCount,
+    this.isSimilarFallback = false,
   });
 
   final List<T> items;
@@ -19,6 +20,9 @@ class PaginatedPage<T> {
 
   /// Optional exact total count reported by the backend.
   final int? totalCount;
+
+  /// True when no exact match was found and [items] contains similar suggestions.
+  final bool isSimilarFallback;
 
   int get effectiveRawCount => rawCount ?? items.length;
 }
@@ -39,6 +43,7 @@ class PaginatedListState<T> {
     this.totalCount,
     this.initialError,
     this.loadMoreError,
+    this.isSimilarFallback = false,
   });
 
   final List<T> items;
@@ -49,6 +54,9 @@ class PaginatedListState<T> {
   final int? totalCount;
   final Object? initialError;
   final Object? loadMoreError;
+
+  /// True when no exact match was found and [items] contains similar suggestions.
+  final bool isSimilarFallback;
 
   bool get isEmpty => !isInitialLoading && items.isEmpty && initialError == null;
   bool get hasError => initialError != null;
@@ -62,6 +70,7 @@ class PaginatedListState<T> {
     int? totalCount,
     Object? initialError,
     Object? loadMoreError,
+    bool? isSimilarFallback,
     bool clearInitialError = false,
     bool clearLoadMoreError = false,
     bool clearTotalCount = false,
@@ -77,6 +86,7 @@ class PaginatedListState<T> {
           clearInitialError ? null : (initialError ?? this.initialError),
       loadMoreError:
           clearLoadMoreError ? null : (loadMoreError ?? this.loadMoreError),
+      isSimilarFallback: isSimilarFallback ?? this.isSimilarFallback,
     );
   }
 }
@@ -121,6 +131,7 @@ class PaginatedListNotifier<T> extends StateNotifier<PaginatedListState<T>> {
       isLoadingMore: keepExisting,
       hasMore: true,
       fetchedCount: keepExisting ? state.fetchedCount : 0,
+      isSimilarFallback: false,
       clearInitialError: true,
       clearLoadMoreError: true,
       clearTotalCount: !keepExisting,
@@ -137,9 +148,10 @@ class PaginatedListNotifier<T> extends StateNotifier<PaginatedListState<T>> {
         items: deduped,
         isInitialLoading: false,
         isLoadingMore: false,
-        hasMore: rawCount >= pageSize,
+        hasMore: !page.isSimilarFallback && rawCount >= pageSize,
         fetchedCount: rawCount,
         totalCount: page.totalCount,
+        isSimilarFallback: page.isSimilarFallback,
       );
     } catch (error) {
       if (!mounted || requestGen != _generation) return;
@@ -165,7 +177,10 @@ class PaginatedListNotifier<T> extends StateNotifier<PaginatedListState<T>> {
 
   /// Fetches the next batch (`offset = state.fetchedCount`, `limit = pageSize`).
   Future<void> loadMore() async {
-    if (state.isInitialLoading || state.isLoadingMore || !state.hasMore) {
+    if (state.isInitialLoading ||
+        state.isLoadingMore ||
+        !state.hasMore ||
+        state.isSimilarFallback) {
       return;
     }
 

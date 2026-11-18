@@ -8,6 +8,8 @@ import '../../features/customer/domain/models/customer_product.dart';
 import '../../features/customer/domain/models/customer_shop.dart';
 import '../../features/shop/domain/models/shop.dart';
 import '../../features/shop/domain/models/shop_product.dart';
+import '../search/smart_search_sheets.dart';
+import '../search/visual_search_service.dart';
 
 /// Normalizes Arabic & English text for forgiving, diacritic-insensitive search.
 ///
@@ -490,6 +492,7 @@ List<CustomerProduct> applyCustomerProductFilter(
 ) {
   final normColor = normalizeSearchText(filter.color);
   final normSize = normalizeSearchText(filter.size);
+  final activeVisual = ActiveVisualSearchStore.instance.currentQuery.value;
 
   final filtered = products.where((product) {
     if (filter.categoryId != null &&
@@ -529,18 +532,58 @@ List<CustomerProduct> applyCustomerProductFilter(
       );
       if (!hasSize) return false;
     }
-    if (!matchesSearchTokens(filter.search, [
+    final textMatches = matchesSearchTokens(filter.search, [
       product.name,
       product.description,
       product.categoryName,
       product.shopName,
       ...product.availableColors,
       ...product.availableSizes,
-    ])) {
+      ...product.variants.map((v) => '${v.color} ${v.size}'),
+    ]);
+    if (!textMatches) {
+      if (activeVisual != null && filter.hasSearch) {
+        final visualScore = VisualSearchService.instance
+            .scoreTextAndColorMetadata(
+              query: activeVisual,
+              productColors: product.variants.map((v) => v.color),
+              productName: product.name,
+              productDescription: product.description,
+              categoryName: product.categoryName,
+              productImageUrl: product.coverImage,
+            );
+        if (visualScore >= 0.45) {
+          return true;
+        }
+      }
       return false;
     }
     return true;
   }).toList();
+
+  if (activeVisual != null &&
+      filter.hasSearch &&
+      filter.sort == ProductSortOption.newest) {
+    filtered.sort((a, b) {
+      final scoreA = VisualSearchService.instance.scoreTextAndColorMetadata(
+        query: activeVisual,
+        productColors: a.variants.map((v) => v.color),
+        productName: a.name,
+        productDescription: a.description,
+        categoryName: a.categoryName,
+        productImageUrl: a.coverImage,
+      );
+      final scoreB = VisualSearchService.instance.scoreTextAndColorMetadata(
+        query: activeVisual,
+        productColors: b.variants.map((v) => v.color),
+        productName: b.name,
+        productDescription: b.description,
+        categoryName: b.categoryName,
+        productImageUrl: b.coverImage,
+      );
+      return scoreB.compareTo(scoreA);
+    });
+  }
 
   switch (filter.sort) {
     case ProductSortOption.newest:
@@ -564,6 +607,96 @@ List<CustomerProduct> applyCustomerProductFilter(
   }
 
   return filtered;
+}
+
+/// Computes the closest / most similar products when an exact search or filter
+/// yields 0 matches (whether by image, voice, or text).
+List<CustomerProduct> computeSimilarCustomerProducts(
+  List<CustomerProduct> pool,
+  ProductFilter filter, {
+  int maxResults = 6,
+}) {
+  if (pool.isEmpty) return const [];
+
+  final activeVisual = ActiveVisualSearchStore.instance.currentQuery.value;
+  final normSearch = normalizeSearchText(filter.search);
+  final searchTokens = normSearch
+      .split(' ')
+      .where((t) => t.isNotEmpty)
+      .toList();
+  final normFilterColor = normalizeSearchText(filter.color);
+  final normFilterSize = normalizeSearchText(filter.size);
+
+  final scored = <({CustomerProduct product, double score})>[];
+
+  for (final p in pool) {
+    if (filter.shopId != null &&
+        filter.shopId!.isNotEmpty &&
+        p.shopId != filter.shopId) {
+      continue;
+    }
+
+    var score = 0.0;
+
+    // 1. Visual similarity if an image search is active
+    if (activeVisual != null) {
+      score +=
+          VisualSearchService.instance.scoreTextAndColorMetadata(
+            query: activeVisual,
+            productColors: p.variants.map((v) => v.color),
+            productName: p.name,
+            productDescription: p.description,
+            categoryName: p.categoryName,
+            productImageUrl: p.coverImage,
+          ) *
+          3.0;
+    }
+
+    // 2. Partial token & substring overlap with search query
+    if (searchTokens.isNotEmpty) {
+      final haystack = normalizeSearchText(
+        '${p.name} ${p.description ?? ''} ${p.categoryName ?? ''} ${p.shopName} ${p.variants.map((v) => '${v.color} ${v.size}').join(' ')}',
+      );
+      for (final token in searchTokens) {
+        if (haystack.contains(token)) {
+          score += 1.5;
+        } else if (token.length >= 3) {
+          final prefix = token.substring(0, 3);
+          if (haystack.contains(prefix)) {
+            score += 0.65;
+          }
+        }
+      }
+    }
+
+    // 3. Category, Color, Size & Stock proximity
+    if (filter.categoryId != null &&
+        filter.categoryId!.isNotEmpty &&
+        p.categoryId == filter.categoryId) {
+      score += 1.2;
+    }
+    if (normFilterColor.isNotEmpty &&
+        p.variants.any(
+          (v) => normalizeSearchText(v.color).contains(normFilterColor),
+        )) {
+      score += 1.0;
+    }
+    if (normFilterSize.isNotEmpty &&
+        p.variants.any(
+          (v) => normalizeSearchText(v.size) == normFilterSize,
+        )) {
+      score += 0.7;
+    }
+    if (p.totalStock > 0) {
+      score += 0.25;
+    }
+    score += (p.ratingAvg / 5.0) * 0.2;
+
+    scored.add((product: p, score: score));
+  }
+
+  scored.sort((a, b) => b.score.compareTo(a.score));
+  return scored.take(maxResults).map((e) => e.product).toList();
 }
 
 // ---------------------------------------------------------------------------

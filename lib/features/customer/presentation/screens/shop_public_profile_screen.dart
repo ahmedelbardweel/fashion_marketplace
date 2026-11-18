@@ -345,6 +345,8 @@ class _ShopPublicProfileScreenState
                               ? null
                               : productsState.items.length,
                           hasActiveCustomization: filter.hasActiveFilters,
+                          showingSimilarFallback:
+                              productsState.isSimilarFallback,
                           onClearAll: () =>
                               ref
                                   .read(shopPublicProductFilterProvider(

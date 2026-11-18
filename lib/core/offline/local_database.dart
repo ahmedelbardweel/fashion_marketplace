@@ -7,6 +7,8 @@ import 'package:synchronized/synchronized.dart';
 
 import '../../core/filtering/filter_models.dart';
 import '../../core/pagination/paginated_state.dart';
+import '../../core/search/smart_search_sheets.dart';
+import '../../core/search/visual_search_service.dart';
 import '../../features/admin/domain/models/admin_stats.dart';
 import '../../features/admin/domain/models/catalog_models.dart';
 import '../../features/auth/domain/models/app_user.dart';
@@ -1182,6 +1184,26 @@ class LocalDatabase {
       );
     }
 
+    final hasSearchQuery =
+        (search != null && search.trim().isNotEmpty) ||
+        ActiveVisualSearchStore.instance.currentQuery.value != null;
+    final hasAnyFilter =
+        hasSearchQuery ||
+        (categoryId != null && categoryId.isNotEmpty) ||
+        (color != null && color.isNotEmpty) ||
+        (size != null && size.isNotEmpty) ||
+        minPrice != null ||
+        maxPrice != null ||
+        inStockOnly ||
+        minRating != null;
+
+    if (hasSearchQuery && offset > 0) {
+      return const PaginatedPage<customer_models.CustomerProduct>(
+        items: [],
+        rawCount: 0,
+      );
+    }
+
     final whereClauses = <String>["status = 'published'"];
     final whereArgs = <Object?>[];
 
@@ -1205,17 +1227,12 @@ class LocalDatabase {
       whereArgs.add(shopId);
     }
 
-    if (search != null && search.trim().isNotEmpty) {
-      whereClauses.add('LOWER(name) LIKE ?');
-      whereArgs.add('%${search.trim().toLowerCase()}%');
-    }
-
-    if (minPrice != null) {
+    if (!hasSearchQuery && minPrice != null) {
       whereClauses.add('price >= ?');
       whereArgs.add(minPrice);
     }
 
-    if (maxPrice != null) {
+    if (!hasSearchQuery && maxPrice != null) {
       whereClauses.add('price <= ?');
       whereArgs.add(maxPrice);
     }
@@ -1232,7 +1249,7 @@ class LocalDatabase {
       where: whereClauses.join(' AND '),
       whereArgs: whereArgs,
       orderBy: orderBy,
-      limit: limit,
+      limit: hasSearchQuery ? 60 : limit,
       offset: offset < 0 ? 0 : offset,
     );
 
@@ -1241,10 +1258,22 @@ class LocalDatabase {
         : const <String>{};
 
     final mapped = await _hydrateCustomerProducts(rawRows, favoriteIds);
+
+    if (ActiveVisualSearchStore.instance.currentQuery.value != null) {
+      await Future.wait(
+        mapped.take(24).map(
+          (p) => VisualSearchService.instance.getProductImageHistogram(
+            p.coverImage,
+          ),
+        ),
+      );
+    }
+
     final refined = applyCustomerProductFilter(
       mapped,
       ProductFilter(
         shopId: shopId,
+        search: search,
         minPrice: minPrice,
         maxPrice: maxPrice,
         color: color,
@@ -1255,9 +1284,45 @@ class LocalDatabase {
       ),
     );
 
+    if (refined.isEmpty && offset == 0 && hasAnyFilter) {
+      var fallbackPool = mapped;
+      if (fallbackPool.isEmpty) {
+        final allRows = await db.query(
+          'products',
+          where: "status = 'published'",
+          orderBy: 'created_at DESC',
+          limit: 36,
+        );
+        fallbackPool = await _hydrateCustomerProducts(allRows, favoriteIds);
+      }
+      final similar = computeSimilarCustomerProducts(
+        fallbackPool,
+        ProductFilter(
+          categoryId: categoryId,
+          shopId: shopId,
+          search: search,
+          minPrice: minPrice,
+          maxPrice: maxPrice,
+          color: color,
+          size: size,
+          inStockOnly: inStockOnly,
+          minRating: minRating,
+          sort: sort,
+        ),
+        maxResults: limit,
+      );
+      if (similar.isNotEmpty) {
+        return PaginatedPage<customer_models.CustomerProduct>(
+          items: similar,
+          rawCount: 0,
+          isSimilarFallback: true,
+        );
+      }
+    }
+
     return PaginatedPage<customer_models.CustomerProduct>(
       items: refined,
-      rawCount: rawRows.length,
+      rawCount: hasSearchQuery ? 0 : rawRows.length,
     );
   }
 

@@ -77,7 +77,17 @@ class _CustomerFavoritesScreenState
               );
             }
 
-            final filtered = applyCustomerProductFilter(favorites, _filter);
+            final exactFiltered = applyCustomerProductFilter(
+              favorites,
+              _filter,
+            );
+            final isSimilarFallback =
+                exactFiltered.isEmpty &&
+                _filter.hasActiveFilters &&
+                favorites.isNotEmpty;
+            final filtered = isSimilarFallback
+                ? computeSimilarCustomerProducts(favorites, _filter)
+                : exactFiltered;
             final catIds = favorites
                 .map((p) => p.categoryId)
                 .whereType<String>()
@@ -175,6 +185,7 @@ class _CustomerFavoritesScreenState
                       ? null
                       : filtered.length,
                   hasActiveCustomization: _filter.hasActiveFilters,
+                  showingSimilarFallback: isSimilarFallback,
                   onClearAll: () =>
                       setState(() => _filter = ProductFilter.empty),
                   showCountWhenUnfiltered:

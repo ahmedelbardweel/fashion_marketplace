@@ -8,6 +8,8 @@ import '../../../core/offline/local_database.dart';
 import '../../../core/offline/network_monitor_service.dart';
 import '../../../core/offline/offline_sync_engine.dart';
 import '../../../core/pagination/paginated_state.dart';
+import '../../../core/search/smart_search_sheets.dart';
+import '../../../core/search/visual_search_service.dart';
 import '../../../core/utils/map_utils.dart';
 import '../../admin/domain/models/catalog_models.dart';
 import '../../auth/domain/models/app_user.dart';
@@ -301,6 +303,18 @@ class CustomerRepository {
     String? excludeProductId,
   }) async {
     final userId = await _resolveUserId();
+    final hasSearchQuery =
+        (search != null && search.trim().isNotEmpty) ||
+        ActiveVisualSearchStore.instance.currentQuery.value != null;
+    final hasAnyFilter =
+        hasSearchQuery ||
+        (categoryId != null && categoryId.isNotEmpty) ||
+        (color != null && color.isNotEmpty) ||
+        (size != null && size.isNotEmpty) ||
+        minPrice != null ||
+        maxPrice != null ||
+        inStockOnly ||
+        minRating != null;
 
     if (NetworkMonitorService.instance.isOnline) {
       try {
@@ -328,13 +342,10 @@ class CustomerRepository {
         if (shopId != null && shopId.isNotEmpty) {
           query = query.eq('shop_id', shopId);
         }
-        if (search != null && search.trim().isNotEmpty) {
-          query = query.ilike('name', '%${search.trim()}%');
-        }
-        if (minPrice != null) {
+        if (!hasSearchQuery && minPrice != null) {
           query = query.gte('price', minPrice);
         }
-        if (maxPrice != null) {
+        if (!hasSearchQuery && maxPrice != null) {
           query = query.lte('price', maxPrice);
         }
 
@@ -354,18 +365,53 @@ class CustomerRepository {
           _ => query.order('created_at', ascending: false),
         };
 
+        // When searching by text, voice, or image, fetch a broader pool on page 0
+        // so variant colors, sizes, descriptions, and visual histograms are matched.
+        if (hasSearchQuery && offset > 0) {
+          return const PaginatedPage<CustomerProduct>(
+            items: [],
+            rawCount: 0,
+          );
+        }
+
+        final effectiveLimit = hasSearchQuery ? 60 : limit;
         final from = offset < 0 ? 0 : offset;
-        final to = from + limit - 1;
+        final to = from + effectiveLimit - 1;
         final rawRows = await orderedQuery.range(from, to) as List;
         final favoriteIds = await _getUserFavoriteIds();
 
         final mapped = _mapProductRows(rawRows, favoriteIds);
         unawaited(_localDb.saveCustomerProducts(mapped));
 
+        if (ActiveVisualSearchStore.instance.currentQuery.value != null) {
+          await Future.wait(
+            mapped.take(24).map(
+              (p) => VisualSearchService.instance.getProductImageHistogram(
+                p.coverImage,
+              ),
+            ),
+          );
+        }
+
+        final activeFilter = ProductFilter(
+          categoryId: categoryId,
+          shopId: shopId,
+          search: search,
+          minPrice: minPrice,
+          maxPrice: maxPrice,
+          color: color,
+          size: size,
+          inStockOnly: inStockOnly,
+          minRating: minRating,
+          sort: sort,
+        );
+
         final refined = applyCustomerProductFilter(
           mapped,
           ProductFilter(
+            // Server already filtered the category branch
             shopId: shopId,
+            search: search,
             minPrice: minPrice,
             maxPrice: maxPrice,
             color: color,
@@ -376,9 +422,41 @@ class CustomerRepository {
           ),
         );
 
+        if (refined.isEmpty && offset == 0 && hasAnyFilter) {
+          var fallbackPool = mapped;
+          if (fallbackPool.isEmpty) {
+            final fallbackRows = await _client
+                .from('products')
+                .select('''
+              id, shop_id, category_id, name, description, details, price, status,
+              shops:shop_id(name),
+              categories:category_id(name),
+              variants:product_variants(*),
+              images:product_images(*)
+            ''')
+                .eq('status', 'published')
+                .order('created_at', ascending: false)
+                .limit(36) as List;
+            fallbackPool = _mapProductRows(fallbackRows, favoriteIds);
+            unawaited(_localDb.saveCustomerProducts(fallbackPool));
+          }
+          final similar = computeSimilarCustomerProducts(
+            fallbackPool,
+            activeFilter,
+            maxResults: limit,
+          );
+          if (similar.isNotEmpty) {
+            return PaginatedPage<CustomerProduct>(
+              items: similar,
+              rawCount: 0,
+              isSimilarFallback: true,
+            );
+          }
+        }
+
         return PaginatedPage<CustomerProduct>(
           items: refined,
-          rawCount: rawRows.length,
+          rawCount: hasSearchQuery ? 0 : rawRows.length,
         );
       } catch (e) {
         if (_isNetworkError(e)) {
