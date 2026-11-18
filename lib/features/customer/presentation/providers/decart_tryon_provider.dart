@@ -4,15 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../config/supabase_config.dart';
-import '../../../../core/services/decart_realtime_service.dart';
+import '../../../../core/services/decart_vton_sdk_service.dart';
 import '../../../virtual_tryon/data/decart_session_config.dart';
 import '../../../virtual_tryon/data/tryon_errors.dart';
-import '../../../virtual_tryon/data/capture_guard.dart';
+import '../../../virtual_tryon/domain/tryon_session.dart';
 import '../../../virtual_tryon/data/automatic_tryon_recovery.dart';
 import '../../domain/models/customer_product.dart';
 import 'customer_providers.dart';
 
-export '../../../../core/services/decart_realtime_service.dart'
+export '../../../virtual_tryon/domain/tryon_session.dart'
     show DecartSessionStatus, TryonBodyZone;
 
 typedef LoadTryonCatalog = Future<List<CustomerProduct>> Function();
@@ -84,15 +84,9 @@ class DecartTryonState {
   );
 }
 
-final captureGuardProvider = ChangeNotifierProvider.autoDispose
-    .family<CaptureGuardController, String>(
-      (ref, id) => CaptureGuardController(),
-    );
-
-final decartRealtimeServiceProvider = Provider.autoDispose
-    .family<DecartRealtimeService, String>((ref, productId) {
-      final service = DecartRealtimeService(
-        captureGuard: ref.read(captureGuardProvider(productId)),
+final decartVtonSdkServiceProvider = Provider.autoDispose
+    .family<DecartVtonSdkService, String>((ref, productId) {
+      final service = DecartVtonSdkService(
         loadConfig: () async {
           try {
             final response = await SupabaseConfig.client.functions.invoke(
@@ -118,7 +112,7 @@ final decartRealtimeServiceProvider = Provider.autoDispose
 
 final decartTryonProvider = StateNotifierProvider.autoDispose
     .family<DecartTryonNotifier, DecartTryonState, String>((ref, id) {
-      final service = ref.watch(decartRealtimeServiceProvider(id));
+      final service = ref.watch(decartVtonSdkServiceProvider(id));
       // Capture dependencies now, never read a disposed Ref after an await.
       final repository = ref.read(customerRepositoryProvider);
       return DecartTryonNotifier(service, () async {

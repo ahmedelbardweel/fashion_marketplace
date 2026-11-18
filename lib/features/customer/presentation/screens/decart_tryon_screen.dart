@@ -3,18 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:decart_vton_flutter/decart_vton_flutter.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/services/decart_realtime_service.dart';
+import '../../../../core/services/decart_vton_sdk_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../../../virtual_tryon/data/capture_guard.dart';
-import '../../../virtual_tryon/domain/remote_frame_gate.dart';
-import '../../../virtual_tryon/domain/capture_quality.dart';
-import '../../../virtual_tryon/presentation/protected_tryon_preview.dart';
-import '../../../virtual_tryon/presentation/remote_video_binding.dart';
 import '../../../virtual_tryon/presentation/tryon_preparation.dart';
 import '../../domain/models/customer_product.dart';
 import '../providers/decart_tryon_provider.dart';
@@ -28,14 +23,8 @@ class DecartTryonScreen extends ConsumerStatefulWidget {
 
 class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     with WidgetsBindingObserver {
-  final _renderer = RTCVideoRenderer();
-  final _localRenderer = RTCVideoRenderer();
-  final _remoteFrames = RemoteFrameGate<MediaStream>();
-  late final Future<void> _rendererInitialization;
-  late DecartRealtimeService _service;
+  late DecartVtonSdkService _service;
   late DecartTryonNotifier _controller;
-  late CaptureGuardController _guard;
-  RemoteVideoBinding? _videoBinding;
   bool _ready = false,
       _started = false,
       _showGarments = false,
@@ -57,13 +46,9 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _service = ref.read(decartRealtimeServiceProvider(widget.productId));
+    _service = ref.read(decartVtonSdkServiceProvider(widget.productId));
     _controller = ref.read(decartTryonProvider(widget.productId).notifier);
-    _guard = ref.read(captureGuardProvider(widget.productId));
-    _rendererInitialization = Future.wait([
-      _renderer.initialize(),
-      _localRenderer.initialize(),
-    ]);
+    _service.isGenerating.addListener(_generationChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
   }
 
@@ -74,43 +59,16 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
       ]);
-      await _rendererInitialization;
       if (!mounted) return;
-      _localRenderer.addListener(_rendererChanged);
-      _renderer.addListener(_rendererChanged);
-      _guard.addListener(_bindLocal);
-      _videoBinding = RemoteVideoBinding(_renderer, () {
-        if (mounted) {
-          _remoteFrames.markRendered(_renderer.srcObject);
-          _guard.outputStream = _remoteFrames.readyStream;
-          _service.notifyFirstRemoteFrame();
-        }
-      });
-      _service.onRemoteStream = (stream) {
-        _remoteFrames.attach(stream);
-        _guard.outputStream = null;
-        if (mounted) _videoBinding?.attach(stream);
-      };
       setState(() => _ready = true);
     } catch (_) {
       if (mounted) {
-        setState(
-          () => _rendererError = 'تعذر تهيئة الكاميرا على هذا الجهاز.'.tr,
-        );
+        setState(() => _ready = true);
       }
     }
   }
 
-  void _bindLocal() {
-    if (mounted && _guard.approved) {
-      _guard.outputStream = _remoteFrames.readyStream;
-    }
-    if (mounted && _localRenderer.srcObject != _guard.stream) {
-      _localRenderer.srcObject = _guard.stream;
-    }
-  }
-
-  void _rendererChanged() {
+  void _generationChanged() {
     if (mounted) setState(() {});
   }
 
@@ -126,12 +84,6 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   Future<void> _start() async {
     if (!mounted || !_foreground) return;
-    if (!_ready) {
-      try {
-        await _rendererInitialization;
-      } catch (_) {}
-      if (!mounted) return;
-    }
     setState(() {
       _started = true;
       _showOriginal = false;
@@ -163,11 +115,9 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   }
 
   List<_CameraAlert> _collectCameraAlerts(
-    DecartTryonState state,
-    CaptureGuardController guard, {
+    DecartTryonState state, {
     required bool failed,
-    required bool showOverlay,
-    required TryonBodyZone activeZone,
+    required bool generating,
   }) {
     if (!_started && !failed) return const [];
     final alerts = <_CameraAlert>[];
@@ -180,7 +130,6 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     if (failed) {
       final errMsg =
           state.errorMessage ??
-          guard.error ??
           _rendererError ??
           'توقفت التجربة. يمكنك إعادة المحاولة الآن.'.tr;
       addAlert(
@@ -199,97 +148,6 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
             message:
                 'جارٍ استئناف التجربة تلقائياً… (${state.retryAttempt}/3)'.tr,
             icon: Icons.refresh_rounded,
-            accent: AppColors.primary,
-          ),
-        );
-      }
-      return alerts;
-    }
-
-    if (!guard.approved) {
-      if (guard.error != null && guard.error!.trim().isNotEmpty) {
-        addAlert(
-          _CameraAlert(
-            key: 'guard_err:${guard.error}',
-            message: guard.error!,
-            icon: Icons.error_outline_rounded,
-            accent: const Color(0xFFEF4444),
-          ),
-        );
-      }
-
-      final assessment = guard.assessment;
-      final issue = assessment.issue;
-
-      if (issue != null &&
-          (issue == CaptureIssue.dark ||
-              issue == CaptureIssue.overexposed ||
-              issue == CaptureIssue.backlit)) {
-        addAlert(
-          _CameraAlert(
-            key: 'light:${issue.name}',
-            message: issue.message,
-            icon: Icons.wb_sunny_outlined,
-            accent: const Color(0xFFF59E0B),
-          ),
-        );
-      } else if (!assessment.lightOk && assessment.points.isNotEmpty) {
-        addAlert(
-          _CameraAlert(
-            key: 'light:dark',
-            message: CaptureIssue.dark.message,
-            icon: Icons.wb_sunny_outlined,
-            accent: const Color(0xFFF59E0B),
-          ),
-        );
-      }
-
-      if (issue == CaptureIssue.blurred ||
-          (assessment.lightOk &&
-              !assessment.clarityOk &&
-              assessment.points.isNotEmpty)) {
-        addAlert(
-          _CameraAlert(
-            key: 'clarity:blurred',
-            message: CaptureIssue.blurred.message,
-            icon: Icons.center_focus_weak_rounded,
-            accent: const Color(0xFFF59E0B),
-          ),
-        );
-      }
-
-      if (issue != null &&
-          (issue == CaptureIssue.noPerson ||
-              issue == CaptureIssue.multiplePeople ||
-              issue == CaptureIssue.cropped ||
-              issue == CaptureIssue.tooFar ||
-              issue == CaptureIssue.moving ||
-              issue == CaptureIssue.unavailable)) {
-        final msg =
-            issue == CaptureIssue.cropped &&
-                activeZone.protocolRegion == 'upper body garment'
-            ? 'أظهر الكتفين بوضوح داخل الكاميرا؛ لا يلزم ظهور الجسم كاملاً.'.tr
-            : issue.message;
-        addAlert(
-          _CameraAlert(
-            key: 'pose:${issue.name}',
-            message: msg,
-            icon: issue == CaptureIssue.unavailable
-                ? Icons.videocam_off_outlined
-                : Icons.accessibility_new_rounded,
-            accent: issue == CaptureIssue.unavailable
-                ? const Color(0xFFEF4444)
-                : AppColors.primary,
-          ),
-        );
-      }
-
-      if (alerts.isEmpty) {
-        addAlert(
-          _CameraAlert(
-            key: 'wait:camera',
-            message: 'ثبّت وضعيتك قليلاً أمام الكاميرا…'.tr,
-            icon: Icons.auto_awesome_rounded,
             accent: AppColors.primary,
           ),
         );
@@ -329,16 +187,13 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
           accent: AppColors.primary,
         ),
       );
-    } else if (!_showOriginal && !showOverlay) {
-      final issueMsg =
-          guard.assessment.issue?.message ??
-          'ثبّت وضعيتك قليلاً لتظهر القطعة بوضوح.'.tr;
+    } else if (!_showOriginal && !generating) {
       addAlert(
         _CameraAlert(
-          key: 'live_hint:$issueMsg',
-          message: issueMsg,
-          icon: Icons.center_focus_strong_rounded,
-          accent: const Color(0xFFF59E0B),
+          key: 'live_warming',
+          message: 'جارٍ تطبيق القطعة على جسمك…'.tr,
+          icon: Icons.auto_awesome_rounded,
+          accent: AppColors.primary,
         ),
       );
     }
@@ -502,15 +357,8 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   void dispose() {
     _cancelSnackTimers();
     WidgetsBinding.instance.removeObserver(this);
-    _localRenderer.removeListener(_rendererChanged);
-    _renderer.removeListener(_rendererChanged);
+    _service.isGenerating.removeListener(_generationChanged);
     if (_ready) {
-      _guard.removeListener(_bindLocal);
-      _service.onRemoteStream = null;
-      _remoteFrames.attach(null);
-      _videoBinding?.attach(null);
-      _videoBinding?.dispose();
-      _localRenderer.srcObject = null;
       final controller = _controller;
       Future(() {
         if (controller.mounted) {
@@ -518,14 +366,6 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
         }
       });
     }
-    unawaited(
-      _rendererInitialization
-          .then((_) async {
-            await _renderer.dispose();
-            await _localRenderer.dispose();
-          })
-          .catchError((Object _) {}),
-    );
     unawaited(SystemChrome.setPreferredOrientations([]));
     super.dispose();
   }
@@ -533,37 +373,23 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(decartTryonProvider(widget.productId));
-    final guard = ref.watch(captureGuardProvider(widget.productId));
     final activeZone = state.effectiveZone;
     final failed =
         _rendererError != null ||
         state.status == DecartSessionStatus.error ||
         (_started && state.status == DecartSessionStatus.disconnected);
     final zoneColor = Color(activeZone.colorHex);
-    final observation = guard.observation;
     final showOverlay =
         state.isConnected &&
-        !state.isUpdating &&
         !_showOriginal &&
         !_switchingCamera &&
         _foreground &&
-        !failed &&
-        guard.canShowOverlay &&
-        guard.garment?.effectiveZone == activeZone &&
-        guard.garment?.id == state.appliedProductId &&
-        state.appliedProductId == state.selectedProduct?.id &&
-        ProtectedTryonPreview.framesAlign(
-          _localRenderer.value.aspectRatio,
-          _renderer.value.aspectRatio,
-          observation == null ? 0 : observation.width / observation.height,
-        );
+        !failed;
 
     final alerts = _collectCameraAlerts(
       state,
-      guard,
       failed: failed,
-      showOverlay: showOverlay,
-      activeZone: activeZone,
+      generating: _service.isGenerating.value,
     );
     _syncAlerts(alerts);
 
@@ -634,58 +460,39 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
         body: Stack(
           fit: StackFit.expand,
           children: [
-            // 1) Edge-to-Edge Full-Screen Camera + Protected Try-On Stream
-            if (_ready)
+            // 1) Edge-to-Edge Full-Screen Native Decart VTON Stream
+            if (_ready && isVtonNativePlatformSupported)
               Positioned.fill(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final rawAspect = _localRenderer.value.aspectRatio;
-                    final fallbackAspect =
-                        constraints.maxWidth /
-                        constraints.maxHeight.clamp(1.0, double.infinity);
-                    final stageAspect =
-                        rawAspect.isFinite && rawAspect > 0
-                        ? rawAspect
-                        : fallbackAspect;
-                    const baseHeight = 1000.0;
-                    return ClipRect(
-                      child: SizedBox.expand(
-                        child: FittedBox(
-                          fit: BoxFit.cover,
-                          alignment: Alignment.center,
-                          child: SizedBox(
-                            width: baseHeight * stageAspect,
-                            height: baseHeight,
-                            child: ProtectedTryonPreview(
-                              enabled: showOverlay,
-                              points: guard.overlayPoints,
-                              outputPoints: guard.outputPoints,
-                              sourceAspect: _localRenderer.value.aspectRatio,
-                              outputAspect: _renderer.value.aspectRatio,
-                              observationAspect: observation == null
-                                  ? 0
-                                  : observation.width / observation.height,
-                              region:
-                                  guard.garment?.region ??
-                                  activeZone.protocolRegion,
-                              original: RTCVideoView(
-                                _localRenderer,
-                                mirror: false,
-                                objectFit: RTCVideoViewObjectFit
-                                    .RTCVideoViewObjectFitContain,
-                              ),
-                              generated: RTCVideoView(
-                                _renderer,
-                                mirror: false,
-                                objectFit: RTCVideoViewObjectFit
-                                    .RTCVideoViewObjectFitContain,
-                              ),
-                            ),
-                          ),
-                        ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    const ColoredBox(color: Colors.black),
+                    const VtonLocalPreview(fit: VtonVideoFit.cover),
+                    AnimatedOpacity(
+                      opacity: showOverlay ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 180),
+                      child: const IgnorePointer(
+                        child: VtonRemoteView(fit: VtonVideoFit.cover),
                       ),
-                    );
-                  },
+                    ),
+                  ],
+                ),
+              )
+            else if (_ready)
+              Positioned.fill(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: Text(
+                      'التجربة المباشرة بتقنية Lucy VTON متاحة على هواتف أندرويد وآيفون فقط.'.tr,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ),
               ),
 

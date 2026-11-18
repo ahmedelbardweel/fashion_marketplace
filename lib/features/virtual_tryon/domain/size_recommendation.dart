@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'body_measurements.dart';
 import 'tryon_session.dart';
 
@@ -58,6 +60,24 @@ Map<String, dynamic> writeSizeChart(List<SizeChartRow> rows) => {
   'measurement_type': 'body',
   'rows': rows.map((r) => r.toJson()).toList(),
 };
+
+/// Clothing & shoe size estimated directly from user weight, height, and foot length.
+class EstimatedBodySize {
+  const EstimatedBodySize({
+    required this.primary,
+    this.alternative,
+    this.shoeEu,
+    this.matchedStockSize,
+  });
+
+  final String primary;
+  final String? alternative;
+  final int? shoeEu;
+  final String? matchedStockSize;
+
+  String get clothingLabel =>
+      alternative == null ? primary : '$primary / $alternative';
+}
 
 enum SizeMatchStatus {
   matched,
@@ -141,5 +161,107 @@ class SizeRecommendation {
       );
     }
     return const SizeRecommendation(SizeMatchStatus.noMatch);
+  }
+
+  /// Converts measured foot length (cm) into standard EU shoe sizing.
+  static int estimateShoeSizeEu(double footLengthCm) =>
+      ((footLengthCm + 1.5) * 1.5).round().clamp(34, 50);
+
+  /// Estimates clothing (XS..4XL) and EU shoe sizes directly from body
+  /// height, weight, and foot length without requiring a seller size chart.
+  static EstimatedBodySize? estimateFromBody(
+    BodyMeasurements measurements, {
+    TryonBodyZone zone = TryonBodyZone.upperBody,
+    Set<String> availableSizes = const {},
+  }) {
+    final height = measurements[BodyMeasure.height];
+    final weight = measurements[BodyMeasure.weight];
+    if (height == null || weight == null || !measurements.hasBasics) {
+      return null;
+    }
+
+    final foot = measurements[BodyMeasure.footLength];
+    final shoeEu = foot != null ? estimateShoeSizeEu(foot) : null;
+
+    // Height-adjusted weight with comfort allowance reflecting typical regional cuts.
+    final heightAdj = math.max(-4.0, (175.0 - height) * 0.25);
+    final lengthBoost = height >= 184 ? 3.0 : (height >= 178 ? 1.5 : 0.0);
+    final score = weight + heightAdj + lengthBoost;
+
+    late final String primary;
+    String? alternative;
+
+    if (score < 52) {
+      primary = 'XS';
+      if (score >= 49) alternative = 'S';
+    } else if (score < 60) {
+      primary = 'S';
+      if (score >= 57) alternative = 'M';
+    } else if (score < 68) {
+      primary = 'M';
+      if (score >= 65) alternative = 'L';
+    } else if (score < 77) {
+      primary = 'L';
+      if (score >= 74) alternative = 'XL';
+    } else if (score < 83) {
+      primary = 'XL';
+      if (score >= 80) alternative = 'XXL';
+    } else if (score < 95) {
+      primary = 'XXL';
+      if (score >= 83) alternative = 'XXXL';
+    } else if (score < 110) {
+      primary = 'XXXL';
+      if (score >= 104) alternative = '4XL';
+    } else {
+      primary = '4XL';
+    }
+
+    String? matchedStock;
+    if (availableSizes.isNotEmpty) {
+      if (zone == TryonBodyZone.footwear && shoeEu != null) {
+        final euStr = '$shoeEu';
+        for (final s in availableSizes) {
+          if (s.contains(euStr)) {
+            matchedStock = s;
+            break;
+          }
+        }
+      } else {
+        matchedStock = _matchStockSize(
+          primary: primary,
+          alternative: alternative,
+          availableSizes: availableSizes,
+        );
+      }
+    }
+
+    return EstimatedBodySize(
+      primary: primary,
+      alternative: alternative,
+      shoeEu: shoeEu,
+      matchedStockSize: matchedStock,
+    );
+  }
+
+  static String? _matchStockSize({
+    required String primary,
+    String? alternative,
+    required Set<String> availableSizes,
+  }) {
+    String norm(String s) {
+      var u = s.trim().toUpperCase().replaceAll(' ', '');
+      if (u == '2XL') u = 'XXL';
+      if (u == '3XL') u = 'XXXL';
+      if (u == '4XL') u = 'XXXXL';
+      return u;
+    }
+
+    final candidates = [norm(primary), if (alternative != null) norm(alternative)];
+    for (final want in candidates) {
+      for (final raw in availableSizes) {
+        if (norm(raw) == want) return raw;
+      }
+    }
+    return null;
   }
 }

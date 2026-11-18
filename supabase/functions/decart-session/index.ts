@@ -1,4 +1,4 @@
-﻿// Deploy with JWT verification enabled. No permanent key is returned to Flutter.
+// Deploy with JWT verification enabled. No permanent key is returned to Flutter.
 import { resolveDecartApiKey } from './secret_resolver.ts';
 
 const cors = {
@@ -32,14 +32,14 @@ Deno.serve(async (request: Request) => {
       url, serviceKey, Deno.env.get('DECART_API_KEY'),
     );
     if (!apiKey) return respond({ error: 'Service not configured' }, 503);
-    const model = 'lucy-vton-3.6';
+    const model = 'lucy-vton-latest';
     const response = await fetch('https://api.decart.ai/v1/client/tokens', {
       method: 'POST',
       headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        expiresIn: 60,
-        allowedModels: [model],
-        constraints: { realtime: { maxSessionDuration: 120 } },
+        expiresIn: 300,
+        allowedModels: [model, 'lucy-vton-3.6', 'lucy-vton-3.5'],
+        constraints: { realtime: { maxSessionDuration: 180 } },
       }),
       signal: AbortSignal.timeout(10000),
     });

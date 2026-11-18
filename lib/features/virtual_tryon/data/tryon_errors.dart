@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:camera/camera.dart';
+import 'package:decart_vton_flutter/decart_vton_flutter.dart';
 import 'package:flutter/services.dart';
 
 import '../domain/tryon_session.dart';
@@ -93,3 +94,37 @@ TryonFailure sessionHttpFailure(int status) => TryonFailure(switch (status) {
   503 => 'خدمة التجربة غير مهيأة أو غير متاحة حالياً. تحقق من إعدادات الخادم ومفتاح Decart.',
   _ => 'تعذر تجهيز جلسة التجربة من الخادم (HTTP $status).',
 });
+
+
+TryonFailure vtonExceptionToFailure(DecartVtonException error) {
+  return TryonFailure(switch (error.code) {
+    VtonErrorCode.permissionDenied =>
+      'يلزم منح إذن الكاميرا لتشغيل تجربة الملابس المباشرة.',
+    VtonErrorCode.cameraUnavailable =>
+      'تعذر فتح الكاميرا. تأكد من عدم استخدامها في تطبيق آخر.',
+    VtonErrorCode.invalidApiKey =>
+      'مفتاح أو رصيد جلسة Decart غير صالح أو منتهي. يرجى من الإدارة تحديث المفتاح من لوحة التحكم.',
+    VtonErrorCode.modelNotFound =>
+      'نموذج Lucy VTON المطلوب غير متاح حالياً على الخادم.',
+    VtonErrorCode.connectionTimeout =>
+      'انتهت مهلة الاتصال بخادم التجربة. تحقق من سرعة الإنترنت ثم أعد المحاولة.',
+    VtonErrorCode.webrtc ||
+    VtonErrorCode.websocket ||
+    VtonErrorCode.signaling ||
+    VtonErrorCode.network =>
+      'تعذر استقرار اتصال الفيديو عبر الشبكة. تحقق من الإنترنت وأعد المحاولة.',
+    VtonErrorCode.promptRejected =>
+      'لم يتم قبول وصف القطعة على الخادم. جرّب قطعة أخرى.',
+    VtonErrorCode.server =>
+      'حدث خطأ مؤقت في خادم Decart. أعد المحاولة بعد قليل.',
+    VtonErrorCode.invalidInput ||
+    VtonErrorCode.invalidOptions =>
+      'بيانات القطعة أو إعدادات الجلسة غير صالحة.',
+    VtonErrorCode.notInitialized ||
+    VtonErrorCode.notConnected =>
+      'انقطعت الجلسة الحالية. أعد تشغيل المعاينة المباشرة.',
+    VtonErrorCode.cancelled => 'تم إيقاف عملية التجربة.',
+    VtonErrorCode.unknown =>
+      'حدث خطأ غير متوقع أثناء المعاينة المباشرة. أعد المحاولة.',
+  });
+}

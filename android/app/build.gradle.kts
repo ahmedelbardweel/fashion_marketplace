@@ -20,7 +20,7 @@ android {
         applicationId = "com.example.fashion_marketplace"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 24
         // Target API 33 ensures runtime backward-compatibility for dynamic receivers on Android 14+ (One UI 6+)
         targetSdk = 33
         multiDexEnabled = true

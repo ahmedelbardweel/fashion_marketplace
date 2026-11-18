@@ -47,11 +47,17 @@ class InteractiveBodyZoneSelector extends StatefulWidget {
 
 class _InteractiveBodyZoneSelectorState
     extends State<InteractiveBodyZoneSelector> {
-  BodyMeasurements? _measurements;
+  BodyProfileCollection _profileCollection = BodyProfileCollection.empty;
   bool _loadingMeasurements = true;
   bool _loadFailed = false;
   int _loadRevision = 0;
   late BodyMeasurementStore _store;
+
+  BodyMeasurements? get _measurements =>
+      _profileCollection.activeProfile?.measurements;
+  List<SavedBodyProfile> get _profiles => _profileCollection.profiles;
+  SavedBodyProfile? get _activeProfile => _profileCollection.activeProfile;
+
   TryonBodyZone get selectedZone => widget.selectedZone;
   CustomerProduct? get selectedProduct => widget.selectedProduct;
   ValueChanged<TryonBodyZone> get onZoneSelected => widget.onZoneSelected;
@@ -69,7 +75,7 @@ class _InteractiveBodyZoneSelectorState
   void didUpdateWidget(covariant InteractiveBodyZoneSelector oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.measurementProfileId != widget.measurementProfileId) {
-      _measurements = null;
+      _profileCollection = BodyProfileCollection.empty;
       _loadMeasurements();
     }
   }
@@ -82,9 +88,9 @@ class _InteractiveBodyZoneSelectorState
       _loadFailed = false;
     });
     try {
-      final saved = await _store.load();
+      final loaded = await _store.loadProfiles();
       if (mounted && revision == _loadRevision) {
-        setState(() => _measurements = saved);
+        setState(() => _profileCollection = loaded);
       }
     } catch (_) {
       if (mounted && revision == _loadRevision) {
@@ -97,7 +103,7 @@ class _InteractiveBodyZoneSelectorState
     }
   }
 
-  Future<void> _editMeasurements() async {
+  Future<void> _openMeasurementEditor({SavedBodyProfile? editing}) async {
     final store = _store;
     final revision = _loadRevision;
     await showModalBottomSheet<void>(
@@ -108,16 +114,26 @@ class _InteractiveBodyZoneSelectorState
       builder: (context) => FractionallySizedBox(
         heightFactor: .94,
         child: MeasurementEditor(
-          initial: _measurements,
+          initial: editing?.measurements,
+          initialLabel: editing?.label,
+          showProfileLabel: true,
           previewBuilder: (draft) => ColorCodedBodyMap(
             selectedZone: selectedZone,
             onZoneTapped: (_) {},
             measurements: draft,
           ),
-          onSave: (value) async {
-            await store.save(value);
+          onSaveProfile: (value, label) async {
+            final fallbackName = _t(
+              'شخص ${_profiles.length + 1}',
+              'Person ${_profiles.length + 1}',
+            );
+            final updated = await store.upsertProfile(
+              id: editing?.id,
+              label: label.isEmpty ? (editing?.label ?? fallbackName) : label,
+              measurements: value,
+            );
             if (mounted && revision == _loadRevision) {
-              setState(() => _measurements = value);
+              setState(() => _profileCollection = updated);
             }
           },
         ),
@@ -125,13 +141,31 @@ class _InteractiveBodyZoneSelectorState
     );
   }
 
-  Future<void> _clearMeasurements() async {
+  Future<void> _selectProfile(SavedBodyProfile profile) async {
+    if (profile.id == _activeProfile?.id) return;
+    final revision = _loadRevision;
+    final store = _store;
+    setState(() {
+      _profileCollection = BodyProfileCollection(
+        profiles: _profileCollection.profiles,
+        activeId: profile.id,
+      );
+    });
+    try {
+      final updated = await store.selectProfile(profile.id);
+      if (mounted && revision == _loadRevision) {
+        setState(() => _profileCollection = updated);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _deleteProfile(SavedBodyProfile profile) async {
     final revision = _loadRevision;
     final store = _store;
     try {
-      await store.clear();
+      final updated = await store.deleteProfile(profile.id);
       if (mounted && revision == _loadRevision) {
-        setState(() => _measurements = null);
+        setState(() => _profileCollection = updated);
       }
     } catch (_) {
       if (mounted && revision == _loadRevision) {
@@ -149,42 +183,252 @@ class _InteractiveBodyZoneSelectorState
     }
   }
 
-  Widget _measurementCard() {
-    final profile = _measurements;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.primarySoft,
+  Widget _addSquareCard({required Key cardKey}) {
+    return Material(
+      color: AppColors.primarySoft,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        key: cardKey,
         borderRadius: BorderRadius.circular(16),
+        onTap: () => _openMeasurementEditor(),
+        child: Container(
+          width: 118,
+          height: 118,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.35),
+              width: 1.5,
+            ),
+          ),
+          child: Center(
+            child: Icon(
+              AppIcons.add,
+              size: 32,
+              color: AppColors.primaryDark,
+            ),
+          ),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
+    );
+  }
+
+  Widget _savedProfileSquareCard(SavedBodyProfile item, bool isSelected) {
+    final m = item.measurements;
+    final estimated = SizeRecommendation.estimateFromBody(m, zone: selectedZone);
+    final sizeBadge = selectedZone == TryonBodyZone.footwear
+        ? (estimated?.shoeEu != null
+              ? 'EU ${estimated!.shoeEu}'
+              : estimated?.clothingLabel ?? '')
+        : (estimated?.clothingLabel ?? '');
+
+    return Material(
+      color: isSelected ? AppColors.primarySoft : AppColors.surfaceAlt,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        key: ValueKey('profile-card-${item.id}'),
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _selectProfile(item),
+        child: Container(
+          width: 118,
+          height: 118,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.border,
+              width: isSelected ? 1.8 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(AppIcons.ruler, color: AppColors.primary, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  _t('قياساتي', 'My measurements'),
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isSelected ? AppColors.primaryDark : AppColors.text,
+                      ),
+                    ),
+                  ),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => _deleteProfile(item),
+                    child: Tooltip(
+                      message: isSelected
+                          ? _t(
+                              'حذف القياسات المحفوظة',
+                              'Delete saved measurements',
+                            )
+                          : _t('حذف', 'Delete'),
+                      child: Padding(
+                        padding: const EdgeInsets.all(2),
+                        child: Icon(
+                          AppIcons.delete,
+                          size: 14,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (sizeBadge.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primary.withValues(alpha: 0.14)
+                        : AppColors.surface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    sizeBadge,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
+                ),
+              Text(
+                '${measurementNumber(m[BodyMeasure.height]!)} ${_t('سم', 'cm')} · ${measurementNumber(m[BodyMeasure.weight]!)} ${_t('كغ', 'kg')}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textSecondary,
                 ),
               ),
-              if (profile != null)
-                IconButton(
-                  onPressed: _clearMeasurements,
-                  tooltip: _t(
-                    'حذف القياسات المحفوظة',
-                    'Delete saved measurements',
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: InkWell(
+                  key: isSelected
+                      ? const ValueKey('edit-measurements')
+                      : ValueKey('edit-profile-${item.id}'),
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => _openMeasurementEditor(editing: item),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          AppIcons.edit,
+                          size: 13,
+                          color: AppColors.primaryDark,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _t('تعديل', 'Edit'),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryDark,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  icon: const Icon(AppIcons.delete, size: 18),
                 ),
+              ),
             ],
           ),
-          if (_loadingMeasurements)
-            Text(_t('جارٍ تحميل القياسات…', 'Loading measurements…'))
-          else if (_loadFailed)
-            TextButton(
+        ),
+      ),
+    );
+  }
+
+  Widget _measurementCard() {
+    final activeId = _activeProfile?.id;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Icon(AppIcons.ruler, color: AppColors.primary, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _t('القياسات', 'Measurements'),
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.text,
+                ),
+              ),
+            ),
+            if (_profiles.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySoft,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${_profiles.length}',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryDark,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _t(
+            'أضف قياساتك أو قياسات أكثر من شخص لتحديد المقاس وتخصيص الهيكل قبل تركيب الملابس.',
+            'Add measurements for yourself or multiple people to personalize the figure and fit before trying clothes on.',
+          ),
+          style: TextStyle(
+            fontSize: 12.5,
+            height: 1.45,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (_loadingMeasurements)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Container(
+              width: 118,
+              height: 118,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Center(
+                child: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          )
+        else if (_loadFailed)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: TextButton(
               onPressed: _loadMeasurements,
               child: Text(
                 _t(
@@ -192,44 +436,34 @@ class _InteractiveBodyZoneSelectorState
                   'Could not load measurements · Retry',
                 ),
               ),
-            )
-          else ...[
-            Text(
-              profile == null
-                  ? _t(
-                      'أضف وزنك وطولك وطول قدمك لتخصيص الهيكل.',
-                      'Add your weight, height and foot length to personalize the figure.',
-                    )
-                  : '${measurementNumber(profile[BodyMeasure.height]!)} ${_t('سم', 'cm')}  ·  ${measurementNumber(profile[BodyMeasure.weight]!)} ${_t('كغ', 'kg')}${profile[BodyMeasure.footLength] == null ? '' : '  ·  ${_t('القدم', 'Foot')} ${measurementNumber(profile[BodyMeasure.footLength]!)} ${_t('سم', 'cm')}'}',
-              style: TextStyle(
-                fontSize: 13,
-                height: 1.6,
-                color: AppColors.textSecondary,
-              ),
             ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton.icon(
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primaryDark,
-                ),
-                key: const ValueKey('edit-measurements'),
-                onPressed: _editMeasurements,
-                icon: Icon(
-                  profile == null ? AppIcons.add : AppIcons.edit,
-                  size: 17,
-                ),
-                label: Text(
-                  profile == null
-                      ? _t('إضافة قياساتي', 'Add my measurements')
-                      : _t('تعديل القياسات', 'Edit measurements'),
-                ),
-              ),
+          )
+        else if (_profiles.isEmpty)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: _addSquareCard(
+              cardKey: const ValueKey('edit-measurements'),
             ),
-          ],
-        ],
-      ),
+          )
+        else
+          SizedBox(
+            height: 118,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _profiles.length + 1,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                if (index == _profiles.length) {
+                  return _addSquareCard(
+                    cardKey: const ValueKey('add-measurement-profile'),
+                  );
+                }
+                final item = _profiles[index];
+                return _savedProfileSquareCard(item, item.id == activeId);
+              },
+            ),
+          ),
+      ],
     );
   }
 
@@ -243,34 +477,84 @@ class _InteractiveBodyZoneSelectorState
       availableSizes: product.availableSizes,
       zone: selectedZone,
     );
-    final message = switch (match.status) {
-      SizeMatchStatus.matched => _t(
+    final estimated = SizeRecommendation.estimateFromBody(
+      measurements,
+      zone: selectedZone,
+      availableSizes: product.availableSizes,
+    );
+
+    late final String message;
+    late final String detail;
+    var highlighted = match.status == SizeMatchStatus.matched;
+
+    if (match.status == SizeMatchStatus.matched) {
+      message = _t(
         'المقاس المقترح: ${match.size}',
         'Suggested size: ${match.size}',
-      ),
-      SizeMatchStatus.noChart => _t(
-        'لا يتوفر جدول قياسات لهذه القطعة بعد.',
-        'This item does not have a measurement chart yet.',
-      ),
-      SizeMatchStatus.noMatch => _t(
-        'لا يوجد مقاس في الجدول يطابق القياسات المدخلة.',
-        'No chart size matches the measurements entered.',
-      ),
-      SizeMatchStatus.outOfStock => _t(
+      );
+      detail = _t(
+        'حسب جدول هذا المنتج والمقاسات المتوفرة؛ قد تختلف الراحة حسب القَصّة.',
+        'Based on this product chart and available sizes; comfort can vary with the cut.',
+      );
+    } else if (match.status == SizeMatchStatus.outOfStock) {
+      message = _t(
         'المقاس المطابق لقياساتك غير متوفر حالياً.',
         'The size matching your measurements is currently out of stock.',
-      ),
-      SizeMatchStatus.missingMeasurements =>
-        match.missing.every(BodyMeasurements.customerFields.contains)
-            ? _t(
-                'أكمل بيانات الوزن والطول وطول القدم.',
-                'Complete your weight, height and foot length.',
-              )
-            : _t(
-                'لا يمكن تحديد مقاس هذه القطعة بدقة من البيانات الثلاثة فقط.',
-                'These three measurements are not enough to determine an accurate size for this item.',
-              ),
-    };
+      );
+      detail = _t(
+        'جرّب اختيار مقاس قريب من المقاسات المتوفرة.',
+        'Try picking the closest available size.',
+      );
+    } else if (match.status == SizeMatchStatus.noMatch) {
+      message = _t(
+        'لا يوجد مقاس في الجدول يطابق القياسات المدخلة.',
+        'No chart size matches the measurements entered.',
+      );
+      detail = _t(
+        'مقاسك التقريبي من الوزن والطول: ${estimated?.clothingLabel ?? '-'}',
+        'Estimated from weight & height: ${estimated?.clothingLabel ?? '-'}',
+      );
+    } else if (estimated != null) {
+      highlighted = true;
+      final h = measurementNumber(measurements[BodyMeasure.height]!);
+      final w = measurementNumber(measurements[BodyMeasure.weight]!);
+      if (selectedZone == TryonBodyZone.footwear && estimated.shoeEu != null) {
+        final foot = measurementNumber(measurements[BodyMeasure.footLength]!);
+        final stockSuffix = estimated.matchedStockSize != null
+            ? '  ·  ${_t('متوفر', 'In stock')}: ${estimated.matchedStockSize}'
+            : '';
+        message = _t(
+          'مقاس الحذاء المناسب لك: EU ${estimated.shoeEu}$stockSuffix',
+          'Your recommended shoe size: EU ${estimated.shoeEu}$stockSuffix',
+        );
+        detail = _t(
+          'تم حسابه مباشرة من طول القدم ($foot سم).',
+          'Calculated directly from your foot length ($foot cm).',
+        );
+      } else {
+        final stockSuffix = estimated.matchedStockSize != null
+            ? '  ·  ${_t('متوفر', 'In stock')}: ${estimated.matchedStockSize}'
+            : '';
+        message = _t(
+          'المقاس المناسب لك: ${estimated.clothingLabel}$stockSuffix',
+          'Your recommended size: ${estimated.clothingLabel}$stockSuffix',
+        );
+        detail = _t(
+          'تم حسابه من طولك ($h سم) ووزنك ($w كغ) بناءً على قياساتك.',
+          'Calculated directly from your height ($h cm) and weight ($w kg).',
+        );
+      }
+    } else {
+      message = _t(
+        'أكمل بيانات الوزن والطول وطول القدم.',
+        'Complete your weight, height and foot length.',
+      );
+      detail = _t(
+        'أدخل قياساتك لعرض المقاس المناسب لك مباشرة.',
+        'Enter your measurements to see your recommended size.',
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(top: 14),
       child: Column(
@@ -279,23 +563,13 @@ class _InteractiveBodyZoneSelectorState
           Text(
             message,
             style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: match.status == SizeMatchStatus.matched
-                  ? AppColors.primaryDark
-                  : AppColors.textSecondary,
+              fontWeight: FontWeight.w700,
+              color: highlighted ? AppColors.primaryDark : AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: 5),
           Text(
-            match.status == SizeMatchStatus.matched
-                ? _t(
-                    'حسب جدول هذا المنتج والمقاسات المتوفرة؛ قد تختلف الراحة حسب القَصّة.',
-                    'Based on this product chart and available sizes; comfort can vary with the cut.',
-                  )
-                : _t(
-                    'الطول والوزن وحدهما لا يحددان مقاس شراء دقيقاً.',
-                    'Height and weight alone cannot determine an accurate purchase size.',
-                  ),
+            detail,
             style: TextStyle(
               fontSize: 12,
               height: 1.5,

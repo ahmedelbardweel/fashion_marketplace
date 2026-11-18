@@ -171,4 +171,20 @@ void main() {
       SizeMatchStatus.missingMeasurements,
     );
   });
+
+  test('estimates clothing and shoe sizes from height, weight, and foot length', () {
+    final tallHeavy = SizeRecommendation.estimateFromBody(
+      profile(height: 180, weight: 84, extra: {BodyMeasure.footLength: 27}),
+      availableSizes: {'L', 'XXL'},
+    );
+    expect(tallHeavy, isNotNull);
+    expect(tallHeavy!.clothingLabel, 'XXL / XXXL');
+    expect(tallHeavy.shoeEu, 43);
+    expect(tallHeavy.matchedStockSize, 'XXL');
+
+    final smallFrame = SizeRecommendation.estimateFromBody(
+      profile(height: 162, weight: 55),
+    );
+    expect(smallFrame!.primary, 'S');
+  });
 }

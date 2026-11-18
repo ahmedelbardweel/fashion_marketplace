@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../domain/body_measurements.dart';
+import '../domain/size_recommendation.dart';
 
 String measurementText(BuildContext context, String ar, String en) =>
     Localizations.localeOf(context).languageCode == 'ar' ? ar : en;
@@ -13,11 +14,18 @@ class MeasurementEditor extends StatefulWidget {
   const MeasurementEditor({
     super.key,
     this.initial,
-    required this.onSave,
+    this.initialLabel,
+    this.showProfileLabel = false,
+    this.onSave,
+    this.onSaveProfile,
     required this.previewBuilder,
-  });
+  }) : assert(onSave != null || onSaveProfile != null);
   final BodyMeasurements? initial;
-  final Future<void> Function(BodyMeasurements) onSave;
+  final String? initialLabel;
+  final bool showProfileLabel;
+  final Future<void> Function(BodyMeasurements)? onSave;
+  final Future<void> Function(BodyMeasurements value, String label)?
+  onSaveProfile;
   final Widget Function(BodyMeasurements?) previewBuilder;
   @override
   State<MeasurementEditor> createState() => _MeasurementEditorState();
@@ -26,12 +34,14 @@ class MeasurementEditor extends StatefulWidget {
 class _MeasurementEditorState extends State<MeasurementEditor> {
   final _form = GlobalKey<FormState>();
   late final Map<BodyMeasure, TextEditingController> _fields;
+  late final TextEditingController _labelController;
   bool _saving = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    _labelController = TextEditingController(text: widget.initialLabel ?? '');
     _fields = {
       for (final field in BodyMeasurements.customerFields)
         field: TextEditingController(
@@ -44,6 +54,7 @@ class _MeasurementEditorState extends State<MeasurementEditor> {
 
   @override
   void dispose() {
+    _labelController.dispose();
     for (final controller in _fields.values) {
       controller.dispose();
     }
@@ -68,7 +79,11 @@ class _MeasurementEditorState extends State<MeasurementEditor> {
       _error = null;
     });
     try {
-      await widget.onSave(_draft);
+      if (widget.onSaveProfile != null) {
+        await widget.onSaveProfile!(_draft, _labelController.text.trim());
+      } else {
+        await widget.onSave!(_draft);
+      }
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) {
@@ -203,7 +218,66 @@ class _MeasurementEditorState extends State<MeasurementEditor> {
                           fontSize: 12,
                         ),
                       ),
+                      if (SizeRecommendation.estimateFromBody(_draft)
+                          case final est?) ...[
+                        const SizedBox(height: 10),
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primarySoft,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: AppColors.primary.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Text(
+                              est.shoeEu != null
+                                  ? '${_t('مقاسك المتوقع', 'Your estimated size')}: ${est.clothingLabel}  ·  EU ${est.shoeEu}'
+                                  : '${_t('مقاسك المتوقع', 'Your estimated size')}: ${est.clothingLabel}',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primaryDark,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 22),
+                      if (widget.showProfileLabel) ...[
+                        TextField(
+                          key: const ValueKey('measurement-profile-label'),
+                          controller: _labelController,
+                          enabled: !_saving,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: _t(
+                              'اسم الشخص (اختياري)',
+                              'Person name (optional)',
+                            ),
+                            hintText: _t(
+                              'مثال: قياساتي، أحمد، سارة...',
+                              'e.g. Me, Ahmed, Sara...',
+                            ),
+                            prefixIcon: Icon(AppIcons.user, size: 19),
+                            filled: true,
+                            fillColor: AppColors.surfaceAlt,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: AppColors.border),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide(color: AppColors.border),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                      ],
                       _group([BodyMeasure.weight, BodyMeasure.height]),
                       const SizedBox(height: 20),
                       _field(BodyMeasure.footLength),
