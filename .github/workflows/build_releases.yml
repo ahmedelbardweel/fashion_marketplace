@@ -24,7 +24,7 @@ jobs:
           - platform: android
             runner: ubuntu-latest
           - platform: ios
-            runner: macos-26
+            runner: macos-15
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
@@ -42,11 +42,17 @@ jobs:
       - name: Configure public client environment
         shell: bash
         run: cp config/mobile.env .env
+      - name: Enable Swift Package Manager for iOS
+        if: matrix.platform == 'ios'
+        shell: bash
+        run: |
+          flutter config --enable-swift-package-manager
+          rm -rf ios/Pods ios/Podfile.lock
       - name: Install dependencies
         run: flutter pub get
       - name: Test virtual try-on
         if: matrix.platform == 'android'
-        run: flutter test test/virtual_tryon/decart_service_test.dart test/virtual_tryon/tryon_controller_test.dart test/virtual_tryon/web_camera_test.dart
+        run: flutter test test/virtual_tryon/decart_vton_sdk_service_test.dart test/virtual_tryon/decart_service_test.dart test/virtual_tryon/tryon_controller_test.dart test/virtual_tryon/web_camera_test.dart
       - name: Configure Gradle for CI
         if: matrix.platform == 'android'
         shell: bash
