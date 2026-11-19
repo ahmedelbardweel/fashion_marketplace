@@ -207,6 +207,12 @@ final adminDecartStatusProvider =
       return ref.watch(adminRepositoryProvider).fetchDecartStatus();
     });
 
+final adminTryonControlsProvider =
+    FutureProvider.autoDispose<TryonCostControls>((ref) async {
+      if (!_isAdmin(ref)) throw StateError('Admin access required');
+      return ref.watch(adminRepositoryProvider).fetchTryonControls();
+    });
+
 final adminSettingsProvider = FutureProvider.autoDispose<List<PlatformSetting>>(
   (ref) async {
     if (!_isAdmin(ref)) return const [];

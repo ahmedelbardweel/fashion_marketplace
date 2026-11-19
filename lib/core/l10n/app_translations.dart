@@ -51,6 +51,33 @@ class AppLang {
       (m) => '${AppLang.tr(m[1]!)} (Error code: ${m[2]})',
     ),
     _PatternRule(
+      RegExp(r'^مدة كل جلسة: (\d+) ثانية · الحد اليومي: (\d+) محاولات$'),
+      (m) =>
+          'Session duration: ${m[1]}s · Daily limit: ${m[2]} tries per day',
+    ),
+    _PatternRule(
+      RegExp(r'^متبقي (\d+) من (\d+) محاولات اليوم · (\d+) ثانية$'),
+      (m) => '${m[1]} of ${m[2]} tries left today · ${m[3]}s per session',
+    ),
+    _PatternRule(
+      RegExp(
+        r'^استنفدت محاولاتك اليومية للتجربة \((\d+) محاولات\)\. يمكنك التجربة مجدداً غداً\.$',
+      ),
+      (m) =>
+          'You have used all ${m[1]} daily try-on attempts. Please try again tomorrow.',
+    ),
+    _PatternRule(
+      RegExp(
+        r'^انتهت مدة التجربة المحددة \((\d+) ثانية\)\. تم إغلاق الكاميرا تلقائياً\.$',
+      ),
+      (m) =>
+          'Your ${m[1]}-second try-on session ended. Camera has been turned off automatically.',
+    ),
+    _PatternRule(
+      RegExp(r'^المتبقي لك اليوم: (\d+) من (\d+) محاولات$'),
+      (m) => 'Remaining today: ${m[1]} of ${m[2]} attempts',
+    ),
+    _PatternRule(
       RegExp(r'^عرض (\d+) من (\d+)$'),
       (m) => 'Showing ${m[1]} of ${m[2]}',
     ),
@@ -1134,6 +1161,53 @@ class AppLang {
         'The key is stored encrypted on the server and hidden after saving. ',
     'الحفظ لا يتحقق من رصيد Decart أو صلاحية الاشتراك.':
         'Saving does not verify Decart credits or subscription status.',
+    // Try-On Guidelines Onboarding & Cost Controls
+    'تعليمات التجربة الافتراضية': 'Virtual Try-On Guidelines',
+    'للحصول على أفضل نتيجة قبل البدء': 'For Best Results Before You Start',
+    'تظهر هذه الإرشادات في المرة الأولى فقط لمساعدتك على الحصول على تجربة واقعية وسلسة.':
+        'These guidelines appear on your first visit only to help you get realistic, smooth results.',
+    'إضاءة قوية وواضحة': 'Strong, Clear Lighting',
+    'قف في مكان بإضاءة أمامية قوية وموزعة جيداً، وتجنب العتمة أو وجود نافذة مضيئة خلفك.':
+        'Stand in bright, even front lighting and avoid dark rooms or strong backlighting.',
+    'كاميرا نظيفة وثابتة': 'Clean, Steady Camera',
+    'امسح عدسة الكاميرا جيداً قبل البدء ليظهر الوجه وتفاصيل الملابس أو الإكسسوارات بوضوح.':
+        'Wipe your camera lens clean so your face and garment or accessory details stay crisp.',
+    'إنترنت قوي ومستقر': 'Fast & Stable Internet',
+    'استخدم شبكة Wi-Fi سريعة أو بيانات جوال قوية (4G/5G) لضمان استقرار البث المباشر دون تقطيع.':
+        'Use fast Wi-Fi or strong 4G/5G mobile data for smooth live streaming without interruptions.',
+    'تفسير وتوضيح التجربة': 'About Virtual Try-On',
+    'تعمل التجربة بالذكاء الاصطناعي لإعطائك تصوراً تقريبياً للقطعة على جسمك أو يدك؛ قد تختلف درجات الألوان أو التفاصيل الدقيقة قليلاً حسب الإضاءة. يتم إيقاف الجلسة تلقائياً عند الخروج.':
+        'Virtual try-on uses AI to give an approximate preview on your body or hand; fine details or shades may vary slightly with lighting. Sessions stop automatically when you exit.',
+    'أوافق على الشروط والتعليمات': 'I agree to the terms and guidelines',
+    'تم إيقاف خدمة التجربة الافتراضية مؤقتاً من قبل الإدارة.':
+        'Virtual try-on is temporarily paused by the administrator.',
+    'انتهى وقت الجلسة': 'Session Time Ended',
+    'العودة': 'Go Back',
+    'محاولة جديدة': 'Try Again',
+    'التحكم في تكلفة التجربة الافتراضية': 'Virtual Try-On Cost Controls',
+    'جارٍ تحميل إعدادات التكلفة…': 'Loading cost control settings…',
+    'تعذر قراءة إعدادات التكلفة من السيرفر (تأكد من تطبيق تحديث 019).':
+        'Could not load cost settings from server (ensure migration 019 is applied).',
+    'تفعيل ميزة التجربة الافتراضية': 'Enable Virtual Try-On',
+    'الخدمة متاحة حالياً للمستخدمين.': 'Service is currently active for users.',
+    'الخدمة متوقفة مؤقتاً لتوفير التكلفة.':
+        'Service is temporarily paused to control costs.',
+    'مدة جلسة التجربة (بالثواني)': 'Session Duration (seconds)',
+    'القيمة المسموحة بين 10 و300 ثانية (الافتراضي 30).':
+        'Allowed range: 10 to 300 seconds (default 30).',
+    'أدخل مدة بين 10 و300 ثانية.': 'Enter a duration between 10 and 300 seconds.',
+    'الحد اليومي للمحاولات لكل مستخدم': 'Daily Attempts Limit per User',
+    'القيمة المسموحة بين 1 و100 محاولة يومياً (الافتراضي 3).':
+        'Allowed range: 1 to 100 attempts per day (default 3).',
+    'أدخل عدداً بين 1 و100 محاولة يومياً.':
+        'Enter a number between 1 and 100 attempts per day.',
+    'حفظ إعدادات التكلفة': 'Save Cost Controls',
+    'تم حفظ إعدادات التحكم في تكلفة التجربة بنجاح.':
+        'Try-on cost control settings saved successfully.',
+    'يلزم تطبيق تحديث قاعدة البيانات 019 في Supabase أولاً.':
+        'Please apply Supabase database migration 019 first.',
+    'تعذر حفظ إعدادات التحكم في التكلفة. حاول مجدداً.':
+        'Could not save cost control settings. Please try again.',
   };
 }
 

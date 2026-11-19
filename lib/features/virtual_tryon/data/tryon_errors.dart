@@ -88,6 +88,25 @@ TryonFailure startupFailure(Object error, TryonStartupStage stage) {
   );
 }
 
+TryonFailure sessionFunctionFailure(int status, Object? details) {
+  if (details is Map) {
+    final code = details['code']?.toString();
+    if (code == 'daily_limit_reached') {
+      final limit = (details['dailyLimit'] as num?)?.toInt() ?? 3;
+      return TryonFailure(
+        'استنفدت محاولاتك اليومية للتجربة ($limit محاولات). يمكنك التجربة مجدداً غداً.'
+            .tr,
+      );
+    }
+    if (code == 'tryon_disabled') {
+      return TryonFailure(
+        'تم إيقاف خدمة التجربة الافتراضية مؤقتاً من قبل الإدارة.'.tr,
+      );
+    }
+  }
+  return sessionHttpFailure(status);
+}
+
 TryonFailure sessionHttpFailure(int status) => TryonFailure(
   (switch (status) {
     401 ||

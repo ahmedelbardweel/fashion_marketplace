@@ -624,6 +624,27 @@ class AdminRepository {
     );
   }
 
+  Future<TryonCostControls> fetchTryonControls() async {
+    final data = await _client.rpc('admin_get_tryon_controls');
+    return TryonCostControls.fromMap(asStringMap(data));
+  }
+
+  Future<TryonCostControls> updateTryonControls({
+    required bool enabled,
+    required int sessionDurationSeconds,
+    required int dailyAttemptsLimit,
+  }) async {
+    final data = await _client.rpc(
+      'admin_update_tryon_controls',
+      params: {
+        'p_enabled': enabled,
+        'p_session_duration_seconds': sessionDurationSeconds,
+        'p_daily_attempts_limit': dailyAttemptsLimit,
+      },
+    );
+    return TryonCostControls.fromMap(asStringMap(data));
+  }
+
   Future<List<PlatformSetting>> fetchSettings() async {
     if (NetworkMonitorService.instance.isOnline) {
       try {

@@ -97,7 +97,7 @@ final decartVtonSdkServiceProvider = Provider.autoDispose
               Map<String, dynamic>.from(response.data as Map),
             );
           } on FunctionException catch (error) {
-            throw sessionHttpFailure(error.status);
+            throw sessionFunctionFailure(error.status, error.details);
           } on TryonFailure {
             rethrow;
           } catch (_) {

@@ -17,6 +17,7 @@ import '../../domain/models/catalog_models.dart';
 import '../providers/admin_providers.dart';
 import '../widgets/admin_app_bar.dart';
 import '../widgets/decart_settings_card.dart';
+import '../widgets/tryon_cost_controls_card.dart';
 import '../widgets/admin_logout.dart';
 
 class AdminSettingsScreen extends ConsumerWidget {
@@ -95,6 +96,8 @@ class AdminSettingsScreen extends ConsumerWidget {
           const PushNotificationSettingsCard(),
           const SizedBox(height: AppSpacing.md),
           const DecartSettingsCard(),
+          const SizedBox(height: AppSpacing.md),
+          const TryonCostControlsCard(),
           const SizedBox(height: AppSpacing.md),
           settings.skeletonWhen(
             placeholder: LoadingFixtures.settings,

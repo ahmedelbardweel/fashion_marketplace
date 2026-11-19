@@ -6,10 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:decart_vton_flutter/decart_vton_flutter.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../config/supabase_config.dart';
 import '../../../../core/services/decart_vton_sdk_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../virtual_tryon/data/tryon_onboarding_store.dart';
+import '../../../virtual_tryon/domain/tryon_quota.dart';
+import '../../../virtual_tryon/presentation/tryon_guidelines_view.dart';
 import '../../../virtual_tryon/presentation/tryon_preparation.dart';
 import '../../domain/models/customer_product.dart';
 import '../providers/decart_tryon_provider.dart';
@@ -31,6 +35,12 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       _showOriginal = false;
   bool _foreground = true;
   bool _switchingCamera = false;
+  bool _checkingGuidelines = true;
+  bool _guidelinesAccepted = false;
+  TryonQuota _quota = const TryonQuota();
+  Timer? _countdownTimer;
+  int _remainingSeconds = 30;
+  bool _sessionTimedOut = false;
   String? _rendererError;
 
   Timer? _snackHideTimer;
@@ -52,23 +62,125 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     _controller = ref.read(decartTryonProvider(widget.productId).notifier);
     _service.isGenerating.addListener(_generationChanged);
     _service.connectionQuality.addListener(_generationChanged);
+    _service.sessionConfig.addListener(_configChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
   }
 
   Future<void> _initialize() async {
+    var accepted = false;
     try {
       // Preload product & catalog immediately for Step 1 (Interactive Body Zone Selector)
       unawaited(_controller.preloadCatalog());
+      final uid = ref.read(authControllerProvider).user?.id ?? 'guest';
+      accepted = await TryonOnboardingStore.hasAccepted(uid);
+      unawaited(_loadQuota());
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
       ]);
       if (!mounted) return;
-      setState(() => _ready = true);
+      setState(() {
+        _guidelinesAccepted = accepted;
+        _checkingGuidelines = false;
+        _ready = true;
+      });
     } catch (_) {
       if (mounted) {
-        setState(() => _ready = true);
+        setState(() {
+        _guidelinesAccepted = accepted;
+        _checkingGuidelines = false;
+        _ready = true;
+      });
       }
     }
+  }
+
+  void _configChanged() {
+    if (!mounted) return;
+    final cfg = _service.sessionConfig.value;
+    if (cfg == null) return;
+    setState(() {
+      _quota = TryonQuota(
+        enabled: true,
+        sessionDurationSeconds: cfg.sessionDurationSeconds,
+        dailyLimit: cfg.dailyLimit,
+        usedToday: cfg.usedToday,
+        remainingToday:
+            cfg.remainingToday ??
+            (cfg.dailyLimit - cfg.usedToday).clamp(0, cfg.dailyLimit),
+      );
+      if (_countdownTimer == null) {
+        _remainingSeconds = cfg.sessionDurationSeconds;
+      }
+    });
+  }
+
+  Future<void> _loadQuota() async {
+    try {
+      final data = await SupabaseConfig.client.rpc('get_my_tryon_quota');
+      if (!mounted || data is! Map) return;
+      final loaded = TryonQuota.fromMap(Map<String, dynamic>.from(data));
+      setState(() {
+        _quota = loaded;
+        if (_countdownTimer == null && !_started) {
+          _remainingSeconds = loaded.sessionDurationSeconds;
+        }
+      });
+    } catch (_) {
+      // Graceful fallback when migration 019 is not yet deployed or offline.
+    }
+  }
+
+  Future<void> _acceptGuidelines() async {
+    final uid = ref.read(authControllerProvider).user?.id ?? 'guest';
+    await TryonOnboardingStore.markAccepted(uid);
+    if (!mounted) return;
+    setState(() => _guidelinesAccepted = true);
+  }
+
+  void _startCountdown() {
+    if (_countdownTimer != null || _sessionTimedOut) return;
+    final total = _service.sessionConfig.value?.sessionDurationSeconds ??
+        _quota.sessionDurationSeconds;
+    _remainingSeconds = total;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_remainingSeconds <= 1) {
+        timer.cancel();
+        _countdownTimer = null;
+        _handleSessionTimeout();
+      } else {
+        setState(() => _remainingSeconds--);
+      }
+    });
+  }
+
+  void _stopCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = null;
+  }
+
+  void _handleSessionTimeout() {
+    _cancelSnackTimers();
+    unawaited(_controller.suspend());
+    unawaited(_loadQuota());
+    if (!mounted) return;
+    setState(() {
+      _remainingSeconds = 0;
+      _sessionTimedOut = true;
+      _showGarments = false;
+      _snackVisible = false;
+      _displayedAlert = null;
+    });
+  }
+
+  String _formatCountdown(int seconds) {
+    final clamped = seconds.clamp(0, 3599);
+    final mins = (clamped ~/ 60).toString().padLeft(2, '0');
+    final secs = (clamped % 60).toString().padLeft(2, '0');
+    return '$mins:$secs';
   }
 
   void _generationChanged() {
@@ -96,8 +208,33 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   Future<void> _start() async {
     if (!mounted || !_foreground) return;
+    if (!_quota.enabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'تم إيقاف خدمة التجربة الافتراضية مؤقتاً من قبل الإدارة.'.tr,
+          ),
+        ),
+      );
+      return;
+    }
+    if (!_quota.hasRemaining) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'استنفدت محاولاتك اليومية للتجربة (${_quota.dailyLimit} محاولات). يمكنك التجربة مجدداً غداً.'
+                .tr,
+          ),
+        ),
+      );
+      return;
+    }
+    _stopCountdown();
+    if (!mounted || !_foreground) return;
     setState(() {
       _started = true;
+      _sessionTimedOut = false;
+      _remainingSeconds = _quota.sessionDurationSeconds;
       _showLightingTip = true;
       _lightingTipTimer?.cancel();
       _lightingTipTimer = null;
@@ -110,9 +247,12 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   Future<void> _returnToBodyMap() async {
     _cancelSnackTimers();
     await _controller.suspend();
+    _stopCountdown();
+    unawaited(_loadQuota());
     if (!mounted) return;
     setState(() {
       _started = false;
+      _sessionTimedOut = false;
       _showOriginal = false;
       _showGarments = false;
       _snackVisible = false;
@@ -522,10 +662,21 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
       _foreground = false;
-      if (_ready && _started) unawaited(_controller.suspend());
+      _stopCountdown();
+      if (_ready && _started) {
+        unawaited(_controller.suspend());
+        if (mounted) {
+          setState(() {
+            _started = false;
+            _showGarments = false;
+            _showOriginal = false;
+            _sessionTimedOut = false;
+          });
+        }
+      }
     } else if (state == AppLifecycleState.resumed && !_foreground) {
       _foreground = true;
-      if (_ready && _started) unawaited(_controller.resume());
+      unawaited(_loadQuota());
     }
   }
 
@@ -535,6 +686,8 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     WidgetsBinding.instance.removeObserver(this);
     _service.isGenerating.removeListener(_generationChanged);
     _service.connectionQuality.removeListener(_generationChanged);
+    _service.sessionConfig.removeListener(_configChanged);
+    _stopCountdown();
     _lightingTipTimer?.cancel();
     if (_ready) {
       final controller = _controller;
@@ -553,9 +706,10 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     final state = ref.watch(decartTryonProvider(widget.productId));
     final activeZone = state.effectiveZone;
     final failed =
-        _rendererError != null ||
+        !_sessionTimedOut &&
+        (_rendererError != null ||
         state.status == DecartSessionStatus.error ||
-        (_started && state.status == DecartSessionStatus.disconnected);
+        (_started && state.status == DecartSessionStatus.disconnected));
     final zoneColor = Color(activeZone.colorHex);
     final showOverlay =
         state.isConnected &&
@@ -572,6 +726,32 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       quality: _service.connectionQuality.value,
     );
     _syncAlerts(alerts);
+
+    if (state.isConnected && _started && !_sessionTimedOut && !failed) {
+      if (_countdownTimer == null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _started && !_sessionTimedOut) _startCountdown();
+        });
+      }
+    } else if (!_started || failed || _sessionTimedOut) {
+      _stopCountdown();
+    }
+
+    if (_checkingGuidelines) {
+      return Scaffold(
+        backgroundColor: AppColors.surface,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (!_guidelinesAccepted) {
+      return TryonGuidelinesView(
+        sessionDurationSeconds: _quota.sessionDurationSeconds,
+        dailyLimit: _quota.dailyLimit,
+        onBack: () => context.pop(),
+        onContinue: _acceptGuidelines,
+      );
+    }
 
     if (!_started && !failed) {
       return Scaffold(
@@ -600,10 +780,16 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                         ),
                       ),
                     ),
-                    const SizedBox(width: 48),
+                    IconButton(
+                      tooltip: 'تعليمات التجربة الافتراضية'.tr,
+                      onPressed: () =>
+                          setState(() => _guidelinesAccepted = false),
+                      icon: const Icon(Icons.info_outline_rounded),
+                    ),
                   ],
                 ),
               ),
+              _buildQuotaBanner(),
               Expanded(
                 child: InteractiveBodyZoneSelector(
                   measurementProfileId:
@@ -629,7 +815,17 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
         !failed &&
         state.availableProducts.isNotEmpty;
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_started) {
+          unawaited(_returnToBodyMap());
+        } else {
+          context.pop();
+        }
+      },
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
@@ -853,6 +1049,172 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
               ),
             ),
 
+            // 2.5) Floating Live Session Countdown Pill
+            if (state.isConnected && !_sessionTimedOut)
+              Positioned(
+                top: MediaQuery.paddingOf(context).top + 60,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: (_remainingSeconds <= 5
+                                ? const Color(0xFFEF4444)
+                                : _remainingSeconds <= 10
+                                ? const Color(0xFFF59E0B)
+                                : Colors.black)
+                            .withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.22),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.timer_outlined,
+                            size: 14,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            _formatCountdown(_remainingSeconds),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+            // 2.7) Session Time Ended Overlay
+            if (_sessionTimedOut)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.82),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Center(
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 360),
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF161A22),
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 54,
+                            height: 54,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.16),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.timer_off_rounded,
+                              color: AppColors.primary,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'انتهى وقت الجلسة'.tr,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'انتهت مدة التجربة المحددة (${_quota.sessionDurationSeconds} ثانية). تم إغلاق الكاميرا تلقائياً.'
+                                .tr,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13.5,
+                              height: 1.45,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            'المتبقي لك اليوم: ${_quota.remainingToday} من ${_quota.dailyLimit} محاولات'
+                                .tr,
+                            style: TextStyle(
+                              color: _quota.hasRemaining
+                                  ? AppColors.primary
+                                  : const Color(0xFFEF4444),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    side: BorderSide(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.24,
+                                      ),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  onPressed: _returnToBodyMap,
+                                  child: Text('العودة'.tr),
+                                ),
+                              ),
+                              if (_quota.hasRemaining) ...[
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: FilledButton(
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppColors.primary,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    onPressed: _start,
+                                    child: Text('محاولة جديدة'.tr),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
             // 3) Bottom Floating 5-Second Auto-Rotating SnackBar + Optional Garment Dock
             Positioned(
               left: 0,
@@ -881,6 +1243,50 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                       if (showGarmentDock) _garmentDock(state),
                     ],
                   ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      ),
+    );
+  }
+
+  Widget _buildQuotaBanner() {
+    final blocked = !_quota.enabled || !_quota.hasRemaining;
+    final color = blocked ? const Color(0xFFEF4444) : AppColors.primary;
+    final text = !_quota.enabled
+        ? 'تم إيقاف خدمة التجربة الافتراضية مؤقتاً من قبل الإدارة.'.tr
+        : !_quota.hasRemaining
+        ? 'استنفدت محاولاتك اليومية للتجربة (${_quota.dailyLimit} محاولات). يمكنك التجربة مجدداً غداً.'
+              .tr
+        : 'متبقي ${_quota.remainingToday} من ${_quota.dailyLimit} محاولات اليوم · ${_quota.sessionDurationSeconds} ثانية'
+              .tr;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.11),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              blocked ? Icons.block_rounded : Icons.timer_outlined,
+              size: 16,
+              color: color,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: color,
                 ),
               ),
             ),

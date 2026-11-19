@@ -379,6 +379,8 @@ class DecartVtonSdkService implements TryonSession {
   final ValueNotifier<bool> isGenerating = ValueNotifier<bool>(false);
   final ValueNotifier<VtonConnectionQuality> connectionQuality =
       ValueNotifier<VtonConnectionQuality>(VtonConnectionQuality.unknown);
+  final ValueNotifier<DecartSessionConfig?> sessionConfig =
+      ValueNotifier<DecartSessionConfig?>(null);
 
   VtonClient? _client;
   StreamSubscription<VtonEvent>? _sdkEvents;
@@ -545,6 +547,7 @@ class DecartVtonSdkService implements TryonSession {
     }
     isGenerating.dispose();
     connectionQuality.dispose();
+    sessionConfig.dispose();
     await _events.close();
   }
 
@@ -560,6 +563,7 @@ class DecartVtonSdkService implements TryonSession {
   Future<String> _provideClientToken() async {
     final config = await loadConfig();
     _latestConfig = config;
+    if (!_disposed) sessionConfig.value = config;
     return config.clientToken;
   }
 
