@@ -34,6 +34,14 @@
 -dontwarn org.webrtc.**
 -keep class com.cloudwebrtc.webrtc.** { *; }
 -dontwarn com.cloudwebrtc.webrtc.**
+-keep class ai.decart.** { *; }
+-dontwarn ai.decart.**
+-keep class io.livekit.** { *; }
+-dontwarn io.livekit.**
+-keep class livekit.org.webrtc.** { *; }
+-dontwarn livekit.org.webrtc.**
+-keep class com.twilio.audioswitch.** { *; }
+-dontwarn com.twilio.audioswitch.**
 
 # 4. Google ML Kit Pose Detection & MediaPipe Tasks Vision & JNI
 -keep class com.google.mlkit.** { *; }

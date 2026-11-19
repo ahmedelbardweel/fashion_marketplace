@@ -24,6 +24,8 @@ class _FakeVtonClient implements VtonClient {
   @override
   Stream<VtonEvent> get events => _events.stream;
 
+  void emit(VtonEvent event) => _events.add(event);
+
   @override
   bool get isInitialized => initialized;
 
@@ -361,6 +363,51 @@ void main() {
     expect(service.isUsingFrontCamera, isFalse);
     expect(client.facing, VtonCameraFacing.back);
     expect(client.disconnectCalls, greaterThanOrEqualTo(1));
+    await service.dispose();
+  });
+
+  test('ignores benign SessionIdMessage serialization telemetry errors', () async {
+    final client = _FakeVtonClient();
+    final service = DecartVtonSdkService(
+      isPlatformSupported: true,
+      createClient: () => client,
+      ensureCameraPermission: () async => true,
+      resolveOutfit: (garment) async => VtonOutfit(
+        prompt: DecartVtonSdkService.buildSdkPrompt(garment),
+        referenceImagePath: '/cache/${garment.id}.jpg',
+      ),
+      loadConfig: () async => DecartSessionConfig(
+        clientToken: 'eyJtest.jwt.token',
+        model: 'lucy-vton-latest',
+      ),
+    );
+    final events = <TryonSessionEvent>[];
+    final sub = service.events.listen(events.add);
+
+    await service.start(sampleGarment('t1'));
+    await Future<void>.delayed(Duration.zero);
+    events.clear();
+
+    client.emit(
+      const VtonErrorOccurred(
+        DecartVtonException(
+          VtonErrorCode.unknown,
+          "Fields [server_ip, server_port] are required for type with serial name 'ai.decart.sdk.realtime.SessionIdMessage', but they were missing",
+        ),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(events, isEmpty);
+
+    client.emit(
+      const VtonErrorOccurred(
+        DecartVtonException(VtonErrorCode.webrtc, 'ICE disconnected'),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(events.map((e) => e.status), [DecartSessionStatus.error]);
+
+    await sub.cancel();
     await service.dispose();
   });
 }

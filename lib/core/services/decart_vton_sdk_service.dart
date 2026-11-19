@@ -38,6 +38,24 @@ abstract class VtonClient {
   Future<void> dispose();
 }
 
+/// Non-fatal telemetry warnings emitted on the Decart Android SDK `errors` flow
+/// that must not tear down or overlay a live VTON session.
+///
+/// Specifically, `decart-android` 0.7.x/0.8.x declares `server_ip` and
+/// `server_port` as required fields on `SessionIdMessage`, while Decart's
+/// backend omits them on LiveKit sessions (the real session info arrives via
+/// `LiveKitRoomInfoMessage`).
+@visibleForTesting
+bool isBenignSdkTelemetryError(DecartVtonException error) {
+  if (error.code == VtonErrorCode.cancelled) return true;
+  final msg = error.message;
+  if (msg.contains('SessionIdMessage') &&
+      (msg.contains('server_ip') || msg.contains('server_port'))) {
+    return true;
+  }
+  return false;
+}
+
 /// Validates a short-lived Decart client token minted by `decart-session`.
 ///
 /// Decart `/v1/client/tokens` returns JWT tokens (`eyJ...`) as well as `ek_...`
@@ -742,7 +760,7 @@ class DecartVtonSdkService implements TryonSession {
             );
         }
       case VtonErrorOccurred(:final error):
-        if (error.code == VtonErrorCode.cancelled) return;
+        if (isBenignSdkTelemetryError(error)) return;
         _emit(DecartSessionStatus.error, vtonExceptionToFailure(error).message);
       case VtonConnectionQualityChanged(:final quality):
         connectionQuality.value = quality;
