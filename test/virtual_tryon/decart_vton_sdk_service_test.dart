@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:decart_vton_flutter/decart_vton_flutter.dart';
+import 'package:fashion_marketplace/core/l10n/app_translations.dart';
 import 'package:fashion_marketplace/core/services/decart_vton_sdk_service.dart';
 import 'package:fashion_marketplace/features/virtual_tryon/data/decart_session_config.dart';
 import 'package:fashion_marketplace/features/virtual_tryon/data/tryon_errors.dart';
@@ -61,8 +62,16 @@ class _FakeVtonClient implements VtonClient {
     updatedOutfits.add(outfit);
   }
 
+  bool failSwitchCamera = false;
+
   @override
   Future<VtonCameraFacing> switchCamera() async {
+    if (failSwitchCamera) {
+      throw const DecartVtonException(
+        VtonErrorCode.cameraUnavailable,
+        'in-place switch unsupported',
+      );
+    }
     facing = facing == VtonCameraFacing.front
         ? VtonCameraFacing.back
         : VtonCameraFacing.front;
@@ -237,7 +246,7 @@ void main() {
   test('builds concise SDK prompts and maps/redacts VTON exceptions safely', () {
     final prompt = DecartVtonSdkService.buildSdkPrompt(sampleGarment('p1'));
     expect(prompt.length, lessThan(250));
-    expect(prompt, contains('Substitute the current'));
+    expect(prompt, contains('Substitute only the upper-body top'));
 
     final creditErr = vtonExceptionToFailure(
       const DecartVtonException(
@@ -259,5 +268,99 @@ void main() {
     expect(redacted.message, isNot(contains('wss://')));
     expect(redacted.message, isNot(contains('eyJhbGciOi')));
     expect(redacted.message, isNot(contains('dct_wasla_')));
+  });
+
+  test('tailors concise prompts per body zone and supports Arabic & English', () {
+    for (final zone in TryonBodyZone.values) {
+      final prompt = DecartVtonSdkService.buildSdkPrompt(
+        GarmentSelection(
+          id: zone.name,
+          name: 'Sample Item',
+          imageUrl: 'https://example.com/${zone.name}.jpg',
+          targetZone: zone,
+        ),
+      );
+      expect(prompt.length, lessThan(260));
+      expect(prompt, contains('face identity'));
+      expect(prompt, contains('natural body shape'));
+    }
+
+    expect(
+      DecartVtonSdkService.buildSdkPrompt(
+        const GarmentSelection(
+          id: 'shoes',
+          name: 'Running Sneakers',
+          imageUrl: 'https://example.com/shoes.jpg',
+          targetZone: TryonBodyZone.footwear,
+        ),
+      ),
+      contains('footwear on both feet'),
+    );
+
+    expect(
+      DecartVtonSdkService.buildSdkPrompt(
+        const GarmentSelection(
+          id: 'watch',
+          name: 'ساعة يد كلاسيك ذهبية',
+          imageUrl: 'https://example.com/watch.jpg',
+          category: 'اكسسوارات',
+        ),
+      ),
+      contains('wristwatch'),
+    );
+    expect(TryonBodyZone.infer('ساعة يد فاخرة', 'ساعات'), TryonBodyZone.wristHand);
+    expect(TryonBodyZone.infer('خاتم فضة', 'مجوهرات'), TryonBodyZone.wristHand);
+    expect(TryonBodyZone.infer('نظارة شمسية سوداء', 'اكسسوارات'), TryonBodyZone.headFace);
+    expect(TryonBodyZone.infer('قبعة صيفية', 'اكسسوارات'), TryonBodyZone.headFace);
+    expect(TryonBodyZone.infer('شنطة يد جلد', 'حقائب'), TryonBodyZone.bags);
+
+    addTearDown(() => AppLang.isEn = false);
+    AppLang.isEn = true;
+    expect(TryonBodyZone.upperBody.shortLabel.tr, 'Upper body');
+    expect(TryonBodyZone.lowerPants.shortLabel.tr, 'Full Pants');
+    expect(TryonBodyZone.footwear.shortLabel.tr, 'Footwear / Feet');
+    expect(TryonBodyZone.wristHand.shortLabel.tr, 'Watch & Wrist');
+    expect(TryonBodyZone.headFace.shortLabel.tr, 'Head & Eyewear');
+    expect(TryonBodyZone.bags.shortLabel.tr, 'Bags & Purses');
+    expect(
+      'لثبات الوجه والجسم: قف في إضاءة أمامية واضحة دون ضوء خلفي قوي.'.tr,
+      contains('clear front lighting'),
+    );
+    expect(
+      'جارٍ استئناف التجربة تلقائياً… (2/3)'.tr,
+      'Resuming try-on automatically… (2/3)',
+    );
+    expect(
+      vtonExceptionToFailure(
+        const DecartVtonException(VtonErrorCode.server, 'HTTP 402 billing'),
+      ).message,
+      contains('Decart account credits'),
+    );
+  });
+
+  test('switchCamera falls back to reconnecting with opposite lens when native switch fails', () async {
+    final client = _FakeVtonClient()..failSwitchCamera = true;
+    final service = DecartVtonSdkService(
+      isPlatformSupported: true,
+      createClient: () => client,
+      ensureCameraPermission: () async => true,
+      resolveOutfit: (garment) async => VtonOutfit(
+        prompt: DecartVtonSdkService.buildSdkPrompt(garment),
+        referenceImagePath: '/cache/${garment.id}.jpg',
+      ),
+      loadConfig: () async => DecartSessionConfig(
+        clientToken: 'eyJtest.jwt.token',
+        model: 'lucy-vton-latest',
+      ),
+    );
+
+    await service.start(sampleGarment('w1'));
+    expect(service.isUsingFrontCamera, isTrue);
+
+    await service.switchCamera();
+    expect(service.isUsingFrontCamera, isFalse);
+    expect(client.facing, VtonCameraFacing.back);
+    expect(client.disconnectCalls, greaterThanOrEqualTo(1));
+    await service.dispose();
   });
 }

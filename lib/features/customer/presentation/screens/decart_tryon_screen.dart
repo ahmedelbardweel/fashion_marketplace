@@ -35,6 +35,8 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   Timer? _snackHideTimer;
   Timer? _snackNextTimer;
+  Timer? _lightingTipTimer;
+  bool _showLightingTip = true;
   bool _snackVisible = false;
   bool _snackSyncScheduled = false;
   int _snackIndex = 0;
@@ -49,6 +51,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     _service = ref.read(decartVtonSdkServiceProvider(widget.productId));
     _controller = ref.read(decartTryonProvider(widget.productId).notifier);
     _service.isGenerating.addListener(_generationChanged);
+    _service.connectionQuality.addListener(_generationChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
   }
 
@@ -69,6 +72,15 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   }
 
   void _generationChanged() {
+    if (!mounted) return;
+    if (_service.isGenerating.value &&
+        _showLightingTip &&
+        _lightingTipTimer == null) {
+      _lightingTipTimer = Timer(const Duration(seconds: 12), () {
+        if (!mounted) return;
+        setState(() => _showLightingTip = false);
+      });
+    }
     if (mounted) setState(() {});
   }
 
@@ -86,6 +98,9 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     if (!mounted || !_foreground) return;
     setState(() {
       _started = true;
+      _showLightingTip = true;
+      _lightingTipTimer?.cancel();
+      _lightingTipTimer = null;
       _showOriginal = false;
       _showGarments = false;
     });
@@ -118,6 +133,8 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     DecartTryonState state, {
     required bool failed,
     required bool generating,
+    required TryonBodyZone activeZone,
+    required VtonConnectionQuality quality,
   }) {
     if (!_started && !failed) return const [];
     final alerts = <_CameraAlert>[];
@@ -129,7 +146,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
     if (failed) {
       final errMsg =
-          state.errorMessage ??
+          state.errorMessage?.tr ??
           _rendererError ??
           'توقفت التجربة. يمكنك إعادة المحاولة الآن.'.tr;
       addAlert(
@@ -171,11 +188,44 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       addAlert(
         _CameraAlert(
           key: 'session_err:${state.errorMessage}',
-          message: state.errorMessage!,
+          message: state.errorMessage!.tr,
           icon: Icons.error_outline_rounded,
           accent: const Color(0xFFEF4444),
         ),
       );
+    }
+
+    if (!state.isUpdating && !_showOriginal && generating) {
+      if (quality == VtonConnectionQuality.poor ||
+          quality == VtonConnectionQuality.unusable) {
+        addAlert(
+          _CameraAlert(
+            key: 'net_quality:${quality.name}',
+            message: 'اتصال الإنترنت ضعيف حالياً؛ قد تقل دقة المعاينة مؤقتاً.'.tr,
+            icon: Icons.wifi_tethering_error_rounded,
+            accent: const Color(0xFFF59E0B),
+          ),
+        );
+      }
+      if (_showLightingTip) {
+        addAlert(
+          _CameraAlert(
+            key: 'tip:lighting',
+            message:
+                'لثبات الوجه والجسم: قف في إضاءة أمامية واضحة دون ضوء خلفي قوي.'.tr,
+            icon: Icons.wb_sunny_outlined,
+            accent: const Color(0xFFF59E0B),
+          ),
+        );
+        addAlert(
+          _CameraAlert(
+            key: 'tip:zone:${activeZone.name}',
+            message: activeZone.framingInstruction.tr,
+            icon: Icons.accessibility_new_rounded,
+            accent: Color(activeZone.colorHex),
+          ),
+        );
+      }
     }
 
     if (state.isUpdating) {
@@ -340,6 +390,132 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     );
   }
 
+  void _openLightingTipsSheet(BuildContext context, TryonBodyZone activeZone) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF14171D),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        final zoneColor = Color(activeZone.colorHex);
+        Widget tipRow(IconData icon, Color accent, String title, String body) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.16),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 18, color: accent),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        body,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12.5,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'نصائح لأفضل ثبات للوجه والجسم'.tr,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'هذه الإرشادات لتحسين دقة المعاينة ولا توقف البث المباشر.'.tr,
+                  style: const TextStyle(color: Colors.white60, fontSize: 12.5),
+                ),
+                const SizedBox(height: 16),
+                tipRow(
+                  Icons.wb_sunny_outlined,
+                  const Color(0xFFF59E0B),
+                  'إضاءة أمامية متوازنة'.tr,
+                  'لثبات الوجه والجسم: قف في إضاءة أمامية واضحة دون ضوء خلفي قوي.'.tr,
+                ),
+                tipRow(
+                  Icons.accessibility_new_rounded,
+                  zoneColor,
+                  activeZone.shortLabel.tr,
+                  activeZone.framingInstruction.tr,
+                ),
+                tipRow(
+                  Icons.face_retouching_natural_rounded,
+                  AppColors.primary,
+                  'ثبات الوضعية والاتصال'.tr,
+                  'تجنب الحركة السريعة واستخدم شبكة إنترنت مستقرة لنتيجة أدق.'.tr,
+                ),
+                const SizedBox(height: 4),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () => Navigator.of(sheetContext).pop(),
+                  child: Text('حسناً'.tr),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
@@ -358,6 +534,8 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     _cancelSnackTimers();
     WidgetsBinding.instance.removeObserver(this);
     _service.isGenerating.removeListener(_generationChanged);
+    _service.connectionQuality.removeListener(_generationChanged);
+    _lightingTipTimer?.cancel();
     if (_ready) {
       final controller = _controller;
       Future(() {
@@ -390,6 +568,8 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       state,
       failed: failed,
       generating: _service.isGenerating.value,
+      activeZone: activeZone,
+      quality: _service.connectionQuality.value,
     );
     _syncAlerts(alerts);
 
@@ -467,7 +647,10 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                   fit: StackFit.expand,
                   children: [
                     const ColoredBox(color: Colors.black),
-                    const VtonLocalPreview(fit: VtonVideoFit.cover),
+                    VtonLocalPreview(
+                      fit: VtonVideoFit.cover,
+                      mirror: state.isFrontCamera,
+                    ),
                     AnimatedOpacity(
                       opacity: showOverlay ? 1.0 : 0.0,
                       duration: const Duration(milliseconds: 180),
@@ -572,7 +755,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                                 ),
                                 const SizedBox(width: 7),
                                 Text(
-                                  activeZone.shortLabel,
+                                  activeZone.shortLabel.tr,
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 12,
@@ -644,6 +827,15 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                               : () => setState(
                                   () => _showGarments = !_showGarments,
                                 ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      if (_ready) ...[
+                        _CameraFloatingCircleButton(
+                          icon: Icons.wb_sunny_outlined,
+                          tooltip: 'نصائح الإضاءة والوضعية'.tr,
+                          onTap: () =>
+                              _openLightingTipsSheet(context, activeZone),
                         ),
                         const SizedBox(width: 8),
                       ],

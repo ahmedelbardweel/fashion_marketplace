@@ -743,6 +743,21 @@ class ZoneFramedGuidePainter extends CustomPainter {
         width: size.width * 0.76,
         height: size.height * 0.78,
       ),
+      TryonBodyZone.headFace => Rect.fromCenter(
+        center: Offset(size.width * 0.5, size.height * 0.30),
+        width: size.width * 0.64,
+        height: size.height * 0.38,
+      ),
+      TryonBodyZone.wristHand => Rect.fromCenter(
+        center: Offset(size.width * 0.5, size.height * 0.52),
+        width: size.width * 0.68,
+        height: size.height * 0.42,
+      ),
+      TryonBodyZone.bags => Rect.fromCenter(
+        center: Offset(size.width * 0.5, size.height * 0.50),
+        width: size.width * 0.74,
+        height: size.height * 0.58,
+      ),
       TryonBodyZone.footwear => Rect.fromCenter(
         center: Offset(size.width * 0.5, size.height * 0.70),
         width: size.width * 0.68,

@@ -1,3 +1,5 @@
+import '../../../core/l10n/app_translations.dart';
+
 enum DecartSessionStatus {
   idle,
   initializing,
@@ -7,8 +9,8 @@ enum DecartSessionStatus {
   error,
 }
 
-/// Distinct anatomical body zones that the user can explicitly select on the
-/// color-coded body diagram before starting the Virtual Try-On.
+/// Distinct anatomical body and accessory zones that the user can select on
+/// the color-coded body diagram or auto-detect from the product metadata.
 enum TryonBodyZone {
   upperBody(
     arabicTitle: 'الجزء العلوي (بلوزة / قميص / جاكيت)',
@@ -56,6 +58,36 @@ enum TryonBodyZone {
     framingInstruction: 'وجّه الكاميرا نحو القدمين والكاحلين في إضاءة واضحة.',
     colorHex: 0xFF10B981, // Emerald Green
     protocolRegion: 'footwear',
+  ),
+  headFace(
+    arabicTitle: 'الرأس والوجه والرقبة (نظارات / قبعة / عقد)',
+    shortLabel: 'رأس / نظارات',
+    bodyPartDescription:
+        'النظارات الشمسية والطبية، القبعات، الحجاب، الأقراط، العقود والشالات',
+    framingInstruction:
+        'أظهر الوجه والرأس والرقبة بوضوح أمام الكاميرا في إضاءة جيدة.',
+    colorHex: 0xFFEC4899, // Rose / Pink
+    protocolRegion: 'head and face accessory',
+  ),
+  wristHand(
+    arabicTitle: 'الساعات والمعصم واليد (ساعة / سوار / خاتم)',
+    shortLabel: 'ساعة / معصم',
+    bodyPartDescription:
+        'ساعات اليد، الأساور، الخواتم والقفازات على المعصم أو اليد',
+    framingInstruction:
+        'ارفع يدك ومعصمك بوضوح أمام الكاميرا وثبّتهما في إضاءة واضحة.',
+    colorHex: 0xFF6366F1, // Indigo
+    protocolRegion: 'wrist and hand accessory',
+  ),
+  bags(
+    arabicTitle: 'الحقائب والشنط (كتف / يد / ظهر)',
+    shortLabel: 'شنط / حقائب',
+    bodyPartDescription:
+        'حقائب اليد، شنط الكتف والكروس، وحقائب الظهر',
+    framingInstruction:
+        'أظهر الكتف واليد بوضوح أمام الكاميرا ليظهر حمل الحقيبة بشكل طبيعي.',
+    colorHex: 0xFFF97316, // Warm Orange
+    protocolRegion: 'bag accessory',
   );
 
   const TryonBodyZone({
@@ -74,14 +106,34 @@ enum TryonBodyZone {
   final int colorHex;
   final String protocolRegion;
 
-  /// Auto-detects the default body zone from product name & category.
+  bool get isAccessory =>
+      this == TryonBodyZone.headFace ||
+      this == TryonBodyZone.wristHand ||
+      this == TryonBodyZone.bags;
+
+  /// Auto-detects the default body or accessory zone from product name & category.
   static TryonBodyZone infer(String name, [String? category]) {
     final text = '${category ?? ''} $name'.toLowerCase();
     if (RegExp(r'dress[ -]?shirts?').hasMatch(text)) {
       return TryonBodyZone.upperBody;
     }
     if (RegExp(
-      r'\bshoes?\b|\bsneakers?\b|\bboots?\b|\bheels?\b|\bsandals?\b|\bslippers?\b|\bloafer\b|حذاء|أحذية|احذية|بوات|بوت|سنيكرز|صندل|كعب',
+      r'\b(?:smart)?watch(?:es)?\b|\bbracelets?\b|\bbangles?\b|\brings?\b|\bgloves?\b|(?:^|\s)(?:ال)?(?:ساع(?:ة|ات)|سوار|أسور|اسور|أساور|اساور|خاتم|خواتم|دبل(?:ة|ه)|قفاز)',
+    ).hasMatch(text)) {
+      return TryonBodyZone.wristHand;
+    }
+    if (RegExp(
+      r'\bsunglass(?:es)?\b|\bglasses\b|\beyewear\b|\bhats?\b|\bcaps?\b|\bbeanies?\b|\bscarf\b|\bscarves\b|\bhijabs?\b|\bshawls?\b|\bnecklaces?\b|\bpendants?\b|\bchains?\b|\bchokers?\b|\bearrings?\b|\bheadbands?\b|\bcrowns?\b|نظار|قبعة|قبعات|كاب|طاقي|حجاب|طرح(?:ة|ه)|شال|وشاح|عقد|سلسل|قلاد|حلق|أقراط|اقراط|تاج|طوق',
+    ).hasMatch(text)) {
+      return TryonBodyZone.headFace;
+    }
+    if (RegExp(
+      r'\bhandbags?\b|\bbackpacks?\b|\bbags?\b|\bpurses?\b|\btotes?\b|\bclutches?\b|\bcrossbody\b|\bsatchels?\b|\bwallets?\b|حقيب|حقائب|شنط|جزدان|محفظ',
+    ).hasMatch(text)) {
+      return TryonBodyZone.bags;
+    }
+    if (RegExp(
+      r'\bshoes?\b|\bsneakers?\b|\bboots?\b|\bheels?\b|\bsandals?\b|\bslippers?\b|\bloafer\b|حذاء|أحذية|احذية|بوات|بوت|سنيكرز|صندل|كعب|شبشب',
     ).hasMatch(text)) {
       return TryonBodyZone.footwear;
     }
@@ -91,7 +143,7 @@ enum TryonBodyZone {
       return TryonBodyZone.lowerShorts;
     }
     if (RegExp(
-      r'\bdress(?:es)?\b|\bjumpsuits?\b|\babayas?\b|\bsuits?\b|\boutfits?\b|فستان|فساتين|عباي|عباء|جمبسوت|طقم|بدل',
+      r'\bdress(?:es)?\b|\bjumpsuits?\b|\babayas?\b|\bsuits?\b|\boutfits?\b|\bkaftans?\b|فستان|فساتين|عباي|عباء|جمبسوت|طقم|بدل|جلابي|ثوب|قفطان',
     ).hasMatch(text)) {
       return TryonBodyZone.fullBody;
     }
@@ -132,31 +184,7 @@ class GarmentSelection {
 
   String get region {
     if (targetZone != null) return targetZone!.protocolRegion;
-    final text = '${category ?? ''} $name'.toLowerCase();
-    if (RegExp(r'dress[ -]?shirts?').hasMatch(text)) {
-      return 'upper body garment';
-    }
-    if (RegExp(
-      r'\bdress(?:es)?\b|\bjumpsuits?\b|\babayas?\b|\bsuits?\b|فستان|فساتين|عباي|عباء|جمبسوت|طقم|بدل',
-    ).hasMatch(text)) {
-      return 'outfit';
-    }
-    if (RegExp(
-      r'\bpants?\b|\btrousers?\b|\bjeans\b|\bskirts?\b|\bshorts?\b|بنطلون|بناطيل|جينز|تنور|شورت|برمودا',
-    ).hasMatch(text)) {
-      return 'lower body garment';
-    }
-    if (RegExp(
-      r'\bshoes?\b|\bsneakers?\b|\bboots?\b|\bheels?\b|حذاء|أحذية|احذية|بوات|بوت|سنيكرز|كعب',
-    ).hasMatch(text)) {
-      return 'footwear';
-    }
-    if (RegExp(
-      r'shirts?|hoodies?|sweaters?|tops?|jerseys?|jackets?|coats?|blazers?|تي\s*شيرت|تي\s*شرت|تيشيرت|قميص|قمصان|هودي|كنز|بلوز|سويت|جاكيت|بلوفر|سترة|معطف|بليزر|كارديغان',
-    ).hasMatch(text)) {
-      return 'upper body garment';
-    }
-    return 'corresponding clothing item';
+    return TryonBodyZone.infer(name, category).protocolRegion;
   }
 
   String _short(String value, int limit) {
@@ -175,10 +203,16 @@ class GarmentSelection {
       'Target anatomical zone: FULL BODY OUTFIT (torso, waist, and legs as a cohesive dress/suit/abaya matching the reference length). Keep footwear, hands, neck, head, and face 100% untouched.',
     TryonBodyZone.footwear =>
       'Target anatomical zone: FOOTWEAR / FEET AND ANKLES ONLY (left and right shoes/boots/sneakers on the feet). Keep the legs, pants/shorts, upper body clothing, hands, head, and face 100% untouched.',
+    TryonBodyZone.headFace =>
+      'Target anatomical zone: HEAD / FACE / NECK ACCESSORY ONLY (glasses, headwear, earrings, or necklace placed naturally on the head, face, ears, or neck). Keep facial identity, clothing, hands, and background 100% untouched.',
+    TryonBodyZone.wristHand =>
+      'Target anatomical zone: WRIST / HAND ACCESSORY ONLY (watch, bracelet, ring, or glove fitted naturally onto the visible wrist or hand). Keep fingers, face, clothing, and background 100% untouched.',
+    TryonBodyZone.bags =>
+      'Target anatomical zone: BAG ACCESSORY ONLY (handbag, shoulder bag, or backpack carried naturally on the shoulder or in hand). Keep face, clothing, body proportions, and background 100% untouched.',
   };
 
   String get prompt =>
-      'Substitute the $region with ${_short(name, 80)} from the supplied garment image. '
+      '${effectiveZone.isAccessory ? 'Add' : 'Substitute'} the $region with ${_short(name, 80)} from the supplied garment image. '
       '${category == null ? '' : 'Garment type: ${_short(category!, 50)}. '}'
       '${description == null ? '' : 'Visible product details: ${_short(description!, 160)}. '}'
       '$_zonePlacementDirective '
@@ -188,8 +222,8 @@ class GarmentSelection {
       'Strictly preserve the person\'s real face, facial identity, expression, hair, skin tone, hands, '
       'and exact natural body size, width, and proportions without any slimming, enlarging, or reshaping. '
       'Keep the original background, objects, camera framing, perspective, and distance unchanged. '
-      'Edit only the selected garment; never zoom, crop, replace the person, or regenerate the scene. '
-      'Drape and fit the garment naturally onto the person\'s actual body posture and scene lighting.';
+      'Edit only the selected item; never zoom, crop, replace the person, or regenerate the scene. '
+      'Drape and fit the item naturally onto the person\'s actual body posture and scene lighting.';
 
   void validate() {
     final uri = Uri.tryParse(imageUrl);
@@ -197,7 +231,7 @@ class GarmentSelection {
         uri == null ||
         uri.scheme != 'https' ||
         uri.host.isEmpty) {
-      throw const TryonFailure('يلزم اسم قطعة ورابط HTTPS صالح لصورتها.');
+      throw TryonFailure('يلزم اسم قطعة ورابط HTTPS صالح لصورتها.'.tr);
     }
   }
 }
@@ -208,8 +242,8 @@ class TryonSessionEvent {
   final String? error;
 }
 
-/// Domain boundary: no Flutter, WebRTC or network types.
-abstract interface class TryonSession {
+/// Domain boundary for realtime virtual try-on.
+abstract class TryonSession {
   Stream<TryonSessionEvent> get events;
   bool get isUsingFrontCamera;
   Future<void> start(GarmentSelection garment);

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../config/supabase_config.dart';
+import '../../../../core/l10n/app_translations.dart';
 import '../../../../core/services/decart_vton_sdk_service.dart';
 import '../../../virtual_tryon/data/decart_session_config.dart';
 import '../../../virtual_tryon/data/tryon_errors.dart';
@@ -100,8 +101,8 @@ final decartVtonSdkServiceProvider = Provider.autoDispose
           } on TryonFailure {
             rethrow;
           } catch (_) {
-            throw const TryonFailure(
-              'تعذر إعداد الجلسة. تحقق من تسجيل الدخول ونشر خدمة decart-session.',
+            throw TryonFailure(
+              'تعذر إعداد الجلسة. تحقق من تسجيل الدخول ونشر خدمة decart-session.'.tr,
             );
           }
         },
@@ -260,12 +261,12 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
         if (!mounted || revision != _revision) return;
         final garments = catalog.where(supports).toList();
         if (garments.isEmpty) {
-          throw const TryonFailure('لا توجد قطع بصور أمامية متاحة للتجربة.');
+          throw TryonFailure('لا توجد قطع بصور أمامية متاحة للتجربة.'.tr);
         }
         final initial = garments.where((p) => p.id == _initialId).firstOrNull;
         if (initial == null) {
-          throw const TryonFailure(
-            'المنتج المطلوب غير متاح للتجربة أو لا يملك صورة أمامية مناسبة. لم يتم استبداله بمنتج آخر.',
+          throw TryonFailure(
+            'المنتج المطلوب غير متاح للتجربة أو لا يملك صورة أمامية مناسبة. لم يتم استبداله بمنتج آخر.'.tr,
           );
         }
         state = state.copyWith(
@@ -292,7 +293,7 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
           status: DecartSessionStatus.error,
           errorMessage: error is TryonFailure
               ? error.message
-              : 'تعذر تحميل قطع الملابس أو بدء الجلسة.',
+              : 'تعذر تحميل قطع الملابس أو بدء الجلسة.'.tr,
         );
       }
     } finally {
@@ -352,7 +353,7 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
             isUpdating: false,
             errorMessage: error is TryonFailure
                 ? error.message
-                : 'تعذر تحديث القطعة.',
+                : 'تعذر تحديث القطعة.'.tr,
           );
           // Allow the same rejected selection to be retried on the next tap.
           final applied = state.availableProducts
@@ -372,14 +373,14 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
   }
 
   Future<void> switchCamera() async {
-    if (!state.isConnected) return;
+    // Allow toggling camera both before connecting and during a live session.
     try {
       await _session.switchCamera();
       if (mounted) {
         state = state.copyWith(isFrontCamera: _session.isUsingFrontCamera);
       }
     } catch (_) {
-      if (mounted) state = state.copyWith(errorMessage: 'تعذر تبديل الكاميرا.');
+      if (mounted) state = state.copyWith(errorMessage: 'تعذر تبديل الكاميرا.'.tr);
     }
   }
 

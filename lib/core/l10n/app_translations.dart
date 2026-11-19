@@ -39,6 +39,18 @@ class AppLang {
 
   static final List<_PatternRule> _patterns = [
     _PatternRule(
+      RegExp(r'^جارٍ استئناف التجربة تلقائياً… \((\d+)/(\d+)\)$'),
+      (m) => 'Resuming try-on automatically… (${m[1]}/${m[2]})',
+    ),
+    _PatternRule(
+      RegExp(r'^تعذر تجهيز جلسة التجربة من الخادم \(HTTP (\d+)\)\.$'),
+      (m) => 'Unable to prepare try-on session from server (HTTP ${m[1]}).',
+    ),
+    _PatternRule(
+      RegExp(r'^(.+) \(رمز الخطأ: ([A-Za-z0-9]+)\)$'),
+      (m) => '${AppLang.tr(m[1]!)} (Error code: ${m[2]})',
+    ),
+    _PatternRule(
       RegExp(r'^عرض (\d+) من (\d+)$'),
       (m) => 'Showing ${m[1]} of ${m[2]}',
     ),
@@ -958,6 +970,170 @@ class AppLang {
     'مرحباً، ابدأ الآن': 'Welcome! Start now',
     'مرحباً': 'Hello',
     'ابدأ الآن': 'Start Now',
+    // Virtual Try-On (Lucy VTON, lighting guidance, body zones & errors)
+    'تجربة الملابس': 'Virtual Try-On',
+    'بنطلون كامل': 'Full Pants',
+    'شورت / ركبة': 'Shorts / Knee',
+    'بوات / القدمين': 'Footwear / Feet',
+    'رأس / نظارات': 'Head & Eyewear',
+    'ساعة / معصم': 'Watch & Wrist',
+    'شنط / حقائب': 'Bags & Purses',
+    'الرأس والوجه والرقبة (نظارات / قبعة / عقد)':
+        'Head, Face & Neck (Glasses / Hat / Necklace)',
+    'النظارات الشمسية والطبية، القبعات، الحجاب، الأقراط، العقود والشالات':
+        'Sunglasses, eyeglasses, hats, hijab, earrings, necklaces & scarves',
+    'أظهر الوجه والرأس والرقبة بوضوح أمام الكاميرا في إضاءة جيدة.':
+        'Keep your face, head, and neck clearly visible in good lighting.',
+    'الساعات والمعصم واليد (ساعة / سوار / خاتم)':
+        'Watches, Wrist & Hand (Watch / Bracelet / Ring)',
+    'ساعات اليد، الأساور، الخواتم والقفازات على المعصم أو اليد':
+        'Wristwatches, bracelets, rings & gloves on your wrist or hand',
+    'ارفع يدك ومعصمك بوضوح أمام الكاميرا وثبّتهما في إضاءة واضحة.':
+        'Hold your hand and wrist clearly in front of the camera in good lighting.',
+    'الحقائب والشنط (كتف / يد / ظهر)': 'Bags & Purses (Shoulder / Hand / Back)',
+    'حقائب اليد، شنط الكتف والكروس، وحقائب الظهر':
+        'Handbags, shoulder & crossbody bags, and backpacks',
+    'أظهر الكتف واليد بوضوح أمام الكاميرا ليظهر حمل الحقيبة بشكل طبيعي.':
+        'Keep your shoulder and hand visible so the bag drapes naturally.',
+    'الجزء العلوي (بلوزة / قميص / جاكيت)': 'Upper Body (Top / Shirt / Jacket)',
+    'الصدر والكتفين والذراعين (بلوزة، تيشيرت، قميص، هودي، جاكيت)':
+        'Chest, shoulders, and arms (t-shirt, shirt, hoodie, jacket)',
+    'البنطلون الكامل (الرجلين بالكامل)': 'Full Pants (Full Legs)',
+    'من الخصر حتى الكاحلين (بنطلون جينز، رسمي، كارغو، رياضي)':
+        'From waist to ankles (jeans, dress pants, cargo, joggers)',
+    'الشورت (أعلى الركبة)': 'Shorts (Above Knee)',
+    'من الخصر حتى الركبتين فقط مع الحفاظ على الساقين السفليتين':
+        'From waist to knees while keeping lower legs unchanged',
+    'طقم كامل / فستان / عباية': 'Full Outfit / Dress / Abaya',
+    'الجذع والرجلين معاً كقطعة متكاملة (فستان، عباية، بدلة، طقم)':
+        'Torso and legs together as a complete outfit (dress, abaya, suit)',
+    'البوت والحذاء (القدمين)': 'Shoes & Boots (Feet)',
+    'القدمين والكاحلين فقط (بوات، سنيكرز، بوت جلدي، حذاء رسمي)':
+        'Feet and ankles only (sneakers, boots, dress shoes)',
+    'تبديل الكاميرا': 'Switch Camera',
+    'إعادة': 'Retry',
+    'حسناً': 'Got it',
+    'نصائح الإضاءة والوضعية': 'Lighting & Framing Tips',
+    'نصائح لأفضل ثبات للوجه والجسم': 'Tips for Best Face & Body Stability',
+    'هذه الإرشادات لتحسين دقة المعاينة ولا توقف البث المباشر.':
+        'These tips improve try-on accuracy and never interrupt the live stream.',
+    'إضاءة أمامية متوازنة': 'Balanced Front Lighting',
+    'لثبات الوجه والجسم: قف في إضاءة أمامية واضحة دون ضوء خلفي قوي.':
+        'For stable face & body: stand in clear front lighting without strong backlighting.',
+    'ثبات الوضعية والاتصال': 'Steady Posture & Connection',
+    'تجنب الحركة السريعة واستخدم شبكة إنترنت مستقرة لنتيجة أدق.':
+        'Avoid rapid movement and use a stable internet connection for sharper results.',
+    'اتصال الإنترنت ضعيف حالياً؛ قد تقل دقة المعاينة مؤقتاً.':
+        'Network connection is weak; try-on quality may temporarily drop.',
+    'توقفت التجربة. يمكنك إعادة المحاولة الآن.':
+        'Try-on stopped. You can retry now.',
+    'انتظر لحظة، جارٍ تجهيز الإطلالة…':
+        'One moment, preparing your live look…',
+    'جارٍ تبديل القطعة…': 'Switching garment…',
+    'جارٍ تطبيق القطعة على جسمك…': 'Applying garment to your body…',
+    'التجربة المباشرة بتقنية Lucy VTON متاحة على هواتف أندرويد وآيفون فقط.':
+        'Live Lucy VTON try-on is available on Android and iOS phones only.',
+    'يلزم منح إذن الكاميرا لتشغيل تجربة الملابس المباشرة.':
+        'Camera permission is required to start live virtual try-on.',
+    'تعذر بدء جلسة التجربة المباشرة. تحقق من الاتصال وأعد المحاولة.':
+        'Could not start live try-on session. Check your connection and retry.',
+    'الجلسة غير متصلة حالياً.': 'Try-on session is not currently connected.',
+    'تعذر تحديث القطعة على البث المباشر.':
+        'Could not update the garment on the live stream.',
+    'رابط صورة القطعة غير صالح للتجربة.':
+        'Garment image URL is not valid for try-on.',
+    'تعذر تحميل صورة القطعة للتجربة.':
+        'Could not download the garment image for try-on.',
+    'حجم صورة القطعة كبير جداً للتجربة.':
+        'Garment image file is too large for try-on.',
+    'انقطع الاتصال بخادم التجربة. أعد المحاولة.':
+        'Disconnected from try-on server. Please try again.',
+    'يلزم اسم قطعة ورابط HTTPS صالح لصورتها.':
+        'A garment name and valid HTTPS image URL are required.',
+    'نفد رصيد حساب Decart أو انتهى الاشتراك. يرجى من الإدارة شحن الرصيد أو تحديث المفتاح.':
+        'Decart account credits or subscription have run out. Please ask admin to top up or update the API key.',
+    'تعذر فتح الكاميرا. تأكد من عدم استخدامها في تطبيق آخر.':
+        'Could not open the camera. Make sure no other app is using it.',
+    'مفتاح أو رصيد جلسة Decart غير صالح أو منتهي. يرجى من الإدارة تحديث المفتاح من لوحة التحكم.':
+        'Decart API key or session token is invalid or expired. Please ask admin to update it in settings.',
+    'نموذج Lucy VTON المطلوب غير متاح حالياً على الخادم.':
+        'The requested Lucy VTON model is currently unavailable on the server.',
+    'انتهت مهلة الاتصال بخادم التجربة. تحقق من سرعة الإنترنت ثم أعد المحاولة.':
+        'Connection to try-on server timed out. Check your internet speed and retry.',
+    'تعذر استقرار اتصال الفيديو عبر الشبكة. تحقق من الإنترنت وأعد المحاولة.':
+        'Could not stabilize the video connection over the network. Check your internet and retry.',
+    'لم يتم قبول وصف القطعة على الخادم. جرّب قطعة أخرى.':
+        'The garment prompt was rejected by the server. Try another item.',
+    'حدث خطأ مؤقت في خادم Decart. أعد المحاولة بعد قليل.':
+        'Temporary Decart server error. Please try again shortly.',
+    'بيانات القطعة أو إعدادات الجلسة غير صالحة.':
+        'Invalid garment data or session configuration.',
+    'انقطعت الجلسة الحالية. أعد تشغيل المعاينة المباشرة.':
+        'Current session disconnected. Restart the live preview.',
+    'تم إيقاف عملية التجربة.': 'Try-on session was cancelled.',
+    'حدث خطأ غير متوقع أثناء المعاينة المباشرة. أعد المحاولة.':
+        'An unexpected error occurred during live try-on. Please retry.',
+    'تعذر إعداد الجلسة. تحقق من تسجيل الدخول ونشر خدمة decart-session.':
+        'Could not prepare session. Check sign-in and decart-session deployment.',
+    'لا توجد قطع بصور أمامية متاحة للتجربة.':
+        'No garments with front-facing photos are available for try-on.',
+    'المنتج المطلوب غير متاح للتجربة أو لا يملك صورة أمامية مناسبة. لم يتم استبداله بمنتج آخر.':
+        'The requested product is unavailable for try-on or lacks a suitable front photo.',
+    'تعذر تحميل قطع الملابس أو بدء الجلسة.':
+        'Could not load garments or start the try-on session.',
+    'تعذر تحديث القطعة.': 'Could not update the garment.',
+    'تعذر تبديل الكاميرا.': 'Could not switch camera.',
+    'إذن الكاميرا مرفوض. اسمح لهذا الموقع باستخدام الكاميرا من إعدادات المتصفح ثم أعد المحاولة.':
+        'Camera permission denied. Allow camera access in settings and try again.',
+    'لم يعثر المتصفح على كاميرا. صِل كاميرا بالكمبيوتر ثم أعد المحاولة.':
+        'No camera found. Connect a camera and try again.',
+    'تعذر تشغيل الكاميرا. قد تكون مستخدمة في تطبيق أو تبويب آخر؛ أغلقه وأعد المحاولة.':
+        'Could not start camera. Close other apps using it and retry.',
+    'الكاميرا لا تدعم إعدادات الفيديو المطلوبة. جرّب كاميرا أخرى.':
+        'Camera does not support the required video settings. Try another camera.',
+    'الوصول إلى الكاميرا غير متاح. افتح التطبيق عبر HTTPS أو localhost في متصفح يدعم الكاميرا.':
+        'Camera access unavailable. Open over HTTPS or localhost.',
+    'انتهت مهلة تشغيل الكاميرا. تحقق من طلب الإذن ثم أعد المحاولة.':
+        'Camera startup timed out. Check camera permission and retry.',
+    'إضافة الكاميرا غير مهيأة. أعد تشغيل التطبيق بالكامل بعد تحديث الحزم.':
+        'Camera plugin is not initialized. Restart the app completely.',
+    'فشل فتح الكاميرا. تحقق من توصيلها ومن إذن استخدامها في المتصفح أو إعدادات الجهاز.':
+        'Failed to open camera. Check permissions in device settings.',
+    'تعذر فتح الكاميرا.': 'Could not open the camera.',
+    'تعذر تجهيز جلسة التجربة من الخادم. تحقق من الشبكة وتسجيل الدخول.':
+        'Could not prepare try-on session from server. Check network and sign-in.',
+    'تعذر تهيئة اتصال الفيديو. جرّب متصفحاً حديثاً يدعم WebRTC.':
+        'Could not initialize video connection.',
+    'تعذر فتح قناة الاتصال بخادم التجربة. تحقق من الشبكة ثم أعد المحاولة.':
+        'Could not open signaling channel to try-on server. Check network and retry.',
+    'تعذر تحميل صورة القطعة. تحقق من رابط الصورة والسماح بتحميلها من المتصفح (CORS).':
+        'Could not load garment image. Check the image URL.',
+    'انتهت صلاحية تسجيل الدخول أو رُفض الوصول للجلسة. سجّل الدخول مجدداً.':
+        'Session expired or access denied. Please sign in again.',
+    'خدمة التجربة غير منشورة على الخادم. يلزم نشر decart-session على Supabase.':
+        'Try-on service is not deployed on the server (decart-session).',
+    'عدد محاولات الاتصال كبير. انتظر قليلاً ثم أعد المحاولة.':
+        'Too many connection attempts. Wait a moment and retry.',
+    'تعذر إصدار رمز جلسة Decart. يلزم التحقق من مفتاح الخدمة وصلاحية الحساب على الخادم.':
+        'Could not issue Decart session token. Check server API key and account status.',
+    'خدمة التجربة غير مهيأة أو غير متاحة حالياً. تحقق من إعدادات الخادم ومفتاح Decart.':
+        'Try-on service is not configured or unavailable. Check server settings and Decart key.',
+    'أدخل مفتاح Decart صالحاً يبدأ بـ dct_ (مثل dct_wasla_ أو dct_app_)':
+        'Enter a valid Decart key starting with dct_ (e.g. dct_wasla_ or dct_app_)',
+    'حفظ المفتاح': 'Save Key',
+    'مفتاح Decart الجديد': 'New Decart Key',
+    'يوجد مفتاح محفوظ بأمان. يمكنك استبداله أدناه.':
+        'A key is securely saved. You can replace it below.',
+    'لم يُحفظ مفتاح من إعدادات الأدمن بعد.':
+        'No key has been saved from admin settings yet.',
+    'تم حفظ المفتاح. سيُستخدم في جلسات تجربة الملابس الجديدة.':
+        'Key saved. It will be used for new virtual try-on sessions.',
+    'حالة إعداد مفتاح تجربة الملابس': 'Virtual try-on key configuration status',
+    'تعذر قراءة حالة إعداد المفتاح.': 'Could not load key configuration status.',
+    'يُحفظ المفتاح مشفّراً على السيرفر ولا يظهر بعد الحفظ. ':
+        'The key is stored encrypted on the server and hidden after saving. ',
+    'الحفظ لا يتحقق من رصيد Decart أو صلاحية الاشتراك.':
+        'Saving does not verify Decart credits or subscription status.',
   };
 }
 

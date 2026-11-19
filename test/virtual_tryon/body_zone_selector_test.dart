@@ -111,23 +111,25 @@ void main() {
         const Offset(20, 320): TryonBodyZone.lowerShorts,
         const Offset(-22, 420): TryonBodyZone.lowerPants,
         const Offset(25, 515): TryonBodyZone.footwear,
+        const Offset(0, 45): TryonBodyZone.headFace,
+        const Offset(-78, 295): TryonBodyZone.wristHand,
       }.entries) {
         selected = null;
         await tester.tapAt(origin + entry.key * scale);
         expect(selected, entry.value);
       }
       for (final point in [
-        const Offset(0, 45),
+        // Head and hand taps are now valid accessory zones above.
         const Offset(90, 200),
         const Offset(0, 420),
-        const Offset(-78, 295),
+        // Empty space outside the silhouette remains null.
       ]) {
         selected = null;
         await tester.tapAt(origin + point * scale);
         expect(
           selected,
           isNull,
-          reason: 'Head, hands, and empty space are not clothing zones',
+          reason: 'Empty space outside the silhouette is not a try-on zone',
         );
       }
     });

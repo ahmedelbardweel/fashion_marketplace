@@ -101,6 +101,9 @@ class SizeRecommendation {
   }) {
     final requiredFields = switch (zone) {
       TryonBodyZone.footwear => {BodyMeasure.footLength},
+      TryonBodyZone.headFace ||
+      TryonBodyZone.wristHand ||
+      TryonBodyZone.bags => <BodyMeasure>{},
       TryonBodyZone.upperBody => {BodyMeasure.chest},
       TryonBodyZone.lowerPants ||
       TryonBodyZone.lowerShorts => {BodyMeasure.waist, BodyMeasure.hips},
@@ -110,6 +113,9 @@ class SizeRecommendation {
         BodyMeasure.hips,
       },
     };
+    if (requiredFields.isEmpty) {
+      return const SizeRecommendation(SizeMatchStatus.noChart);
+    }
     final rows = readSizeChart(
       chart,
     ).where((r) => r.ranges.keys.toSet().containsAll(requiredFields)).toList();

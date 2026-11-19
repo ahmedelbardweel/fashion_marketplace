@@ -18,6 +18,9 @@ String _zoneLabel(TryonBodyZone zone) => switch (zone) {
   TryonBodyZone.lowerShorts => 'شورت'.tr,
   TryonBodyZone.fullBody => 'طقم كامل / فستان'.tr,
   TryonBodyZone.footwear => 'الأحذية'.tr,
+  TryonBodyZone.headFace => 'رأس / نظارات'.tr,
+  TryonBodyZone.wristHand => 'ساعة / معصم'.tr,
+  TryonBodyZone.bags => 'شنط / حقائب'.tr,
 };
 
 class InteractiveBodyZoneSelector extends StatefulWidget {
@@ -941,6 +944,12 @@ class _BodyGeometry {
   late final Path shortsPath = projectPath(shorts);
   late final Path calvesPath = projectPath(calves);
   late final Path feetPath = projectPath(feet);
+  late final Path headNeckPath = Path()
+    ..addPath(projectPath(head), Offset.zero)
+    ..addPath(projectPath(neck), Offset.zero);
+  late final Path handsPath = Path()
+    ..addPath(projectPath(hand), Offset.zero)
+    ..addPath(projectPath(mirror(hand)), Offset.zero);
   late final double _drawingWidth = math.max(
     240,
     upperPath.getBounds().width + 40,
@@ -1114,6 +1123,8 @@ class _BodyGeometry {
     if (shortsPath.contains(point)) return TryonBodyZone.lowerShorts;
     if (calvesPath.contains(point)) return TryonBodyZone.lowerPants;
     if (feetPath.contains(point)) return TryonBodyZone.footwear;
+    if (headNeckPath.contains(point)) return TryonBodyZone.headFace;
+    if (handsPath.contains(point)) return TryonBodyZone.wristHand;
     return null;
   }
 }
@@ -1184,10 +1195,14 @@ class _BodyPainter extends CustomPainter {
     }
 
     final full = selectedZone == TryonBodyZone.fullBody;
-    draw(_BodyGeometry.neck);
-    draw(_BodyGeometry.head);
-    draw(_BodyGeometry.hand);
-    draw(_BodyGeometry.mirror(_BodyGeometry.hand));
+    final headActive = selectedZone == TryonBodyZone.headFace;
+    final handActive =
+        selectedZone == TryonBodyZone.wristHand ||
+        selectedZone == TryonBodyZone.bags;
+    draw(_BodyGeometry.neck, active: headActive);
+    draw(_BodyGeometry.head, active: headActive);
+    draw(_BodyGeometry.hand, active: handActive);
+    draw(_BodyGeometry.mirror(_BodyGeometry.hand), active: handActive);
     draw(
       _BodyGeometry.upper,
       active: full || selectedZone == TryonBodyZone.upperBody,

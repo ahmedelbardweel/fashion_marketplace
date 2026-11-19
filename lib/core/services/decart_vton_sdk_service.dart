@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../features/virtual_tryon/data/decart_session_config.dart';
 import '../../features/virtual_tryon/data/tryon_errors.dart';
 import '../../features/virtual_tryon/domain/tryon_session.dart';
+import '../l10n/app_translations.dart';
 import '../offline/offline_image_cache_service.dart';
 
 /// Abstraction over [DecartVton] so [DecartVtonSdkService] can be tested in
@@ -257,6 +258,9 @@ class _LiveVtonClient implements VtonClient {
       _credentialUnused = false;
       await _invoke<Map<Object?, Object?>>('connect', args);
     }
+    if (!_connectionState.isLive) {
+      _connectionState = VtonConnectionState.connected;
+    }
   });
 
   @override
@@ -379,6 +383,7 @@ class DecartVtonSdkService implements TryonSession {
   VtonClient? _client;
   StreamSubscription<VtonEvent>? _sdkEvents;
   DecartSessionConfig? _latestConfig;
+  GarmentSelection? _lastGarment;
   bool _front = true;
   bool _disposed = false;
   int _generation = 0;
@@ -396,19 +401,20 @@ class DecartVtonSdkService implements TryonSession {
 
     final supported = isPlatformSupported ?? isVtonNativePlatformSupported;
     if (!supported) {
-      throw const TryonFailure(
-        'التجربة المباشرة بتقنية Lucy VTON متاحة على هواتف أندرويد وآيفون فقط.',
+      throw TryonFailure(
+        'التجربة المباشرة بتقنية Lucy VTON متاحة على هواتف أندرويد وآيفون فقط.'.tr,
       );
     }
 
     garment.validate();
+    _lastGarment = garment;
     _emit(DecartSessionStatus.initializing);
 
     final granted = await _ensureCameraPermission();
     if (_disposed || gen != _generation) return;
     if (!granted) {
-      const failure = TryonFailure(
-        'يلزم منح إذن الكاميرا لتشغيل تجربة الملابس المباشرة.',
+      final failure = TryonFailure(
+        'يلزم منح إذن الكاميرا لتشغيل تجربة الملابس المباشرة.'.tr,
       );
       _emit(DecartSessionStatus.error, failure.message);
       throw failure;
@@ -452,8 +458,8 @@ class DecartVtonSdkService implements TryonSession {
       if (_disposed || gen != _generation) return;
       final failure = error is TryonFailure
           ? error
-          : const TryonFailure(
-              'تعذر بدء جلسة التجربة المباشرة. تحقق من الاتصال وأعد المحاولة.',
+          : TryonFailure(
+              'تعذر بدء جلسة التجربة المباشرة. تحقق من الاتصال وأعد المحاولة.'.tr,
             );
       _emit(DecartSessionStatus.error, failure.message);
       throw failure;
@@ -465,9 +471,10 @@ class DecartVtonSdkService implements TryonSession {
     if (_disposed) return;
     final client = _client;
     if (client == null || !client.connectionState.isLive) {
-      throw const TryonFailure('الجلسة غير متصلة حالياً.');
+      throw TryonFailure('الجلسة غير متصلة حالياً.'.tr);
     }
     garment.validate();
+    _lastGarment = garment;
     try {
       final outfit = await _buildOutfit(garment);
       await client.setOutfit(outfit: outfit);
@@ -476,7 +483,7 @@ class DecartVtonSdkService implements TryonSession {
     } on DecartVtonException catch (error) {
       throw vtonExceptionToFailure(error);
     } catch (_) {
-      throw const TryonFailure('تعذر تحديث القطعة على البث المباشر.');
+      throw TryonFailure('تعذر تحديث القطعة على البث المباشر.'.tr);
     }
   }
 
@@ -484,13 +491,24 @@ class DecartVtonSdkService implements TryonSession {
   Future<void> switchCamera() async {
     if (_disposed) return;
     final client = _client;
-    if (client == null || !client.connectionState.isLive) return;
+    if (client == null || !client.connectionState.isLive) {
+      _front = !_front;
+      return;
+    }
     try {
       final facing = await client.switchCamera();
       _front = facing == VtonCameraFacing.front;
       _emit(DecartSessionStatus.connected);
     } on DecartVtonException catch (error) {
-      throw vtonExceptionToFailure(error);
+      // Fallback for iOS/Android camera drivers where in-place LiveKit lens
+      // switching is unsupported: reconnect seamlessly with the opposite lens.
+      final garment = _lastGarment;
+      if (garment == null) throw vtonExceptionToFailure(error);
+      _front = !_front;
+      try {
+        await client.disconnect();
+      } catch (_) {}
+      await start(garment);
     }
   }
 
@@ -555,17 +573,103 @@ class DecartVtonSdkService implements TryonSession {
     return VtonModel.fromId(configuredModel) ?? VtonModel.lucyVtonLatest;
   }
 
-  /// Builds a concise substitute prompt recommended by Lucy VTON rather than
-  /// sending a long multi-paragraph instruction during realtime handshake.
+  /// Builds a concise, zone-specific prompt recommended by Lucy VTON.
+  /// Uses "Substitute" for garments and "Add" for watches, jewelry, eyewear,
+  /// headwear, and bags so every clothing and accessory type applies accurately.
   @visibleForTesting
   static String buildSdkPrompt(GarmentSelection garment) {
     final cleanName = garment.name.replaceAll(RegExp(r'\s+'), ' ').trim();
-    final shortName = cleanName.length <= 60
+    final shortName = cleanName.length <= 50
         ? cleanName
-        : cleanName.substring(0, 60);
-    return 'Substitute the current ${garment.region} with $shortName from '
-        'the reference garment image. Keep the person\'s face, body '
-        'proportions, and background unchanged.';
+        : cleanName.substring(0, 50);
+    final meta = '${garment.category ?? ''} $cleanName'.toLowerCase();
+    return switch (garment.effectiveZone) {
+      TryonBodyZone.upperBody =>
+        'Substitute only the upper-body top with $shortName from the reference '
+            'garment image. Keep pants, legs, shoes, hands, face identity, '
+            'natural body shape, and background 100% unchanged.',
+      TryonBodyZone.lowerPants =>
+        'Substitute only the full-length pants with $shortName from the '
+            'reference garment image. Keep the upper-body top, shoes, hands, '
+            'face identity, natural body shape, and background 100% unchanged.',
+      TryonBodyZone.lowerShorts =>
+        'Substitute only the above-knee shorts with $shortName from the '
+            'reference garment image. Keep lower legs, top, shoes, hands, '
+            'face identity, natural body shape, and background 100% unchanged.',
+      TryonBodyZone.fullBody =>
+        'Substitute the full-body outfit with $shortName from the reference '
+            'garment image. Keep shoes, hands, neck, face identity, natural '
+            'body shape, and background 100% unchanged.',
+      TryonBodyZone.footwear =>
+        'Substitute only the footwear on both feet with $shortName from the '
+            'reference garment image. Keep pants, legs, upper clothing, hands, '
+            'face identity, natural body shape, and background 100% unchanged.',
+      TryonBodyZone.wristHand => _buildWristHandPrompt(shortName, meta),
+      TryonBodyZone.headFace => _buildHeadFacePrompt(shortName, meta),
+      TryonBodyZone.bags => _buildBagPrompt(shortName, meta),
+    };
+  }
+
+  static String _buildWristHandPrompt(String shortName, String meta) {
+    if (RegExp(r'\b(?:smart)?watch(?:es)?\b|ساع(?:ة|ات)').hasMatch(meta)) {
+      return 'Add the wristwatch ($shortName) from the reference image strapped '
+          'naturally onto the person\'s visible wrist. Match the exact dial and '
+          'strap. Keep face identity, natural body shape, clothing, and '
+          'background unchanged.';
+    }
+    if (RegExp(r'\brings?\b|خاتم|خواتم|دبل').hasMatch(meta)) {
+      return 'Add the ring ($shortName) from the reference image naturally onto '
+          'the person\'s visible finger. Keep face identity, natural body '
+          'shape, clothing, and background unchanged.';
+    }
+    if (RegExp(
+      r'\bbracelets?\b|\bbangles?\b|(?:^|\s)(?:ال)?(?:سوار|أسور|اسور|أساور|اساور)',
+    ).hasMatch(meta)) {
+      return 'Add the bracelet ($shortName) from the reference image around '
+          'the person\'s visible wrist. Keep face identity, natural body '
+          'shape, clothing, and background unchanged.';
+    }
+    if (RegExp(r'\bgloves?\b|قفاز').hasMatch(meta)) {
+      return 'Put the gloves ($shortName) from the reference image onto the '
+          'person\'s hands. Keep face identity, natural body shape, clothing, '
+          'and background unchanged.';
+    }
+    return 'Add the wrist accessory ($shortName) from the reference image '
+        'naturally onto the person\'s visible wrist. Keep face identity, '
+        'natural body shape, clothing, and background unchanged.';
+  }
+
+  static String _buildHeadFacePrompt(String shortName, String meta) {
+    if (RegExp(r'\bsunglass|\bglasses\b|\beyewear\b|نظار').hasMatch(meta)) {
+      return 'Add the glasses ($shortName) from the reference image onto the '
+          'person\'s face resting naturally on the nose. Keep face identity, '
+          'natural body shape, clothing, and background unchanged.';
+    }
+    if (RegExp(r'\bearrings?\b|حلق|أقراط|اقراط').hasMatch(meta)) {
+      return 'Add the earrings ($shortName) from the reference image onto the '
+          'person\'s ears. Keep face identity, natural body shape, clothing, '
+          'and background unchanged.';
+    }
+    if (RegExp(r'\bnecklaces?\b|\bpendants?\b|\bchains?\b|\bchokers?\b|\bscarf|\bscarves\b|شال|وشاح|عقد|سلسل|قلاد')
+        .hasMatch(meta)) {
+      return 'Add the neck accessory ($shortName) from the reference image '
+          'naturally around the person\'s neck. Keep face identity, natural '
+          'body shape, clothing, and background unchanged.';
+    }
+    return 'Add the headwear ($shortName) from the reference image naturally '
+        'onto the person\'s head. Keep face identity, natural body shape, '
+        'clothing, and background unchanged.';
+  }
+
+  static String _buildBagPrompt(String shortName, String meta) {
+    if (RegExp(r'\bbackpacks?\b|ظهر').hasMatch(meta)) {
+      return 'Add the backpack ($shortName) from the reference image worn '
+          'naturally on the person\'s shoulders. Keep face identity, natural '
+          'body shape, clothing, and background unchanged.';
+    }
+    return 'Add the bag ($shortName) from the reference image carried '
+        'naturally on the person\'s shoulder or in hand. Keep face identity, '
+        'natural body shape, clothing, and background unchanged.';
   }
 
   Future<VtonOutfit> _buildOutfit(GarmentSelection garment) async {
@@ -586,7 +690,7 @@ class DecartVtonSdkService implements TryonSession {
 
     final uri = Uri.tryParse(garment.imageUrl);
     if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
-      throw const TryonFailure('رابط صورة القطعة غير صالح للتجربة.');
+      throw TryonFailure('رابط صورة القطعة غير صالح للتجربة.'.tr);
     }
 
     final client = _http ?? http.Client();
@@ -596,10 +700,10 @@ class DecartVtonSdkService implements TryonSession {
           .get(uri)
           .timeout(const Duration(seconds: 12));
       if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
-        throw const TryonFailure('تعذر تحميل صورة القطعة للتجربة.');
+        throw TryonFailure('تعذر تحميل صورة القطعة للتجربة.'.tr);
       }
       if (response.bodyBytes.length > _maxGarmentBytes) {
-        throw const TryonFailure('حجم صورة القطعة كبير جداً للتجربة.');
+        throw TryonFailure('حجم صورة القطعة كبير جداً للتجربة.'.tr);
       }
       return VtonOutfit(
         prompt: prompt,
@@ -630,7 +734,7 @@ class DecartVtonSdkService implements TryonSession {
           case VtonConnectionState.error:
             _emit(
               DecartSessionStatus.error,
-              'انقطع الاتصال بخادم التجربة. أعد المحاولة.',
+              'انقطع الاتصال بخادم التجربة. أعد المحاولة.'.tr,
             );
         }
       case VtonErrorOccurred(:final error):
