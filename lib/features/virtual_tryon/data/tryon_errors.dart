@@ -97,7 +97,19 @@ TryonFailure sessionHttpFailure(int status) => TryonFailure(switch (status) {
 
 
 TryonFailure vtonExceptionToFailure(DecartVtonException error) {
-  return TryonFailure(switch (error.code) {
+  final lower = error.message.toLowerCase();
+  if (lower.contains('credit') ||
+      lower.contains('balance') ||
+      lower.contains('quota') ||
+      lower.contains('billing') ||
+      lower.contains('payment') ||
+      lower.contains('402')) {
+    return const TryonFailure(
+      'نفد رصيد حساب Decart أو انتهى الاشتراك. يرجى من الإدارة شحن الرصيد أو تحديث المفتاح.',
+    );
+  }
+
+  final base = switch (error.code) {
     VtonErrorCode.permissionDenied =>
       'يلزم منح إذن الكاميرا لتشغيل تجربة الملابس المباشرة.',
     VtonErrorCode.cameraUnavailable =>
@@ -126,5 +138,24 @@ TryonFailure vtonExceptionToFailure(DecartVtonException error) {
     VtonErrorCode.cancelled => 'تم إيقاف عملية التجربة.',
     VtonErrorCode.unknown =>
       'حدث خطأ غير متوقع أثناء المعاينة المباشرة. أعد المحاولة.',
-  });
+  };
+
+  final tag = _sanitizeVtonDiagnostic(error);
+  return TryonFailure(tag == null ? base : '$base ($tag)');
+}
+
+String? _sanitizeVtonDiagnostic(DecartVtonException error) {
+  final code = (error.nativeCode ?? error.code.name).trim();
+  var detail = error.message
+      .replaceAll(RegExp(r'(?:https?|wss?)://\S+', caseSensitive: false), '')
+      .replaceAll(RegExp(r'\b(?:dct_|ek_|eyJ)[A-Za-z0-9._-]+\b'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  if (detail.length > 72) {
+    detail = '${detail.substring(0, 72)}…';
+  }
+  if (code.isEmpty && detail.isEmpty) return null;
+  if (detail.isEmpty) return code;
+  if (code.isEmpty) return detail;
+  return '$code: $detail';
 }

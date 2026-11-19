@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:decart_vton_flutter/decart_vton_flutter.dart';
 import 'package:fashion_marketplace/core/services/decart_vton_sdk_service.dart';
 import 'package:fashion_marketplace/features/virtual_tryon/data/decart_session_config.dart';
+import 'package:fashion_marketplace/features/virtual_tryon/data/tryon_errors.dart';
 import 'package:fashion_marketplace/features/virtual_tryon/domain/tryon_session.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -231,5 +232,32 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('builds concise SDK prompts and maps/redacts VTON exceptions safely', () {
+    final prompt = DecartVtonSdkService.buildSdkPrompt(sampleGarment('p1'));
+    expect(prompt.length, lessThan(250));
+    expect(prompt, contains('Substitute the current'));
+
+    final creditErr = vtonExceptionToFailure(
+      const DecartVtonException(
+        VtonErrorCode.server,
+        'HTTP 402 Insufficient credits',
+        nativeCode: 'SERVER_ERROR',
+      ),
+    );
+    expect(creditErr.message, contains('نفد رصيد'));
+
+    final redacted = vtonExceptionToFailure(
+      const DecartVtonException(
+        VtonErrorCode.webrtc,
+        'ICE failed at wss://api.decart.ai/v1/stream?api_key=eyJhbGciOi.secret dct_wasla_123456',
+        nativeCode: 'WEBRTC_ICE_ERROR',
+      ),
+    );
+    expect(redacted.message, contains('WEBRTC_ICE_ERROR'));
+    expect(redacted.message, isNot(contains('wss://')));
+    expect(redacted.message, isNot(contains('eyJhbGciOi')));
+    expect(redacted.message, isNot(contains('dct_wasla_')));
   });
 }

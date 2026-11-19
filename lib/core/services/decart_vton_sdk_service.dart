@@ -231,15 +231,22 @@ class _LiveVtonClient implements VtonClient {
       'supportsReferenceImage': model.supportsReferenceImage,
       'facing': camera.name,
       'mirror': VtonMirrorMode.auto.name,
-      'resolution': null,
-      'connectTimeoutMs': 30000,
-      'video': const VtonVideoConfig().toMap(),
+      'resolution': VtonResolution.p720.wireValue,
+      'connectTimeoutMs': 45000,
+      'video': VtonVideoConfig(
+        maxBitrate: 2000000,
+        maxFramerate: model.fps,
+        preferredCodec: defaultTargetPlatform == TargetPlatform.iOS
+            ? 'h264'
+            : 'vp8',
+        simulcast: false,
+      ).toMap(),
       'prompt': initialOutfit?.prompt,
       'referenceImage': initialOutfit?.referenceImage,
       'referenceImagePath': initialOutfit?.hasReferenceImagePath == true
           ? initialOutfit!.referenceImagePath!.trim()
           : null,
-      'enhance': initialOutfit?.enhance ?? true,
+      'enhance': initialOutfit?.enhance ?? false,
     };
 
     try {
@@ -548,18 +555,32 @@ class DecartVtonSdkService implements TryonSession {
     return VtonModel.fromId(configuredModel) ?? VtonModel.lucyVtonLatest;
   }
 
+  /// Builds a concise substitute prompt recommended by Lucy VTON rather than
+  /// sending a long multi-paragraph instruction during realtime handshake.
+  @visibleForTesting
+  static String buildSdkPrompt(GarmentSelection garment) {
+    final cleanName = garment.name.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final shortName = cleanName.length <= 60
+        ? cleanName
+        : cleanName.substring(0, 60);
+    return 'Substitute the current ${garment.region} with $shortName from '
+        'the reference garment image. Keep the person\'s face, body '
+        'proportions, and background unchanged.';
+  }
+
   Future<VtonOutfit> _buildOutfit(GarmentSelection garment) async {
     final customResolver = _resolveOutfit;
     if (customResolver != null) return customResolver(garment);
 
+    final prompt = buildSdkPrompt(garment);
     final cached = await OfflineImageCacheService.instance.getOrDownloadFile(
       garment.imageUrl,
     );
     if (cached != null && await cached.exists() && await cached.length() > 0) {
       return VtonOutfit(
-        prompt: garment.prompt,
+        prompt: prompt,
         referenceImagePath: cached.path,
-        enhance: true,
+        enhance: false,
       );
     }
 
@@ -581,9 +602,9 @@ class DecartVtonSdkService implements TryonSession {
         throw const TryonFailure('حجم صورة القطعة كبير جداً للتجربة.');
       }
       return VtonOutfit(
-        prompt: garment.prompt,
+        prompt: prompt,
         referenceImage: response.bodyBytes,
-        enhance: true,
+        enhance: false,
       );
     } finally {
       if (ownsClient) client.close();
