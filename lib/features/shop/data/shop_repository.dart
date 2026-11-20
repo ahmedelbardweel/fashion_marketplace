@@ -183,6 +183,31 @@ class ShopRepository {
     return shop;
   }
 
+  /// Deactivates/closes the current owner's shop and account.
+  Future<void> deleteShopAccount() async {
+    final userId = await _resolveUserId();
+    if (userId == null) throw StateError('يجب تسجيل الدخول');
+
+    try {
+      await _client.rpc('delete_my_shop_account');
+    } on PostgrestException catch (error) {
+      // Fallback if migration 020 has not been applied yet.
+      final msg = error.message.toLowerCase();
+      if (!msg.contains('delete_my_shop_account') && error.code != 'PGRST202') {
+        rethrow;
+      }
+      await _client
+          .from('profiles')
+          .update({
+            'is_active': false,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', userId);
+    }
+
+    await _localDb.clearActiveSession();
+  }
+
   bool _isNetworkError(Object error) {
     final msg = error.toString().toLowerCase();
     return msg.contains('socketexception') ||

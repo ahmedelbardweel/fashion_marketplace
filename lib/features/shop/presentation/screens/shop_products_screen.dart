@@ -1,3 +1,4 @@
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,18 +8,19 @@ import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_filter_bar.dart';
 import '../../../../core/widgets/app_pagination_footer.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
+import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
-import '../../../../core/widgets/product_grid_card.dart';
 import '../../../../router/routes.dart';
 import '../../../admin/domain/models/catalog_models.dart';
 import '../../domain/models/shop.dart';
 import '../../domain/models/shop_product.dart';
 import '../providers/shop_catalog_providers.dart';
 import '../providers/shop_providers.dart';
+import '../widgets/shop_components.dart';
 import '../widgets/shop_shell.dart';
 
 class ShopProductsScreen extends ConsumerStatefulWidget {
@@ -226,6 +228,7 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
     WidgetRef ref,
     ShopProduct product,
   ) async {
+    final inStock = product.totalStock > 0;
     final action = await AppBottomSheet.show<String>(
       context: context,
       child: AppBottomSheetScaffold(
@@ -233,45 +236,158 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'الحالة: ${product.statusLabel}\nالمخزون: ${product.totalStock}'
-                  .tr,
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(AppRadii.md),
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      color: AppColors.surface,
+                      child:
+                          product.coverImage != null &&
+                              product.coverImage!.isNotEmpty
+                          ? AppNetworkImage(
+                              product.coverImage!,
+                              fit: BoxFit.cover,
+                              width: 60,
+                              height: 60,
+                              errorBuilder: (_, _, _) =>
+                                  const SizedBox.shrink(),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          AppFormat.price(product.price),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: AppFont.extraBold,
+                                color: AppColors.primaryDark,
+                              ),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Wrap(
+                          spacing: AppSpacing.xs,
+                          runSpacing: AppSpacing.xs,
+                          children: [
+                            AppStatusBadge(
+                              label: product.statusLabel,
+                              tone: productStatusTone(product.status),
+                            ),
+                            AppStatusBadge(
+                              label: inStock
+                                  ? '${'المخزون'.tr}: ${product.totalStock}'
+                                  : 'نفد المخزون'.tr,
+                              tone: !inStock
+                                  ? BadgeTone.error
+                                  : product.totalStock <= 5
+                                  ? BadgeTone.warning
+                                  : BadgeTone.neutral,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: AppSpacing.lg),
             AppButton(
-              label: 'تعديل'.tr,
+              label: 'تعديل المنتج'.tr,
               onPressed: () => Navigator.of(context).pop('edit'),
             ),
             const SizedBox(height: AppSpacing.sm),
             if (product.status != 'published')
               AppButton(
-                label: 'نشر'.tr,
-                variant: AppButtonVariant.outlined,
+                label: 'نشر المنتج'.tr,
+                variant: AppButtonVariant.secondary,
                 onPressed: () => Navigator.of(context).pop('published'),
               ),
             if (product.status == 'published')
               AppButton(
-                label: 'إيقاف النشر'.tr,
-                variant: AppButtonVariant.outlined,
+                label: 'إيقاف النشر مؤقتاً'.tr,
+                variant: AppButtonVariant.secondary,
                 onPressed: () => Navigator.of(context).pop('hidden'),
               ),
             const SizedBox(height: AppSpacing.sm),
-            AppButton(
-              label: 'حذف'.tr,
-              variant: AppButtonVariant.outlined,
-              onPressed: () => Navigator.of(context).pop('deleted'),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                backgroundColor: AppColors.errorSoft,
+                foregroundColor: AppColors.error,
+                side: BorderSide(
+                  color: AppColors.error.withValues(alpha: 0.25),
+                ),
+                minimumSize: const Size(double.infinity, ButtonDesign.height),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(ButtonDesign.radius),
+                ),
+              ),
+              onPressed: AppHaptics.action(
+                () => Navigator.of(context).pop('deleted'),
+              ),
+              child: Text('حذف المنتج'.tr),
             ),
           ],
         ),
       ),
     );
 
-    if (action == null) return;
+    if (action == null || !context.mounted) return;
     if (action == 'edit') {
-      if (context.mounted) {
-        context.push(AppRoutes.shopProductEditPath(product.id));
-      }
+      context.push(AppRoutes.shopProductEditPath(product.id));
       return;
+    }
+
+    if (action == 'deleted') {
+      final confirmed = await AppBottomSheet.show<bool>(
+        context: context,
+        child: AppBottomSheetScaffold(
+          title: 'تأكيد حذف المنتج'.tr,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'هل أنت متأكد من حذف "${product.name}"؟ لن يظهر للعملاء بعد الحذف.'
+                    .tr,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  foregroundColor: AppPalette.white,
+                ),
+                onPressed: AppHaptics.action(
+                  () => Navigator.of(context).pop(true),
+                ),
+                child: Text('حذف نهائياً'.tr),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppButton(
+                label: 'إلغاء'.tr,
+                variant: AppButtonVariant.secondary,
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
     }
 
     final actions = ref.read(shopCatalogActionProvider.notifier);
@@ -312,10 +428,14 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
           ? ListView(
               padding: AppSpacing.page,
               children: [
-                AppCard(
-                  child: Text(
-                    'لا يمكن إدارة المنتجات قبل موافقة الإدارة على المحل.'.tr,
-                  ),
+                ShopNoticeBanner(
+                  title: 'إدارة المنتجات غير مفعّلة بعد'.tr,
+                  message:
+                      'لا يمكن إضافة أو إدارة المنتجات قبل موافقة الإدارة على متجرك.'
+                          .tr,
+                  tone: BadgeTone.warning,
+                  actionLabel: 'متابعة حالة الطلب'.tr,
+                  onAction: () => context.push(AppRoutes.shopStatus),
                 ),
               ],
             )
@@ -324,24 +444,16 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
               error: (error) => ListView(
                 padding: AppSpacing.page,
                 children: [
-                  AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          ref
-                              .read(shopCatalogRepositoryProvider)
-                              .mapError(error),
-                        ),
-                        const SizedBox(height: AppSpacing.sm),
-                        AppButton(
-                          label: 'إعادة المحاولة'.tr,
-                          onPressed: ref
-                              .read(shopProductsPaginatedProvider.notifier)
-                              .refresh,
-                        ),
-                      ],
-                    ),
+                  ShopNoticeBanner(
+                    title: 'تعذر تحميل المنتجات'.tr,
+                    message: ref
+                        .read(shopCatalogRepositoryProvider)
+                        .mapError(error),
+                    tone: BadgeTone.error,
+                    actionLabel: 'إعادة المحاولة'.tr,
+                    onAction: ref
+                        .read(shopProductsPaginatedProvider.notifier)
+                        .refresh,
                   ),
                 ],
               ),
@@ -350,15 +462,13 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
                     !productsState.isInitialLoading &&
                     !filter.hasActiveFilters &&
                     !productsState.hasMore) {
-                  return AppRefreshIndicator(
+                  return ShopCenteredEmptyView(
                     onRefresh: ref
                         .read(shopProductsPaginatedProvider.notifier)
                         .refresh,
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: AppSpacing.page,
-                      children: [AppCard(child: Text('لا توجد منتجات بعد'.tr))],
-                    ),
+                    title: 'لا توجد منتجات في متجرك بعد',
+                    message:
+                        'ابدأ بإضافة أول منتج مع الصور والمقاسات ليظهر للعملاء في المتجر.',
                   );
                 }
 
@@ -392,7 +502,7 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
                   children: [
                     AppFilterToolbar(
                       searchValue: filter.search,
-                      searchHint: 'ابحث باسم المنتج، المتجر، اللون...',
+                      searchHint: 'ابحث باسم المنتج، التصنيف، اللون...',
                       onSearchChanged: (val) {
                         ref.read(shopProductFilterProvider.notifier).state =
                             filter.copyWith(search: val);
@@ -599,23 +709,21 @@ class _ShopProductsScreenState extends ConsumerState<ShopProductsScreen> {
                                     SliverPadding(
                                       padding: AppSpacing.page,
                                       sliver: SliverGrid(
-                                        gridDelegate: ProductGridDelegate(
-                                          textScale:
-                                              MediaQuery.textScalerOf(
-                                                context,
-                                              ).scale(14) /
-                                              14,
-                                        ),
+                                        gridDelegate:
+                                            ShopProductManageGridDelegate(
+                                              textScale:
+                                                  MediaQuery.textScalerOf(
+                                                    context,
+                                                  ).scale(14) /
+                                                  14,
+                                            ),
                                         delegate: SliverChildBuilderDelegate((
                                           context,
                                           index,
                                         ) {
                                           final item = items[index];
-                                          return ProductGridCard(
-                                            imageUrl: item.coverImage,
-                                            meta: AppFormat.price(item.price),
-                                            inStock: item.totalStock > 0,
-                                            showFavorite: false,
+                                          return ShopProductManageCard(
+                                            product: item,
                                             onTap: busy
                                                 ? null
                                                 : () => _manage(

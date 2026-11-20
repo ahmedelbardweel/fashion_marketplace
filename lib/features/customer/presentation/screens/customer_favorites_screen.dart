@@ -247,6 +247,14 @@ class _CustomerFavoritesScreenState
                                     return ProductGridCard(
                                       imageUrl: product.coverImage,
                                       meta: AppFormat.price(product.price),
+                                      originalMeta: product.hasOffer
+                                          ? AppFormat.price(
+                                              product.originalPrice!,
+                                            )
+                                          : null,
+                                      discountPercent: product.hasOffer
+                                          ? product.discountPercent
+                                          : null,
                                       inStock: product.totalStock > 0,
                                       isFavorite: true,
                                       onToggleFavorite: () =>

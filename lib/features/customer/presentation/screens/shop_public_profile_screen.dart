@@ -417,6 +417,12 @@ class _ShopPublicProfileScreenState
                                   return ProductGridCard(
                                     imageUrl: p.coverImage,
                                     meta: AppFormat.price(p.price),
+                                    originalMeta: p.hasOffer
+                                        ? AppFormat.price(p.originalPrice!)
+                                        : null,
+                                    discountPercent: p.hasOffer
+                                        ? p.discountPercent
+                                        : null,
                                     inStock: p.totalStock > 0,
                                     isFavorite: p.isFavorite,
                                     onToggleFavorite: () => _toggleFavorite(p),

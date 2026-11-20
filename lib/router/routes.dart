@@ -28,6 +28,7 @@ class AppRoutes {
   static const shopCompleteProfile = '/shop/complete-profile';
   static const shopStatus = '/shop/status';
   static const shopProducts = '/shop/products';
+  static const shopOffers = '/shop/offers';
   static const shopProductForm = '/shop/product/new';
   static const shopProductEdit = '/shop/product/:productId';
   static const shopOrders = '/shop/orders';

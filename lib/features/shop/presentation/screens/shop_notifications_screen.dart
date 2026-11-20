@@ -9,6 +9,7 @@ import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_filter_bar.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
@@ -18,6 +19,7 @@ import '../../../admin/domain/models/catalog_models.dart';
 import '../../domain/models/shop.dart';
 import '../providers/shop_catalog_providers.dart';
 import '../providers/shop_providers.dart';
+import '../widgets/shop_components.dart';
 import '../widgets/shop_shell.dart';
 
 class ShopNotificationsScreen extends ConsumerStatefulWidget {
@@ -34,11 +36,11 @@ class _ShopNotificationsScreenState
   final Set<String> _sessionUnreadIds = {};
 
   Future<void> _send(BuildContext context, WidgetRef ref) async {
-    final result = await AppBottomSheet.show<
-        ({String title, String body, String scope})>(
-      context: context,
-      child: const _ShopSendNotificationSheet(),
-    );
+    final result =
+        await AppBottomSheet.show<({String title, String body, String scope})>(
+          context: context,
+          child: const _ShopSendNotificationSheet(),
+        );
     if (result == null) return;
 
     final actions = ref.read(shopCatalogActionProvider.notifier);
@@ -71,20 +73,29 @@ class _ShopNotificationsScreenState
     return ShopScaffold(
       title: 'الإشعارات'.tr,
       showBottomNav: false,
+      showNotifications: false,
       body: notifications.skeletonWhen(
         placeholder: LoadingFixtures.notifications,
-        error: (error, _) => Center(
-          child: Text(ref.read(shopCatalogRepositoryProvider).mapError(error)),
+        error: (error, _) => ListView(
+          padding: AppSpacing.page,
+          children: [
+            ShopNoticeBanner(
+              title: 'تعذر تحميل الإشعارات'.tr,
+              message: ref.read(shopCatalogRepositoryProvider).mapError(error),
+              tone: BadgeTone.error,
+              actionLabel: 'إعادة المحاولة'.tr,
+              onAction: () => ref.invalidate(shopNotificationsProvider),
+            ),
+          ],
         ),
         data: (items) {
           if (items.isEmpty) {
-            return AppRefreshIndicator(
+            return ShopCenteredEmptyView(
               onRefresh: () => ref.refresh(shopNotificationsProvider.future),
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: AppSpacing.page,
-                children: [AppCard(child: Text('لا توجد إشعارات حالياً'.tr))],
-              ),
+              title: 'لا توجد إشعارات حالياً',
+              message: approved
+                  ? 'ستصل هنا تنبيهات الإدارة والطلبات، ويمكنك إرسال عروض لعملاء متجرك.'
+                  : 'ستظهر هنا تنبيهات المنصة وحالة طلب انضمام متجرك.',
             );
           }
 
@@ -230,85 +241,89 @@ class _ShopNotificationsScreenState
                             ),
                           ],
                         )
-                      : ListView(
+                      : ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: AppSpacing.page,
-                          children: [
-                            for (final AdminNotification item in filtered)
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: AppSpacing.sm,
-                                ),
-                                child: AppCard(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: AppSpacing.sm),
+                          itemBuilder: (context, index) {
+                            final AdminNotification item = filtered[index];
+                            final isUnread = _sessionUnreadIds.contains(
+                              item.id,
+                            );
+                            return AppCard(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
                                     children: [
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              item.title,
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.titleLarge,
-                                            ),
-                                          ),
-                                          if (item.isSentByShop)
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 3,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primarySoft,
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                      AppRadii.pill,
-                                                    ),
+                                      Expanded(
+                                        child: Text(
+                                          item.title,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: AppFont.bold,
                                               ),
-                                              child: Text(
-                                                'مرسل من محلك'.tr,
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: AppFont.bold,
-                                                  color: AppColors.primaryDark,
-                                                ),
-                                              ),
-                                            ),
-                                          if (_sessionUnreadIds.contains(
-                                            item.id,
-                                          )) ...[
-                                            const SizedBox(width: AppSpacing.xs),
-                                            Container(
-                                              width: 8,
-                                              height: 8,
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primary,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
+                                        ),
                                       ),
-                                      const SizedBox(height: AppSpacing.xs),
+                                      if (isUnread) ...[
+                                        const SizedBox(width: AppSpacing.xs),
+                                        Container(
+                                          width: 8,
+                                          height: 8,
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primary,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: AppSpacing.xs),
+                                  Wrap(
+                                    spacing: AppSpacing.xs,
+                                    runSpacing: AppSpacing.xs,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    children: [
+                                      if (item.isSentByShop)
+                                        AppStatusBadge(
+                                          label: 'مرسل من محلك',
+                                          tone: BadgeTone.primary,
+                                        ),
+                                      AppStatusBadge(
+                                        label: item.audienceLabel,
+                                        tone: BadgeTone.neutral,
+                                      ),
                                       Text(
-                                        item.audienceLabel.tr,
+                                        formatShopDateTime(item.createdAt),
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodySmall
                                             ?.copyWith(
                                               color: AppColors.textMuted,
+                                              fontSize: AppFont.tiny,
                                             ),
                                       ),
-                                      const SizedBox(height: AppSpacing.sm),
-                                      Text(item.body),
                                     ],
                                   ),
-                                ),
+                                  const SizedBox(height: AppSpacing.sm),
+                                  Text(
+                                    item.body,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                  ),
+                                ],
                               ),
-                          ],
+                            );
+                          },
                         ),
                 ),
               ),
@@ -379,8 +394,8 @@ class _ShopSendNotificationSheetState
             ),
             const SizedBox(height: AppSpacing.sm),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
               children: [
                 for (final option in [
                   ('shop_customers', 'عملاء المحل'.tr),

@@ -97,6 +97,12 @@ class CustomerProduct {
     required this.name,
     this.description,
     required this.price,
+    this.originalPrice,
+    this.discountAmount = 0,
+    this.discountPercent = 0,
+    this.offerTitle,
+    this.offerStartsAt,
+    this.offerEndsAt,
     required this.status,
     required this.variants,
     required this.images,
@@ -114,6 +120,36 @@ class CustomerProduct {
     double ratingAvg = 5.0,
     int ratingCount = 0,
   }) {
+    final detailsMap = Map<String, dynamic>.from(map['details'] as Map? ?? {});
+    final parsedPrice = (map['price'] as num?)?.toDouble() ?? 0.0;
+    final parsedOriginal =
+        (map['original_price'] as num?)?.toDouble() ??
+        (detailsMap['original_price'] as num?)?.toDouble();
+    final parsedDiscountAmount =
+        (map['discount_amount'] as num?)?.toDouble() ??
+        (detailsMap['discount_amount'] as num?)?.toDouble() ??
+        (parsedOriginal != null && parsedOriginal > parsedPrice
+            ? parsedOriginal - parsedPrice
+            : 0.0);
+    final parsedDiscountPercent =
+        (map['discount_percent'] as num?)?.toInt() ??
+        (detailsMap['discount_percent'] as num?)?.toInt() ??
+        (parsedOriginal != null &&
+                parsedOriginal > parsedPrice &&
+                parsedOriginal > 0
+            ? ((parsedOriginal - parsedPrice) / parsedOriginal * 100).round()
+            : 0);
+    final parsedOfferTitle =
+        (map['offer_title'] as String?)?.trim() ??
+        (detailsMap['offer_title'] as String?)?.trim();
+    final parsedOfferStartsAt = DateTime.tryParse(
+      (map['offer_starts_at'] ?? detailsMap['offer_starts_at'])?.toString() ??
+          '',
+    )?.toLocal();
+    final parsedOfferEndsAt = DateTime.tryParse(
+      (map['offer_ends_at'] ?? detailsMap['offer_ends_at'])?.toString() ?? '',
+    )?.toLocal();
+
     return CustomerProduct(
       id: map['id']?.toString() ?? '',
       shopId: map['shop_id']?.toString() ?? '',
@@ -122,8 +158,14 @@ class CustomerProduct {
       categoryName: map['category_name']?.toString(),
       name: map['name']?.toString() ?? '',
       description: map['description']?.toString(),
-      details: Map<String, dynamic>.from(map['details'] as Map? ?? {}),
-      price: (map['price'] as num?)?.toDouble() ?? 0.0,
+      details: detailsMap,
+      price: parsedPrice,
+      originalPrice: parsedOriginal,
+      discountAmount: parsedDiscountAmount,
+      discountPercent: parsedDiscountPercent,
+      offerTitle: parsedOfferTitle?.isEmpty ?? true ? null : parsedOfferTitle,
+      offerStartsAt: parsedOfferStartsAt,
+      offerEndsAt: parsedOfferEndsAt,
       status: map['status']?.toString() ?? 'published',
       variants: (variants ?? const <ProductVariant>[])
           .where((v) => v.isActive)
@@ -144,6 +186,12 @@ class CustomerProduct {
   final String name;
   final String? description;
   final double price;
+  final double? originalPrice;
+  final double discountAmount;
+  final int discountPercent;
+  final String? offerTitle;
+  final DateTime? offerStartsAt;
+  final DateTime? offerEndsAt;
   final String status;
   final List<ProductVariant> variants;
   final List<ProductImage> images;
@@ -151,6 +199,35 @@ class CustomerProduct {
   final int ratingCount;
   final bool isFavorite;
   final Map<String, dynamic> details;
+
+  bool get isOfferExpired =>
+      discountPercent > 0 &&
+      offerEndsAt != null &&
+      !offerEndsAt!.isAfter(DateTime.now());
+
+  bool get isOfferScheduled =>
+      discountPercent > 0 &&
+      offerStartsAt != null &&
+      offerStartsAt!.isAfter(DateTime.now()) &&
+      !isOfferExpired;
+
+  bool get hasOffer =>
+      discountPercent > 0 &&
+      originalPrice != null &&
+      originalPrice! > 0 &&
+      discountAmount > 0 &&
+      !isOfferExpired &&
+      !isOfferScheduled;
+
+  double get effectivePrice {
+    if (isOfferExpired && originalPrice != null && originalPrice! > 0) {
+      return originalPrice!;
+    }
+    if (hasOffer && originalPrice != null && discountAmount > 0) {
+      return (originalPrice! - discountAmount).clamp(0.01, originalPrice!);
+    }
+    return price;
+  }
 
   String? get coverImage {
     final gallery = images.where((img) => img.kind == 'gallery').toList();
@@ -242,6 +319,12 @@ class CustomerProduct {
       description: description,
       details: details,
       price: price,
+      originalPrice: originalPrice,
+      discountAmount: discountAmount,
+      discountPercent: discountPercent,
+      offerTitle: offerTitle,
+      offerStartsAt: offerStartsAt,
+      offerEndsAt: offerEndsAt,
       status: status,
       variants: variants,
       images: images,

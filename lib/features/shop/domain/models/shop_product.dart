@@ -5,6 +5,12 @@ class ShopProduct {
     required this.name,
     required this.price,
     required this.status,
+    this.originalPrice,
+    this.discountAmount = 0,
+    this.discountPercent = 0,
+    this.offerTitle,
+    this.offerStartsAt,
+    this.offerEndsAt,
     this.description,
     this.categoryId,
     this.categoryName,
@@ -18,12 +24,66 @@ class ShopProduct {
   final String name;
   final String? description;
   final double price;
+  final double? originalPrice;
+  final double discountAmount;
+  final int discountPercent;
+  final String? offerTitle;
+  final DateTime? offerStartsAt;
+  final DateTime? offerEndsAt;
   final String status;
   final String? categoryId;
   final String? categoryName;
   final List<ProductVariant> variants;
   final List<ProductImage> images;
   final Map<String, dynamic> details;
+
+  double get basePrice =>
+      (originalPrice != null && originalPrice! > 0) ? originalPrice! : price;
+
+  bool get isOfferExpired =>
+      discountPercent > 0 &&
+      offerEndsAt != null &&
+      !offerEndsAt!.isAfter(DateTime.now());
+
+  bool get isOfferScheduled =>
+      discountPercent > 0 &&
+      offerStartsAt != null &&
+      offerStartsAt!.isAfter(DateTime.now()) &&
+      !isOfferExpired;
+
+  bool get hasOffer =>
+      discountPercent > 0 &&
+      originalPrice != null &&
+      originalPrice! > 0 &&
+      discountAmount > 0 &&
+      !isOfferExpired &&
+      !isOfferScheduled;
+
+  bool get hasAnyOfferConfig => hasOffer || isOfferScheduled;
+
+  double get effectivePrice {
+    if (isOfferExpired && originalPrice != null && originalPrice! > 0) {
+      return originalPrice!;
+    }
+    if (hasOffer && originalPrice != null && discountAmount > 0) {
+      return (originalPrice! - discountAmount).clamp(0.01, originalPrice!);
+    }
+    return price;
+  }
+
+  String? get offerRemainingLabel {
+    if (offerEndsAt == null || isOfferExpired) return null;
+    final diff = offerEndsAt!.difference(DateTime.now());
+    if (diff.inDays >= 1) {
+      return diff.inDays == 1 ? 'متبقي يوم واحد' : 'متبقي ${diff.inDays} أيام';
+    }
+    if (diff.inHours >= 1) {
+      return diff.inHours == 1
+          ? 'متبقي ساعة واحدة'
+          : 'متبقي ${diff.inHours} ساعات';
+    }
+    return 'ينتهي قريباً';
+  }
 
   String get statusLabel {
     switch (status) {
@@ -78,15 +138,51 @@ class ShopProduct {
       ),
     );
 
+    final detailsMap = Map<String, dynamic>.from(map['details'] as Map? ?? {});
+    final parsedPrice = (map['price'] as num?)?.toDouble() ?? 0;
+    final parsedOriginal =
+        (map['original_price'] as num?)?.toDouble() ??
+        (detailsMap['original_price'] as num?)?.toDouble();
+    final parsedDiscountAmount =
+        (map['discount_amount'] as num?)?.toDouble() ??
+        (detailsMap['discount_amount'] as num?)?.toDouble() ??
+        (parsedOriginal != null && parsedOriginal > parsedPrice
+            ? parsedOriginal - parsedPrice
+            : 0);
+    final parsedDiscountPercent =
+        (map['discount_percent'] as num?)?.toInt() ??
+        (detailsMap['discount_percent'] as num?)?.toInt() ??
+        (parsedOriginal != null &&
+                parsedOriginal > parsedPrice &&
+                parsedOriginal > 0
+            ? ((parsedOriginal - parsedPrice) / parsedOriginal * 100).round()
+            : 0);
+    final parsedOfferTitle =
+        (map['offer_title'] as String?)?.trim() ??
+        (detailsMap['offer_title'] as String?)?.trim();
+    final parsedOfferStartsAt = DateTime.tryParse(
+      (map['offer_starts_at'] ?? detailsMap['offer_starts_at'])?.toString() ??
+          '',
+    )?.toLocal();
+    final parsedOfferEndsAt = DateTime.tryParse(
+      (map['offer_ends_at'] ?? detailsMap['offer_ends_at'])?.toString() ?? '',
+    )?.toLocal();
+
     return ShopProduct(
       id: map['id'] as String,
       shopId: map['shop_id'] as String,
       name: map['name'] as String? ?? '',
       description: map['description'] as String?,
-      price: (map['price'] as num?)?.toDouble() ?? 0,
+      price: parsedPrice,
+      originalPrice: parsedOriginal,
+      discountAmount: parsedDiscountAmount,
+      discountPercent: parsedDiscountPercent,
+      offerTitle: parsedOfferTitle?.isEmpty ?? true ? null : parsedOfferTitle,
+      offerStartsAt: parsedOfferStartsAt,
+      offerEndsAt: parsedOfferEndsAt,
       status: map['status'] as String? ?? 'draft',
       categoryId: map['category_id'] as String?,
-      details: Map<String, dynamic>.from(map['details'] as Map? ?? {}),
+      details: detailsMap,
       categoryName: category is Map ? category['name'] as String? : null,
       variants: variantsRaw is List
           ? variantsRaw

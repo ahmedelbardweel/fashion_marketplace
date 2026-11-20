@@ -259,6 +259,29 @@ class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
     });
   }
 
+  Future<bool> setProductOffer({
+    required String productId,
+    required double discountAmount,
+    DateTime? startsAt,
+    DateTime? endsAt,
+    String? offerTitle,
+  }) {
+    return _run(() async {
+      await _repo.setProductOffer(
+        productId: productId,
+        discountAmount: discountAmount,
+        startsAt: startsAt,
+        endsAt: endsAt,
+        offerTitle: offerTitle,
+      );
+      if (_ref.exists(shopProductsPaginatedProvider)) {
+        _ref.read(shopProductsPaginatedProvider.notifier).refresh();
+      }
+      _ref.invalidate(shopStatsProvider);
+      _ref.invalidate(shopProductProvider(productId));
+    });
+  }
+
   Future<bool> updateOrderStatus({
     required String orderId,
     required String status,

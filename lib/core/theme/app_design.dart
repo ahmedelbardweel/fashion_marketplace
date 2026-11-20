@@ -70,6 +70,9 @@ abstract final class AppIcons {
   static const IconData dashboard = IconsaxPlusLinear.status_up;
   static const IconData dashboardActive = IconsaxPlusBold.status_up;
 
+  static const IconData offers = IconsaxPlusLinear.discount_shape;
+  static const IconData offersActive = IconsaxPlusBold.discount_shape;
+
   static const IconData settings = IconsaxPlusLinear.setting_2;
   static const IconData settingsActive = IconsaxPlusBold.setting_2;
 
@@ -1145,15 +1148,20 @@ abstract final class SellerDesign {
   static Color get statCardBorder => AppColors.border;
   static const double statCardRadius = AppRadii.card;
   static Color get statIconBackground => AppColors.primarySoft;
-  static Color get statIcon => AppColors.icon;
+  static Color get statIcon => AppColors.primaryDark;
+  static const double statIconBoxSize = 40;
   static const double statValueSize = 22;
   static const FontWeight statValueWeight = AppFont.extraBold;
+  static const double coverHeight = 96;
+  static const double avatarSize = 58;
+  static const double quickActionRadius = AppRadii.card;
+  static const double mediaThumbSize = 72;
   static Color get navSelectedBackground => AppColors.primarySoft;
   static Color get navSelectedIcon => AppColors.icon;
   static Color get navUnselectedIcon => AppColors.iconMuted;
   static Color get stepActive => AppColors.primary;
-  static Color get stepInactive => AppPalette.gray300;
-  static Color get uploadBoxBorder => AppPalette.gray300;
+  static Color get stepInactive => AppColors.borderStrong;
+  static Color get uploadBoxBorder => AppColors.borderStrong;
   static Color get uploadBoxBackground => AppColors.surfaceSubtle;
 }
 

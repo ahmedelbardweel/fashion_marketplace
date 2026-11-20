@@ -1,19 +1,17 @@
-import '../../../../core/widgets/app_skeleton.dart';
-import '../../../../core/widgets/loading_fixtures.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/utils/media_picker.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
-import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_text_field.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
-import '../providers/shop_catalog_providers.dart';
+import '../../domain/models/shop.dart';
 import '../providers/shop_providers.dart';
+import '../widgets/shop_components.dart';
 import '../widgets/shop_shell.dart';
 
 class ShopCompleteProfileScreen extends ConsumerStatefulWidget {
@@ -35,7 +33,6 @@ class _ShopCompleteProfileScreenState
   late final TextEditingController _ownerNameController;
   late final TextEditingController _phoneController;
   var _seeded = false;
-  var _uploading = false;
 
   @override
   void initState() {
@@ -62,10 +59,8 @@ class _ShopCompleteProfileScreenState
     super.dispose();
   }
 
-  void _seedFromShop() {
+  void _seedFromShop(Shop shop) {
     if (_seeded) return;
-    final shop = ref.read(myShopProvider).asData?.value;
-    if (shop == null) return;
     _seeded = true;
     if (_shopNameController.text.isEmpty) {
       _shopNameController.text = shop.name;
@@ -82,6 +77,19 @@ class _ShopCompleteProfileScreenState
     if (_registerController.text.isEmpty) {
       _registerController.text = shop.commercialRegister ?? '';
     }
+  }
+
+  int _completedFieldsCount() {
+    final fields = [
+      _shopNameController.text,
+      _descriptionController.text,
+      _cityController.text,
+      _addressController.text,
+      _registerController.text,
+      _ownerNameController.text,
+      _phoneController.text,
+    ];
+    return fields.where((f) => f.trim().isNotEmpty).length;
   }
 
   Future<void> _save({required bool submit}) async {
@@ -130,305 +138,140 @@ class _ShopCompleteProfileScreenState
     showAppSnackBar(context, 'تم إرسال طلب الانضمام للإدارة'.tr);
   }
 
-  Future<void> _uploadLogo() async {
-    final picked = await MediaPicker.pickImage();
-    if (picked == null) return;
-    setState(() => _uploading = true);
-    try {
-      final url = await ref
-          .read(shopStorageRepositoryProvider)
-          .uploadBytes(
-            bucket: 'shop-media',
-            folder: 'logo',
-            fileName: picked.fileName,
-            bytes: picked.bytes,
-            contentType: picked.contentType,
-          );
-      final ok = await ref
-          .read(shopCatalogActionProvider.notifier)
-          .setLogo(url);
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        ok ? 'تم رفع الشعار'.tr : 'تعذر رفع الشعار'.tr,
-        isError: !ok,
-      );
-    } catch (error) {
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        ref.read(shopStorageRepositoryProvider).mapError(error),
-        isError: true,
-      );
-    } finally {
-      if (mounted) setState(() => _uploading = false);
-    }
-  }
-
-  Future<void> _uploadCover() async {
-    final picked = await MediaPicker.pickImage();
-    if (picked == null) return;
-    setState(() => _uploading = true);
-    try {
-      final url = await ref
-          .read(shopStorageRepositoryProvider)
-          .uploadBytes(
-            bucket: 'shop-media',
-            folder: 'cover',
-            fileName: picked.fileName,
-            bytes: picked.bytes,
-            contentType: picked.contentType,
-          );
-      final ok = await ref
-          .read(shopCatalogActionProvider.notifier)
-          .setCover(url);
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        ok ? 'تم رفع صورة الغلاف'.tr : 'تعذر رفع صورة الغلاف'.tr,
-        isError: !ok,
-      );
-    } catch (error) {
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        ref.read(shopStorageRepositoryProvider).mapError(error),
-        isError: true,
-      );
-    } finally {
-      if (mounted) setState(() => _uploading = false);
-    }
-  }
-
-  Future<void> _uploadGallery() async {
-    final picked = await MediaPicker.pickImage();
-    if (picked == null) return;
-    setState(() => _uploading = true);
-    try {
-      final url = await ref
-          .read(shopStorageRepositoryProvider)
-          .uploadBytes(
-            bucket: 'shop-media',
-            folder: 'gallery',
-            fileName: picked.fileName,
-            bytes: picked.bytes,
-            contentType: picked.contentType,
-          );
-      final ok = await ref
-          .read(shopCatalogActionProvider.notifier)
-          .addShopImage(url);
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        ok ? 'تم رفع صورة المحل'.tr : 'تعذر رفع الصورة'.tr,
-        isError: !ok,
-      );
-    } catch (error) {
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        ref.read(shopStorageRepositoryProvider).mapError(error),
-        isError: true,
-      );
-    } finally {
-      if (mounted) setState(() => _uploading = false);
-    }
-  }
-
-  Future<void> _uploadDocument() async {
-    final picked = await MediaPicker.pickDocument();
-    if (picked == null) return;
-    setState(() => _uploading = true);
-    try {
-      final path = await ref
-          .read(shopStorageRepositoryProvider)
-          .uploadBytes(
-            bucket: 'shop-documents',
-            folder: 'docs',
-            fileName: picked.fileName,
-            bytes: picked.bytes,
-            contentType: picked.contentType,
-          );
-      final ok = await ref
-          .read(shopCatalogActionProvider.notifier)
-          .addDocument(docType: 'إثبات محل'.tr, path: path);
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        ok ? 'تم رفع المستند'.tr : 'تعذر رفع المستند'.tr,
-        isError: !ok,
-      );
-    } catch (error) {
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        ref.read(shopStorageRepositoryProvider).mapError(error),
-        isError: true,
-      );
-    } finally {
-      if (mounted) setState(() => _uploading = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    ref.listen(myShopProvider, (_, __) => _seedFromShop());
     final shopAsync = ref.watch(myShopProvider);
-    final docs = ref.watch(shopDocumentsProvider).asData?.value ?? [];
-    final images = ref.watch(shopImagesProvider).asData?.value ?? [];
-    final busy =
-        ref.watch(shopActionProvider).isLoading ||
-        ref.watch(shopCatalogActionProvider).isLoading ||
-        _uploading;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) => _seedFromShop());
+    final isLoading = ref.watch(shopActionProvider).isLoading;
+    final shop = shopAsync.asData?.value;
+    final canEdit = (shop?.canEdit ?? true) && !isLoading;
 
     return ShopScaffold(
-      title: 'بيانات المحل'.tr,
+      title: 'استكمال بيانات المحل'.tr,
       showBack: false,
       showBottomNav: false,
+      showNotifications: false,
+      actions: [
+        IconButton(
+          tooltip: 'تسجيل الخروج'.tr,
+          onPressed: () => confirmShopLogout(context, ref),
+          icon: Icon(AppIcons.logout, color: AppBarDesign.iconColor),
+        ),
+      ],
       body: shopAsync.skeletonWhen(
         placeholder: LoadingFixtures.shop,
-        error: (error, _) => Center(
-          child: Padding(
-            padding: AppSpacing.page,
-            child: Text(ref.read(shopRepositoryProvider).mapError(error)),
-          ),
+        skipLoadingOnReload: true,
+        error: (error, _) => ListView(
+          padding: AppSpacing.page,
+          children: [
+            ShopNoticeBanner(
+              title: 'تعذر تحميل بيانات المحل'.tr,
+              message: ref.read(shopRepositoryProvider).mapError(error),
+              tone: BadgeTone.error,
+              actionLabel: 'إعادة المحاولة'.tr,
+              onAction: () => ref.invalidate(myShopProvider),
+            ),
+          ],
         ),
         data: (shop) {
-          return SingleChildScrollView(
-            padding: AppSpacing.page,
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'أكمل بيانات المحل'.tr,
-                    style: Theme.of(context).textTheme.headlineSmall,
+          if (shop != null) _seedFromShop(shop);
+          final completed = _completedFieldsCount();
+          final progress = completed / 7;
+
+          return Form(
+            key: _formKey,
+            child: ListView(
+              padding: AppSpacing.page,
+              children: [
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'اكتمال ملف المتجر'.tr,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: AppFont.bold),
+                            ),
+                          ),
+                          AppStatusBadge(
+                            label: '$completed / 7',
+                            tone: completed == 7
+                                ? BadgeTone.success
+                                : BadgeTone.primary,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      ShopProgressBar(
+                        value: progress,
+                        color: completed == 7
+                            ? AppColors.success
+                            : AppColors.primary,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text(
+                        completed == 7
+                            ? 'جميع الحقول المطلوبة مكتملة، يمكنك إرسال الطلب للمراجعة الآن.'
+                                  .tr
+                            : 'أكمل جميع الحقول المطلوبة ثم أرسل طلب الانضمام لمراجعة الإدارة.'
+                                  .tr,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    'ارفع الشعار والمستندات ثم أرسل طلب الانضمام للإدارة.'.tr,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
+                ),
+                if (shop?.visibleRejectionReason != null) ...[
                   const SizedBox(height: AppSpacing.md),
-                  AppCard(
-                    child: Text(
-                      'لا يمكن إضافة منتجات أو نشرها قبل موافقة الإدارة.'.tr,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  AppTextField(
-                    controller: _shopNameController,
-                    label: 'اسم المحل'.tr,
-                    validator: Validators.shopName,
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _descriptionController,
-                    label: 'وصف المحل'.tr,
-                    maxLines: 3,
-                    validator: (value) =>
-                        Validators.required(value, field: 'وصف المحل'.tr),
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _cityController,
-                    label: 'المدينة'.tr,
-                    validator: (value) =>
-                        Validators.required(value, field: 'المدينة'.tr),
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _addressController,
-                    label: 'عنوان المحل'.tr,
-                    validator: (value) =>
-                        Validators.required(value, field: 'عنوان المحل'.tr),
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _registerController,
-                    label: 'رقم السجل التجاري'.tr,
-                    validator: (value) =>
-                        Validators.required(value, field: 'رقم السجل التجاري'.tr),
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _ownerNameController,
-                    label: 'اسم المسؤول'.tr,
-                    validator: Validators.fullName,
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-                  AppTextField(
-                    controller: _phoneController,
-                    label: 'رقم الهاتف'.tr,
-                    keyboardType: TextInputType.phone,
-                    validator: Validators.phone,
-                    textInputAction: TextInputAction.done,
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  AppButton(
-                    label: 'رفع الشعار'.tr,
-                    variant: AppButtonVariant.outlined,
-                    isLoading: _uploading,
-                    onPressed: _uploadLogo,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppButton(
-                    label: 'رفع صورة الغلاف'.tr,
-                    variant: AppButtonVariant.outlined,
-                    isLoading: _uploading,
-                    onPressed: _uploadCover,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppButton(
-                    label: 'رفع صور المحل'.tr,
-                    variant: AppButtonVariant.outlined,
-                    isLoading: _uploading,
-                    onPressed: _uploadGallery,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppButton(
-                    label: 'رفع مستند إثبات'.tr,
-                    variant: AppButtonVariant.outlined,
-                    isLoading: _uploading,
-                    onPressed: _uploadDocument,
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Text(
-                    'صور: ${images.length} · مستندات: ${docs.length}${shop?.logoPath == null ? '.tr' : ' · الشعار مرفوع'.tr}',
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-                  AppButton(
-                    label: 'حفظ كمسودة'.tr,
-                    variant: AppButtonVariant.outlined,
-                    isLoading: busy,
-                    onPressed: () => _save(submit: false),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppButton(
-                    label: 'إرسال طلب الانضمام'.tr,
-                    isLoading: busy,
-                    onPressed: () => _save(submit: true),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppButton(
-                    label: 'تسجيل الخروج'.tr,
-                    variant: AppButtonVariant.outlined,
-                    onPressed: () => confirmShopLogout(context, ref),
+                  ShopNoticeBanner(
+                    title: 'سبب رفض الطلب السابق'.tr,
+                    message: shop!.visibleRejectionReason!,
+                    tone: BadgeTone.error,
                   ),
                 ],
-              ),
+                const SizedBox(height: AppSpacing.md),
+                ShopDetailsFormFields(
+                  shopNameController: _shopNameController,
+                  descriptionController: _descriptionController,
+                  cityController: _cityController,
+                  addressController: _addressController,
+                  registerController: _registerController,
+                  ownerNameController: _ownerNameController,
+                  phoneController: _phoneController,
+                  enabled: canEdit,
+                  onChanged: () => setState(() {}),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                ShopMediaManagerCard(shop: shop, canEdit: canEdit),
+                const SizedBox(height: AppSpacing.md),
+              ],
             ),
           );
         },
+      ),
+      bottom: Row(
+        children: [
+          Expanded(
+            child: AppButton(
+              label: 'حفظ مسودة'.tr,
+              variant: AppButtonVariant.secondary,
+              isLoading: isLoading,
+              onPressed: canEdit ? () => _save(submit: false) : null,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            flex: 2,
+            child: AppButton(
+              label: 'حفظ وإرسال للمراجعة'.tr,
+              isLoading: isLoading,
+              onPressed: canEdit ? () => _save(submit: true) : null,
+            ),
+          ),
+        ],
       ),
     );
   }

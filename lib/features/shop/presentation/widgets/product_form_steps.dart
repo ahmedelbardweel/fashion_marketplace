@@ -1,7 +1,6 @@
-import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
 import 'dart:math' as math;
 
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_design.dart';
@@ -15,6 +14,7 @@ class ProductFormSteps extends StatelessWidget {
     required this.current,
     required this.onSelected,
   });
+
   final List<String> labels;
   final List<double> progress;
   final int current;
@@ -28,12 +28,17 @@ class ProductFormSteps extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            height: 52,
+            height: 46,
             child: Stack(
               children: [
                 Positioned.fill(
                   child: CustomPaint(
-                    painter: _Connections(progress, Directionality.of(context)),
+                    painter: _Connections(
+                      progress: progress,
+                      direction: Directionality.of(context),
+                      activeColor: SellerDesign.stepActive,
+                      inactiveColor: AppColors.divider,
+                    ),
                   ),
                 ),
                 Row(
@@ -49,37 +54,50 @@ class ProductFormSteps extends StatelessWidget {
                           button: true,
                           child: InkResponse(
                             onTap: AppHaptics.action(() => onSelected(i)),
-                            radius: 26,
+                            radius: 22,
                             child: SizedBox(
-                              width: 48,
-                              height: 48,
+                              width: 42,
+                              height: 42,
                               child: TweenAnimationBuilder<double>(
                                 tween: Tween(end: progress[i].clamp(0, 1)),
                                 duration:
                                     MediaQuery.disableAnimationsOf(context)
                                     ? Duration.zero
-                                    : const Duration(milliseconds: 250),
-                                builder: (context, value, _) => CustomPaint(
-                                  painter: _StepCircle(value, i == current),
-                                  child: Center(
-                                    child: ExcludeSemantics(
-                                      child: value >= 1
-                                          ? Icon(
-                                              AppIcons.check,
-                                              size: 20,
-                                              color: AppColors.icon,
-                                            )
-                                          : Text(
-                                              '${i + 1}',
-                                              style: TextStyle(
-                                                fontSize: 15,
-                                                fontWeight: AppFont.bold,
-                                                color: AppColors.text,
-                                              ),
-                                            ),
+                                    : const Duration(milliseconds: 220),
+                                builder: (context, value, _) {
+                                  final isDone = value >= 1;
+                                  final isSelected = i == current;
+                                  return CustomPaint(
+                                    painter: _StepCircle(
+                                      progress: value,
+                                      selected: isSelected,
+                                      surfaceColor: AppColors.surface,
+                                      fillStart: AppColors.surfaceAlt,
+                                      fillEnd: isDone
+                                          ? AppColors.primary
+                                          : AppColors.primarySoft,
+                                      borderActive: SellerDesign.stepActive,
+                                      borderInactive: AppColors.borderStrong,
+                                      haloColor: AppColors.primaryBorder,
                                     ),
-                                  ),
-                                ),
+                                    child: Center(
+                                      child: ExcludeSemantics(
+                                        child: Text(
+                                          isDone ? '✓' : '${i + 1}',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: AppFont.bold,
+                                            color: isDone
+                                                ? AppColors.onPrimary
+                                                : isSelected
+                                                ? AppColors.primaryDark
+                                                : AppColors.textMuted,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           ),
@@ -91,25 +109,27 @@ class ProductFormSteps extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: List.generate(
               labels.length,
               (i) => Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
                   child: GestureDetector(
                     onTap: AppHaptics.action(() => onSelected(i)),
                     child: Text(
                       labels[i],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 11,
-                        height: 1.5,
+                        fontSize: 10.5,
+                        height: 1.4,
                         fontWeight: current == i
-                            ? FontWeight.w700
-                            : FontWeight.w400,
+                            ? AppFont.bold
+                            : AppFont.regular,
                         color: current == i
                             ? AppColors.text
                             : AppColors.textMuted,
@@ -127,67 +147,99 @@ class ProductFormSteps extends StatelessWidget {
 }
 
 class _StepCircle extends CustomPainter {
-  _StepCircle(this.progress, this.selected);
+  _StepCircle({
+    required this.progress,
+    required this.selected,
+    required this.surfaceColor,
+    required this.fillStart,
+    required this.fillEnd,
+    required this.borderActive,
+    required this.borderInactive,
+    required this.haloColor,
+  });
+
   final double progress;
   final bool selected;
+  final Color surfaceColor;
+  final Color fillStart;
+  final Color fillEnd;
+  final Color borderActive;
+  final Color borderInactive;
+  final Color haloColor;
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
-    final circle = Rect.fromCircle(center: center, radius: 19);
-    canvas.drawCircle(center, 19, Paint()..color = Colors.white);
-    canvas.save();
-    canvas.clipPath(Path()..addOval(circle));
-    canvas.drawRect(
-      Rect.fromLTRB(
-        circle.left,
-        circle.bottom - circle.height * progress,
-        circle.right,
-        circle.bottom,
-      ),
-      Paint()
-        ..color = Color.lerp(
-          AppColors.surfaceAlt,
-          AppColors.primarySoft,
-          progress,
-        )!,
-    );
-    canvas.restore();
+    const radius = 16.0;
+    final circle = Rect.fromCircle(center: center, radius: radius);
+
+    canvas.drawCircle(center, radius, Paint()..color = surfaceColor);
+
+    if (progress > 0) {
+      canvas.save();
+      canvas.clipPath(Path()..addOval(circle));
+      canvas.drawRect(
+        Rect.fromLTRB(
+          circle.left,
+          circle.bottom - circle.height * progress,
+          circle.right,
+          circle.bottom,
+        ),
+        Paint()..color = Color.lerp(fillStart, fillEnd, progress)!,
+      );
+      canvas.restore();
+    }
+
     canvas.drawCircle(
       center,
-      19,
+      radius,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = selected ? SellerDesign.stepActive : AppColors.borderStrong,
+        ..strokeWidth = selected ? 1.6 : 1.1
+        ..color = (selected || progress >= 1) ? borderActive : borderInactive,
     );
+
     if (selected) {
       canvas.drawCircle(
         center,
-        23,
+        radius + 3.5,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.2
-          ..color = AppColors.primaryBorder,
+          ..color = haloColor,
       );
     }
   }
 
   @override
   bool shouldRepaint(_StepCircle old) =>
-      old.progress != progress || old.selected != selected;
+      old.progress != progress ||
+      old.selected != selected ||
+      old.surfaceColor != surfaceColor ||
+      old.fillEnd != fillEnd ||
+      old.borderActive != borderActive;
 }
 
 class _Connections extends CustomPainter {
-  _Connections(this.progress, this.direction);
+  _Connections({
+    required this.progress,
+    required this.direction,
+    required this.activeColor,
+    required this.inactiveColor,
+  });
+
   final List<double> progress;
   final TextDirection direction;
+  final Color activeColor;
+  final Color inactiveColor;
+
   @override
   void paint(Canvas canvas, Size size) {
     final cell = size.width / progress.length;
     final y = size.height / 2;
     for (var i = 0; i < progress.length - 1; i++) {
-      final start = cell * (i + .5) + 25;
-      final end = cell * (i + 1.5) - 25;
+      final start = cell * (i + .5) + 21;
+      final end = cell * (i + 1.5) - 21;
       final left = direction == TextDirection.rtl ? size.width - end : start;
       final right = direction == TextDirection.rtl ? size.width - start : end;
       if (right <= left) continue;
@@ -196,23 +248,28 @@ class _Connections extends CustomPainter {
         Offset(right, y),
         Paint()
           ..strokeWidth = 1.5
-          ..color = SellerDesign.stepInactive,
+          ..color = inactiveColor,
       );
       final length = math.max(0, right - left) * progress[i].clamp(0, 1);
-      canvas.drawLine(
-        Offset(direction == TextDirection.rtl ? right : left, y),
-        Offset(
-          direction == TextDirection.rtl ? right - length : left + length,
-          y,
-        ),
-        Paint()
-          ..strokeWidth = 1.5
-          ..color = SellerDesign.stepActive,
-      );
+      if (length > 0) {
+        canvas.drawLine(
+          Offset(direction == TextDirection.rtl ? right : left, y),
+          Offset(
+            direction == TextDirection.rtl ? right - length : left + length,
+            y,
+          ),
+          Paint()
+            ..strokeWidth = 1.5
+            ..color = activeColor,
+        );
+      }
     }
   }
 
   @override
   bool shouldRepaint(_Connections old) =>
-      old.progress != progress || old.direction != direction;
+      old.progress != progress ||
+      old.direction != direction ||
+      old.activeColor != activeColor ||
+      old.inactiveColor != inactiveColor;
 }

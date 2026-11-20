@@ -13,6 +13,7 @@ class AppBottomSheet {
     bool isDismissible = true,
     bool enableDrag = true,
     bool isScrollControlled = true,
+    bool useSafeArea = false,
     double? maxHeightFactor,
   }) {
     return showModalBottomSheet<T>(
@@ -20,6 +21,7 @@ class AppBottomSheet {
       isDismissible: isDismissible,
       enableDrag: enableDrag,
       isScrollControlled: isScrollControlled,
+      useSafeArea: useSafeArea,
       backgroundColor: Colors.transparent,
       barrierColor: SheetDesign.scrim,
       builder: (context) {

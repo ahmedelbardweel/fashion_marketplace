@@ -7,45 +7,56 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../router/routes.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../providers/shop_catalog_providers.dart';
 
-class ShopAppBar extends StatelessWidget implements PreferredSizeWidget {
+class ShopAppBar extends ConsumerWidget implements PreferredSizeWidget {
   const ShopAppBar({
     super.key,
     required this.title,
+    this.titleWidget,
     this.showBack = true,
+    this.showNotifications = true,
     this.actions,
   });
 
   final String title;
+  final Widget? titleWidget;
   final bool showBack;
+  final bool showNotifications;
   final List<Widget>? actions;
 
   @override
   Size get preferredSize => const Size.fromHeight(AppBarDesign.height);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final canPop = showBack && Navigator.of(context).canPop();
+    final unreadCount = showNotifications
+        ? ref.watch(shopUnreadNotificationsCountProvider)
+        : 0;
+    final overlayStyle = AppColors.isDark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
+
     return AppBar(
       toolbarHeight: AppBarDesign.height,
       backgroundColor: SellerDesign.appBarBackground,
       foregroundColor: AppBarDesign.titleColor,
       elevation: 0,
       scrolledUnderElevation: 0,
-      systemOverlayStyle: SystemUiOverlayStyle.dark,
+      systemOverlayStyle: overlayStyle,
       shape: Border(bottom: BorderSide(color: AppBarDesign.borderColor)),
       leading: canPop
           ? IconButton(
+              tooltip: 'رجوع'.tr,
               onPressed: AppHaptics.action(
                 () => Navigator.of(context).maybePop(),
               ),
-              icon: Icon(
-                AppIcons.back,
-                color: AppBarDesign.iconColor,
-              ),
+              icon: Icon(AppIcons.back, color: AppBarDesign.iconColor),
             )
           : const Padding(
               padding: EdgeInsetsDirectional.only(start: AppSpacing.sm),
@@ -54,38 +65,89 @@ class ShopAppBar extends StatelessWidget implements PreferredSizeWidget {
       leadingWidth: canPop ? 56 : 48,
       titleSpacing: canPop ? 0 : AppSpacing.xs,
       centerTitle: false,
-      title: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (canPop) ...[
-            const AppLogoMark(),
-            const SizedBox(width: AppSpacing.xs),
-          ],
-          Flexible(
-            child: Text(
-              AppLang.tr(title),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: AppBarDesign.titleSize,
-                fontWeight: AppBarDesign.titleWeight,
-                color: AppBarDesign.titleColor,
-              ),
+      title: titleWidget != null
+          ? Row(
+              children: [
+                if (canPop) ...[
+                  const AppLogoMark(),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
+                Expanded(child: titleWidget!),
+              ],
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (canPop) ...[
+                  const AppLogoMark(),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
+                Flexible(
+                  child: Text(
+                    AppLang.tr(title),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: AppBarDesign.titleSize,
+                      fontWeight: AppBarDesign.titleWeight,
+                      color: AppBarDesign.titleColor,
+                    ),
+                  ),
+                ),
+              ],
             ),
+      actions: [
+        ...?actions,
+        if (showNotifications)
+          IconButton(
+            tooltip: 'الإشعارات'.tr,
+            onPressed: AppHaptics.action(
+              () => context.push(AppRoutes.shopNotifications),
+            ),
+            icon: _ShopBadgedIcon(icon: AppIcons.bell, count: unreadCount),
           ),
-        ],
-      ),
-      actions: actions,
+      ],
     );
   }
 }
 
-class ShopBottomNav extends StatelessWidget {
+class _ShopBadgedIcon extends StatelessWidget {
+  const _ShopBadgedIcon({
+    required this.icon,
+    required this.count,
+    this.color,
+    this.size,
+  });
+
+  final IconData icon;
+  final int count;
+  final Color? color;
+  final double? size;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconWidget = Icon(
+      icon,
+      color: color ?? AppBarDesign.iconColor,
+      size: size,
+    );
+    if (count <= 0) return iconWidget;
+    return Badge(
+      label: Text(count > 99 ? '99+' : '$count'),
+      backgroundColor: AppBarDesign.badgeBackground,
+      textColor: AppBarDesign.badgeText,
+      child: iconWidget,
+    );
+  }
+}
+
+class ShopBottomNav extends ConsumerWidget {
   const ShopBottomNav({super.key});
 
   int _indexFor(String location) {
-    if (location.startsWith(AppRoutes.shopProfile)) return 3;
-    if (location.startsWith(AppRoutes.shopOrders)) return 2;
+    if (location.startsWith(AppRoutes.shopProfile)) return 4;
+    if (location.startsWith(AppRoutes.shopOrders)) return 3;
+    if (location.startsWith(AppRoutes.shopOffers)) return 2;
     if (location.startsWith(AppRoutes.shopProducts) ||
         location.startsWith('/shop/product')) {
       return 1;
@@ -94,9 +156,11 @@ class ShopBottomNav extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).uri.path;
     final current = _indexFor(location);
+    final pendingOrders =
+        ref.watch(shopStatsProvider).asData?.value.pendingOrders ?? 0;
 
     return Material(
       color: BottomNavDesign.background,
@@ -136,13 +200,26 @@ class ShopBottomNav extends StatelessWidget {
                   ),
                 ),
                 _Item(
+                  label: 'العروض'.tr,
+                  icon: AppIcons.offers,
+                  activeIcon: AppIcons.offersActive,
+                  selected: current == 2,
+                  onTap: () => AppRefreshIndicator.handleBottomNavTap(
+                    targetRoute: AppRoutes.shopOffers,
+                    selected: current == 2,
+                    currentLocation: location,
+                    onNavigate: () => context.go(AppRoutes.shopOffers),
+                  ),
+                ),
+                _Item(
                   label: 'الطلبات'.tr,
                   icon: AppIcons.orders,
                   activeIcon: AppIcons.ordersActive,
-                  selected: current == 2,
+                  selected: current == 3,
+                  badgeCount: pendingOrders,
                   onTap: () => AppRefreshIndicator.handleBottomNavTap(
                     targetRoute: AppRoutes.shopOrders,
-                    selected: current == 2,
+                    selected: current == 3,
                     currentLocation: location,
                     onNavigate: () => context.go(AppRoutes.shopOrders),
                   ),
@@ -151,10 +228,10 @@ class ShopBottomNav extends StatelessWidget {
                   label: 'المتجر'.tr,
                   icon: AppIcons.shop,
                   activeIcon: AppIcons.shopActive,
-                  selected: current == 3,
+                  selected: current == 4,
                   onTap: () => AppRefreshIndicator.handleBottomNavTap(
                     targetRoute: AppRoutes.shopProfile,
-                    selected: current == 3,
+                    selected: current == 4,
                     currentLocation: location,
                     onNavigate: () => context.go(AppRoutes.shopProfile),
                   ),
@@ -175,6 +252,7 @@ class _Item extends StatelessWidget {
     required this.activeIcon,
     required this.selected,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   final String label;
@@ -182,9 +260,13 @@ class _Item extends StatelessWidget {
   final IconData activeIcon;
   final bool selected;
   final VoidCallback onTap;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
+    final iconColor = selected
+        ? SellerDesign.navSelectedIcon
+        : SellerDesign.navUnselectedIcon;
     return Expanded(
       child: InkWell(
         onTap: AppHaptics.action(onTap),
@@ -195,10 +277,7 @@ class _Item extends StatelessWidget {
               minWidth: BottomNavDesign.indicatorWidth,
               minHeight: BottomNavDesign.indicatorHeight,
             ),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 6,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
               color: selected
                   ? SellerDesign.navSelectedBackground
@@ -211,12 +290,11 @@ class _Item extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  selected ? activeIcon : icon,
+                _ShopBadgedIcon(
+                  icon: selected ? activeIcon : icon,
+                  count: badgeCount,
+                  color: iconColor,
                   size: BottomNavDesign.iconSize,
-                  color: selected
-                      ? SellerDesign.navSelectedIcon
-                      : SellerDesign.navUnselectedIcon,
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -247,39 +325,56 @@ class ShopScaffold extends StatelessWidget {
     super.key,
     required this.title,
     required this.body,
+    this.titleWidget,
     this.showBack = true,
     this.showBottomNav = true,
+    this.showNotifications = true,
     this.actions,
     this.bottom,
   });
 
   final String title;
+  final Widget? titleWidget;
   final Widget body;
   final bool showBack;
   final bool showBottomNav;
+  final bool showNotifications;
   final List<Widget>? actions;
   final Widget? bottom;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: ShopAppBar(title: title, showBack: showBack, actions: actions),
-      body: SafeArea(child: body),
+      backgroundColor: SellerDesign.pageBackground,
+      appBar: ShopAppBar(
+        title: title,
+        titleWidget: titleWidget,
+        showBack: showBack,
+        showNotifications: showNotifications,
+        actions: actions,
+      ),
+      body: SafeArea(bottom: false, child: body),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (bottom != null)
-            Material(
-              color: AppColors.white,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md,
-                  AppSpacing.sm,
-                  AppSpacing.md,
-                  AppSpacing.sm,
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                border: Border(top: AppBorders.side),
+              ),
+              child: SafeArea(
+                top: false,
+                bottom: !showBottomNav,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                  ),
+                  child: bottom,
                 ),
-                child: bottom,
               ),
             ),
           if (showBottomNav) const ShopBottomNav(),
@@ -292,23 +387,25 @@ class ShopScaffold extends StatelessWidget {
 class ShopFeatureTile extends StatelessWidget {
   const ShopFeatureTile({
     super.key,
-    required this.code,
     required this.title,
     required this.subtitle,
     required this.onTap,
     this.badge,
+    this.trailingValue,
+    this.badgeTone = BadgeTone.primary,
   });
 
-  final String code;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
   final String? badge;
+  final String? trailingValue;
+  final BadgeTone badgeTone;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.white,
+      color: SellerDesign.statCardBackground,
       borderRadius: BorderRadius.circular(CardDesign.radius),
       child: InkWell(
         onTap: AppHaptics.action(onTap),
@@ -327,45 +424,35 @@ class ShopFeatureTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      AppLang.tr(code),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.primaryDark,
+                      AppLang.tr(title),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: AppFont.bold,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      AppLang.tr(title),
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       AppLang.tr(subtitle),
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   ],
                 ),
               ),
-              if (badge != null) ...[
-                const SizedBox(width: AppSpacing.sm),
-                Container(
-                  padding: BadgeDesign.padding,
-                  decoration: BoxDecoration(
-                    color: BadgeDesign.primaryBackground,
-                    borderRadius: BorderRadius.circular(BadgeDesign.radius),
-                  ),
-                  child: Text(
-                    AppLang.tr(badge!),
-                    style: TextStyle(
-                      color: BadgeDesign.primaryText,
-                      fontSize: BadgeDesign.textSize,
-                      fontWeight: BadgeDesign.textWeight,
-                    ),
+              if (trailingValue != null) ...[
+                const SizedBox(width: AppSpacing.md),
+                Text(
+                  trailingValue!,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: SellerDesign.statValueWeight,
+                    color: AppColors.text,
                   ),
                 ),
+              ] else if (badge != null) ...[
+                const SizedBox(width: AppSpacing.sm),
+                AppStatusBadge(label: badge!, tone: badgeTone),
               ],
-              const SizedBox(width: AppSpacing.xs),
-              Icon(AppIcons.forward, color: AppColors.icon),
             ],
           ),
         ),
@@ -382,16 +469,25 @@ Future<void> confirmShopLogout(BuildContext context, WidgetRef ref) async {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('هل تريد تسجيل الخروج من حساب المحل؟'.tr),
+          Text(
+            'هل تريد تسجيل الخروج من حساب المحل؟'.tr,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
+          ),
           const SizedBox(height: AppSpacing.lg),
-          AppButton(
-            label: 'تسجيل الخروج'.tr,
-            onPressed: () => Navigator.of(context).pop(true),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppPalette.white,
+            ),
+            onPressed: AppHaptics.action(() => Navigator.of(context).pop(true)),
+            child: Text('تسجيل الخروج'.tr),
           ),
           const SizedBox(height: AppSpacing.sm),
           AppButton(
             label: 'إلغاء'.tr,
-            variant: AppButtonVariant.outlined,
+            variant: AppButtonVariant.secondary,
             onPressed: () => Navigator.of(context).pop(false),
           ),
         ],

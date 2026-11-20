@@ -1440,6 +1440,14 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                                   return ProductGridCard(
                                     imageUrl: recProduct.coverImage,
                                     meta: AppFormat.price(recProduct.price),
+                                    originalMeta: recProduct.hasOffer
+                                        ? AppFormat.price(
+                                            recProduct.originalPrice!,
+                                          )
+                                        : null,
+                                    discountPercent: recProduct.hasOffer
+                                        ? recProduct.discountPercent
+                                        : null,
                                     inStock: recProduct.totalStock > 0,
                                     isFavorite: recProduct.isFavorite,
                                     onToggleFavorite: () =>

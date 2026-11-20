@@ -96,6 +96,40 @@ class ShopCatalogRepository {
     return localProduct;
   }
 
+  Future<ShopProduct> setProductOffer({
+    required String productId,
+    required double discountAmount,
+    DateTime? startsAt,
+    DateTime? endsAt,
+    String? offerTitle,
+  }) async {
+    final trimmedTitle = offerTitle?.trim();
+    final result = await _client.rpc(
+      'shop_set_product_offer',
+      params: {
+        'p_product_id': productId,
+        'p_discount_amount': discountAmount,
+        'p_offer_starts_at': startsAt?.toUtc().toIso8601String(),
+        'p_offer_ends_at': endsAt?.toUtc().toIso8601String(),
+        'p_offer_title': (trimmedTitle == null || trimmedTitle.isEmpty)
+            ? null
+            : trimmedTitle,
+      },
+    );
+    final product = ShopProduct.fromMap(asStringMap(result));
+    await _localDb.saveShopProducts([product]);
+    return product;
+  }
+
+  Future<void> syncExpiredOffersSilently() async {
+    if (!NetworkMonitorService.instance.isOnline) return;
+    try {
+      await _client.rpc('sync_product_offers');
+    } catch (_) {
+      // Non-critical background sync
+    }
+  }
+
   Future<ShopStats> fetchStats() async {
     if (NetworkMonitorService.instance.isOnline) {
       try {
@@ -220,6 +254,15 @@ class ShopCatalogRepository {
                   ShopProduct.fromMap(Map<String, dynamic>.from(row as Map)),
             )
             .toList();
+        if (allFetched.any(
+          (p) =>
+              p.isOfferExpired ||
+              (p.hasOffer &&
+                  p.originalPrice != null &&
+                  p.price >= p.originalPrice!),
+        )) {
+          unawaited(syncExpiredOffersSilently());
+        }
         unawaited(_localDb.saveShopProducts(allFetched));
 
         final items = hasSearch

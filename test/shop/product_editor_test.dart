@@ -130,10 +130,11 @@ void main() {
         scale: 1.4,
       );
       expect(tester.takeException(), isNull);
+      await tester.tap(find.text('المواصفات'));
+      await tester.pumpAndSettle();
       final initialProgress = tester
           .widget<ProductFormSteps>(find.byType(ProductFormSteps))
-          .progress
-          .first;
+          .progress[1];
       final brand = find.descendant(
         of: find.widgetWithText(AppTextField, 'الماركة'),
         matching: find.byType(TextFormField),
@@ -144,8 +145,7 @@ void main() {
       expect(
         tester
             .widget<ProductFormSteps>(find.byType(ProductFormSteps))
-            .progress
-            .first,
+            .progress[1],
         greaterThan(initialProgress),
       );
       await tester.enterText(brand, '');
@@ -153,21 +153,26 @@ void main() {
       expect(
         tester
             .widget<ProductFormSteps>(find.byType(ProductFormSteps))
-            .progress
-            .first,
+            .progress[1],
         initialProgress,
       );
-      final add = find.text('إضافة تصنيف جديد');
-      await tester.ensureVisible(add);
-      await tester.tap(add);
+      await tester.tap(find.text('الأساسيات'));
+      await tester.pumpAndSettle();
+      final catField = find.text('فساتين');
+      await tester.ensureVisible(catField);
+      await tester.tap(catField);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('إضافة تصنيف جديد').first);
       await tester.pumpAndSettle();
       await tester.enterText(
-        find.widgetWithText(TextField, 'اسم التصنيف'),
+        find.descendant(
+          of: find.widgetWithText(AppTextField, 'اسم التصنيف'),
+          matching: find.byType(TextFormField),
+        ),
         'ملابس صيفية',
       );
       await tester.tap(find.text('استخدام التصنيف'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('حفظ كمسودة'));
       await tester.tap(find.text('حفظ كمسودة'));
       await tester.pumpAndSettle();
       expect(repo.saved?['new_category_name'], 'ملابس صيفية');
@@ -194,14 +199,14 @@ void main() {
       );
       await tester.tap(find.text('الصور'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('اختيار صور المنتج'));
+      await tester.tap(find.textContaining('اختيار صور المنتج'));
       await tester.pump();
       await tester.pump();
       expect(calls, 1);
       expect(storage.uploads, 0);
       expect(find.text('الصورة الرئيسية'), findsOneWidget);
-      await tester.ensureVisible(find.text('التالي: المقاسات والمخزون'));
-      await tester.tap(find.text('التالي: المقاسات والمخزون'));
+      await tester.ensureVisible(find.text('التالي: المقاسات'));
+      await tester.tap(find.text('التالي: المقاسات'));
       await tester.pumpAndSettle();
       expect(find.text('كل خيار وكمّيته'), findsOneWidget);
       pending.complete(bytes);
@@ -229,11 +234,10 @@ void main() {
       );
       await tester.tap(find.text('الصور'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('اختيار صور المنتج'));
+      await tester.tap(find.textContaining('اختيار صور المنتج'));
       await tester.pumpAndSettle();
       expect(find.text('إعادة المحاولة'), findsOneWidget);
       expect(storage.uploads, 0);
-      await tester.ensureVisible(find.text('حفظ كمسودة'));
       await tester.tap(find.text('حفظ كمسودة'));
       await tester.pumpAndSettle();
       expect(repo.saved, isNull);
