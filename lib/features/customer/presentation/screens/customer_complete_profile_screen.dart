@@ -1,6 +1,7 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -9,6 +10,7 @@ import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/widgets/gaza_region_picker_sheet.dart';
+import '../../../../router/routes.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/customer_providers.dart';
 
@@ -48,6 +50,7 @@ class _CustomerCompleteProfileScreenState
   }
 
   Future<void> _submit() async {
+    if (ref.read(completeCustomerProfileProvider).isLoading) return;
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
@@ -69,7 +72,10 @@ class _CustomerCompleteProfileScreenState
             : controller.errorMessage(error),
         isError: true,
       );
+      return;
     }
+
+    context.go(AppRoutes.customerHome);
   }
 
   @override

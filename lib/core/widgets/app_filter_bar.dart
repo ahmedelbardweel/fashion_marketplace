@@ -9,6 +9,7 @@ import '../utils/app_haptics.dart';
 import 'app_bottom_sheet.dart';
 import 'app_button.dart';
 import 'app_empty.dart';
+import 'app_skeleton.dart';
 
 /// Quick pill option rendered inside [AppFilterToolbar].
 class AppQuickFilterOption {
@@ -839,7 +840,8 @@ class _QuickPillChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selected = option.selected;
+    final isSkeleton = AppSkeleton.isActive(context);
+    final selected = option.selected && !isSkeleton;
     return Material(
       color: selected ? ChipDesign.selectedBackground : ChipDesign.background,
       borderRadius: BorderRadius.circular(ChipDesign.radius),

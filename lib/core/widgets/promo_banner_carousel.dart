@@ -81,11 +81,16 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
             itemCount: widget.banners.length,
             onPageChanged: (i) => setState(() => _index = i),
             itemBuilder: (context, index) {
+              final isSkeleton = AppSkeleton.isActive(context);
               final b = widget.banners[index];
               final hasImage =
-                  b.imagePath != null && b.imagePath!.trim().isNotEmpty;
+                  !isSkeleton &&
+                  b.imagePath != null &&
+                  b.imagePath!.trim().isNotEmpty;
               return Material(
-                color: HomeDesign.bannerBackground,
+                color: isSkeleton
+                    ? SkeletonDesign.base
+                    : HomeDesign.bannerBackground,
                 borderRadius: BorderRadius.zero,
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
@@ -108,7 +113,7 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
                             ),
                           ),
                         ),
-                      ] else ...[
+                      ] else if (!isSkeleton) ...[
                         PositionedDirectional(
                           end: -28,
                           top: -28,
@@ -154,9 +159,11 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: AppPalette.white.withValues(
-                                        alpha: 0.18,
-                                      ),
+                                      color: isSkeleton
+                                          ? SkeletonDesign.highlight
+                                          : AppPalette.white.withValues(
+                                              alpha: 0.18,
+                                            ),
                                       borderRadius: BorderRadius.circular(
                                         AppRadii.pill,
                                       ),
@@ -214,7 +221,9 @@ class _PromoBannerCarouselState extends State<PromoBannerCarousel> {
                                 vertical: 7,
                               ),
                               decoration: BoxDecoration(
-                                color: HomeDesign.bannerButtonBackground,
+                                color: isSkeleton
+                                    ? SkeletonDesign.highlight
+                                    : HomeDesign.bannerButtonBackground,
                                 borderRadius: BorderRadius.circular(
                                   AppRadii.pill,
                                 ),

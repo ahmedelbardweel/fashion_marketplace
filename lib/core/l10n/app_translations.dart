@@ -2175,7 +2175,8 @@ class AppLang {
     'أضف بنراً إعلانياً للمنصة أو انتظر بنرات العروض التلقائية للمحلات.':
         'Add a platform promo banner or wait for automatic shop offer banners.',
     'متوقف': 'Inactive',
-    'جرّب تغيير البحث أو إزالة الفلتر.': 'Try changing search or clearing filters.',
+    'جرّب تغيير البحث أو إزالة الفلتر.':
+        'Try changing search or clearing filters.',
     'لا توجد عروض نشطة حالياً': 'No Active Offers Currently',
     'ستظهر هنا جميع منتجات المحلات التي عليها خصومات حالياً للمراجعة والرقابة.':
         'All discounted shop products will appear here for review.',
@@ -2192,7 +2193,8 @@ class AppLang {
         'Add your first main category to organize store products.',
     'ابحث باسم التصنيف...': 'Search by category name...',
     'لا توجد تصنيفات مطابقة': 'No Matching Categories',
-    'جرّب تعديل البحث أو إزالة الفلتر.': 'Try adjusting search or clearing filters.',
+    'جرّب تعديل البحث أو إزالة الفلتر.':
+        'Try adjusting search or clearing filters.',
     'المحلات المعتمدة': 'Approved Shops',
     'طلبات انضمام المحلات': 'Shop Applications',
     'إرسال إشعار جديد': 'Send New Notification',
@@ -2296,6 +2298,54 @@ class AppLang {
     'تعذر تأكيد حفظ المفتاح بسبب خطأ غير متوقع في التطبيق.':
         'Could not confirm saving key due to an unexpected app error.',
     'جارٍ الحفظ…': 'Saving…',
+    'لا يوجد اتصال بالإنترنت. تأكد من تشغيل الواي فاي أو بيانات الهاتف ثم حاول مرة أخرى.':
+        'No internet connection. Please turn on Wi-Fi or mobile data and try again.',
+    'الجهاز متصل بالشبكة لكن لا يوجد إنترنت فعلي أو تعذر الوصول للخادم. تحقق من اتصالك وحاول مجدداً.':
+        'Connected to a network, but no active internet or server unreachable. Please check your connection.',
+    'انتهت مهلة الاتصال بسبب بطء الإنترنت أو عدم استجابة الخادم. حاول مرة أخرى.':
+        'Connection timed out due to slow internet or server delay. Please try again.',
+    'انقطع الاتصال بالإنترنت أثناء تنفيذ العملية. تأكد من استقرار الشبكة وأعد المحاولة.':
+        'Internet connection dropped during the operation. Check stability and try again.',
+    'الخادم غير متاح مؤقتاً حالياً. يرجى المحاولة مرة أخرى بعد قليل.':
+        'Server is temporarily unavailable. Please try again shortly.',
+    'حدث خطأ غير متوقع. حاول مرة أخرى.':
+        'An unexpected error occurred. Please try again.',
+    'كلمة المرور غير مقبولة (يجب أن تكون 6 أحرف على الأقل)':
+        'Password is invalid (must be at least 6 characters)',
+    'محاولات كثيرة متتالية. انتظر قليلاً ثم أعد المحاولة.':
+        'Too many attempts. Please wait a moment and try again.',
+    'انتهت جلسة تسجيل الدخول. يرجى تسجيل الدخول مجدداً.':
+        'Your session has expired. Please sign in again.',
+    'تعذر إتمام المصادقة. تحقق من بياناتك واتصالك بالإنترنت.':
+        'Authentication failed. Please check your details and internet connection.',
+    'ليس لديك صلاحية لتنفيذ هذا الإجراء.':
+        'You do not have permission to perform this action.',
+    'هذه البيانات مسجلة مسبقاً ولا يمكن تكرارها.':
+        'This data already exists and cannot be duplicated.',
+    'لا يمكن تنفيذ العملية لارتباط هذا العنصر ببيانات أخرى.':
+        'Cannot complete this action because this item is linked to other records.',
+    'صيغة البيانات المدخلة غير صحيحة. راجع الحقول وحاول مجدداً.':
+        'Invalid input format. Please check the fields and try again.',
+    'استغرق الخادم وقتاً أطول من المعتاد. حاول مرة أخرى.':
+        'The server took too long to respond. Please try again.',
+    'هذه الخدمة غير مهيأة بالكامل على الخادم بعد.':
+        'This service is not fully configured on the server yet.',
+    'حجم الملف كبير جداً. اختر صورة أو ملفاً أصغر وحاول مجدداً.':
+        'File is too large. Choose a smaller image or file and try again.',
+    'صيغة الملف غير مدعومة. يرجى اختيار صورة بصيغة JPG أو PNG.':
+        'Unsupported file format. Please choose a JPG or PNG image.',
+    'انتهت الجلسة أو ليس لديك صلاحية لرفع الملفات.':
+        'Session expired or you lack permission to upload files.',
+    'تعذر رفع الملف إلى الخادم. تحقق من الإنترنت وحجم الملف وحاول مجدداً.':
+        'Failed to upload file. Check your internet connection and file size.',
+    'انتهت جلسة الدخول أو غير مصرح بتنفيذ هذا الإجراء.':
+        'Session expired or unauthorized for this action.',
+    'الخدمة المطلوبة غير متوفرة حالياً على الخادم.':
+        'The requested service is currently unavailable on the server.',
+    'طلبات كثيرة متتالية. انتظر قليلاً ثم أعد المحاولة.':
+        'Too many requests. Please wait a moment and try again.',
+    'تعذر إعداد الجلسة. تحقق من تسجيل الدخول واتصالك بالإنترنت.':
+        'Could not prepare session. Check your sign-in and internet connection.',
   };
 }
 

@@ -512,9 +512,13 @@ class _ShopBannersScreenState extends ConsumerState<ShopBannersScreen> {
                                               ],
                                               const Spacer(),
                                               Switch(
-                                                value: item.isActive,
+                                                value: AppSkeleton.isActive(context)
+                                                    ? false
+                                                    : item.isActive,
                                                 activeThumbColor:
-                                                    AppColors.primary,
+                                                    AppSkeleton.isActive(context)
+                                                    ? SkeletonDesign.highlight
+                                                    : AppColors.primary,
                                                 onChanged: busy
                                                     ? null
                                                     : AppHaptics.change(
@@ -562,7 +566,9 @@ class _ShopBannerPreviewBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = imagePath != null && imagePath!.trim().isNotEmpty;
+    final isSkeleton = AppSkeleton.isActive(context);
+    final hasImage =
+        !isSkeleton && imagePath != null && imagePath!.trim().isNotEmpty;
     final radius = topRoundedOnly
         ? BorderRadius.vertical(top: Radius.circular(CardDesign.radius))
         : BorderRadius.circular(AppRadii.md);
@@ -570,7 +576,7 @@ class _ShopBannerPreviewBox extends StatelessWidget {
     return Container(
       height: 146,
       decoration: BoxDecoration(
-        color: HomeDesign.bannerBackground,
+        color: isSkeleton ? SkeletonDesign.base : HomeDesign.bannerBackground,
         borderRadius: radius,
       ),
       clipBehavior: Clip.antiAlias,
@@ -609,7 +615,9 @@ class _ShopBannerPreviewBox extends StatelessWidget {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: AppPalette.white.withValues(alpha: 0.18),
+                        color: isSkeleton
+                            ? SkeletonDesign.highlight
+                            : AppPalette.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(AppRadii.pill),
                       ),
                       child: Text(
@@ -652,7 +660,9 @@ class _ShopBannerPreviewBox extends StatelessWidget {
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: HomeDesign.bannerButtonBackground,
+                    color: isSkeleton
+                        ? SkeletonDesign.highlight
+                        : HomeDesign.bannerButtonBackground,
                     borderRadius: BorderRadius.circular(AppRadii.pill),
                   ),
                   child: Text(

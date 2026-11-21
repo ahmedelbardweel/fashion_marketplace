@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/notifications/push_notification_settings_card.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -109,12 +110,12 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
               if (mounted) {
                 showAppSnackBar(context, 'تم حفظ بيانات حساب الإدارة بنجاح'.tr);
               }
-            } catch (_) {
+            } catch (error) {
               if (sheetCtx.mounted) setSheetState(() => isSaving = false);
               if (mounted) {
                 showAppSnackBar(
                   context,
-                  'تعذر تحديث البيانات'.tr,
+                  AppErrorMapper.message(error, fallback: 'تعذر تحديث البيانات'),
                   isError: true,
                 );
               }

@@ -65,6 +65,15 @@ class AuthController extends StateNotifier<AuthSessionState> {
   final AuthRepository _repository;
   bool _listening = false;
 
+  /// Prevents [authStateChanges] from firing a competing [restoreSession]
+  /// while [signIn], [signInWithGoogle], [registerCustomer], or [registerShop]
+  /// is actively running.
+  bool _manualAuthInProgress = false;
+
+  /// Serializes [restoreSession] calls so overlapping token refreshes never
+  /// overwrite freshly completed profile state.
+  Future<void>? _restoreInFlight;
+
   Future<void> _init() async {
     _listenAuthChanges();
     await restoreSession();
@@ -75,6 +84,9 @@ class AuthController extends StateNotifier<AuthSessionState> {
     _listening = true;
     _repository.authStateChanges.listen((data) async {
       final event = data.event;
+      if (_manualAuthInProgress) {
+        return;
+      }
       if (event == AuthChangeEvent.signedOut) {
         if (!NetworkMonitorService.instance.isOnline) {
           // Preserve offline session if token refresh failed due to no internet
@@ -99,7 +111,17 @@ class AuthController extends StateNotifier<AuthSessionState> {
     });
   }
 
-  Future<void> restoreSession() async {
+  Future<void> restoreSession() {
+    final existing = _restoreInFlight;
+    if (existing != null) return existing;
+    final task = _doRestoreSession().whenComplete(() {
+      _restoreInFlight = null;
+    });
+    _restoreInFlight = task;
+    return task;
+  }
+
+  Future<void> _doRestoreSession() async {
     try {
       final session = _repository.currentSession;
       if (session == null) {
@@ -119,6 +141,8 @@ class AuthController extends StateNotifier<AuthSessionState> {
       }
 
       final profile = await _repository.fetchCurrentProfile();
+      if (_manualAuthInProgress) return;
+
       if (profile == null) {
         final offlineProfile =
             await LocalDatabase.instance.getUserProfile(session.user.id) ??
@@ -143,9 +167,20 @@ class AuthController extends StateNotifier<AuthSessionState> {
         return;
       }
 
+      // Never allow a stale background restore to downgrade a user who has
+      // just completed their profile in this session.
+      final currentUser = state.user;
+      final resolvedProfile =
+          (currentUser != null &&
+              currentUser.id == profile.id &&
+              currentUser.profileCompleted &&
+              !profile.profileCompleted)
+          ? currentUser
+          : profile;
+
       state = AuthSessionState(
         status: AuthStatus.authenticated,
-        user: profile,
+        user: resolvedProfile,
       );
     } catch (_) {
       final offlineProfile = await LocalDatabase.instance
@@ -165,6 +200,7 @@ class AuthController extends StateNotifier<AuthSessionState> {
     required String email,
     required String password,
   }) async {
+    _manualAuthInProgress = true;
     state = state.copyWith(isBusy: true, clearError: true);
     try {
       final user = await _repository.signIn(
@@ -184,10 +220,13 @@ class AuthController extends StateNotifier<AuthSessionState> {
         errorMessage: _repository.mapAuthError(error),
       );
       return false;
+    } finally {
+      _manualAuthInProgress = false;
     }
   }
 
   Future<bool> signInWithGoogle() async {
+    _manualAuthInProgress = true;
     state = state.copyWith(isGoogleBusy: true, clearError: true);
     try {
       final user = await _repository.signInWithGoogle();
@@ -207,6 +246,8 @@ class AuthController extends StateNotifier<AuthSessionState> {
         errorMessage: _repository.mapAuthError(error),
       );
       return false;
+    } finally {
+      _manualAuthInProgress = false;
     }
   }
 
@@ -216,6 +257,7 @@ class AuthController extends StateNotifier<AuthSessionState> {
     required String fullName,
     required String phone,
   }) async {
+    _manualAuthInProgress = true;
     state = state.copyWith(isBusy: true, clearError: true);
     try {
       final user = await _repository.registerCustomer(
@@ -235,6 +277,8 @@ class AuthController extends StateNotifier<AuthSessionState> {
         errorMessage: _repository.mapAuthError(error),
       );
       return false;
+    } finally {
+      _manualAuthInProgress = false;
     }
   }
 
@@ -245,6 +289,7 @@ class AuthController extends StateNotifier<AuthSessionState> {
     required String phone,
     required String shopName,
   }) async {
+    _manualAuthInProgress = true;
     state = state.copyWith(isBusy: true, clearError: true);
     try {
       final user = await _repository.registerShop(
@@ -265,14 +310,18 @@ class AuthController extends StateNotifier<AuthSessionState> {
         errorMessage: _repository.mapAuthError(error),
       );
       return false;
+    } finally {
+      _manualAuthInProgress = false;
     }
   }
 
   Future<void> signOut() async {
+    _manualAuthInProgress = true;
     state = state.copyWith(isBusy: true, clearError: true);
     try {
       await _repository.signOut();
     } finally {
+      _manualAuthInProgress = false;
       state = const AuthSessionState(status: AuthStatus.unauthenticated);
     }
   }

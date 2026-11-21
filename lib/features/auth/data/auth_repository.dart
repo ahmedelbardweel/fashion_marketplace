@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
+import '../../../core/network/network_guard.dart';
 import '../../../core/offline/background_preloader_service.dart';
 import '../../../core/offline/local_database.dart';
 import '../../../core/offline/network_monitor_service.dart';
@@ -94,6 +95,8 @@ class AuthRepository {
   /// يفتح نافذة اختيار حساب Google الأصلية (Bottom Sheet داخل التطبيق) على أندرويد وآيفون
   /// ويسجل الدخول مباشرة في Supabase عبر ID Token بدون الخروج إلى المتصفح.
   Future<AppUser?> signInWithGoogle() async {
+    await NetworkGuard.ensureOnline();
+
     final webClientId = SupabaseConfig.googleWebClientId;
     final iosClientId = SupabaseConfig.googleIosClientId;
 
@@ -115,16 +118,23 @@ class AuthRepository {
 
     try {
       // ضمان ظهور نافذة اختيار الحساب السفلية (Bottom Sheet) دائماً
-      await googleSignIn.signOut();
+      await googleSignIn.signOut().timeout(const Duration(seconds: 4));
     } catch (_) {}
 
     final GoogleSignInAccount? googleUser;
     try {
-      googleUser = await googleSignIn.signIn();
+      googleUser = await googleSignIn.signIn().timeout(
+        AppTimeouts.googleSignIn,
+      );
+    } on TimeoutException {
+      throw AppNetworkException.timeout(timeout: AppTimeouts.googleSignIn);
     } on PlatformException catch (e) {
       final code = e.code.toLowerCase();
       if (code.contains('canceled') || code.contains('cancelled')) {
         return null;
+      }
+      if (code.contains('network_error') || (e.message?.contains('7:') ?? false)) {
+        throw AppNetworkException.noInternet();
       }
       if (code.contains('sign_in_failed') ||
           (e.message?.contains('10:') ?? false)) {
@@ -140,7 +150,12 @@ class AuthRepository {
       return null;
     }
 
-    final googleAuth = await googleUser.authentication;
+    final account = googleUser;
+    final googleAuth = await NetworkGuard.run(
+      () => account.authentication,
+      timeout: AppTimeouts.auth,
+      requireConnection: false,
+    );
     final idToken = googleAuth.idToken;
     final accessToken = googleAuth.accessToken;
 
@@ -150,10 +165,13 @@ class AuthRepository {
       );
     }
 
-    final response = await _client.auth.signInWithIdToken(
-      provider: OAuthProvider.google,
-      idToken: idToken,
-      accessToken: accessToken,
+    final response = await NetworkGuard.run(
+      () => _client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      ),
+      timeout: AppTimeouts.auth,
     );
 
     if (response.user == null) {
@@ -176,9 +194,12 @@ class AuthRepository {
     required String email,
     required String password,
   }) async {
-    final response = await _client.auth.signInWithPassword(
-      email: email.trim(),
-      password: password,
+    final response = await NetworkGuard.run(
+      () => _client.auth.signInWithPassword(
+        email: email.trim(),
+        password: password,
+      ),
+      timeout: AppTimeouts.auth,
     );
 
     if (response.user == null) {
@@ -203,14 +224,17 @@ class AuthRepository {
     required String fullName,
     required String phone,
   }) async {
-    final response = await _client.auth.signUp(
-      email: email.trim(),
-      password: password,
-      data: {
-        'role': UserRole.customer.value,
-        'full_name': fullName.trim(),
-        'phone': phone.trim(),
-      },
+    final response = await NetworkGuard.run(
+      () => _client.auth.signUp(
+        email: email.trim(),
+        password: password,
+        data: {
+          'role': UserRole.customer.value,
+          'full_name': fullName.trim(),
+          'phone': phone.trim(),
+        },
+      ),
+      timeout: AppTimeouts.auth,
     );
 
     if (response.user == null) {
@@ -242,15 +266,18 @@ class AuthRepository {
     required String phone,
     required String shopName,
   }) async {
-    final response = await _client.auth.signUp(
-      email: email.trim(),
-      password: password,
-      data: {
-        'role': UserRole.shop.value,
-        'full_name': fullName.trim(),
-        'phone': phone.trim(),
-        'shop_name': shopName.trim(),
-      },
+    final response = await NetworkGuard.run(
+      () => _client.auth.signUp(
+        email: email.trim(),
+        password: password,
+        data: {
+          'role': UserRole.shop.value,
+          'full_name': fullName.trim(),
+          'phone': phone.trim(),
+          'shop_name': shopName.trim(),
+        },
+      ),
+      timeout: AppTimeouts.auth,
     );
 
     if (response.user == null) {
@@ -293,30 +320,9 @@ class AuthRepository {
   Future<void> signOut() async {
     await _localDb.clearActiveSession();
     try {
-      await _client.auth.signOut();
+      await _client.auth.signOut().timeout(AppTimeouts.signOut);
     } catch (_) {}
   }
 
-  String mapAuthError(Object error) {
-    if (error is AuthException) {
-      final message = error.message.toLowerCase();
-      if (message.contains('passed nonce and nonce in id_token')) {
-        return 'يرجى تفعيل خيار Skip nonce checks داخل إعدادات Google في Supabase';
-      }
-      if (message.contains('invalid login credentials')) {
-        return 'البريد أو كلمة المرور غير صحيحة';
-      }
-      if (message.contains('email not confirmed')) {
-        return 'يجب تأكيد البريد الإلكتروني أولاً';
-      }
-      if (message.contains('user already registered')) {
-        return 'هذا البريد مسجل مسبقاً';
-      }
-      if (message.contains('password')) {
-        return 'كلمة المرور غير مقبولة';
-      }
-      return error.message;
-    }
-    return 'حدث خطأ غير متوقع. حاول مرة أخرى';
-  }
+  String mapAuthError(Object error) => AppErrorMapper.message(error);
 }

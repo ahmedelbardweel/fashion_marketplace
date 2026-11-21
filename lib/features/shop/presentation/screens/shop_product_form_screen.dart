@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/background_removal_service.dart';
 import '../../../../core/utils/media_picker.dart';
@@ -647,9 +648,9 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
       draft.failed = false;
     });
     try {
-      final bytes = await ref.read(shopProductBackgroundRemoverProvider)(
-        draft.picked!.bytes,
-      );
+      final bytes = await ref
+          .read(shopProductBackgroundRemoverProvider)(draft.picked!.bytes)
+          .timeout(AppTimeouts.backgroundCutout);
       if (!mounted || !_images.contains(draft)) return;
       setState(() => draft.preview = bytes);
       final path = await ref
@@ -667,12 +668,17 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
         draft.path = path;
         draft.working = false;
       });
-    } catch (_) {
+    } catch (error) {
       if (mounted && _images.contains(draft)) {
         setState(() {
           draft.failed = true;
           draft.working = false;
         });
+        showAppSnackBar(
+          context,
+          AppErrorMapper.message(error, fallback: 'تعذر رفع الصورة'),
+          isError: true,
+        );
       }
     }
   }

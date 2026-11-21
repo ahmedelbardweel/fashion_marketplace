@@ -1,4 +1,5 @@
 import 'package:fashion_marketplace/core/l10n/app_translations.dart';
+import 'package:fashion_marketplace/core/network/network_guard.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -35,6 +36,7 @@ class SupabaseConfig {
     await Supabase.initialize(
       url: url,
       publishableKey: anonKey,
+      httpClient: AppHttpClient(),
       authOptions: const FlutterAuthClientOptions(
         authFlowType: AuthFlowType.pkce,
       ),

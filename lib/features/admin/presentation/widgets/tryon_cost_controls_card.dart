@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -75,7 +76,10 @@ class _TryonCostControlsCardState extends ConsumerState<TryonCostControlsCard> {
       if (!mounted) return;
       final text = error is PostgrestException && error.code == 'PGRST202'
           ? 'يلزم تطبيق تحديث قاعدة البيانات 019 في Supabase أولاً.'.tr
-          : 'تعذر حفظ إعدادات التحكم في التكلفة. حاول مجدداً.'.tr;
+          : AppErrorMapper.message(
+              error,
+              fallback: 'تعذر حفظ إعدادات التحكم في التكلفة. حاول مجدداً.',
+            );
       setState(() {
         _failed = true;
         _message = text;

@@ -343,7 +343,9 @@ class _ShopSalesScreenState extends ConsumerState<ShopSalesScreen> {
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.lg),
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: AppSkeleton.isActive(context)
+                        ? SkeletonDesign.base
+                        : AppColors.primary,
                     borderRadius: BorderRadius.circular(
                       SellerDesign.statCardRadius,
                     ),

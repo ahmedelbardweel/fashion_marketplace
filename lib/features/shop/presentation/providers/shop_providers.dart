@@ -9,9 +9,15 @@ final shopRepositoryProvider = Provider<ShopRepository>((ref) {
   return ShopRepository();
 });
 
+/// Watches ONLY identity & role so unrelated auth state changes (like busy flags
+/// or profile name updates) never tear down and refetch the shop mid-submission.
 final myShopProvider = FutureProvider<Shop?>((ref) async {
-  final auth = ref.watch(authControllerProvider);
-  if (!auth.isAuthenticated || auth.user?.role != UserRole.shop) {
+  final authKey = ref.watch(
+    authControllerProvider.select(
+      (s) => (s.isAuthenticated, s.user?.id, s.user?.role),
+    ),
+  );
+  if (!authKey.$1 || authKey.$3 != UserRole.shop) {
     return null;
   }
   return ref.read(shopRepositoryProvider).fetchMyShop();
@@ -19,8 +25,10 @@ final myShopProvider = FutureProvider<Shop?>((ref) async {
 
 final adminShopApplicationsProvider =
     FutureProvider.autoDispose<List<Shop>>((ref) async {
-  final auth = ref.watch(authControllerProvider);
-  if (!auth.isAuthenticated || auth.user?.role.name != 'admin') {
+  final authKey = ref.watch(
+    authControllerProvider.select((s) => (s.isAuthenticated, s.user?.role)),
+  );
+  if (!authKey.$1 || authKey.$2 != UserRole.admin) {
     return const [];
   }
   return ref.watch(shopRepositoryProvider).fetchAllApplications();
@@ -28,8 +36,10 @@ final adminShopApplicationsProvider =
 
 final adminShopByIdProvider =
     FutureProvider.autoDispose.family<Shop?, String>((ref, shopId) async {
-  final auth = ref.watch(authControllerProvider);
-  if (!auth.isAuthenticated || auth.user?.role.name != 'admin') {
+  final authKey = ref.watch(
+    authControllerProvider.select((s) => (s.isAuthenticated, s.user?.role)),
+  );
+  if (!authKey.$1 || authKey.$2 != UserRole.admin) {
     return null;
   }
   return ref.watch(shopRepositoryProvider).fetchShopById(shopId);
@@ -65,8 +75,22 @@ class ShopActionController extends StateNotifier<AsyncValue<void>> {
             ownerName: ownerName,
             phone: phone,
           );
-      await _ref.read(authControllerProvider.notifier).refreshProfile();
-      _ref.invalidate(myShopProvider);
+      final currentUser = _ref.read(authControllerProvider).user;
+      if (currentUser != null) {
+        _ref.read(authControllerProvider.notifier).setUser(
+              currentUser.copyWith(
+                fullName: ownerName.trim(),
+                phone: phone.trim(),
+                city: city.trim(),
+                address: address.trim(),
+              ),
+            );
+      }
+      try {
+        await _ref.refresh(myShopProvider.future);
+      } catch (_) {
+        _ref.invalidate(myShopProvider);
+      }
       state = const AsyncValue.data(null);
       return true;
     } catch (error, stack) {
@@ -79,8 +103,66 @@ class ShopActionController extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     try {
       await _ref.read(shopRepositoryProvider).submitApplication();
-      await _ref.read(authControllerProvider.notifier).refreshProfile();
-      _ref.invalidate(myShopProvider);
+      final currentUser = _ref.read(authControllerProvider).user;
+      if (currentUser != null && !currentUser.profileCompleted) {
+        _ref.read(authControllerProvider.notifier).setUser(
+              currentUser.copyWith(profileCompleted: true),
+            );
+      }
+      try {
+        await _ref.refresh(myShopProvider.future);
+      } catch (_) {
+        _ref.invalidate(myShopProvider);
+      }
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (error, stack) {
+      state = AsyncValue.error(error, stack);
+      return false;
+    }
+  }
+
+  /// Atomic single-loading-cycle save + submit to prevent double refreshes and
+  /// routing stalls on [ShopCompleteProfileScreen].
+  Future<bool> saveAndSubmitProfile({
+    required String shopName,
+    required String description,
+    required String city,
+    required String address,
+    required String commercialRegister,
+    required String ownerName,
+    required String phone,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      final repo = _ref.read(shopRepositoryProvider);
+      await repo.completeShopProfile(
+        shopName: shopName,
+        description: description,
+        city: city,
+        address: address,
+        commercialRegister: commercialRegister,
+        ownerName: ownerName,
+        phone: phone,
+      );
+      await repo.submitApplication();
+      final currentUser = _ref.read(authControllerProvider).user;
+      if (currentUser != null) {
+        _ref.read(authControllerProvider.notifier).setUser(
+              currentUser.copyWith(
+                fullName: ownerName.trim(),
+                phone: phone.trim(),
+                city: city.trim(),
+                address: address.trim(),
+                profileCompleted: true,
+              ),
+            );
+      }
+      try {
+        await _ref.refresh(myShopProvider.future);
+      } catch (_) {
+        _ref.invalidate(myShopProvider);
+      }
       state = const AsyncValue.data(null);
       return true;
     } catch (error, stack) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
@@ -8,6 +9,7 @@ import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
+import '../../../../router/routes.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/models/shop.dart';
 import '../providers/shop_providers.dart';
@@ -93,11 +95,37 @@ class _ShopCompleteProfileScreenState
   }
 
   Future<void> _save({required bool submit}) async {
+    if (ref.read(shopActionProvider).isLoading) return;
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
     final actions = ref.read(shopActionProvider.notifier);
-    final saved = await actions.completeProfile(
+
+    if (!submit) {
+      final saved = await actions.completeProfile(
+        shopName: _shopNameController.text,
+        description: _descriptionController.text,
+        city: _cityController.text,
+        address: _addressController.text,
+        commercialRegister: _registerController.text,
+        ownerName: _ownerNameController.text,
+        phone: _phoneController.text,
+      );
+      if (!mounted) return;
+      if (!saved) {
+        final error = ref.read(shopActionProvider).error;
+        showAppSnackBar(
+          context,
+          error == null ? 'تعذر حفظ البيانات'.tr : actions.errorMessage(error),
+          isError: true,
+        );
+        return;
+      }
+      showAppSnackBar(context, 'تم حفظ البيانات'.tr);
+      return;
+    }
+
+    final submitted = await actions.saveAndSubmitProfile(
       shopName: _shopNameController.text,
       description: _descriptionController.text,
       city: _cityController.text,
@@ -106,24 +134,6 @@ class _ShopCompleteProfileScreenState
       ownerName: _ownerNameController.text,
       phone: _phoneController.text,
     );
-
-    if (!mounted) return;
-    if (!saved) {
-      final error = ref.read(shopActionProvider).error;
-      showAppSnackBar(
-        context,
-        error == null ? 'تعذر حفظ البيانات'.tr : actions.errorMessage(error),
-        isError: true,
-      );
-      return;
-    }
-
-    if (!submit) {
-      showAppSnackBar(context, 'تم حفظ البيانات'.tr);
-      return;
-    }
-
-    final submitted = await actions.submitApplication();
     if (!mounted) return;
     if (!submitted) {
       final error = ref.read(shopActionProvider).error;
@@ -136,6 +146,7 @@ class _ShopCompleteProfileScreenState
     }
 
     showAppSnackBar(context, 'تم إرسال طلب الانضمام للإدارة'.tr);
+    context.go(AppRoutes.shopStatus);
   }
 
   @override

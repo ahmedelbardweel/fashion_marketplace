@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -34,6 +35,9 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
   bool _failed = false;
 
   String _saveErrorMessage(Object error) {
+    if (error is AppNetworkException || AppErrorMapper.isNetworkError(error)) {
+      return AppErrorMapper.message(error);
+    }
     if (error is PostgrestException) {
       final message = switch (error.code) {
         '42501' => 'هذا الإعداد متاح للأدمن النشط فقط.'.tr,
@@ -124,11 +128,11 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
       ref.invalidate(adminDecartStatusProvider);
       ref.invalidate(adminDecartKeysProvider);
       ref.invalidate(adminDecartCreditsProvider);
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
         showAppSnackBar(
           context,
-          'تعذر تحديث حالة المفتاح'.tr,
+          AppErrorMapper.message(error, fallback: 'تعذر تحديث حالة المفتاح'),
           isError: true,
         );
       }
@@ -149,9 +153,13 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
       if (mounted) {
         showAppSnackBar(context, 'تم حذف المفتاح من القائمة'.tr);
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        showAppSnackBar(context, 'تعذر حذف المفتاح'.tr, isError: true);
+        showAppSnackBar(
+          context,
+          AppErrorMapper.message(error, fallback: 'تعذر حذف المفتاح'),
+          isError: true,
+        );
       }
     } finally {
       if (mounted) setState(() => _mutatingKey = false);
@@ -221,9 +229,9 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
                 Expanded(
                   child: Text(
                     '${'المفاتيح المضافة'.tr} (${displayKeys.length})',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: AppFont.bold,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleSmall?.copyWith(fontWeight: AppFont.bold),
                   ),
                 ),
                 Text(
@@ -258,9 +266,9 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
           // 2) Add New API Key Form
           Text(
             'إضافة مفتاح Decart API جديد'.tr,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: AppFont.bold,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: AppFont.bold),
           ),
           const SizedBox(height: AppSpacing.xs),
           TextFormField(
@@ -286,9 +294,8 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
             ),
             validator: (value) =>
                 RegExp(
-                      r'^dct_[A-Za-z0-9][A-Za-z0-9-]{0,63}_[A-Za-z0-9_-]{20,512}$',
-                    )
-                    .hasMatch(value?.trim() ?? '')
+                  r'^dct_[A-Za-z0-9][A-Za-z0-9-]{0,63}_[A-Za-z0-9_-]{20,512}$',
+                ).hasMatch(value?.trim() ?? '')
                 ? null
                 : 'أدخل مفتاح Decart صالحاً يبدأ بـ dct_ (مثل dct_wasla_ أو dct_app_)'
                       .tr,
@@ -297,9 +304,9 @@ class _DecartSettingsCardState extends ConsumerState<DecartSettingsCard> {
           Text(
             'تُحفظ جميع المفاتيح مشفّرة في السيرفر، ويقوم النظام تلقائياً بحساب مجموع التوكن والانتقال للمفتاح التالي فور نفاد أي مفتاح دون انقطاع للعميل.'
                 .tr,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.textMuted,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
           ),
           const SizedBox(height: AppSpacing.md),
           AppButton(
@@ -409,11 +416,7 @@ class _KeyPoolRow extends StatelessWidget {
                 IconButton(
                   tooltip: 'حذف المفتاح'.tr,
                   onPressed: busy ? null : AppHaptics.action(onDelete!),
-                  icon: Icon(
-                    AppIcons.delete,
-                    size: 18,
-                    color: AppColors.error,
-                  ),
+                  icon: Icon(AppIcons.delete, size: 18, color: AppColors.error),
                 ),
             ],
           ),

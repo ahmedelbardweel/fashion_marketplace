@@ -20,25 +20,36 @@ class AppSkeleton extends StatelessWidget {
       Skeletonizer.maybeOf(context)?.enabled ?? false;
 
   @override
-  Widget build(BuildContext context) => !enabled
-      ? child
-      : Semantics(
-          label: 'جارٍ التحميل'.tr,
-          child: ExcludeSemantics(
-            child: ExcludeFocus(
-              child: Skeletonizer(
-                effect: ShimmerEffect(
-                  baseColor: SkeletonDesign.base,
-                  highlightColor: SkeletonDesign.highlight,
-                  duration: MediaQuery.disableAnimationsOf(context)
-                      ? Duration.zero
-                      : SkeletonDesign.duration,
-                ),
-                child: child,
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    final baseTheme = Theme.of(context);
+    return Semantics(
+      label: 'جارٍ التحميل'.tr,
+      child: ExcludeSemantics(
+        child: ExcludeFocus(
+          child: Theme(
+            data: baseTheme.copyWith(
+              switchTheme: SwitchThemeData(
+                thumbColor: WidgetStatePropertyAll(SkeletonDesign.highlight),
+                trackColor: WidgetStatePropertyAll(SkeletonDesign.base),
+                trackOutlineColor: WidgetStatePropertyAll(AppColors.border),
               ),
             ),
+            child: Skeletonizer(
+              effect: ShimmerEffect(
+                baseColor: SkeletonDesign.base,
+                highlightColor: SkeletonDesign.highlight,
+                duration: MediaQuery.disableAnimationsOf(context)
+                    ? Duration.zero
+                    : SkeletonDesign.duration,
+              ),
+              child: child,
+            ),
           ),
-        );
+        ),
+      ),
+    );
+  }
 }
 
 extension SkeletonAsyncValue<T> on AsyncValue<T> {

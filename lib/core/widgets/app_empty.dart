@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_design.dart';
+import 'app_skeleton.dart';
 
 /// Empty / info state with an icon, a title and an optional message + action.
 class AppEmpty extends StatelessWidget {
@@ -175,10 +176,11 @@ class AppStatusBadge extends StatelessWidget {
       ),
       BadgeTone.error => (BadgeDesign.errorBackground, BadgeDesign.errorText),
     };
+    final isSkeleton = AppSkeleton.isActive(context);
     return Container(
       padding: BadgeDesign.padding,
       decoration: BoxDecoration(
-        color: bg,
+        color: isSkeleton ? SkeletonDesign.base : bg,
         borderRadius: BorderRadius.circular(BadgeDesign.radius),
       ),
       child: Text(

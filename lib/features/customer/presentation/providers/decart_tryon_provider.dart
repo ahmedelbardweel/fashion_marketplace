@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../config/supabase_config.dart';
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/l10n/app_translations.dart';
 import '../../../../core/services/decart_vton_sdk_service.dart';
 import '../../../virtual_tryon/data/decart_session_config.dart';
@@ -90,19 +91,26 @@ final decartVtonSdkServiceProvider = Provider.autoDispose
       final service = DecartVtonSdkService(
         loadConfig: () async {
           try {
-            final response = await SupabaseConfig.client.functions.invoke(
-              'decart-session',
+            final response = await NetworkGuard.run(
+              () => SupabaseConfig.client.functions.invoke('decart-session'),
+              timeout: AppTimeouts.edgeFunction,
             );
             return DecartSessionConfig.fromJson(
               Map<String, dynamic>.from(response.data as Map),
             );
+          } on AppNetworkException catch (error) {
+            throw TryonFailure(error.userMessage);
           } on FunctionException catch (error) {
             throw sessionFunctionFailure(error.status, error.details);
           } on TryonFailure {
             rethrow;
-          } catch (_) {
+          } catch (error) {
             throw TryonFailure(
-              'تعذر إعداد الجلسة. تحقق من تسجيل الدخول ونشر خدمة decart-session.'.tr,
+              AppErrorMapper.message(
+                error,
+                fallback:
+                    'تعذر إعداد الجلسة. تحقق من تسجيل الدخول واتصالك بالإنترنت.',
+              ),
             );
           }
         },

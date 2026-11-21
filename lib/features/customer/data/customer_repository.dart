@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
 import '../../../core/filtering/filter_models.dart';
+import '../../../core/network/network_guard.dart';
 import '../../../core/offline/local_database.dart';
 import '../../../core/offline/network_monitor_service.dart';
 import '../../../core/offline/offline_sync_engine.dart';
@@ -46,57 +47,21 @@ class CustomerRepository {
     final trimmedCity = city.trim();
     final trimmedAddress = address.trim();
 
-    if (NetworkMonitorService.instance.isOnline) {
-      try {
-        final data = await _client.rpc(
-          'complete_customer_profile',
-          params: {
-            'p_full_name': trimmedName,
-            'p_phone': trimmedPhone,
-            'p_city': trimmedCity,
-            'p_address': trimmedAddress,
-          },
-        );
-        final updatedUser = AppUser.fromMap(asStringMap(data));
-        await _localDb.saveUserProfile(updatedUser, isCurrentSession: true);
-        return updatedUser;
-      } catch (e) {
-        if (!_isNetworkError(e)) rethrow;
-        NetworkMonitorService.instance.reportNetworkFailure();
-      }
-    }
-
-    final userId = await _resolveUserId();
-    if (userId == null) throw StateError('يجب تسجيل الدخول');
-
-    final existing =
-        await _localDb.getUserProfile(userId) ??
-        await _localDb.getActiveSessionProfile();
-    if (existing == null) throw StateError('يجب تسجيل الدخول');
-
-    final offlineUpdated = existing.copyWith(
-      fullName: trimmedName,
-      phone: trimmedPhone,
-      city: trimmedCity,
-      address: trimmedAddress,
-      profileCompleted: true,
+    final data = await NetworkGuard.run(
+      () => _client.rpc(
+        'complete_customer_profile',
+        params: {
+          'p_full_name': trimmedName,
+          'p_phone': trimmedPhone,
+          'p_city': trimmedCity,
+          'p_address': trimmedAddress,
+        },
+      ),
+      timeout: AppTimeouts.action,
     );
-    await _localDb.saveUserProfile(offlineUpdated, isCurrentSession: true);
-
-    await OfflineSyncEngine.instance.enqueue(
-      id: 'complete_profile_$userId',
-      userId: userId,
-      actionType: 'complete_customer_profile',
-      entityId: userId,
-      payload: {
-        'full_name': trimmedName,
-        'phone': trimmedPhone,
-        'city': trimmedCity,
-        'address': trimmedAddress,
-      },
-    );
-
-    return offlineUpdated;
+    final updatedUser = AppUser.fromMap(asStringMap(data));
+    await _localDb.saveUserProfile(updatedUser, isCurrentSession: true);
+    return updatedUser;
   }
 
   // Update profile
@@ -1497,22 +1462,7 @@ class CustomerRepository {
     return _localDb.getNotifications(audiences: const ['all', 'customer']);
   }
 
-  bool _isNetworkError(Object error) {
-    final msg = error.toString().toLowerCase();
-    return msg.contains('socketexception') ||
-        msg.contains('failed host lookup') ||
-        msg.contains('clientexception') ||
-        msg.contains('connection closed') ||
-        msg.contains('connection refused') ||
-        msg.contains('network is unreachable') ||
-        msg.contains('timed out') ||
-        msg.contains('xmlhttprequest error');
-  }
+  bool _isNetworkError(Object error) => AppErrorMapper.isNetworkError(error);
 
-  String mapError(Object error) {
-    if (error is PostgrestException) {
-      return error.message;
-    }
-    return 'حدث خطأ. حاول مرة أخرى';
-  }
+  String mapError(Object error) => AppErrorMapper.message(error);
 }

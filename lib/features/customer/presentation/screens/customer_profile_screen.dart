@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/notifications/push_notification_settings_card.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -102,14 +103,17 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
               if (mounted) {
                 showAppSnackBar(context, 'تم حفظ بيانات الملف الشخصي بنجاح'.tr);
               }
-            } catch (_) {
+            } catch (error) {
               if (sheetCtx.mounted) {
                 setSheetState(() => isSaving = false);
               }
               if (mounted) {
                 showAppSnackBar(
                   context,
-                  'تعذر تحديث البيانات'.tr,
+                  AppErrorMapper.message(
+                    error,
+                    fallback: 'تعذر تحديث البيانات',
+                  ),
                   isError: true,
                 );
               }
@@ -339,14 +343,18 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                             await ref
                                 .read(authControllerProvider.notifier)
                                 .signOut();
-                          } catch (_) {
+                          } catch (error) {
                             if (ctx.mounted) {
                               setSheetState(() => isDeleting = false);
                             }
                             if (mounted) {
                               showAppSnackBar(
                                 context,
-                                'تعذر حذف الحساب حالياً، حاول مرة أخرى'.tr,
+                                AppErrorMapper.message(
+                                  error,
+                                  fallback:
+                                      'تعذر حذف الحساب حالياً، حاول مرة أخرى',
+                                ),
                                 isError: true,
                               );
                             }

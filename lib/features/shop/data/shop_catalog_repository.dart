@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
 import '../../../core/filtering/filter_models.dart';
+import '../../../core/network/network_guard.dart';
 import '../../../core/offline/local_database.dart';
 import '../../../core/offline/network_monitor_service.dart';
 import '../../../core/offline/offline_sync_engine.dart';
@@ -853,20 +854,7 @@ class ShopCatalogRepository {
     return updatedShop;
   }
 
-  bool _isNetworkError(Object error) {
-    final msg = error.toString().toLowerCase();
-    return msg.contains('socketexception') ||
-        msg.contains('failed host lookup') ||
-        msg.contains('clientexception') ||
-        msg.contains('connection closed') ||
-        msg.contains('connection refused') ||
-        msg.contains('network is unreachable') ||
-        msg.contains('timed out') ||
-        msg.contains('xmlhttprequest error');
-  }
+  bool _isNetworkError(Object error) => AppErrorMapper.isNetworkError(error);
 
-  String mapError(Object error) {
-    if (error is PostgrestException) return error.message;
-    return 'حدث خطأ. حاول مرة أخرى';
-  }
+  String mapError(Object error) => AppErrorMapper.message(error);
 }

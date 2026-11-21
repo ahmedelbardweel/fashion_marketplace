@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
+import '../../../core/network/network_guard.dart';
 import '../../../core/utils/background_removal_service.dart';
 
 class ShopStorageRepository {
@@ -29,19 +30,23 @@ class ShopStorageRepository {
       throw StateError('يجب تسجيل الدخول أولاً');
     }
 
+    await NetworkGuard.ensureOnline();
+
     var uploadData = bytes;
     var uploadName = fileName;
     var uploadContentType = contentType;
     if (folder == 'logo') {
       try {
-        final cutout = await _removeBackground(bytes);
+        final cutout = await _removeBackground(
+          bytes,
+        ).timeout(AppTimeouts.backgroundCutout);
         if (cutout.isNotEmpty) {
           uploadData = cutout;
           uploadName = '${p.basenameWithoutExtension(fileName)}.png';
           uploadContentType = 'image/png';
         }
       } catch (_) {
-        // Silent fallback so logo uploads never block if cutout fails.
+        // Silent fallback so logo uploads never block if cutout fails or times out.
       }
     }
 
@@ -49,14 +54,18 @@ class ShopStorageRepository {
         '${DateTime.now().millisecondsSinceEpoch}_${p.basename(uploadName)}';
     final path = '$userId/$folder/$safeName';
 
-    await _client.storage.from(bucket).uploadBinary(
-          path,
-          uploadData,
-          fileOptions: FileOptions(
-            upsert: true,
-            contentType: uploadContentType,
+    await NetworkGuard.run(
+      () => _client.storage.from(bucket).uploadBinary(
+            path,
+            uploadData,
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: uploadContentType,
+            ),
           ),
-        );
+      timeout: AppTimeouts.upload,
+      requireConnection: false, // already checked above
+    );
 
     if (bucket == 'shop-documents') {
       return path;
@@ -64,8 +73,6 @@ class ShopStorageRepository {
     return _client.storage.from(bucket).getPublicUrl(path);
   }
 
-  String mapError(Object error) {
-    if (error is StorageException) return error.message;
-    return 'تعذر رفع الملف';
-  }
+  String mapError(Object error) =>
+      AppErrorMapper.message(error, fallback: 'تعذر رفع الملف');
 }

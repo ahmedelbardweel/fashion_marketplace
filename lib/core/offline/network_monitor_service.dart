@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../config/supabase_config.dart';
+import '../network/network_guard.dart';
 
 /// Real-time network connectivity monitor with active Supabase reachability probe.
 /// Distinguishes between mere Wi-Fi association and actual internet connectivity
@@ -52,6 +53,46 @@ class NetworkMonitorService {
     );
   }
 
+  /// Fast OS-level check for whether any network interface (Wi-Fi / Cellular / Ethernet) is active.
+  Future<bool> hasNetworkInterface() async {
+    try {
+      final results = await _connectivity.checkConnectivity().timeout(
+        const Duration(seconds: 2),
+      );
+      return results.any((r) => r != ConnectivityResult.none);
+    } catch (_) {
+      return _isOnline;
+    }
+  }
+
+  /// Ensures real connectivity before executing an online-only action.
+  /// Throws [AppNetworkException.noInternet] if interfaces are OFF, or
+  /// [AppNetworkException.unreachable] if interface is UP but Supabase cannot be reached.
+  Future<void> ensureConnected({bool forceProbe = false}) async {
+    final hasInterface = await hasNetworkInterface();
+    if (!hasInterface) {
+      _lastVerifiedAt = DateTime.now();
+      _updateOnlineStatus(false);
+      throw AppNetworkException.noInternet();
+    }
+
+    // If recently verified online within the last 4 seconds and not forced, avoid extra latency.
+    if (!forceProbe &&
+        _isOnline &&
+        _lastVerifiedAt != null &&
+        DateTime.now().difference(_lastVerifiedAt!) <
+            const Duration(seconds: 4)) {
+      return;
+    }
+
+    final reachable = await _probeSupabaseReachability();
+    _lastVerifiedAt = DateTime.now();
+    _updateOnlineStatus(reachable);
+    if (!reachable) {
+      throw AppNetworkException.unreachable();
+    }
+  }
+
   /// Performs an active check of network interfaces and Supabase REST endpoint reachability.
   Future<bool> checkNow({bool force = false}) async {
     if (!force &&
@@ -62,8 +103,7 @@ class NetworkMonitorService {
     }
 
     try {
-      final results = await _connectivity.checkConnectivity();
-      final hasInterface = results.any((r) => r != ConnectivityResult.none);
+      final hasInterface = await hasNetworkInterface();
       if (!hasInterface) {
         _lastVerifiedAt = DateTime.now();
         _updateOnlineStatus(false);
@@ -81,11 +121,16 @@ class NetworkMonitorService {
     }
   }
 
-  /// Marks network as offline immediately when a repository catches a SocketException /
-  /// ClientException during an online call, triggering background recovery polling.
+  /// Marks network as offline immediately when a request fails with a transport/timeout error.
   void reportNetworkFailure() {
     _lastVerifiedAt = DateTime.now();
     _updateOnlineStatus(false);
+  }
+
+  /// Marks network as online immediately when any HTTP response succeeds.
+  void reportNetworkSuccess() {
+    _lastVerifiedAt = DateTime.now();
+    _updateOnlineStatus(true);
   }
 
   Future<bool> _probeSupabaseReachability() async {
@@ -102,7 +147,7 @@ class NetworkMonitorService {
               if (anonKey.isNotEmpty) 'apikey': anonKey,
             },
           )
-          .timeout(const Duration(seconds: 4));
+          .timeout(AppTimeouts.connectivityProbe);
 
       // Any HTTP response from Supabase gateway (200, 401, 404) confirms internet + server reachability
       return response.statusCode > 0 && response.statusCode < 500;
