@@ -92,7 +92,7 @@ jobs:
           fi
           echo "::warning::download.onnxruntime.ai TLS verification failed; preparing SHA-256-verified local SwiftPM mirror for onnxruntime-swift-package-manager."
           python3 - << 'PY'
-          import hashlib, os, re, shutil, subprocess, zipfile
+          import glob, hashlib, os, re, shutil, subprocess, zipfile
 
           temp_dir = os.environ["RUNNER_TEMP"]
           repo_dir = os.path.join(temp_dir, "onnxruntime-spm")
@@ -101,10 +101,37 @@ jobs:
           if os.path.exists(repo_dir):
               shutil.rmtree(repo_dir)
 
-          subprocess.run(
-              ["git", "clone", "https://github.com/microsoft/onnxruntime-swift-package-manager.git", repo_dir],
-              check=True,
-          )
+          # Auto-discover the exact onnxruntime-swift-package-manager repo URL from Pub cache / ios
+          url_re = re.compile(r'https://github\.com/[A-Za-z0-9_.-]+/onnxruntime-swift-package-manager(?:\.git)?')
+          found_urls = set()
+          search_roots = [
+              os.path.expanduser("~/.pub-cache"),
+              os.path.join(os.getcwd(), "ios"),
+          ]
+          for root_dir in search_roots:
+              if not os.path.isdir(root_dir):
+                  continue
+              for r, _, files in os.walk(root_dir):
+                  for fn in files:
+                      if fn == "Package.swift":
+                          p = os.path.join(r, fn)
+                          try:
+                              txt = open(p, "r", encoding="utf-8", errors="ignore").read()
+                              for m in url_re.findall(txt):
+                                  found_urls.add(m)
+                          except OSError:
+                              pass
+
+          if not found_urls:
+              raise RuntimeError("Could not locate onnxruntime-swift-package-manager URL in Package.swift files")
+
+          raw_url = sorted(found_urls)[0]
+          base_url = raw_url[:-4] if raw_url.endswith(".git") else raw_url
+          clone_url = base_url + ".git"
+          print(f"Discovered onnxruntime SPM repo: {clone_url}")
+
+          env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+          subprocess.run(["git", "clone", clone_url, repo_dir], check=True, env=env)
           subprocess.run(["git", "-C", repo_dir, "config", "user.email", "ci@local"], check=True)
           subprocess.run(["git", "-C", repo_dir, "config", "user.name", "CI"], check=True)
 
@@ -180,15 +207,15 @@ jobs:
                   subprocess.run(["git", "-C", repo_dir, "tag", "-f", ref_name], check=True)
               return True
 
-          # Patch the latest tags (covers current 1.x release resolved by SwiftPM)
           patched = 0
           for tag in all_tags[:8]:
               if patch_ref(tag, is_tag=True):
                   patched += 1
           print(f"Patched {patched} tags in local onnxruntime-spm mirror.")
+
+          subprocess.run(["git", "config", "--global", "--add", f"url.file://{repo_dir}.insteadOf", base_url + ".git"], check=True)
+          subprocess.run(["git", "config", "--global", "--add", f"url.file://{repo_dir}.insteadOf", base_url], check=True)
           PY
-          git config --global url."file://$RUNNER_TEMP/onnxruntime-spm".insteadOf "https://github.com/microsoft/onnxruntime-swift-package-manager.git"
-          git config --global url."file://$RUNNER_TEMP/onnxruntime-spm".insteadOf "https://github.com/microsoft/onnxruntime-swift-package-manager"
       - name: Build iPhone app without signing
         if: matrix.platform == 'ios'
         shell: bash
