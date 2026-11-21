@@ -82,6 +82,113 @@ jobs:
       - name: Build Android APK
         if: matrix.platform == 'android'
         run: flutter build apk --release --build-number=${{ github.run_number }}
+      - name: Work around invalid download.onnxruntime.ai TLS cert on iOS CI
+        if: matrix.platform == 'ios'
+        shell: bash
+        run: |
+          if curl -fsSI --max-time 15 "https://download.onnxruntime.ai/pod-archive-onnxruntime-extensions-c-0.13.0.zip" >/dev/null 2>&1; then
+            echo "download.onnxruntime.ai TLS certificate is valid; using upstream SwiftPM directly."
+            exit 0
+          fi
+          echo "::warning::download.onnxruntime.ai TLS verification failed; preparing SHA-256-verified local SwiftPM mirror for onnxruntime-swift-package-manager."
+          python3 - << 'PY'
+          import hashlib, os, re, shutil, subprocess, zipfile
+
+          temp_dir = os.environ["RUNNER_TEMP"]
+          repo_dir = os.path.join(temp_dir, "onnxruntime-spm")
+          zip_cache = os.path.join(temp_dir, "ort-zips")
+          os.makedirs(zip_cache, exist_ok=True)
+          if os.path.exists(repo_dir):
+              shutil.rmtree(repo_dir)
+
+          subprocess.run(
+              ["git", "clone", "https://github.com/microsoft/onnxruntime-swift-package-manager.git", repo_dir],
+              check=True,
+          )
+          subprocess.run(["git", "-C", repo_dir, "config", "user.email", "ci@local"], check=True)
+          subprocess.run(["git", "-C", repo_dir, "config", "user.name", "CI"], check=True)
+
+          tags_out = subprocess.check_output(
+              ["git", "-C", repo_dir, "tag", "--sort=-v:refname"], text=True
+          )
+          all_tags = [t.strip() for t in tags_out.splitlines() if t.strip()]
+
+          pattern = re.compile(
+              r'url\s*:\s*"(https://download\.onnxruntime\.ai/[^"]+\.zip)"\s*,\s*checksum\s*:\s*"([0-9a-fA-F]{64})"',
+              re.DOTALL,
+          )
+
+          def ensure_zip(url: str, expected_sha: str) -> str:
+              fname = os.path.basename(url)
+              zpath = os.path.join(zip_cache, fname)
+              if not os.path.exists(zpath):
+                  print(f"Downloading {url} ...")
+                  subprocess.run(
+                      ["curl", "-fsSLk", "--retry", "3", "-o", zpath, url],
+                      check=True,
+                  )
+              h = hashlib.sha256()
+              with open(zpath, "rb") as f:
+                  for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                      h.update(chunk)
+              actual = h.hexdigest().lower()
+              if actual != expected_sha.lower():
+                  raise RuntimeError(f"SHA256 mismatch for {url}: expected {expected_sha}, got {actual}")
+              print(f"Verified SHA256 for {fname}: {actual}")
+              return zpath
+
+          def patch_ref(ref_name: str, is_tag: bool) -> bool:
+              subprocess.run(["git", "-C", repo_dir, "checkout", "-f", ref_name], check=True)
+              pkg_path = os.path.join(repo_dir, "Package.swift")
+              if not os.path.exists(pkg_path):
+                  return False
+              content = open(pkg_path, "r", encoding="utf-8").read()
+              matches = list(pattern.finditer(content))
+              if not matches:
+                  return False
+
+              local_root = os.path.join(repo_dir, "local_xcframeworks")
+              if os.path.exists(local_root):
+                  shutil.rmtree(local_root)
+              os.makedirs(local_root, exist_ok=True)
+
+              new_content = content
+              for idx, m in enumerate(matches):
+                  url, sha = m.group(1), m.group(2)
+                  zpath = ensure_zip(url, sha)
+                  extract_dir = os.path.join(local_root, f"art_{idx}")
+                  os.makedirs(extract_dir, exist_ok=True)
+                  with zipfile.ZipFile(zpath, "r") as zf:
+                      zf.extractall(extract_dir)
+                  xcf_rel = None
+                  for root, dirs, _ in os.walk(extract_dir):
+                      for d in dirs:
+                          if d.endswith(".xcframework"):
+                              xcf_rel = os.path.relpath(os.path.join(root, d), repo_dir).replace("\\", "/")
+                              break
+                      if xcf_rel:
+                          break
+                  if not xcf_rel:
+                      raise RuntimeError(f"No .xcframework found inside {zpath}")
+                  new_content = new_content.replace(m.group(0), f'path: "{xcf_rel}"', 1)
+
+              with open(pkg_path, "w", encoding="utf-8") as f:
+                  f.write(new_content)
+              subprocess.run(["git", "-C", repo_dir, "add", "-f", "Package.swift", "local_xcframeworks"], check=True)
+              subprocess.run(["git", "-C", repo_dir, "commit", "-m", f"ci: vendor verified xcframeworks for {ref_name}"], check=True)
+              if is_tag:
+                  subprocess.run(["git", "-C", repo_dir, "tag", "-f", ref_name], check=True)
+              return True
+
+          # Patch the latest tags (covers current 1.x release resolved by SwiftPM)
+          patched = 0
+          for tag in all_tags[:8]:
+              if patch_ref(tag, is_tag=True):
+                  patched += 1
+          print(f"Patched {patched} tags in local onnxruntime-spm mirror.")
+          PY
+          git config --global url."file://$RUNNER_TEMP/onnxruntime-spm".insteadOf "https://github.com/microsoft/onnxruntime-swift-package-manager.git"
+          git config --global url."file://$RUNNER_TEMP/onnxruntime-spm".insteadOf "https://github.com/microsoft/onnxruntime-swift-package-manager"
       - name: Build iPhone app without signing
         if: matrix.platform == 'ios'
         shell: bash
