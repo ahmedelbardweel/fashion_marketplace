@@ -82,28 +82,36 @@ jobs:
       - name: Build Android APK
         if: matrix.platform == 'android'
         run: flutter build apk --release --build-number=${{ github.run_number }}
-      - name: Work around invalid download.onnxruntime.ai TLS cert on iOS CI
+      - name: Work around broken download.onnxruntime.ai target on iOS CI
         if: matrix.platform == 'ios'
         shell: bash
         run: |
           if curl -fsSI --max-time 15 "https://download.onnxruntime.ai/pod-archive-onnxruntime-extensions-c-0.13.0.zip" >/dev/null 2>&1; then
-            echo "download.onnxruntime.ai TLS certificate is valid; using upstream SwiftPM directly."
+            echo "download.onnxruntime.ai is reachable; using upstream SwiftPM directly."
             exit 0
           fi
-          echo "::warning::download.onnxruntime.ai TLS verification failed; preparing SHA-256-verified local SwiftPM mirror for onnxruntime-swift-package-manager."
+          echo "::warning::download.onnxruntime.ai is unreachable (HTTP 404 / TLS); preparing local SwiftPM mirror for onnxruntime-swift-package-manager without unused onnxruntime_extensions."
           python3 -u - << 'PY'
-          import hashlib, json, os, re, shutil, subprocess, zipfile
+          import json, os, re, shutil, subprocess
 
           temp_dir = os.environ["RUNNER_TEMP"]
-          repo_dir = os.path.join(temp_dir, "onnxruntime-spm")
-          zip_cache = os.path.join(temp_dir, "ort-zips")
-          os.makedirs(zip_cache, exist_ok=True)
+          # Directory name MUST stay "onnxruntime-swift-package-manager" so SwiftPM
+          # derives the exact package identity expected by .product(..., package: "onnxruntime-swift-package-manager").
+          repo_dir = os.path.join(temp_dir, "onnxruntime-swift-package-manager")
           if os.path.exists(repo_dir):
               shutil.rmtree(repo_dir)
 
-          # Auto-discover the exact onnxruntime-swift-package-manager repo URL from Pub cache / ios
+          # Auto-discover the onnxruntime-swift-package-manager URL, pinned tags,
+          # consumer manifests, and whether any consumer uses onnxruntime_extensions.
           url_re = re.compile(r'https://github\.com/[A-Za-z0-9_.-]+/onnxruntime-swift-package-manager(?:\.git)?')
+          pin_re = re.compile(r'onnxruntime-swift-package-manager(?:\.git)?"\s*,\s*(?:exact|from)\s*:\s*"([^"]+)"')
+          pkg_dep_re = re.compile(
+              r'\.package\(\s*url\s*:\s*"https://github\.com/[A-Za-z0-9_.-]+/onnxruntime-swift-package-manager(?:\.git)?"\s*,\s*(?:exact|from)\s*:\s*"[^"]+"\s*\)'
+          )
           found_urls = set()
+          pinned_tags = []
+          consumer_manifests = []
+          uses_extensions = False
           search_roots = [
               os.path.expanduser("~/.pub-cache"),
               os.path.join(os.getcwd(), "ios"),
@@ -117,18 +125,28 @@ jobs:
                           p = os.path.join(r, fn)
                           try:
                               txt = open(p, "r", encoding="utf-8", errors="ignore").read()
-                              for m in url_re.findall(txt):
-                                  found_urls.add(m)
                           except OSError:
-                              pass
+                              continue
+                          matches = url_re.findall(txt)
+                          if not matches:
+                              continue
+                          found_urls.update(matches)
+                          consumer_manifests.append(p)
+                          for ver in pin_re.findall(txt):
+                              if ver not in pinned_tags:
+                                  pinned_tags.append(ver)
+                          if '"onnxruntime_extensions"' in txt:
+                              uses_extensions = True
 
           if not found_urls:
               raise RuntimeError("Could not locate onnxruntime-swift-package-manager URL in Package.swift files")
+          if uses_extensions:
+              raise RuntimeError("A dependency requires onnxruntime_extensions, whose upstream download.onnxruntime.ai archive is unreachable")
 
           raw_url = sorted(found_urls)[0]
           base_url = raw_url[:-4] if raw_url.endswith(".git") else raw_url
           clone_url = base_url + ".git"
-          print(f"Discovered onnxruntime SPM repo: {clone_url}")
+          print(f"Discovered onnxruntime SPM repo: {clone_url} (pinned tags: {pinned_tags})")
 
           env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
           subprocess.run(["git", "clone", clone_url, repo_dir], check=True, env=env)
@@ -139,28 +157,22 @@ jobs:
               ["git", "-C", repo_dir, "tag", "--sort=-v:refname"], text=True
           )
           all_tags = [t.strip() for t in tags_out.splitlines() if t.strip()]
+          candidate_tags = [t for t in pinned_tags if t in all_tags] + [
+              t for t in all_tags[:8] if t not in pinned_tags
+          ]
 
-          def ensure_zip(url: str, expected_sha: str) -> str:
-              fname = os.path.basename(url)
-              zpath = os.path.join(zip_cache, fname)
-              if not os.path.exists(zpath):
-                  print(f"Downloading {url} ...")
-                  subprocess.run(
-                      ["curl", "-fsSLk", "--retry", "3", "-o", zpath, url],
-                      check=True,
-                  )
-              h = hashlib.sha256()
-              with open(zpath, "rb") as f:
-                  for chunk in iter(lambda: f.read(1024 * 1024), b""):
-                      h.update(chunk)
-              actual = h.hexdigest().lower()
-              if expected_sha and actual != expected_sha.lower():
-                  raise RuntimeError(f"SHA256 mismatch for {url}: expected {expected_sha}, got {actual}")
-              print(f"Verified SHA256 for {fname}: {actual}")
-              return zpath
+          prune_snippet = (
+              "\n// CI: prune unused onnxruntime_extensions targets whose upstream download.onnxruntime.ai URL is unreachable\n"
+              "package.products.removeAll { $0.name == \"onnxruntime_extensions\" }\n"
+              "package.targets.removeAll {\n"
+              "    $0.name == \"onnxruntime_extensions\"\n"
+              "        || $0.name == \"OnnxRuntimeExtensions\"\n"
+              "        || $0.name == \"OnnxRuntimeExtensionsTests\"\n"
+              "}\n"
+          )
 
-          def patch_ref(ref_name: str, is_tag: bool) -> bool:
-              subprocess.run(["git", "-C", repo_dir, "checkout", "-f", ref_name], check=True)
+          def patch_tag(tag: str) -> bool:
+              subprocess.run(["git", "-C", repo_dir, "checkout", "-f", tag], check=True)
               subprocess.run(["git", "-C", repo_dir, "clean", "-fd"], check=True)
               pkg_path = os.path.join(repo_dir, "Package.swift")
               if not os.path.exists(pkg_path):
@@ -170,80 +182,108 @@ jobs:
                   ["swift", "package", "dump-package"], cwd=repo_dir, text=True
               )
               manifest = json.loads(dump_raw)
-              ort_targets = [
+              dead_targets = [
                   t for t in manifest.get("targets", [])
                   if t.get("type") == "binary"
                   and isinstance(t.get("url"), str)
                   and "download.onnxruntime.ai/" in t["url"]
               ]
-              if not ort_targets:
-                  print(f"Tag {ref_name} has no download.onnxruntime.ai binary targets.")
+              dead_names = {t["name"] for t in dead_targets}
+              if not dead_names:
+                  print(f"Tag {tag} already has no download.onnxruntime.ai binary targets.")
+                  return True
+
+              if dead_names != {"onnxruntime_extensions"}:
+                  print(f"Skipping tag {tag}: still depends on download.onnxruntime.ai for {sorted(dead_names)}")
                   return False
 
-              local_root = os.path.join(repo_dir, "local_xcframeworks")
-              os.makedirs(local_root, exist_ok=True)
-              replacements = {}
-
-              for t in ort_targets:
-                  tname = t["name"]
-                  url = t["url"]
-                  sha = t.get("checksum") or ""
-                  zpath = ensure_zip(url, sha)
-                  extract_dir = os.path.join(local_root, tname)
-                  os.makedirs(extract_dir, exist_ok=True)
-                  with zipfile.ZipFile(zpath, "r") as zf:
-                      zf.extractall(extract_dir)
-                  xcf_rel = None
-                  for root, dirs, _ in os.walk(extract_dir):
-                      for d in dirs:
-                          if d.endswith(".xcframework"):
-                              xcf_rel = os.path.relpath(os.path.join(root, d), repo_dir).replace("\\", "/")
-                              break
-                      if xcf_rel:
-                          break
-                  if not xcf_rel:
-                      raise RuntimeError(f"No .xcframework found inside {zpath}")
-                  replacements[tname] = xcf_rel
-
-              override_cases = "\n".join(
-                  f'  if t.name == "{name}" {{ return .binaryTarget(name: "{name}", path: "{rel}") }}'
-                  for name, rel in replacements.items()
-              )
-              override_snippet = (
-                  "\n// CI: use SHA-256-verified local xcframeworks\n"
-                  "package.targets = package.targets.map { t in\n"
-                  f"{override_cases}\n"
-                  "  return t\n"
-                  "}\n"
-              )
               with open(pkg_path, "a", encoding="utf-8") as f:
-                  f.write(override_snippet)
+                  f.write(prune_snippet)
 
-              # Verify patched Package.swift compiles cleanly with SwiftPM
-              subprocess.run(["swift", "package", "dump-package"], cwd=repo_dir, check=True, stdout=subprocess.DEVNULL)
+              verified_raw = subprocess.check_output(
+                  ["swift", "package", "dump-package"], cwd=repo_dir, text=True
+              )
+              verified = json.loads(verified_raw)
+              remaining_dead = [
+                  t["name"] for t in verified.get("targets", [])
+                  if isinstance(t.get("url"), str) and "download.onnxruntime.ai/" in t["url"]
+              ]
+              if remaining_dead:
+                  raise RuntimeError(f"Tag {tag} still has download.onnxruntime.ai targets after patch: {remaining_dead}")
 
-              subprocess.run(["git", "-C", repo_dir, "add", "-f", "Package.swift", "local_xcframeworks"], check=True)
-              subprocess.run(["git", "-C", repo_dir, "commit", "-m", f"ci: vendor verified xcframeworks for {ref_name}"], check=True)
-              if is_tag:
-                  subprocess.run(["git", "-C", repo_dir, "tag", "-f", ref_name], check=True)
-              print(f"Successfully patched tag {ref_name} ({list(replacements.keys())})")
+              ort_bins = [
+                  (t["name"], t.get("url")) for t in verified.get("targets", [])
+                  if t.get("type") == "binary"
+              ]
+              if not any(name == "onnxruntime" for name, _ in ort_bins):
+                  raise RuntimeError(f"Tag {tag} lost required onnxruntime binary target after patch")
+
+              subprocess.run(["git", "-C", repo_dir, "add", "Package.swift"], check=True)
+              subprocess.run(
+                  ["git", "-C", repo_dir, "commit", "-m", f"ci: prune unreachable onnxruntime_extensions for {tag}"],
+                  check=True,
+              )
+              subprocess.run(["git", "-C", repo_dir, "tag", "-f", tag], check=True)
+              print(f"Successfully patched tag {tag}; remaining binary targets: {ort_bins}")
               return True
 
-          patched = 0
-          for tag in all_tags[:8]:
+          patched_tags = []
+          for tag in candidate_tags:
               try:
-                  if patch_ref(tag, is_tag=True):
-                      patched += 1
+                  if patch_tag(tag):
+                      patched_tags.append(tag)
+                      if pinned_tags and all(p in patched_tags for p in pinned_tags):
+                          break
               except Exception as exc:
                   print(f"Skipping tag {tag}: {exc}")
                   subprocess.run(["git", "-C", repo_dir, "reset", "--hard"], check=False)
                   subprocess.run(["git", "-C", repo_dir, "clean", "-fd"], check=False)
-          if patched == 0:
-              raise RuntimeError("Failed to patch any tag in onnxruntime-spm mirror")
-          print(f"Patched {patched} tags in local onnxruntime-spm mirror.")
 
+          if not patched_tags or (pinned_tags and not all(p in patched_tags for p in pinned_tags)):
+              raise RuntimeError(
+                  f"Failed to patch required onnxruntime-spm tags (pinned={pinned_tags}, patched={patched_tags})"
+              )
+
+          # Leave the local repo checked out on the primary patched tag for local path resolution
+          subprocess.run(["git", "-C", repo_dir, "checkout", "-f", patched_tags[0]], check=True)
+
+          # Rewrite consumer manifests (e.g. flutter_onnxruntime) to use the local path package
+          # directly so Xcode's built-in SwiftPM SCM provider never hits the broken remote manifest.
+          manifest_list_file = os.path.join(temp_dir, "ort-patched-manifests.txt")
+          patched_manifests = []
+          for p in consumer_manifests:
+              txt = open(p, "r", encoding="utf-8").read()
+              new_txt, count = pkg_dep_re.subn(f'.package(path: "{repo_dir}")', txt)
+              if count > 0:
+                  bak = p + ".ci-bak"
+                  if not os.path.exists(bak):
+                      shutil.copy2(p, bak)
+                  with open(p, "w", encoding="utf-8") as f:
+                      f.write(new_txt)
+                  subprocess.run(
+                      ["swift", "package", "dump-package"],
+                      cwd=os.path.dirname(p),
+                      check=True,
+                      stdout=subprocess.DEVNULL,
+                  )
+                  patched_manifests.append(p)
+                  print(f"Pointed {p} directly to local SwiftPM package {repo_dir}")
+
+          with open(manifest_list_file, "w", encoding="utf-8") as f:
+              for p in patched_manifests:
+                  f.write(p + "\n")
+
+          # Also configure git url.insteadOf as a belt-and-suspenders fallback
+          subprocess.run(["git", "config", "--global", "protocol.file.allow", "always"], check=True)
           subprocess.run(["git", "config", "--global", "--add", f"url.file://{repo_dir}.insteadOf", base_url + ".git"], check=True)
           subprocess.run(["git", "config", "--global", "--add", f"url.file://{repo_dir}.insteadOf", base_url], check=True)
+
+          # Verify Git rewrite points the upstream URL to our patched local tag
+          local_sha = subprocess.check_output(["git", "-C", repo_dir, "rev-parse", patched_tags[0]], text=True).strip()
+          resolved_out = subprocess.check_output(["git", "ls-remote", base_url, f"refs/tags/{patched_tags[0]}"], text=True, env=env).strip()
+          print(f"Verified insteadOf redirect for {base_url} tag {patched_tags[0]}: {resolved_out} (expected {local_sha})")
+          if local_sha not in resolved_out:
+              raise RuntimeError("git url.insteadOf redirect verification failed")
           PY
       - name: Build iPhone app without signing
         if: matrix.platform == 'ios'
@@ -264,6 +304,15 @@ jobs:
             echo "::warning::Transient dependency download failure; retrying iOS build ($attempt/3)."
             sleep $((attempt * 20))
           done
+      - name: Restore patched Pub cache manifests
+        if: always() && matrix.platform == 'ios'
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/ort-patched-manifests.txt" ]; then
+            while IFS= read -r p; do
+              [ -f "$p.ci-bak" ] && mv -f "$p.ci-bak" "$p"
+            done < "$RUNNER_TEMP/ort-patched-manifests.txt"
+          fi
       - name: Package iPhone IPA for external signing
         if: matrix.platform == 'ios'
         shell: bash
