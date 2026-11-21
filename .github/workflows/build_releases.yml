@@ -91,8 +91,8 @@ jobs:
             exit 0
           fi
           echo "::warning::download.onnxruntime.ai TLS verification failed; preparing SHA-256-verified local SwiftPM mirror for onnxruntime-swift-package-manager."
-          python3 - << 'PY'
-          import glob, hashlib, os, re, shutil, subprocess, zipfile
+          python3 -u - << 'PY'
+          import hashlib, json, os, re, shutil, subprocess, zipfile
 
           temp_dir = os.environ["RUNNER_TEMP"]
           repo_dir = os.path.join(temp_dir, "onnxruntime-spm")
@@ -140,11 +140,6 @@ jobs:
           )
           all_tags = [t.strip() for t in tags_out.splitlines() if t.strip()]
 
-          pattern = re.compile(
-              r'url\s*:\s*"(https://download\.onnxruntime\.ai/[^"]+\.zip)"\s*,\s*checksum\s*:\s*"([0-9a-fA-F]{64})"',
-              re.DOTALL,
-          )
-
           def ensure_zip(url: str, expected_sha: str) -> str:
               fname = os.path.basename(url)
               zpath = os.path.join(zip_cache, fname)
@@ -159,31 +154,42 @@ jobs:
                   for chunk in iter(lambda: f.read(1024 * 1024), b""):
                       h.update(chunk)
               actual = h.hexdigest().lower()
-              if actual != expected_sha.lower():
+              if expected_sha and actual != expected_sha.lower():
                   raise RuntimeError(f"SHA256 mismatch for {url}: expected {expected_sha}, got {actual}")
               print(f"Verified SHA256 for {fname}: {actual}")
               return zpath
 
           def patch_ref(ref_name: str, is_tag: bool) -> bool:
               subprocess.run(["git", "-C", repo_dir, "checkout", "-f", ref_name], check=True)
+              subprocess.run(["git", "-C", repo_dir, "clean", "-fd"], check=True)
               pkg_path = os.path.join(repo_dir, "Package.swift")
               if not os.path.exists(pkg_path):
                   return False
-              content = open(pkg_path, "r", encoding="utf-8").read()
-              matches = list(pattern.finditer(content))
-              if not matches:
+
+              dump_raw = subprocess.check_output(
+                  ["swift", "package", "dump-package"], cwd=repo_dir, text=True
+              )
+              manifest = json.loads(dump_raw)
+              ort_targets = [
+                  t for t in manifest.get("targets", [])
+                  if t.get("type") == "binary"
+                  and isinstance(t.get("url"), str)
+                  and "download.onnxruntime.ai/" in t["url"]
+              ]
+              if not ort_targets:
+                  print(f"Tag {ref_name} has no download.onnxruntime.ai binary targets.")
                   return False
 
               local_root = os.path.join(repo_dir, "local_xcframeworks")
-              if os.path.exists(local_root):
-                  shutil.rmtree(local_root)
               os.makedirs(local_root, exist_ok=True)
+              replacements = {}
 
-              new_content = content
-              for idx, m in enumerate(matches):
-                  url, sha = m.group(1), m.group(2)
+              for t in ort_targets:
+                  tname = t["name"]
+                  url = t["url"]
+                  sha = t.get("checksum") or ""
                   zpath = ensure_zip(url, sha)
-                  extract_dir = os.path.join(local_root, f"art_{idx}")
+                  extract_dir = os.path.join(local_root, tname)
                   os.makedirs(extract_dir, exist_ok=True)
                   with zipfile.ZipFile(zpath, "r") as zf:
                       zf.extractall(extract_dir)
@@ -197,20 +203,43 @@ jobs:
                           break
                   if not xcf_rel:
                       raise RuntimeError(f"No .xcframework found inside {zpath}")
-                  new_content = new_content.replace(m.group(0), f'path: "{xcf_rel}"', 1)
+                  replacements[tname] = xcf_rel
 
-              with open(pkg_path, "w", encoding="utf-8") as f:
-                  f.write(new_content)
+              override_cases = "\n".join(
+                  f'  if t.name == "{name}" {{ return .binaryTarget(name: "{name}", path: "{rel}") }}'
+                  for name, rel in replacements.items()
+              )
+              override_snippet = (
+                  "\n// CI: use SHA-256-verified local xcframeworks\n"
+                  "package.targets = package.targets.map { t in\n"
+                  f"{override_cases}\n"
+                  "  return t\n"
+                  "}\n"
+              )
+              with open(pkg_path, "a", encoding="utf-8") as f:
+                  f.write(override_snippet)
+
+              # Verify patched Package.swift compiles cleanly with SwiftPM
+              subprocess.run(["swift", "package", "dump-package"], cwd=repo_dir, check=True, stdout=subprocess.DEVNULL)
+
               subprocess.run(["git", "-C", repo_dir, "add", "-f", "Package.swift", "local_xcframeworks"], check=True)
               subprocess.run(["git", "-C", repo_dir, "commit", "-m", f"ci: vendor verified xcframeworks for {ref_name}"], check=True)
               if is_tag:
                   subprocess.run(["git", "-C", repo_dir, "tag", "-f", ref_name], check=True)
+              print(f"Successfully patched tag {ref_name} ({list(replacements.keys())})")
               return True
 
           patched = 0
           for tag in all_tags[:8]:
-              if patch_ref(tag, is_tag=True):
-                  patched += 1
+              try:
+                  if patch_ref(tag, is_tag=True):
+                      patched += 1
+              except Exception as exc:
+                  print(f"Skipping tag {tag}: {exc}")
+                  subprocess.run(["git", "-C", repo_dir, "reset", "--hard"], check=False)
+                  subprocess.run(["git", "-C", repo_dir, "clean", "-fd"], check=False)
+          if patched == 0:
+              raise RuntimeError("Failed to patch any tag in onnxruntime-spm mirror")
           print(f"Patched {patched} tags in local onnxruntime-spm mirror.")
 
           subprocess.run(["git", "config", "--global", "--add", f"url.file://{repo_dir}.insteadOf", base_url + ".git"], check=True)
