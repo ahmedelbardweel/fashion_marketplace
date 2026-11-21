@@ -3,17 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/theme/app_design.dart';
+import '../../../../core/widgets/app_empty.dart';
 import 'admin_bottom_nav.dart';
 
 class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
   const AdminAppBar({
     super.key,
     required this.title,
+    this.titleWidget,
     this.showBack = true,
     this.actions,
   });
 
   final String title;
+  final Widget? titleWidget;
   final bool showBack;
   final List<Widget>? actions;
 
@@ -23,6 +26,9 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final canPop = showBack && Navigator.of(context).canPop();
+    final overlayStyle = AppColors.isDark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
 
     return AppBar(
       toolbarHeight: AppBarDesign.height,
@@ -30,19 +36,17 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
       foregroundColor: AppBarDesign.titleColor,
       elevation: 0,
       scrolledUnderElevation: 0,
-      systemOverlayStyle: SystemUiOverlayStyle.dark,
+      systemOverlayStyle: overlayStyle,
       shape: Border(
         bottom: BorderSide(color: AppBarDesign.borderColor, width: 1),
       ),
       leading: canPop
           ? IconButton(
+              tooltip: 'رجوع'.tr,
               onPressed: AppHaptics.action(
                 () => Navigator.of(context).maybePop(),
               ),
-              icon: Icon(
-                AppIcons.back,
-                color: AppBarDesign.iconColor,
-              ),
+              icon: Icon(AppIcons.back, color: AppBarDesign.iconColor),
             )
           : const Padding(
               padding: EdgeInsetsDirectional.only(start: AppSpacing.sm),
@@ -51,27 +55,37 @@ class AdminAppBar extends StatelessWidget implements PreferredSizeWidget {
       leadingWidth: canPop ? 56 : 48,
       titleSpacing: canPop ? 0 : AppSpacing.xs,
       centerTitle: false,
-      title: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (canPop) ...[
-            const AppLogoMark(),
-            const SizedBox(width: AppSpacing.xs),
-          ],
-          Flexible(
-            child: Text(
-              AppLang.tr(title),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: AppBarDesign.titleSize,
-                fontWeight: AppBarDesign.titleWeight,
-                color: AppBarDesign.titleColor,
-              ),
+      title: titleWidget != null
+          ? Row(
+              children: [
+                if (canPop) ...[
+                  const AppLogoMark(),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
+                Expanded(child: titleWidget!),
+              ],
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (canPop) ...[
+                  const AppLogoMark(),
+                  const SizedBox(width: AppSpacing.xs),
+                ],
+                Flexible(
+                  child: Text(
+                    AppLang.tr(title),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: AppBarDesign.titleSize,
+                      fontWeight: AppBarDesign.titleWeight,
+                      color: AppBarDesign.titleColor,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
       actions: actions,
     );
   }
@@ -82,6 +96,7 @@ class AdminScaffold extends StatelessWidget {
     super.key,
     required this.title,
     required this.body,
+    this.titleWidget,
     this.showBack = true,
     this.showBottomNav = true,
     this.actions,
@@ -89,6 +104,7 @@ class AdminScaffold extends StatelessWidget {
   });
 
   final String title;
+  final Widget? titleWidget;
   final Widget body;
   final bool showBack;
   final bool showBottomNav;
@@ -98,23 +114,35 @@ class AdminScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AdminAppBar(title: title, showBack: showBack, actions: actions),
-      body: SafeArea(child: body),
+      backgroundColor: SellerDesign.pageBackground,
+      appBar: AdminAppBar(
+        title: title,
+        titleWidget: titleWidget,
+        showBack: showBack,
+        actions: actions,
+      ),
+      body: SafeArea(bottom: false, child: body),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (bottom != null)
-            Material(
-              color: AppColors.white,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.md,
-                  AppSpacing.sm,
-                  AppSpacing.md,
-                  AppSpacing.sm,
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                border: Border(top: AppBorders.side),
+              ),
+              child: SafeArea(
+                top: false,
+                bottom: !showBottomNav,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                  ),
+                  child: bottom,
                 ),
-                child: bottom,
               ),
             ),
           if (showBottomNav) const AdminBottomNav(),
@@ -124,26 +152,32 @@ class AdminScaffold extends StatelessWidget {
   }
 }
 
+/// Clean shadow-free feature tile matching ShopFeatureTile (zero dev codes, zero body icons).
 class AdminFeatureTile extends StatelessWidget {
   const AdminFeatureTile({
     super.key,
-    required this.code,
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.code,
     this.badge,
+    this.trailingValue,
+    this.badgeTone = BadgeTone.primary,
   });
 
-  final String code;
+  /// Kept optional for backward compatibility; never displayed.
+  final String? code;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
   final String? badge;
+  final String? trailingValue;
+  final BadgeTone badgeTone;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.white,
+      color: SellerDesign.statCardBackground,
       borderRadius: BorderRadius.circular(CardDesign.radius),
       child: InkWell(
         onTap: AppHaptics.action(onTap),
@@ -152,7 +186,7 @@ class AdminFeatureTile extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
-            border: Border.all(color: CardDesign.border),
+            border: Border.all(color: SellerDesign.statCardBorder),
             borderRadius: BorderRadius.circular(CardDesign.radius),
           ),
           child: Row(
@@ -162,46 +196,39 @@ class AdminFeatureTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      AppLang.tr(code),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.primaryDark,
+                      AppLang.tr(title),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: AppFont.bold,
-                        letterSpacing: 0.6,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      AppLang.tr(title),
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       AppLang.tr(subtitle),
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   ],
                 ),
               ),
-              if (badge != null) ...[
+              if (badge != null && badge!.isNotEmpty) ...[
                 const SizedBox(width: AppSpacing.sm),
-                Container(
-                  padding: BadgeDesign.padding,
-                  decoration: BoxDecoration(
-                    color: BadgeDesign.primaryBackground,
-                    borderRadius: BorderRadius.circular(BadgeDesign.radius),
-                  ),
-                  child: Text(
-                    AppLang.tr(badge!),
-                    style: TextStyle(
-                      color: BadgeDesign.primaryText,
-                      fontSize: BadgeDesign.textSize,
-                      fontWeight: BadgeDesign.textWeight,
-                    ),
+                AppStatusBadge(label: badge!, tone: badgeTone),
+              ],
+              if (trailingValue != null && trailingValue!.isNotEmpty) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  trailingValue!,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: AppFont.extraBold,
+                    color: AppColors.text,
                   ),
                 ),
               ],
-              const SizedBox(width: AppSpacing.xs),
-              Icon(AppIcons.forward, color: AppColors.icon),
             ],
           ),
         ),

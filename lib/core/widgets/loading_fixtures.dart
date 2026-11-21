@@ -84,6 +84,7 @@ abstract final class LoadingFixtures {
     'products': 48,
     'orders': 32,
   });
+  static AdminStats get adminStats => stats;
   static final shopStats = seller.ShopStats.fromMap(const {
     'products': 24,
     'orders': 12,

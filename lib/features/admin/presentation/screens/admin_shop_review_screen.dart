@@ -43,7 +43,7 @@ class AdminShopReviewScreen extends ConsumerWidget {
             const SizedBox(height: AppSpacing.sm),
             AppButton(
               label: 'إلغاء'.tr,
-              variant: AppButtonVariant.outlined,
+              variant: AppButtonVariant.secondary,
               onPressed: () => Navigator.of(context).pop(false),
             ),
           ],
@@ -107,7 +107,7 @@ class AdminShopReviewScreen extends ConsumerWidget {
               const SizedBox(height: AppSpacing.sm),
               AppButton(
                 label: 'إلغاء'.tr,
-                variant: AppButtonVariant.outlined,
+                variant: AppButtonVariant.secondary,
                 onPressed: () => Navigator.of(context).pop(false),
               ),
             ],

@@ -8,6 +8,7 @@ import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../../core/widgets/gaza_region_picker_sheet.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/customer_providers.dart';
 
@@ -131,12 +132,9 @@ class _CustomerCompleteProfileScreenState
                   textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                AppTextField(
+                GazaRegionFormField(
                   controller: _cityController,
-                  label: 'المدينة'.tr,
-                  validator: (value) =>
-                      Validators.required(value, field: 'المدينة'.tr),
-                  textInputAction: TextInputAction.next,
+                  enabled: !busy,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(

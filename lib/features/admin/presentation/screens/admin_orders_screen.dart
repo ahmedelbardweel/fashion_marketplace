@@ -1,18 +1,20 @@
-import '../../../../core/theme/app_design.dart';
-import '../../../../core/widgets/loading_fixtures.dart';
-
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/widgets/app_card.dart';
-import '../../domain/models/catalog_models.dart';
 import '../../../../core/filtering/filter_models.dart';
+import '../../../../core/theme/app_design.dart';
+import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_filter_bar.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/gaza_region_picker_sheet.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/order_filter_sheet.dart';
+import '../../domain/models/gaza_region.dart';
 import '../providers/admin_providers.dart';
 import '../widgets/admin_app_bar.dart';
-import '../widgets/admin_async_body.dart';
+import '../widgets/admin_components.dart';
 
 class AdminOrdersScreen extends ConsumerStatefulWidget {
   const AdminOrdersScreen({super.key});
@@ -23,22 +25,67 @@ class AdminOrdersScreen extends ConsumerStatefulWidget {
 
 class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
   OrderFilterState _filter = OrderFilterState.empty;
+  String? _selectedRegion;
+
+  Future<void> _pickRegion() async {
+    final regions =
+        ref.read(adminGazaRegionsProvider).asData?.value ?? kDefaultGazaRegions;
+    final picked = await showGazaRegionPickerSheet(
+      context: context,
+      regions: regions,
+      selectedRegionName: _selectedRegion,
+      allowClear: true,
+      title: 'تصفية الطلبات حسب منطقة في غزة',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _selectedRegion = picked.name.isEmpty ? null : picked.name;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    final orders = ref.watch(adminOrdersProvider);
+    final ordersAsync = ref.watch(adminOrdersProvider);
+    final busy = ref.watch(adminActionProvider).isLoading;
 
     return AdminScaffold(
       title: 'الطلبات'.tr,
-      body: AdminAsyncBody<List<AdminOrder>>(
+      showBack: false,
+      body: ordersAsync.skeletonWhen(
         placeholder: LoadingFixtures.adminOrders,
-        value: orders,
-        emptyMessage: 'لا توجد طلبات بعد'.tr,
-        isEmpty: (data) => data.isEmpty,
-        onRetry: () => ref.invalidate(adminOrdersProvider),
-        onRefresh: () => ref.refresh(adminOrdersProvider.future),
-        builder: (items) {
-          final filtered = filterAdminOrders(items, _filter);
+        error: (err, _) => ListView(
+          padding: AppSpacing.page,
+          children: [
+            AdminNoticeBanner(
+              title: 'تعذر تحميل الطلبات',
+              message: ref.read(adminRepositoryProvider).mapError(err),
+              tone: BadgeTone.error,
+              actionLabel: 'إعادة المحاولة',
+              onAction: () => ref.invalidate(adminOrdersProvider),
+            ),
+          ],
+        ),
+        data: (items) {
+          if (items.isEmpty) {
+            return AdminCenteredEmptyView(
+              onRefresh: () => ref.refresh(adminOrdersProvider.future),
+              title: 'لا توجد طلبات بعد',
+              message:
+                  'ستظهر هنا جميع طلبات المنصة مع إمكانية متابعة حالتها وتحديثها.',
+            );
+          }
+
+          var filtered = filterAdminOrders(items, _filter);
+          if (_selectedRegion != null && _selectedRegion!.isNotEmpty) {
+            final q = _selectedRegion!.toLowerCase();
+            filtered = filtered.where((o) {
+              final text =
+                  '${o.shippingCity ?? ''} ${o.shippingAddress ?? ''} ${o.shopCity ?? ''}'
+                      .toLowerCase();
+              return text.contains(q);
+            }).toList();
+          }
+
           final shopNames = extractDistinctValues(items.map((o) => o.shopName));
           final statusCounts = <String, int>{};
           for (final o in items) {
@@ -49,7 +96,7 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
             children: [
               AppFilterToolbar(
                 searchValue: _filter.search,
-                searchHint: 'ابحث برقم الطلب، المتجر، العميل...',
+                searchHint: 'ابحث برقم الطلب، المتجر، العميل، المنطقة...',
                 onSearchChanged: (val) =>
                     setState(() => _filter = _filter.copyWith(search: val)),
                 sortLabel: _filter.sort.labelAr,
@@ -64,17 +111,10 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
                     setState(() => _filter = _filter.copyWith(sort: selected));
                   }
                 },
-                onOpenAdvancedFilter: () async {
-                  final updated = await showOrderFilterSheet(
-                    context: context,
-                    initial: _filter,
-                    availableShops: shopNames,
-                  );
-                  if (updated != null && mounted) {
-                    setState(() => _filter = updated);
-                  }
-                },
-                activeFacetCount: _filter.activeFacetCount,
+                onOpenAdvancedFilter: _pickRegion,
+                activeFacetCount:
+                    _filter.activeFacetCount +
+                    (_selectedRegion != null ? 1 : 0),
                 quickOptions: [
                   AppQuickFilterOption(
                     id: 'admin_order_all',
@@ -99,80 +139,59 @@ class _AdminOrdersScreenState extends ConsumerState<AdminOrdersScreen> {
                       }),
                     ),
                 ],
-                activeTags: buildOrderActiveTags(
-                  filter: _filter,
-                  onChanged: (next) => setState(() => _filter = next),
-                ),
+                activeTags: [
+                  ...buildOrderActiveTags(
+                    filter: _filter,
+                    onChanged: (next) => setState(() => _filter = next),
+                  ),
+                  if (_selectedRegion != null)
+                    AppActiveFilterTag(
+                      label: '${'المنطقة'.tr}: $_selectedRegion',
+                      onRemove: () => setState(() => _selectedRegion = null),
+                    ),
+                ],
                 totalCount: items.length,
                 filteredCount: filtered.length,
-                hasActiveCustomization: _filter.hasActiveFilters,
-                onClearAll: () =>
-                    setState(() => _filter = OrderFilterState.empty),
+                hasActiveCustomization:
+                    _filter.hasActiveFilters || _selectedRegion != null,
+                onClearAll: () => setState(() {
+                  _filter = OrderFilterState.empty;
+                  _selectedRegion = null;
+                }),
                 showCountWhenUnfiltered: true,
               ),
               Expanded(
                 child: filtered.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: AppSpacing.page,
-                        children: [
-                          AppFilterEmptyState(
-                            onReset: () => setState(
-                              () => _filter = OrderFilterState.empty,
-                            ),
-                          ),
-                        ],
+                    ? AdminCenteredEmptyView(
+                        onRefresh: () =>
+                            ref.refresh(adminOrdersProvider.future),
+                        title: 'لا توجد طلبات مطابقة',
+                        message:
+                            'جرّب إزالة الفلاتر أو اختيار منطقة أخرى في قطاع غزة.',
                       )
-                    : ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: AppSpacing.page,
-                        children: filtered
-                            .map(
-                              (order) => Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: AppSpacing.sm,
-                                ),
-                                child: AppCard(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        order.shopName ?? 'محل'.tr,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleLarge,
-                                      ),
-                                      const SizedBox(height: AppSpacing.xs),
-                                      Text(
-                                        '${order.statusLabel.tr} · ${AppFormat.price(order.total)}',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium,
-                                      ),
-                                      const SizedBox(height: AppSpacing.xs),
-                                      Text(
-                                        order.customerEmail ?? '-',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                      const SizedBox(height: AppSpacing.xs),
-                                      Text(
-                                        order.createdAt
-                                            .toString()
-                                            .split('.')
-                                            .first,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            )
-                            .toList(),
+                    : AppRefreshIndicator(
+                        onRefresh: () =>
+                            ref.refresh(adminOrdersProvider.future),
+                        child: ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: AppSpacing.page,
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: AppSpacing.sm),
+                          itemBuilder: (context, index) {
+                            final order = filtered[index];
+                            return AdminOrderCard(
+                              order: order,
+                              onTap: busy
+                                  ? null
+                                  : () => showAdminOrderStatusSheet(
+                                      context,
+                                      ref,
+                                      order,
+                                    ),
+                            );
+                          },
+                        ),
                       ),
               ),
             ],

@@ -7,6 +7,7 @@ import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
+import '../../../../core/widgets/promo_banner_carousel.dart';
 import '../../../../router/routes.dart';
 import '../../../auth/domain/models/app_user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -27,6 +28,7 @@ class ShopDashboardScreen extends ConsumerWidget {
     final shopAsync = ref.watch(myShopProvider);
     final statsAsync = ref.watch(shopStatsProvider);
     final ordersAsync = ref.watch(shopOrdersProvider);
+    final bannersAsync = ref.watch(shopBannersProvider);
     final currentUser = ref.watch(authControllerProvider).user;
     final busy = ref.watch(shopCatalogActionProvider).isLoading;
 
@@ -39,6 +41,7 @@ class ShopDashboardScreen extends ConsumerWidget {
         ref.refresh(myShopProvider.future),
         ref.refresh(shopStatsProvider.future),
         if (approved) ref.refresh(shopOrdersProvider.future),
+        if (approved) ref.refresh(shopBannersProvider.future),
         ref.refresh(shopNotificationsProvider.future),
       ]);
     }
@@ -51,8 +54,29 @@ class ShopDashboardScreen extends ConsumerWidget {
         onRefresh: handleRefresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: AppSpacing.page,
+          padding: EdgeInsets.zero,
           children: [
+            if (approved)
+              bannersAsync.skeletonWhen(
+                placeholder: LoadingFixtures.banners,
+                skipLoadingOnReload: true,
+                error: (_, _) => const SizedBox.shrink(),
+                data: (banners) {
+                  final activeBanners = banners
+                      .where((b) => b.isActive)
+                      .toList();
+                  if (activeBanners.isEmpty) return const SizedBox.shrink();
+                  return PromoBannerCarousel(
+                    banners: activeBanners,
+                    onBannerTap: (_) => context.go(AppRoutes.shopBanners),
+                  );
+                },
+              ),
+            Padding(
+              padding: AppSpacing.page,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
             if (!awaitingShop && shop != null && !approved) ...[
               _buildApprovalBanner(context, shop),
               const SizedBox(height: AppSpacing.md),
@@ -80,6 +104,13 @@ class ShopDashboardScreen extends ConsumerWidget {
                     subtitle: 'متابعة طلبات المحل وتحديث حالتها',
                     trailingValue: '${stats.orders}',
                     onTap: () => context.go(AppRoutes.shopOrders),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  ShopFeatureTile(
+                    title: 'بنرات المتجر',
+                    subtitle: 'إدارة بنرات العروض والإعلانات الخاصة بمتجرك',
+                    trailingValue: '${bannersAsync.asData?.value.length ?? 0}',
+                    onTap: () => context.go(AppRoutes.shopBanners),
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   ShopFeatureTile(
@@ -159,6 +190,9 @@ class ShopDashboardScreen extends ConsumerWidget {
               ),
             ],
             const SizedBox(height: AppSpacing.md),
+                ],
+              ),
+            ),
           ],
         ),
       ),

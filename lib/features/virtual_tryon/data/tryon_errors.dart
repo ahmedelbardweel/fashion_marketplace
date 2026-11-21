@@ -103,6 +103,12 @@ TryonFailure sessionFunctionFailure(int status, Object? details) {
         'تم إيقاف خدمة التجربة الافتراضية مؤقتاً من قبل الإدارة.'.tr,
       );
     }
+    if (code == 'all_keys_depleted') {
+      return TryonFailure(
+        'خدمة التجربة الافتراضية غير متاحة مؤقتاً لانتهاء الرصيد. يرجى المحاولة لاحقاً.'
+            .tr,
+      );
+    }
   }
   return sessionHttpFailure(status);
 }

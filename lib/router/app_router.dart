@@ -9,7 +9,9 @@ import '../features/admin/presentation/screens/admin_dashboard_screen.dart';
 import '../features/admin/presentation/screens/admin_notifications_screen.dart';
 import '../features/admin/presentation/screens/admin_orders_screen.dart';
 import '../features/admin/presentation/screens/admin_products_screen.dart';
+import '../features/admin/presentation/screens/admin_regions_screen.dart';
 import '../features/admin/presentation/screens/admin_reports_screen.dart';
+import '../features/admin/presentation/screens/admin_revenue_screen.dart';
 import '../features/admin/presentation/screens/admin_settings_screen.dart';
 import '../features/admin/presentation/screens/admin_shop_applications_screen.dart';
 import '../features/admin/presentation/screens/admin_shop_review_screen.dart';
@@ -41,6 +43,7 @@ import '../features/customer/presentation/screens/product_details_screen.dart';
 import '../features/customer/presentation/screens/shop_public_profile_screen.dart';
 import '../features/shop/domain/models/shop.dart';
 import '../features/shop/presentation/screens/shop_application_status_screen.dart';
+import '../features/shop/presentation/screens/shop_banners_screen.dart';
 import '../features/shop/presentation/screens/shop_complete_profile_screen.dart';
 import '../features/shop/presentation/screens/shop_dashboard_screen.dart';
 import '../features/shop/presentation/screens/shop_notifications_screen.dart';
@@ -261,6 +264,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AdminReportsScreen(),
       ),
       GoRoute(
+        path: AppRoutes.adminRegions,
+        builder: (context, state) => const AdminRegionsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminRevenue,
+        builder: (context, state) => const AdminRevenueScreen(),
+      ),
+      GoRoute(
         path: AppRoutes.adminSettings,
         builder: (context, state) => const AdminSettingsScreen(),
       ),
@@ -283,6 +294,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.shopOffers,
         builder: (context, state) => const ShopOffersScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.shopBanners,
+        builder: (context, state) => const ShopBannersScreen(),
       ),
       GoRoute(
         path: AppRoutes.shopProductForm,

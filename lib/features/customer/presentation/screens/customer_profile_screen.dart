@@ -12,7 +12,10 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../../core/widgets/gaza_region_picker_sheet.dart';
 import '../../../../router/routes.dart';
+import '../../../admin/domain/models/gaza_region.dart';
+import '../../../admin/presentation/providers/admin_providers.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_action_sheet.dart';
@@ -70,6 +73,17 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
               );
               return;
             }
+            final regions =
+                ref.read(gazaRegionsProvider).asData?.value ??
+                kDefaultGazaRegions;
+            if (!isValidGazaRegionSelection(city, regions)) {
+              showAppSnackBar(
+                context,
+                'يرجى اختيار المدينة من مناطق قطاع غزة المعتمدة'.tr,
+                isError: true,
+              );
+              return;
+            }
 
             setSheetState(() => isSaving = true);
             try {
@@ -120,10 +134,9 @@ class _CustomerProfileScreenState extends ConsumerState<CustomerProfileScreen> {
                   keyboardType: TextInputType.phone,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                AppTextField(
+                GazaRegionFormField(
                   controller: _cityController,
-                  label: 'المدينة'.tr,
-                  prefixIcon: AppIcons.city,
+                  enabled: !isSaving,
                 ),
                 const SizedBox(height: AppSpacing.md),
                 AppTextField(

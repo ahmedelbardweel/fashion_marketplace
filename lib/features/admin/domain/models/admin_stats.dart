@@ -11,6 +11,12 @@ class AdminStats {
     required this.categories,
     required this.banners,
     required this.notifications,
+    this.activeOffers = 0,
+    this.todayOrders = 0,
+    this.todaySales = 0,
+    this.totalSales = 0,
+    this.regionsTotal = 0,
+    this.activeRegions = 0,
   });
 
   final int customers;
@@ -24,21 +30,34 @@ class AdminStats {
   final int categories;
   final int banners;
   final int notifications;
+  final int activeOffers;
+  final int todayOrders;
+  final double todaySales;
+  final double totalSales;
+  final int regionsTotal;
+  final int activeRegions;
 
   factory AdminStats.fromMap(Map<String, dynamic> map) {
-    int read(String key) => (map[key] as num?)?.toInt() ?? 0;
+    int readInt(String key) => (map[key] as num?)?.toInt() ?? 0;
+    double readDouble(String key) => (map[key] as num?)?.toDouble() ?? 0;
     return AdminStats(
-      customers: read('customers'),
-      shops: read('shops'),
-      pendingShops: read('pending_shops'),
-      approvedShops: read('approved_shops'),
-      suspendedShops: read('suspended_shops'),
-      products: read('products'),
-      hiddenProducts: read('hidden_products'),
-      orders: read('orders'),
-      categories: read('categories'),
-      banners: read('banners'),
-      notifications: read('notifications'),
+      customers: readInt('customers'),
+      shops: readInt('shops'),
+      pendingShops: readInt('pending_shops'),
+      approvedShops: readInt('approved_shops'),
+      suspendedShops: readInt('suspended_shops'),
+      products: readInt('products'),
+      hiddenProducts: readInt('hidden_products'),
+      orders: readInt('orders'),
+      categories: readInt('categories'),
+      banners: readInt('banners'),
+      notifications: readInt('notifications'),
+      activeOffers: readInt('active_offers'),
+      todayOrders: readInt('today_orders'),
+      todaySales: readDouble('today_sales'),
+      totalSales: readDouble('total_sales'),
+      regionsTotal: readInt('regions_total'),
+      activeRegions: readInt('active_regions'),
     );
   }
 }

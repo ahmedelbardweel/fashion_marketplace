@@ -73,6 +73,9 @@ abstract final class AppIcons {
   static const IconData offers = IconsaxPlusLinear.discount_shape;
   static const IconData offersActive = IconsaxPlusBold.discount_shape;
 
+  static const IconData banners = IconsaxPlusLinear.gallery;
+  static const IconData bannersActive = IconsaxPlusBold.gallery;
+
   static const IconData settings = IconsaxPlusLinear.setting_2;
   static const IconData settingsActive = IconsaxPlusBold.setting_2;
 

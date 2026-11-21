@@ -21,6 +21,8 @@ class AppRoutes {
   static const adminBanners = '/admin/banners';
   static const adminNotifications = '/admin/notifications';
   static const adminReports = '/admin/reports';
+  static const adminRegions = '/admin/regions';
+  static const adminRevenue = '/admin/revenue';
   static const adminSettings = '/admin/settings';
 
   static const shopRoot = '/shop';
@@ -29,6 +31,7 @@ class AppRoutes {
   static const shopStatus = '/shop/status';
   static const shopProducts = '/shop/products';
   static const shopOffers = '/shop/offers';
+  static const shopBanners = '/shop/banners';
   static const shopProductForm = '/shop/product/new';
   static const shopProductEdit = '/shop/product/:productId';
   static const shopOrders = '/shop/orders';

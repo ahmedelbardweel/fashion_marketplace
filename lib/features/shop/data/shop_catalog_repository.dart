@@ -10,6 +10,7 @@ import '../../../core/offline/offline_sync_engine.dart';
 import '../../../core/pagination/paginated_state.dart';
 import '../../../core/utils/map_utils.dart';
 import '../../admin/domain/models/catalog_models.dart';
+import '../../admin/domain/models/revenue_models.dart';
 import '../domain/models/shop.dart';
 import '../domain/models/shop_product.dart';
 
@@ -128,6 +129,105 @@ class ShopCatalogRepository {
     } catch (_) {
       // Non-critical background sync
     }
+  }
+
+  Future<List<AdminBanner>> fetchMyBanners() async {
+    final shopId = await _resolveCurrentShopId();
+    if (shopId == null) return const [];
+
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final rows = await _client
+            .from('banners')
+            .select()
+            .eq('shop_id', shopId)
+            .order('is_auto_offer', ascending: false)
+            .order('updated_at', ascending: false);
+        final banners = (rows as List)
+            .map((row) => AdminBanner.fromMap(asStringMap(row)))
+            .toList();
+        unawaited(_localDb.saveBanners(banners));
+        return banners;
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+    return _localDb.getBannersForShop(shopId);
+  }
+
+  Future<AdminBanner> upsertBanner({
+    required String title,
+    String? subtitle,
+    String? imagePath,
+    bool isActive = true,
+    String? ctaLabel,
+    String? id,
+  }) async {
+    final cleanSubtitle = subtitle?.trim();
+    final cleanImage = imagePath?.trim();
+    final cleanCta = ctaLabel?.trim();
+    final result = await _client.rpc(
+      'shop_upsert_banner',
+      params: {
+        'p_title': title.trim(),
+        'p_subtitle': (cleanSubtitle == null || cleanSubtitle.isEmpty)
+            ? null
+            : cleanSubtitle,
+        'p_image_path': (cleanImage == null || cleanImage.isEmpty)
+            ? null
+            : cleanImage,
+        'p_is_active': isActive,
+        'p_cta_label': (cleanCta == null || cleanCta.isEmpty)
+            ? 'تصفح المحل'
+            : cleanCta,
+        'p_id': id,
+      },
+    );
+    final banner = AdminBanner.fromMap(asStringMap(result));
+    unawaited(_localDb.saveBanners([banner]));
+    return banner;
+  }
+
+  Future<void> deleteBanner(String bannerId) async {
+    await _client.rpc('shop_delete_banner', params: {'p_id': bannerId});
+    await _localDb.deleteBanner(bannerId);
+  }
+
+  Future<ShopFinanceSummary> fetchMyFinanceSummary() async {
+    final data = await _client.rpc('shop_my_finance_summary');
+    return ShopFinanceSummary.fromMap(asStringMap(data));
+  }
+
+  Future<void> acceptCommissionAgreement() async {
+    await _client.rpc('shop_accept_commission_agreement');
+  }
+
+  Future<ShopSettlement> submitSettlement({
+    required double amount,
+    required String paymentMethod,
+    String? referenceNumber,
+    String? receiptUrl,
+    String? notes,
+  }) async {
+    final data = await _client.rpc(
+      'shop_submit_settlement',
+      params: {
+        'p_amount': amount,
+        'p_payment_method': paymentMethod,
+        'p_reference_number': (referenceNumber?.trim().isEmpty ?? true)
+            ? null
+            : referenceNumber!.trim(),
+        'p_receipt_url': (receiptUrl?.trim().isEmpty ?? true)
+            ? null
+            : receiptUrl!.trim(),
+        'p_notes': (notes?.trim().isEmpty ?? true) ? null : notes!.trim(),
+      },
+    );
+    return ShopSettlement.fromMap(asStringMap(data));
   }
 
   Future<ShopStats> fetchStats() async {

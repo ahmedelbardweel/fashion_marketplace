@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,8 +10,8 @@ import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/product_grid_card.dart';
+import '../../../../core/widgets/promo_banner_carousel.dart';
 import '../../../../router/routes.dart';
-import '../../../admin/domain/models/catalog_models.dart';
 import '../../../auth/domain/models/app_user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/models/customer_product.dart';
@@ -79,7 +77,18 @@ class CustomerHomeScreen extends ConsumerWidget {
                     if (banners.isEmpty) return const SizedBox.shrink();
                     return Padding(
                       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                      child: _HomeBannerCarousel(banners: banners),
+                      child: PromoBannerCarousel(
+                        banners: banners,
+                        onBannerTap: (b) {
+                          if (b.isShopBanner) {
+                            context.push(
+                              AppRoutes.customerShopProfilePath(b.shopId!),
+                            );
+                          } else {
+                            context.push(AppRoutes.customerCatalog);
+                          }
+                        },
+                      ),
                     );
                   },
                   error: (_, _) => const SizedBox.shrink(),
@@ -533,266 +542,6 @@ class CustomerHomeScreen extends ConsumerWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _HomeBannerCarousel extends StatefulWidget {
-  const _HomeBannerCarousel({required this.banners});
-
-  final List<AdminBanner> banners;
-
-  @override
-  State<_HomeBannerCarousel> createState() => _HomeBannerCarouselState();
-}
-
-class _HomeBannerCarouselState extends State<_HomeBannerCarousel> {
-  final PageController _controller = PageController();
-  Timer? _autoPlayTimer;
-  int _index = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _startAutoPlay();
-  }
-
-  @override
-  void didUpdateWidget(covariant _HomeBannerCarousel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.banners.length != widget.banners.length) {
-      _startAutoPlay();
-    }
-  }
-
-  void _startAutoPlay() {
-    _autoPlayTimer?.cancel();
-    if (widget.banners.length <= 1) return;
-    _autoPlayTimer = Timer.periodic(HomeDesign.bannerAutoPlay, (_) {
-      if (!mounted || !_controller.hasClients) return;
-      final next = (_index + 1) % widget.banners.length;
-      _controller.animateToPage(
-        next,
-        duration: AppMotion.normal,
-        curve: AppMotion.curve,
-      );
-    });
-  }
-
-  @override
-  void dispose() {
-    _autoPlayTimer?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        SizedBox(
-          height: HomeDesign.bannerHeight,
-          child: PageView.builder(
-            controller: _controller,
-            itemCount: widget.banners.length,
-            onPageChanged: (i) => setState(() => _index = i),
-            itemBuilder: (context, index) {
-              final b = widget.banners[index];
-              final hasImage =
-                  b.imagePath != null && b.imagePath!.trim().isNotEmpty;
-              return Material(
-                color: HomeDesign.bannerBackground,
-                borderRadius: BorderRadius.zero,
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: AppHaptics.action(
-                    () => context.push(AppRoutes.customerCatalog),
-                  ),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (hasImage) ...[
-                          AppNetworkImage(
-                            b.imagePath!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                          ),
-                          const DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: AlignmentDirectional.centerStart,
-                                end: AlignmentDirectional.centerEnd,
-                                colors: [Color(0xB8000000), Color(0x4D000000)],
-                              ),
-                            ),
-                          ),
-                        ] else ...[
-                          PositionedDirectional(
-                            end: -28,
-                            top: -28,
-                            child: Container(
-                              width: 140,
-                              height: 140,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppPalette.white.withValues(alpha: 0.10),
-                              ),
-                            ),
-                          ),
-                          PositionedDirectional(
-                            end: 40,
-                            bottom: -40,
-                            child: Container(
-                              width: 110,
-                              height: 110,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppPalette.white.withValues(alpha: 0.08),
-                              ),
-                            ),
-                          ),
-                        ],
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
-                            vertical: AppSpacing.md,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Flexible(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppPalette.white.withValues(
-                                          alpha: 0.18,
-                                        ),
-                                        borderRadius: BorderRadius.circular(
-                                          AppRadii.pill,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        'عرض خاص'.tr,
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: AppFont.bold,
-                                          color: HomeDesign.bannerTitle,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: AppSpacing.xs),
-                                    Flexible(
-                                      child: Text(
-                                        b.title.tr,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontSize: HomeDesign.bannerTitleSize,
-                                          fontWeight:
-                                              HomeDesign.bannerTitleWeight,
-                                          color: HomeDesign.bannerTitle,
-                                          height: 1.2,
-                                        ),
-                                      ),
-                                    ),
-                                    if (b.subtitle != null &&
-                                        b.subtitle!.trim().isNotEmpty) ...[
-                                      const SizedBox(height: 4),
-                                      Flexible(
-                                        child: Text(
-                                          b.subtitle!.tr,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: AppFont.medium,
-                                            color: HomeDesign.bannerSubtitle,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: AppSpacing.xs),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 7,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: HomeDesign.bannerButtonBackground,
-                                  borderRadius: BorderRadius.circular(
-                                    AppRadii.pill,
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'تسوق الآن'.tr,
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: AppFont.bold,
-                                        color: HomeDesign.bannerButtonText,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Icon(
-                                      AppIcons.arrowForward,
-                                      size: 14,
-                                      color: HomeDesign.bannerButtonText,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        if (widget.banners.length > 1) ...[
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(widget.banners.length, (i) {
-              final active = i == _index;
-              return GestureDetector(
-                onTap: () => _controller.animateToPage(
-                  i,
-                  duration: AppMotion.fast,
-                  curve: AppMotion.curve,
-                ),
-                child: AnimatedContainer(
-                  duration: AppMotion.fast,
-                  width: active ? 20 : 6,
-                  height: 6,
-                  margin: const EdgeInsets.symmetric(horizontal: 2.5),
-                  decoration: BoxDecoration(
-                    color: active
-                        ? HomeDesign.bannerDotActive
-                        : HomeDesign.bannerDotInactive,
-                    borderRadius: BorderRadius.circular(AppRadii.pill),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ],
-      ],
     );
   }
 }

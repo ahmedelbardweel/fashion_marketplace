@@ -1,21 +1,24 @@
-import '../../../../core/widgets/loading_fixtures.dart';
-
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/filtering/filter_models.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_filter_bar.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/gaza_region_picker_sheet.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../auth/domain/models/app_user.dart';
 import '../../../auth/domain/models/user_role.dart';
+import '../../domain/models/gaza_region.dart';
 import '../providers/admin_providers.dart';
 import '../widgets/admin_app_bar.dart';
-import '../widgets/admin_async_body.dart';
-
-import '../../../../core/filtering/filter_models.dart';
-import '../../../../core/widgets/app_filter_bar.dart';
+import '../widgets/admin_components.dart';
 
 class AdminUsersScreen extends ConsumerStatefulWidget {
   const AdminUsersScreen({super.key});
@@ -27,153 +30,145 @@ class AdminUsersScreen extends ConsumerStatefulWidget {
 class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   AdminUserFilterState _filter = AdminUserFilterState.empty;
 
-  Future<void> _openFilterSheet(List<AppUser> items) async {
-    var draft = _filter;
-    final cities = extractDistinctValues(items.map((u) => u.city));
-    final updated = await AppBottomSheet.show<AdminUserFilterState>(
+  Future<void> _pickGazaRegion() async {
+    final regions =
+        ref.read(adminGazaRegionsProvider).asData?.value ?? kDefaultGazaRegions;
+    final picked = await showGazaRegionPickerSheet(
       context: context,
-      isScrollControlled: true,
-      child: StatefulBuilder(
-        builder: (ctx, setModalState) {
-          return AppFilterSheetScaffold(
-            title: 'تصفية المستخدمين',
-            activeCount: draft.activeFacetCount,
-            onReset: () => setModalState(
-              () => draft = AdminUserFilterState(search: draft.search),
-            ),
-            onApply: () => Navigator.of(ctx).pop(draft),
-            children: [
-              AppFilterSection(
-                title: 'ترتيب النتائج',
-                child: AppFilterChoiceWrap<bool>(
-                  options: const [false, true],
-                  selectedValue: draft.sortByNameAsc,
-                  allowDeselect: false,
-                  labelBuilder: (asc) => asc ? 'الاسم: أ - ي' : 'الافتراضي',
-                  onSelected: (v) {
-                    if (v != null) {
-                      setModalState(
-                        () => draft = draft.copyWith(sortByNameAsc: v),
-                      );
-                    }
-                  },
-                ),
-              ),
-              AppFilterSection(
-                title: 'الدور',
-                child: AppFilterChoiceWrap<UserRole>(
-                  options: const [UserRole.customer, UserRole.shop],
-                  selectedValue: draft.role,
-                  allLabel: 'الكل',
-                  labelBuilder: (r) => r.labelAr,
-                  onSelected: (r) => setModalState(
-                    () => draft = r == null
-                        ? draft.copyWith(clearRole: true)
-                        : draft.copyWith(role: r),
-                  ),
-                ),
-              ),
-              AppFilterSection(
-                title: 'الحالة',
-                child: AppFilterChoiceWrap<ActiveStateFilter>(
-                  options: ActiveStateFilter.values,
-                  selectedValue: draft.activeFilter,
-                  allowDeselect: false,
-                  labelBuilder: (st) => st.labelAr,
-                  onSelected: (st) {
-                    if (st != null) {
-                      setModalState(
-                        () => draft = draft.copyWith(activeFilter: st),
-                      );
-                    }
-                  },
-                ),
-              ),
-              AppFilterSection(
-                title: 'اكتمال الملف',
-                child: AppFilterChoiceWrap<bool>(
-                  options: const [true, false],
-                  selectedValue: draft.profileCompleted,
-                  allLabel: 'الكل',
-                  labelBuilder: (done) => done ? 'مكتمل' : 'غير مكتمل',
-                  onSelected: (done) => setModalState(
-                    () => draft = done == null
-                        ? draft.copyWith(clearProfileCompleted: true)
-                        : draft.copyWith(profileCompleted: done),
-                  ),
-                ),
-              ),
-              if (cities.isNotEmpty)
-                AppFilterSection(
-                  title: 'المدينة',
-                  child: AppFilterChoiceWrap<String>(
-                    options: cities,
-                    selectedValue: draft.city,
-                    allLabel: 'الكل',
-                    labelBuilder: (c) => c,
-                    onSelected: (c) => setModalState(
-                      () => draft = c == null
-                          ? draft.copyWith(clearCity: true)
-                          : draft.copyWith(city: c),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
+      regions: regions,
+      selectedRegionName: _filter.city,
+      allowClear: true,
+      title: 'تصفية المستخدمين حسب منطقة في غزة',
     );
-    if (updated != null && mounted) {
-      setState(() => _filter = updated);
-    }
+    if (picked == null || !mounted) return;
+    setState(() {
+      _filter = picked.name.isEmpty
+          ? _filter.copyWith(clearCity: true)
+          : _filter.copyWith(city: picked.name);
+    });
   }
 
-  Future<void> _toggle(
-    BuildContext context,
-    WidgetRef ref,
-    AppUser user,
-  ) async {
+  Future<void> _openUserSheet(AppUser user) async {
     final nextActive = !user.isActive;
     final confirmed = await AppBottomSheet.show<bool>(
       context: context,
       child: AppBottomSheetScaffold(
-        title: nextActive ? 'تفعيل الحساب'.tr : 'تعليق الحساب'.tr,
+        title: user.displayName,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              nextActive
-                  ? 'تفعيل حساب ${user.displayName}؟'.tr
-                  : 'تعليق حساب ${user.displayName}؟'.tr,
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(AppRadii.md),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          user.email,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: AppFont.semiBold),
+                        ),
+                      ),
+                      AppStatusBadge(
+                        label: user.isActive ? 'نشط' : 'معلّق',
+                        tone: user.isActive
+                            ? BadgeTone.success
+                            : BadgeTone.error,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${'الدور'.tr}: ${user.role.labelAr.tr}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  if (user.phone?.trim().isNotEmpty ?? false) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '${'الهاتف'.tr}: ${user.phone}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                  if (user.city?.trim().isNotEmpty ?? false) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '${'المنطقة'.tr}: ${user.city}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: AppFont.semiBold,
+                      ),
+                    ),
+                  ],
+                  if (user.address?.trim().isNotEmpty ?? false) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      '${'العنوان'.tr}: ${user.address}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
             const SizedBox(height: AppSpacing.lg),
-            AppButton(
-              label: 'تأكيد'.tr,
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
+            if (nextActive)
+              AppButton(
+                label: 'تفعيل الحساب'.tr,
+                onPressed: () => Navigator.of(context).pop(true),
+              )
+            else
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: AppColors.errorSoft,
+                  foregroundColor: AppColors.error,
+                  side: BorderSide(
+                    color: AppColors.error.withValues(alpha: 0.25),
+                  ),
+                  minimumSize: const Size(double.infinity, ButtonDesign.height),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(ButtonDesign.radius),
+                  ),
+                ),
+                onPressed: AppHaptics.action(
+                  () => Navigator.of(context).pop(true),
+                ),
+                child: Text('تعليق الحساب'.tr),
+              ),
             const SizedBox(height: AppSpacing.sm),
             AppButton(
-              label: 'إلغاء'.tr,
-              variant: AppButtonVariant.outlined,
+              label: 'إغلاق'.tr,
+              variant: AppButtonVariant.secondary,
               onPressed: () => Navigator.of(context).pop(false),
             ),
           ],
         ),
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
     final actions = ref.read(adminActionProvider.notifier);
     final ok = await actions.setUserActive(
       userId: user.id,
       isActive: nextActive,
     );
-    if (!context.mounted) return;
+    if (!mounted) return;
     if (!ok) {
-      final error = ref.read(adminActionProvider).error;
+      final err = ref.read(adminActionProvider).error;
       showAppSnackBar(
         context,
-        error == null ? 'تعذر تحديث الحساب'.tr : actions.errorMessage(error),
+        err == null ? 'تعذر تحديث الحساب'.tr : actions.errorMessage(err),
         isError: true,
       );
       return;
@@ -186,67 +181,58 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final users = ref.watch(adminUsersProvider);
+    final usersAsync = ref.watch(adminUsersProvider);
     final busy = ref.watch(adminActionProvider).isLoading;
 
     return AdminScaffold(
-      title: 'المستخدمون والمحلات'.tr,
-      body: AdminAsyncBody<List<AppUser>>(
+      title: 'إدارة المستخدمين'.tr,
+      showBack: true,
+      showBottomNav: false,
+      body: usersAsync.skeletonWhen(
         placeholder: LoadingFixtures.users,
-        value: users,
-        emptyMessage: 'لا يوجد مستخدمون بعد'.tr,
-        isEmpty: (data) => data.isEmpty,
-        onRetry: () => ref.invalidate(adminUsersProvider),
-        onRefresh: () => ref.refresh(adminUsersProvider.future),
-        builder: (items) {
-          final filtered = filterAdminUsers(items, _filter);
-          final roleCounts = <UserRole, int>{};
-          var inactiveCount = 0;
-          for (final u in items) {
-            roleCounts[u.role] = (roleCounts[u.role] ?? 0) + 1;
-            if (!u.isActive) inactiveCount++;
+        error: (err, _) => ListView(
+          padding: AppSpacing.page,
+          children: [
+            AdminNoticeBanner(
+              title: 'تعذر تحميل المستخدمين',
+              message: ref.read(adminRepositoryProvider).mapError(err),
+              tone: BadgeTone.error,
+              actionLabel: 'إعادة المحاولة',
+              onAction: () => ref.invalidate(adminUsersProvider),
+            ),
+          ],
+        ),
+        data: (items) {
+          if (items.isEmpty) {
+            return AdminCenteredEmptyView(
+              onRefresh: () => ref.refresh(adminUsersProvider.future),
+              title: 'لا يوجد مستخدمون بعد',
+              message: 'ستظهر هنا حسابات العملاء وأصحاب المحلات فور تسجيلهم.',
+            );
           }
+
+          final filtered = filterAdminUsers(items, _filter);
+          final customerCount = items
+              .where((u) => u.role == UserRole.customer)
+              .length;
+          final shopOwnerCount = items
+              .where((u) => u.role == UserRole.shop)
+              .length;
+          final suspendedCount = items.where((u) => !u.isActive).length;
 
           return Column(
             children: [
               AppFilterToolbar(
                 searchValue: _filter.search,
-                searchHint: 'ابحث بالاسم، البريد، الهاتف، المدينة...',
-                onSearchChanged: (val) =>
-                    setState(() => _filter = _filter.copyWith(search: val)),
-                sortLabel: _filter.sortByNameAsc
-                    ? 'الاسم: أ - ي'
-                    : 'الافتراضي',
-                isDefaultSort: !_filter.sortByNameAsc,
-                onOpenSort: () async {
-                  final selected = await showAppSortSheet<bool>(
-                    context: context,
-                    current: _filter.sortByNameAsc,
-                    options: const [
-                      AppSortChoice(
-                        value: false,
-                        label: 'الافتراضي',
-                        icon: AppIcons.user,
-                      ),
-                      AppSortChoice(
-                        value: true,
-                        label: 'الاسم: أ - ي',
-                        icon: AppIcons.catalog,
-                      ),
-                    ],
-                  );
-                  if (selected != null && mounted) {
-                    setState(
-                      () =>
-                          _filter = _filter.copyWith(sortByNameAsc: selected),
-                    );
-                  }
-                },
-                onOpenAdvancedFilter: () => _openFilterSheet(items),
-                activeFacetCount: _filter.activeFacetCount,
+                searchHint: 'ابحث بالاسم، البريد، الهاتف، أو منطقة غزة...',
+                onSearchChanged: (v) =>
+                    setState(() => _filter = _filter.copyWith(search: v)),
+                onOpenAdvancedFilter: _pickGazaRegion,
+                activeFacetCount:
+                    (_filter.city != null && _filter.city!.isNotEmpty) ? 1 : 0,
                 quickOptions: [
                   AppQuickFilterOption(
-                    id: 'users_all',
+                    id: 'u_all',
                     label: 'الكل',
                     count: items.length,
                     selected:
@@ -260,70 +246,47 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
                     ),
                   ),
                   AppQuickFilterOption(
-                    id: 'users_customer',
-                    label: UserRole.customer.labelAr,
-                    count: roleCounts[UserRole.customer] ?? 0,
+                    id: 'u_customer',
+                    label: 'عملاء',
+                    count: customerCount,
                     selected: _filter.role == UserRole.customer,
-                    onTap: () => setState(() {
-                      final same = _filter.role == UserRole.customer;
-                      _filter = same
-                          ? _filter.copyWith(clearRole: true)
-                          : _filter.copyWith(role: UserRole.customer);
-                    }),
+                    onTap: () => setState(
+                      () => _filter = _filter.copyWith(
+                        role: UserRole.customer,
+                        activeFilter: ActiveStateFilter.all,
+                      ),
+                    ),
                   ),
                   AppQuickFilterOption(
-                    id: 'users_shop',
-                    label: UserRole.shop.labelAr,
-                    count: roleCounts[UserRole.shop] ?? 0,
+                    id: 'u_shop',
+                    label: 'أصحاب محلات',
+                    count: shopOwnerCount,
                     selected: _filter.role == UserRole.shop,
-                    onTap: () => setState(() {
-                      final same = _filter.role == UserRole.shop;
-                      _filter = same
-                          ? _filter.copyWith(clearRole: true)
-                          : _filter.copyWith(role: UserRole.shop);
-                    }),
+                    onTap: () => setState(
+                      () => _filter = _filter.copyWith(
+                        role: UserRole.shop,
+                        activeFilter: ActiveStateFilter.all,
+                      ),
+                    ),
                   ),
                   AppQuickFilterOption(
-                    id: 'users_inactive',
-                    label: ActiveStateFilter.inactive.labelAr,
-                    count: inactiveCount,
+                    id: 'u_suspended',
+                    label: 'معلّقون',
+                    count: suspendedCount,
                     selected:
                         _filter.activeFilter == ActiveStateFilter.inactive,
-                    onTap: () => setState(() {
-                      final same =
-                          _filter.activeFilter == ActiveStateFilter.inactive;
-                      _filter = _filter.copyWith(
-                        activeFilter: same
-                            ? ActiveStateFilter.all
-                            : ActiveStateFilter.inactive,
-                      );
-                    }),
+                    onTap: () => setState(
+                      () => _filter = _filter.copyWith(
+                        clearRole: true,
+                        activeFilter: ActiveStateFilter.inactive,
+                      ),
+                    ),
                   ),
                 ],
                 activeTags: [
-                  if (_filter.activeFilter != ActiveStateFilter.all)
+                  if (_filter.city != null && _filter.city!.isNotEmpty)
                     AppActiveFilterTag(
-                      label: _filter.activeFilter.labelAr.tr,
-                      onRemove: () => setState(
-                        () => _filter = _filter.copyWith(
-                          activeFilter: ActiveStateFilter.all,
-                        ),
-                      ),
-                    ),
-                  if (_filter.profileCompleted != null)
-                    AppActiveFilterTag(
-                      label: _filter.profileCompleted!
-                          ? 'مكتمل'.tr
-                          : 'غير مكتمل'.tr,
-                      onRemove: () => setState(
-                        () => _filter = _filter.copyWith(
-                          clearProfileCompleted: true,
-                        ),
-                      ),
-                    ),
-                  if (_filter.city != null)
-                    AppActiveFilterTag(
-                      label: 'المدينة: ${_filter.city!}'.tr,
+                      label: '${'المنطقة'.tr}: ${_filter.city}',
                       onRemove: () => setState(
                         () => _filter = _filter.copyWith(clearCity: true),
                       ),
@@ -338,60 +301,119 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
               ),
               Expanded(
                 child: filtered.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: AppSpacing.page,
-                        children: [
-                          AppFilterEmptyState(
-                            onReset: () => setState(
-                              () => _filter = AdminUserFilterState.empty,
-                            ),
-                          ),
-                        ],
+                    ? AdminCenteredEmptyView(
+                        onRefresh: () =>
+                            ref.refresh(adminUsersProvider.future),
+                        title: 'لا يوجد مستخدمون مطابقون',
+                        message:
+                            'جرّب إزالة الفلاتر أو اختيار منطقة أخرى في قطاع غزة.',
                       )
-                    : ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: AppSpacing.page,
-                        children: filtered
-                            .map(
-                              (user) => Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: AppSpacing.sm,
+                    : AppRefreshIndicator(
+                        onRefresh: () =>
+                            ref.refresh(adminUsersProvider.future),
+                        child: ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: AppSpacing.page,
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: AppSpacing.sm),
+                          itemBuilder: (context, index) {
+                            final user = filtered[index];
+                            final meta = [
+                              user.role.labelAr.tr,
+                              if (user.city?.trim().isNotEmpty ?? false)
+                                user.city!.trim(),
+                              if (user.phone?.trim().isNotEmpty ?? false)
+                                user.phone!.trim(),
+                            ].join(' · ');
+
+                            return Material(
+                              color: SellerDesign.statCardBackground,
+                              borderRadius: BorderRadius.circular(
+                                CardDesign.radius,
+                              ),
+                              child: InkWell(
+                                onTap: busy
+                                    ? null
+                                    : AppHaptics.action(
+                                        () => _openUserSheet(user),
+                                      ),
+                                borderRadius: BorderRadius.circular(
+                                  CardDesign.radius,
                                 ),
-                                child: AppCard(
-                                  onTap: busy
-                                      ? null
-                                      : () => _toggle(context, ref, user),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                child: Container(
+                                  padding: const EdgeInsets.all(AppSpacing.md),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(
+                                      CardDesign.radius,
+                                    ),
+                                    border: Border.all(
+                                      color: SellerDesign.statCardBorder,
+                                    ),
+                                  ),
+                                  child: Row(
                                     children: [
-                                      Text(
-                                        user.displayName,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleLarge,
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              user.displayName,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium
+                                                  ?.copyWith(
+                                                    fontWeight: AppFont.bold,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              user.email,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: AppColors.textMuted,
+                                                  ),
+                                            ),
+                                            if (meta.isNotEmpty) ...[
+                                              const SizedBox(height: 3),
+                                              Text(
+                                                meta,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color: AppColors.primary,
+                                                      fontWeight:
+                                                          AppFont.semiBold,
+                                                    ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
                                       ),
-                                      const SizedBox(height: AppSpacing.xs),
-                                      Text(
-                                        '${user.role.labelAr} · ${user.isActive ? 'نشط'.tr : 'موقوف'.tr}',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium,
-                                      ),
-                                      const SizedBox(height: AppSpacing.xs),
-                                      Text(
-                                        user.email,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
+                                      const SizedBox(width: AppSpacing.sm),
+                                      AppStatusBadge(
+                                        label: user.isActive ? 'نشط' : 'معلّق',
+                                        tone: user.isActive
+                                            ? BadgeTone.success
+                                            : BadgeTone.error,
                                       ),
                                     ],
                                   ),
                                 ),
                               ),
-                            )
-                            .toList(),
+                            );
+                          },
+                        ),
                       ),
               ),
             ],

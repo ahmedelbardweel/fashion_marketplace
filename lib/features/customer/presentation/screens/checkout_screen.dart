@@ -8,7 +8,10 @@ import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../../core/widgets/gaza_region_picker_sheet.dart';
 import '../../../../router/routes.dart';
+import '../../../admin/domain/models/gaza_region.dart';
+import '../../../admin/presentation/providers/admin_providers.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_action_sheet.dart';
@@ -22,6 +25,7 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 }
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
+  final _cityController = TextEditingController();
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
   final _notesController = TextEditingController();
@@ -32,14 +36,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     super.initState();
     final user = ref.read(authControllerProvider).user;
     if (user != null) {
-      final addr = user.address?.trim() ?? '';
-      _addressController.text = addr.isNotEmpty ? addr : (user.city ?? '');
+      _cityController.text = user.city?.trim() ?? '';
+      _addressController.text = user.address?.trim() ?? '';
       _phoneController.text = user.phone ?? '';
     }
   }
 
   @override
   void dispose() {
+    _cityController.dispose();
     _addressController.dispose();
     _phoneController.dispose();
     _notesController.dispose();
@@ -47,8 +52,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   Future<void> _submitOrder() async {
+    final city = _cityController.text.trim();
     final address = _addressController.text.trim();
     final phone = _phoneController.text.trim();
+    final regions =
+        ref.read(gazaRegionsProvider).asData?.value ?? kDefaultGazaRegions;
+
+    if (!isValidGazaRegionSelection(city, regions)) {
+      showAppSnackBar(
+        context,
+        'يرجى اختيار منطقة التوصيل من قائمة قطاع غزة المعتمدة'.tr,
+        isError: true,
+      );
+      return;
+    }
 
     if (address.isEmpty || phone.isEmpty) {
       showAppSnackBar(
@@ -58,6 +75,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       );
       return;
     }
+
+    final fullAddress = '$city — $address';
 
     final itemsByShop = ref.read(cartProvider.notifier).itemsByShop;
     if (itemsByShop.isEmpty) {
@@ -74,7 +93,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         await repo.placeOrder(
           shopId: entry.key,
           items: entry.value,
-          deliveryAddress: address,
+          deliveryAddress: fullAddress,
           phone: phone,
           notes: _notesController.text,
         );
@@ -174,10 +193,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             const SizedBox(height: AppSpacing.sm),
             AppCard(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  GazaRegionFormField(
+                    controller: _cityController,
+                    label: 'منطقة التوصيل في قطاع غزة *',
+                    onlyDeliveryAvailable: true,
+                    enabled: !_isSubmitting,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
                   AppTextField(
                     controller: _addressController,
-                    label: 'عنوان التوصيل التفصيلي (المدينة، الحي، الشارع)'.tr,
+                    label: 'العنوان التفصيلي (الشارع، المعلم القريب)'.tr,
                     prefixIcon: AppIcons.location,
                   ),
                   const SizedBox(height: AppSpacing.md),

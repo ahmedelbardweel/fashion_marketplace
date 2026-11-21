@@ -9,6 +9,7 @@ export '../../../../core/pagination/paginated_state.dart';
 import '../../../auth/domain/models/app_user.dart';
 import '../../../auth/domain/models/user_role.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../customer/presentation/providers/customer_providers.dart';
 import '../../../shop/domain/models/shop.dart';
 import '../../../shop/presentation/providers/shop_providers.dart';
 import '../../../shop/domain/models/shop_product.dart';
@@ -16,6 +17,8 @@ import '../../data/admin_repository.dart';
 import '../../domain/models/admin_stats.dart';
 import '../../domain/models/catalog_models.dart';
 import '../../domain/models/decart_settings_status.dart';
+import '../../domain/models/gaza_region.dart';
+import '../../domain/models/revenue_models.dart';
 
 final adminRepositoryProvider = Provider<AdminRepository>((ref) {
   return AdminRepository();
@@ -195,6 +198,46 @@ final adminBannersProvider = FutureProvider.autoDispose<List<AdminBanner>>((
   return ref.watch(adminRepositoryProvider).fetchBanners();
 });
 
+final adminActiveOffersProvider =
+    FutureProvider.autoDispose<List<AdminProduct>>((ref) async {
+      if (!_isAdmin(ref)) return const [];
+      return ref.watch(adminRepositoryProvider).fetchActiveOffers();
+    });
+
+/// Active Gaza Strip regions available across Customer, Shop, and Admin forms.
+final gazaRegionsProvider = FutureProvider.autoDispose<List<GazaRegion>>((
+  ref,
+) async {
+  return ref.watch(adminRepositoryProvider).fetchGazaRegions(activeOnly: true);
+});
+
+/// Full Gaza Strip regions list (including inactive) for Admin management.
+final adminGazaRegionsProvider = FutureProvider.autoDispose<List<GazaRegion>>((
+  ref,
+) async {
+  if (!_isAdmin(ref)) return const [];
+  return ref.watch(adminRepositoryProvider).fetchGazaRegions(activeOnly: false);
+});
+
+final adminRevenueOverviewProvider =
+    FutureProvider.autoDispose<AdminRevenueOverview>((ref) async {
+      if (!_isAdmin(ref)) return const AdminRevenueOverview();
+      return ref.watch(adminRepositoryProvider).fetchRevenueOverview();
+    });
+
+final adminShopLedgerProvider = FutureProvider.autoDispose.family<
+  ({List<CommissionLedgerEntry> ledger, List<ShopSettlement> settlements}),
+  String
+>((ref, shopId) async {
+  if (!_isAdmin(ref)) {
+    return (
+      ledger: const <CommissionLedgerEntry>[],
+      settlements: const <ShopSettlement>[],
+    );
+  }
+  return ref.watch(adminRepositoryProvider).fetchShopLedger(shopId);
+});
+
 final adminNotificationsProvider =
     FutureProvider.autoDispose<List<AdminNotification>>((ref) async {
       if (!_isAdmin(ref)) return const [];
@@ -205,6 +248,20 @@ final adminDecartStatusProvider =
     FutureProvider.autoDispose<DecartSettingsStatus>((ref) async {
       if (!_isAdmin(ref)) throw StateError('Admin access required');
       return ref.watch(adminRepositoryProvider).fetchDecartStatus();
+    });
+
+final adminDecartCreditsProvider =
+    FutureProvider.autoDispose<DecartCreditsBalance>((ref) async {
+      if (!_isAdmin(ref)) {
+        return const DecartCreditsBalance(configured: false);
+      }
+      return ref.watch(adminRepositoryProvider).fetchDecartCredits();
+    });
+
+final adminDecartKeysProvider =
+    FutureProvider.autoDispose<List<DecartApiKeyEntry>>((ref) async {
+      if (!_isAdmin(ref)) return const [];
+      return ref.watch(adminRepositoryProvider).fetchDecartKeys();
     });
 
 final adminTryonControlsProvider =
@@ -317,6 +374,8 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
     required String title,
     String? subtitle,
     String? imagePath,
+    String? ctaLabel,
+    int sortOrder = 0,
     bool isActive = true,
     String? id,
   }) {
@@ -325,10 +384,13 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
         title: title,
         subtitle: subtitle,
         imagePath: imagePath,
+        ctaLabel: ctaLabel,
+        sortOrder: sortOrder,
         isActive: isActive,
         id: id,
       );
       _ref.invalidate(adminBannersProvider);
+      _ref.invalidate(customerBannersProvider);
       _ref.invalidate(adminStatsProvider);
     });
   }
@@ -337,6 +399,84 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
     return _run(() async {
       await _repo.deleteBanner(id);
       _ref.invalidate(adminBannersProvider);
+      _ref.invalidate(customerBannersProvider);
+      _ref.invalidate(adminStatsProvider);
+    });
+  }
+
+  Future<bool> cancelProductOffer(String productId) {
+    return _run(() async {
+      await _repo.cancelProductOffer(productId);
+      _ref.invalidate(adminActiveOffersProvider);
+      if (_ref.exists(adminProductsPaginatedProvider)) {
+        _ref.read(adminProductsPaginatedProvider.notifier).refresh();
+      }
+      _ref.invalidate(adminBannersProvider);
+      _ref.invalidate(customerBannersProvider);
+      _ref.invalidate(adminStatsProvider);
+    });
+  }
+
+  Future<bool> updateOrderStatus({
+    required String orderId,
+    required String status,
+  }) {
+    return _run(() async {
+      await _repo.updateOrderStatus(orderId: orderId, status: status);
+      _ref.invalidate(adminOrdersProvider);
+      _ref.invalidate(adminStatsProvider);
+    });
+  }
+
+  Future<bool> upsertRegion({
+    required String name,
+    String? nameEn,
+    String? parentId,
+    double deliveryFee = 10,
+    String estimatedDelivery = 'نفس اليوم',
+    bool isDeliveryAvailable = true,
+    bool isActive = true,
+    int sortOrder = 0,
+    String? id,
+  }) {
+    return _run(() async {
+      await _repo.upsertRegion(
+        name: name,
+        nameEn: nameEn,
+        parentId: parentId,
+        deliveryFee: deliveryFee,
+        estimatedDelivery: estimatedDelivery,
+        isDeliveryAvailable: isDeliveryAvailable,
+        isActive: isActive,
+        sortOrder: sortOrder,
+        id: id,
+      );
+      _ref.invalidate(adminGazaRegionsProvider);
+      _ref.invalidate(gazaRegionsProvider);
+      _ref.invalidate(adminStatsProvider);
+    });
+  }
+
+  Future<bool> deleteRegion(String id) {
+    return _run(() async {
+      await _repo.deleteRegion(id);
+      _ref.invalidate(adminGazaRegionsProvider);
+      _ref.invalidate(gazaRegionsProvider);
+      _ref.invalidate(adminStatsProvider);
+    });
+  }
+
+  Future<bool> toggleRegionDelivery({
+    required String id,
+    required bool isDeliveryAvailable,
+  }) {
+    return _run(() async {
+      await _repo.toggleRegionDelivery(
+        id: id,
+        isDeliveryAvailable: isDeliveryAvailable,
+      );
+      _ref.invalidate(adminGazaRegionsProvider);
+      _ref.invalidate(gazaRegionsProvider);
       _ref.invalidate(adminStatsProvider);
     });
   }
@@ -345,12 +485,14 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
     required String title,
     required String body,
     required String audience,
+    String? targetRegion,
   }) {
     return _run(() async {
       await _repo.sendNotification(
         title: title,
         body: body,
         audience: audience,
+        targetRegion: targetRegion,
       );
       _ref.invalidate(adminNotificationsProvider);
       _ref.invalidate(adminStatsProvider);
@@ -361,6 +503,78 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
     return _run(() async {
       await _repo.updateSetting(key: key, value: value);
       _ref.invalidate(adminSettingsProvider);
+    });
+  }
+
+  Future<bool> updateShopAgreement({
+    required String shopId,
+    required String commissionType,
+    required double commissionRate,
+    double commissionFixedFee = 0,
+    double creditLimit = 300,
+    String settlementCycle = 'weekly',
+    bool autoSuspendOnLimit = true,
+    String? agreementNotes,
+  }) {
+    return _run(() async {
+      await _repo.updateShopAgreement(
+        shopId: shopId,
+        commissionType: commissionType,
+        commissionRate: commissionRate,
+        commissionFixedFee: commissionFixedFee,
+        creditLimit: creditLimit,
+        settlementCycle: settlementCycle,
+        autoSuspendOnLimit: autoSuspendOnLimit,
+        agreementNotes: agreementNotes,
+      );
+      _ref.invalidate(adminRevenueOverviewProvider);
+      _ref.invalidate(adminManagedShopsProvider);
+    });
+  }
+
+  Future<bool> setShopFinancialHold({
+    required String shopId,
+    required bool hold,
+  }) {
+    return _run(() async {
+      await _repo.setShopFinancialHold(shopId: shopId, hold: hold);
+      _ref.invalidate(adminRevenueOverviewProvider);
+      _ref.invalidate(adminManagedShopsProvider);
+    });
+  }
+
+  Future<bool> reviewSettlement({
+    required String settlementId,
+    required bool approve,
+    String? adminNote,
+  }) {
+    return _run(() async {
+      await _repo.reviewSettlement(
+        settlementId: settlementId,
+        approve: approve,
+        adminNote: adminNote,
+      );
+      _ref.invalidate(adminRevenueOverviewProvider);
+    });
+  }
+
+  Future<bool> recordShopPayment({
+    required String shopId,
+    required double amount,
+    String paymentMethod = 'cash',
+    String? referenceNumber,
+    String? note,
+  }) {
+    return _run(() async {
+      await _repo.recordShopPayment(
+        shopId: shopId,
+        amount: amount,
+        paymentMethod: paymentMethod,
+        referenceNumber: referenceNumber,
+        note: note,
+      );
+      _ref.invalidate(adminRevenueOverviewProvider);
+      _ref.invalidate(adminShopLedgerProvider(shopId));
     });
   }
 }

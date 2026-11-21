@@ -60,7 +60,7 @@ class LocalDatabase {
   static final LocalDatabase instance = LocalDatabase._();
 
   static const String _dbFileName = 'shopy_offline_vault_v1.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   Database? _db;
   final Lock _initLock = Lock();
@@ -130,6 +130,9 @@ class LocalDatabase {
         image_path TEXT,
         is_active INTEGER NOT NULL DEFAULT 1,
         sort_order INTEGER NOT NULL DEFAULT 0,
+        shop_id TEXT,
+        is_auto_offer INTEGER NOT NULL DEFAULT 0,
+        cta_label TEXT,
         created_at TEXT
       )
     ''');
@@ -392,6 +395,19 @@ class LocalDatabase {
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     await _onCreate(db, newVersion);
+    if (oldVersion < 2) {
+      for (final sql in const [
+        'ALTER TABLE banners ADD COLUMN shop_id TEXT',
+        'ALTER TABLE banners ADD COLUMN is_auto_offer INTEGER NOT NULL DEFAULT 0',
+        'ALTER TABLE banners ADD COLUMN cta_label TEXT',
+      ]) {
+        try {
+          await db.execute(sql);
+        } catch (_) {
+          // Column already exists
+        }
+      }
+    }
   }
 
   // ===========================================================================
@@ -589,6 +605,9 @@ class LocalDatabase {
             'image_path': b.imagePath,
             'is_active': b.isActive ? 1 : 0,
             'sort_order': b.sortOrder,
+            'shop_id': b.shopId,
+            'is_auto_offer': b.isAutoOffer ? 1 : 0,
+            'cta_label': b.ctaLabel,
             'created_at': DateTime.now().toIso8601String(),
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
@@ -610,18 +629,34 @@ class LocalDatabase {
       where: activeOnly ? 'is_active = 1' : null,
       orderBy: 'sort_order ASC',
     );
-    return rows
-        .map(
-          (r) => AdminBanner(
-            id: r['id']?.toString() ?? '',
-            title: r['title']?.toString() ?? '',
-            subtitle: r['subtitle']?.toString(),
-            imagePath: r['image_path']?.toString(),
-            isActive: (r['is_active'] as int? ?? 1) == 1,
-            sortOrder: (r['sort_order'] as num?)?.toInt() ?? 0,
-          ),
-        )
-        .toList();
+    return rows.map(_mapBannerRow).toList();
+  }
+
+  Future<List<AdminBanner>> getBannersForShop(String shopId) async {
+    final db = await database;
+    if (db == null) return const [];
+
+    final rows = await db.query(
+      'banners',
+      where: 'shop_id = ?',
+      whereArgs: [shopId],
+      orderBy: 'is_auto_offer DESC, sort_order ASC',
+    );
+    return rows.map(_mapBannerRow).toList();
+  }
+
+  AdminBanner _mapBannerRow(Map<String, Object?> r) {
+    return AdminBanner(
+      id: r['id']?.toString() ?? '',
+      title: r['title']?.toString() ?? '',
+      subtitle: r['subtitle']?.toString(),
+      imagePath: r['image_path']?.toString(),
+      isActive: (r['is_active'] as int? ?? 1) == 1,
+      sortOrder: (r['sort_order'] as num?)?.toInt() ?? 0,
+      shopId: r['shop_id']?.toString(),
+      isAutoOffer: (r['is_auto_offer'] as int? ?? 0) == 1,
+      ctaLabel: r['cta_label']?.toString(),
+    );
   }
 
   Future<void> deleteBanner(String bannerId) async {

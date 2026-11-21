@@ -1,177 +1,360 @@
-import '../../../../core/widgets/app_refresh_indicator.dart';
-import '../../../../core/widgets/app_skeleton.dart';
-
+import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/widgets/app_card.dart';
+import '../../../../core/theme/app_design.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
+import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+import '../../../../core/widgets/promo_banner_carousel.dart';
 import '../../../../router/routes.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../shop/presentation/providers/shop_providers.dart';
 import '../providers/admin_providers.dart';
 import '../widgets/admin_app_bar.dart';
+import '../widgets/admin_components.dart';
+import '../widgets/decart_credits_badge.dart';
 
 class AdminDashboardScreen extends ConsumerWidget {
   const AdminDashboardScreen({super.key});
 
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authControllerProvider).user;
-    final stats = ref.watch(adminStatsProvider);
-    final pending = stats.asData?.value.pendingShops;
+    final statsAsync = ref.watch(adminStatsProvider);
+    final bannersAsync = ref.watch(adminBannersProvider);
+    final ordersAsync = ref.watch(adminOrdersProvider);
+    final regionsAsync = ref.watch(adminGazaRegionsProvider);
+    final revenueAsync = ref.watch(adminRevenueOverviewProvider);
+    final busy = ref.watch(adminActionProvider).isLoading;
 
-    final features = <_AdminFeature>[
-      _AdminFeature(
-        code: 'ADM-02',
-        title: 'إحصائيات التطبيق'.tr,
-        subtitle: 'نظرة عامة على المستخدمين والمحلات والمنتجات'.tr,
-        route: AppRoutes.adminStats,
-        badge: stats.asData?.value.customers.toString(),
-      ),
-      _AdminFeature(
-        code: 'ADM-03',
-        title: 'طلبات انضمام المحلات'.tr,
-        subtitle: 'مراجعة الطلبات الجديدة وقبولها أو رفضها'.tr,
-        route: AppRoutes.adminShopApplications,
-        badge: pending == null || pending == 0 ? null : pending.toString(),
-      ),
-      _AdminFeature(
-        code: 'ADM-07',
-        title: 'تصنيفات المنتجات'.tr,
-        subtitle: 'إضافة وتعديل وتفعيل التصنيفات'.tr,
-        route: AppRoutes.adminCategories,
-      ),
-      _AdminFeature(
-        code: 'ADM-08',
-        title: 'جميع المنتجات'.tr,
-        subtitle: 'عرض المنتجات وإخفاء أو حذف المخالف منها'.tr,
-        route: AppRoutes.adminProducts,
-      ),
-      _AdminFeature(
-        code: 'ADM-10',
-        title: 'إدارة المستخدمين'.tr,
-        subtitle: 'تعليق أو تفعيل حسابات المستخدمين والمحلات'.tr,
-        route: AppRoutes.adminUsers,
-      ),
-      _AdminFeature(
-        code: 'ADM-14',
-        title: 'إدارة المحلات'.tr,
-        subtitle: 'تعليق أو إعادة تفعيل المحلات المعتمدة'.tr,
-        route: AppRoutes.adminShopsManage,
-      ),
-      _AdminFeature(
-        code: 'ADM-11',
-        title: 'متابعة الطلبات'.tr,
-        subtitle: 'عرض كل طلبات المنصة وحالاتها'.tr,
-        route: AppRoutes.adminOrders,
-      ),
-      _AdminFeature(
-        code: 'ADM-12',
-        title: 'العروض والبنرات'.tr,
-        subtitle: 'إدارة البنرات الظاهرة في الصفحة الرئيسية'.tr,
-        route: AppRoutes.adminBanners,
-      ),
-      _AdminFeature(
-        code: 'ADM-13',
-        title: 'الإشعارات'.tr,
-        subtitle: 'إرسال إشعارات للمستخدمين أو المحلات'.tr,
-        route: AppRoutes.adminNotifications,
-      ),
-      _AdminFeature(
-        code: 'ADM-15',
-        title: 'التقارير'.tr,
-        subtitle: 'تقارير ملخصة لأداء المنصة'.tr,
-        route: AppRoutes.adminReports,
-      ),
-      _AdminFeature(
-        code: 'ADM-16',
-        title: 'إعدادات المنصة'.tr,
-        subtitle: 'اسم التطبيق وسياسة ظهور القرارات'.tr,
-        route: AppRoutes.adminSettings,
-      ),
-    ];
+    Future<void> handleRefresh() async {
+      await Future.wait([
+        ref.refresh(adminStatsProvider.future),
+        ref.refresh(adminBannersProvider.future),
+        ref.refresh(adminOrdersProvider.future),
+        ref.refresh(adminGazaRegionsProvider.future),
+        ref.refresh(adminRevenueOverviewProvider.future),
+        ref.refresh(adminShopApplicationsProvider.future),
+        ref.refresh(adminDecartCreditsProvider.future),
+      ]);
+    }
 
     return AdminScaffold(
       title: 'لوحة الإدارة'.tr,
+      titleWidget: AdminGreetingHeader(user: user),
       showBack: false,
-      body: AppSkeleton(
-        enabled: stats.isLoading && !stats.hasValue,
-        child: AppRefreshIndicator(
-          onRefresh: () => Future.wait([
-            ref.refresh(adminStatsProvider.future),
-            ref.refresh(adminShopApplicationsProvider.future),
-          ]),
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: AppSpacing.page,
-            children: [
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'CONTROL CENTER',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.gray500,
-                        letterSpacing: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      user?.displayName ?? 'الإدارة'.tr,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      user?.email ?? '',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Container(height: 1, color: AppColors.border),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      'اختر ميزة للانتقال إلى واجهتها الخاصة'.tr,
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              ...features.map(
-                (feature) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: AdminFeatureTile(
-                    code: feature.code,
-                    title: feature.title,
-                    subtitle: feature.subtitle,
-                    badge: feature.badge,
-                    onTap: () => context.push(feature.route),
-                  ),
-                ),
-              ),
-            ],
+      actions: [
+        const Center(
+          child: Padding(
+            padding: EdgeInsetsDirectional.only(end: 2),
+            child: DecartCreditsAppBarChip(),
           ),
+        ),
+        IconButton(
+          tooltip: 'الإشعارات'.tr,
+          onPressed: AppHaptics.action(
+            () => context.push(AppRoutes.adminNotifications),
+          ),
+          icon: Icon(AppIcons.bell, color: AppBarDesign.iconColor),
+        ),
+      ],
+      body: AppRefreshIndicator(
+        onRefresh: handleRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          children: [
+            // 1) Live Customer Banner Carousel Preview (exact customer appearance)
+            bannersAsync.skeletonWhen(
+              placeholder: LoadingFixtures.banners,
+              skipLoadingOnReload: true,
+              error: (_, _) => const SizedBox.shrink(),
+              data: (banners) {
+                final active = banners.where((b) => b.isActive).toList();
+                if (active.isEmpty) return const SizedBox.shrink();
+                return PromoBannerCarousel(
+                  banners: active,
+                  onBannerTap: (_) => context.go(AppRoutes.adminBanners),
+                );
+              },
+            ),
+
+            Padding(
+              padding: AppSpacing.page,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  statsAsync.skeletonWhen(
+                    placeholder: LoadingFixtures.adminStats,
+                    skipLoadingOnReload: true,
+                    error: (_, _) => AdminNoticeBanner(
+                      title: 'تعذر تحميل إحصائيات المنصة',
+                      message: 'اسحب للأسفل لإعادة تحميل البيانات.',
+                      tone: BadgeTone.error,
+                    ),
+                    data: (stats) {
+                      final totalRegions = stats.regionsTotal > 0
+                          ? stats.regionsTotal
+                          : (regionsAsync.asData?.value.length ?? 0);
+                      final activeRegions = stats.activeRegions > 0
+                          ? stats.activeRegions
+                          : (regionsAsync.asData?.value
+                                    .where(
+                                      (r) => r.isActive && r.isDeliveryAvailable,
+                                    )
+                                    .length ??
+                                0);
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (stats.pendingShops > 0) ...[
+                            AdminNoticeBanner(
+                              title:
+                                  '${'طلبات انضمام بانتظار المراجعة'.tr} (${stats.pendingShops})',
+                              message:
+                                  'هناك متاجر جديدة تنتظر قرار الإدارة بالقبول أو الرفض.',
+                              tone: BadgeTone.warning,
+                              actionLabel: 'مراجعة الطلبات',
+                              onAction: () =>
+                                  context.push(AppRoutes.adminShopApplications),
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                          ],
+
+                          // 2) Key KPI Row 1 & 2
+                          Row(
+                            children: [
+                              Expanded(
+                                child: AdminKpiCard(
+                                  label: 'إجمالي المبيعات',
+                                  value: AppFormat.price(stats.totalSales),
+                                  subtitle: '${stats.orders} ${'طلب'.tr}',
+                                  onTap: () =>
+                                      context.go(AppRoutes.adminOrders),
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              Expanded(
+                                child: AdminKpiCard(
+                                  label: 'المحلات المعتمدة',
+                                  value: '${stats.approvedShops}',
+                                  subtitle: stats.pendingShops > 0
+                                      ? '${stats.pendingShops} ${'قيد المراجعة'.tr}'
+                                      : '${stats.shops} ${'إجمالي المحلات'.tr}',
+                                  onTap: () =>
+                                      context.go(AppRoutes.adminShopsManage),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: AdminKpiCard(
+                                  label: 'العملاء المسجلون',
+                                  value: '${stats.customers}',
+                                  onTap: () =>
+                                      context.push(AppRoutes.adminUsers),
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              Expanded(
+                                child: AdminKpiCard(
+                                  label: 'المنتجات والعروض',
+                                  value: '${stats.products}',
+                                  subtitle:
+                                      '${stats.activeOffers} ${'عرض نشط'.tr}',
+                                  onTap: () =>
+                                      context.push(AppRoutes.adminProducts),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.lg),
+
+                          // 3) Organized Control Sections
+                          AppSectionHeader(
+                            title: 'أقسام التحكم والإدارة'.tr,
+                            padding: EdgeInsets.zero,
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+
+                          AdminFeatureTile(
+                            title: 'الإيرادات والعمولات والاتفاقيات',
+                            subtitle:
+                                'نسب الاتفاق مع المحلات، المستحقات، وطلبات التسوية',
+                            badge:
+                                (revenueAsync
+                                            .asData
+                                            ?.value
+                                            .pendingSettlementsCount ??
+                                        0) >
+                                    0
+                                ? '${revenueAsync.asData!.value.pendingSettlementsCount} ${'تسوية'.tr}'
+                                : null,
+                            badgeTone: BadgeTone.warning,
+                            trailingValue: AppFormat.price(
+                              revenueAsync.asData?.value.totalOutstanding ?? 0,
+                            ),
+                            onTap: () => context.push(AppRoutes.adminRevenue),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AdminFeatureTile(
+                            title: 'مناطق قطاع غزة والتوصيل',
+                            subtitle:
+                                'المحافظات الخمس والأحياء ورسوم وحالة التوصيل',
+                            trailingValue: '$activeRegions/$totalRegions',
+                            onTap: () => context.push(AppRoutes.adminRegions),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AdminFeatureTile(
+                            title: 'طلبات انضمام المحلات',
+                            subtitle: 'مراجعة الوثائق وقبول أو رفض المتاجر',
+                            badge: stats.pendingShops > 0
+                                ? '${stats.pendingShops}'
+                                : null,
+                            badgeTone: BadgeTone.warning,
+                            trailingValue: stats.pendingShops == 0
+                                ? '${stats.shops}'
+                                : null,
+                            onTap: () =>
+                                context.push(AppRoutes.adminShopApplications),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AdminFeatureTile(
+                            title: 'التصنيفات الرئيسية والفرعية',
+                            subtitle: 'تنظيم أقسام المتجر والمنتجات',
+                            trailingValue: '${stats.categories}',
+                            onTap: () =>
+                                context.push(AppRoutes.adminCategories),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AdminFeatureTile(
+                            title: 'جميع المنتجات',
+                            subtitle: 'مراجعة المنتجات وإخفاء أو حذف المخالف',
+                            badge: stats.hiddenProducts > 0
+                                ? '${stats.hiddenProducts} ${'مخفي'.tr}'
+                                : null,
+                            badgeTone: BadgeTone.warning,
+                            trailingValue: '${stats.products}',
+                            onTap: () => context.push(AppRoutes.adminProducts),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AdminFeatureTile(
+                            title: 'إدارة المستخدمين',
+                            subtitle: 'العملاء وأصحاب المحلات وحالة الحسابات',
+                            trailingValue: '${stats.customers}',
+                            onTap: () => context.push(AppRoutes.adminUsers),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AdminFeatureTile(
+                            title: 'الإشعارات الجماعية والموجهة',
+                            subtitle:
+                                'إرسال تنبيهات للجميع أو لمناطق محددة في غزة',
+                            trailingValue: '${stats.notifications}',
+                            onTap: () =>
+                                context.push(AppRoutes.adminNotifications),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AdminFeatureTile(
+                            title: 'التقارير والإحصائيات المفصلة',
+                            subtitle:
+                                'أداء المنصة وتوزيع المحلات والطلبات في غزة',
+                            onTap: () => context.push(AppRoutes.adminReports),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // 4) Today's Orders across the platform
+                  AppSectionHeader(
+                    title: 'طلبات اليوم'.tr,
+                    actionLabel: 'عرض الكل'.tr,
+                    onAction: () => context.go(AppRoutes.adminOrders),
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  ordersAsync.skeletonWhen(
+                    placeholder: LoadingFixtures.adminOrders,
+                    skipLoadingOnReload: true,
+                    error: (_, _) => AdminNoticeBanner(
+                      title: 'تعذر تحميل الطلبات',
+                      message: 'افتح صفحة الطلبات لإعادة المحاولة.',
+                      tone: BadgeTone.error,
+                      actionLabel: 'الطلبات',
+                      onAction: () => context.go(AppRoutes.adminOrders),
+                    ),
+                    data: (orders) {
+                      final now = DateTime.now();
+                      final todayOrders =
+                          orders
+                              .where(
+                                (o) => _isSameDay(o.createdAt.toLocal(), now),
+                              )
+                              .toList()
+                            ..sort(
+                              (a, b) => b.createdAt.compareTo(a.createdAt),
+                            );
+
+                      if (todayOrders.isEmpty) {
+                        return const AdminEmptyState(
+                          title: 'لا توجد طلبات اليوم',
+                          message:
+                              'ستظهر هنا جميع طلبات المنصة المسجلة خلال اليوم.',
+                        );
+                      }
+
+                      final todayTotal = todayOrders
+                          .where((o) => o.status != 'cancelled')
+                          .fold<double>(0, (sum, o) => sum + o.total);
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          AdminKpiCard(
+                            label:
+                                '${'إجمالي اليوم'.tr} (${todayOrders.length})',
+                            value: AppFormat.price(todayTotal),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          for (final order in todayOrders.take(10))
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                bottom: AppSpacing.sm,
+                              ),
+                              child: AdminOrderCard(
+                                order: order,
+                                onTap: busy
+                                    ? null
+                                    : () => showAdminOrderStatusSheet(
+                                        context,
+                                        ref,
+                                        order,
+                                      ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
-}
-
-class _AdminFeature {
-  const _AdminFeature({
-    required this.code,
-    required this.title,
-    required this.subtitle,
-    required this.route,
-    this.badge,
-  });
-
-  final String code;
-  final String title;
-  final String subtitle;
-  final String route;
-  final String? badge;
 }

@@ -145,8 +145,9 @@ class ShopBottomNav extends ConsumerWidget {
   const ShopBottomNav({super.key});
 
   int _indexFor(String location) {
-    if (location.startsWith(AppRoutes.shopProfile)) return 4;
-    if (location.startsWith(AppRoutes.shopOrders)) return 3;
+    if (location.startsWith(AppRoutes.shopProfile)) return 5;
+    if (location.startsWith(AppRoutes.shopOrders)) return 4;
+    if (location.startsWith(AppRoutes.shopBanners)) return 3;
     if (location.startsWith(AppRoutes.shopOffers)) return 2;
     if (location.startsWith(AppRoutes.shopProducts) ||
         location.startsWith('/shop/product')) {
@@ -212,14 +213,26 @@ class ShopBottomNav extends ConsumerWidget {
                   ),
                 ),
                 _Item(
+                  label: 'البنرات'.tr,
+                  icon: AppIcons.banners,
+                  activeIcon: AppIcons.bannersActive,
+                  selected: current == 3,
+                  onTap: () => AppRefreshIndicator.handleBottomNavTap(
+                    targetRoute: AppRoutes.shopBanners,
+                    selected: current == 3,
+                    currentLocation: location,
+                    onNavigate: () => context.go(AppRoutes.shopBanners),
+                  ),
+                ),
+                _Item(
                   label: 'الطلبات'.tr,
                   icon: AppIcons.orders,
                   activeIcon: AppIcons.ordersActive,
-                  selected: current == 3,
+                  selected: current == 4,
                   badgeCount: pendingOrders,
                   onTap: () => AppRefreshIndicator.handleBottomNavTap(
                     targetRoute: AppRoutes.shopOrders,
-                    selected: current == 3,
+                    selected: current == 4,
                     currentLocation: location,
                     onNavigate: () => context.go(AppRoutes.shopOrders),
                   ),
@@ -228,10 +241,10 @@ class ShopBottomNav extends ConsumerWidget {
                   label: 'المتجر'.tr,
                   icon: AppIcons.shop,
                   activeIcon: AppIcons.shopActive,
-                  selected: current == 4,
+                  selected: current == 5,
                   onTap: () => AppRefreshIndicator.handleBottomNavTap(
                     targetRoute: AppRoutes.shopProfile,
-                    selected: current == 4,
+                    selected: current == 5,
                     currentLocation: location,
                     onNavigate: () => context.go(AppRoutes.shopProfile),
                   ),
@@ -274,10 +287,10 @@ class _Item extends StatelessWidget {
           child: AnimatedContainer(
             duration: AppMotion.fast,
             constraints: const BoxConstraints(
-              minWidth: BottomNavDesign.indicatorWidth,
+              minWidth: 46,
               minHeight: BottomNavDesign.indicatorHeight,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
             decoration: BoxDecoration(
               color: selected
                   ? SellerDesign.navSelectedBackground

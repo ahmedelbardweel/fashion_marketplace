@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -15,7 +15,7 @@ Future<void> confirmAdminLogout(BuildContext context, WidgetRef ref) async {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'هل تريد تسجيل الخروج من لوحة الإدارة؟'.tr,
+            'هل تريد تسجيل الخروج من حساب الإدارة؟'.tr,
             style: Theme.of(context).textTheme.bodyLarge,
           ),
           const SizedBox(height: AppSpacing.lg),
@@ -26,14 +26,13 @@ Future<void> confirmAdminLogout(BuildContext context, WidgetRef ref) async {
           const SizedBox(height: AppSpacing.sm),
           AppButton(
             label: 'إلغاء'.tr,
-            variant: AppButtonVariant.outlined,
+            variant: AppButtonVariant.secondary,
             onPressed: () => Navigator.of(context).pop(false),
           ),
         ],
       ),
     ),
   );
-
   if (confirmed == true) {
     await ref.read(authControllerProvider.notifier).signOut();
   }

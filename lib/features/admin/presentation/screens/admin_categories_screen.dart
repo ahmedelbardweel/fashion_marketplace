@@ -1,24 +1,23 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
-
-import '../../../../core/widgets/loading_fixtures.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/filtering/filter_models.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_filter_bar.dart';
+import '../../../../core/widgets/app_refresh_indicator.dart';
+import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
 import '../../domain/models/catalog_models.dart';
 import '../providers/admin_providers.dart';
 import '../widgets/admin_app_bar.dart';
-import '../widgets/admin_async_body.dart';
-
-import '../../../../core/filtering/filter_models.dart';
-import '../../../../core/widgets/app_filter_bar.dart';
+import '../widgets/admin_components.dart';
 
 class AdminCategoriesScreen extends ConsumerStatefulWidget {
   const AdminCategoriesScreen({super.key});
@@ -31,36 +30,13 @@ class AdminCategoriesScreen extends ConsumerStatefulWidget {
 class _AdminCategoriesScreenState extends ConsumerState<AdminCategoriesScreen> {
   CatalogListFilterState _filter = CatalogListFilterState.empty;
 
-  static const _sortChoices = [
-    AppSortChoice(
-      value: DisplayOrderSort.displayOrder,
-      label: 'الترتيب الافتراضي',
-      icon: AppIcons.catalog,
-    ),
-    AppSortChoice(
-      value: DisplayOrderSort.nameAsc,
-      label: 'أبجدياً: أ - ي',
-      icon: AppIcons.arrowUp,
-    ),
-    AppSortChoice(
-      value: DisplayOrderSort.nameDesc,
-      label: 'أبجدياً: ي - أ',
-      icon: AppIcons.arrowDown,
-    ),
-  ];
-
-  Future<void> _openForm(
-    BuildContext context,
-    WidgetRef ref, {
-    CatalogCategory? category,
-  }) async {
-    final nameController = TextEditingController(text: category?.name ?? '');
-    final descController = TextEditingController(
-      text: category?.description ?? '',
-    );
+  Future<void> _openForm({CatalogCategory? category}) async {
+    final nameCtrl = TextEditingController(text: category?.name ?? '');
+    final descCtrl = TextEditingController(text: category?.description ?? '');
     var isActive = category?.isActive ?? true;
     var parentId = category?.parentId;
     var iconKey = category?.iconKey;
+    var saving = false;
     final allCategories =
         ref.read(adminCategoriesProvider).value ?? const <CatalogCategory>[];
     final hasChildren = allCategories.any(
@@ -70,7 +46,7 @@ class _AdminCategoriesScreenState extends ConsumerState<AdminCategoriesScreen> {
         .where((c) => c.parentId == null && c.id != category?.id)
         .toList();
     const iconOptions = <({String key, String label})>[
-      (key: '', label: 'أيقونة افتراضية'),
+      (key: '', label: 'افتراضي'),
       (key: 'clothing', label: 'ملابس'),
       (key: 'shoes', label: 'أحذية'),
       (key: 'accessories', label: 'إكسسوارات'),
@@ -80,153 +56,219 @@ class _AdminCategoriesScreenState extends ConsumerState<AdminCategoriesScreen> {
     ];
     final formKey = GlobalKey<FormState>();
 
-    final saved = await AppBottomSheet.show<bool>(
+    await AppBottomSheet.show<void>(
       context: context,
-      child: AppBottomSheetScaffold(
-        title: category == null ? 'تصنيف جديد'.tr : 'تعديل التصنيف'.tr,
-        child: StatefulBuilder(
-          builder: (context, setModalState) {
-            return Form(
+      isScrollControlled: true,
+      useSafeArea: true,
+      maxHeightFactor: 0.94,
+      child: StatefulBuilder(
+        builder: (sheetCtx, setSheetState) {
+          return AppBottomSheetScaffold(
+            title: category == null ? 'تصنيف جديد'.tr : 'تعديل التصنيف'.tr,
+            child: Form(
               key: formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   AppTextField(
-                    controller: nameController,
-                    label: 'اسم التصنيف'.tr,
-                    validator: (value) =>
-                        Validators.required(value, field: 'اسم التصنيف'.tr),
+                    controller: nameCtrl,
+                    label: 'اسم التصنيف *'.tr,
+                    validator: (v) =>
+                        Validators.required(v, field: 'اسم التصنيف'.tr),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   AppTextField(
-                    controller: descController,
-                    label: 'الوصف'.tr,
-                    maxLines: 3,
+                    controller: descCtrl,
+                    label: 'الوصف (اختياري)'.tr,
+                    maxLines: 2,
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('نشط'.tr),
-                    value: isActive,
-                    onChanged: AppHaptics.change(
-                      (value) => setModalState(() => isActive = value),
+                  Text(
+                    'القسم الرئيسي'.tr,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: AppFont.bold,
                     ),
                   ),
-                  DropdownButtonFormField<String>(
-                    initialValue: parentId ?? '',
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'التصنيف الرئيسي',
-                    ),
-                    items: [
-                      const DropdownMenuItem(
-                        value: '',
-                        child: Text('تصنيف رئيسي مستقل'),
+                  const SizedBox(height: AppSpacing.xs),
+                  Wrap(
+                    spacing: AppSpacing.xs,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      ChoiceChip(
+                        label: Text('تصنيف رئيسي مستقل'.tr),
+                        selected: parentId == null,
+                        onSelected: hasChildren
+                            ? null
+                            : (_) => setSheetState(() => parentId = null),
                       ),
                       for (final parent in parents)
-                        DropdownMenuItem(
-                          value: parent.id,
-                          child: Text(parent.name),
+                        ChoiceChip(
+                          label: Text(parent.name),
+                          selected: parentId == parent.id,
+                          onSelected: hasChildren
+                              ? null
+                              : (_) => setSheetState(() {
+                                  parentId = parent.id;
+                                  iconKey = null;
+                                }),
                         ),
                     ],
-                    onChanged: hasChildren
-                        ? null
-                        : (value) => setModalState(() {
-                            parentId = value == '' ? null : value;
-                            if (parentId != null) iconKey = null;
-                          }),
                   ),
                   if (parentId == null) ...[
                     const SizedBox(height: AppSpacing.md),
-                    DropdownButtonFormField<String>(
-                      initialValue: iconOptions.any((o) => o.key == iconKey)
-                          ? iconKey
-                          : '',
-                      isExpanded: true,
-                      decoration: const InputDecoration(
-                        labelText: 'أيقونة القسم الرئيسي',
-                      ),
-                      items: [
-                        for (final option in iconOptions)
-                          DropdownMenuItem(
-                            value: option.key,
-                            child: Text(option.label),
-                          ),
-                      ],
-                      onChanged: (value) => setModalState(
-                        () => iconKey = value == '' ? null : value,
+                    Text(
+                      'نوع القسم'.tr,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: AppFont.bold,
                       ),
                     ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Wrap(
+                      spacing: AppSpacing.xs,
+                      runSpacing: AppSpacing.xs,
+                      children: iconOptions.map((opt) {
+                        final selected = (iconKey ?? '') == opt.key;
+                        return ChoiceChip(
+                          label: Text(opt.label.tr),
+                          selected: selected,
+                          onSelected: (_) => setSheetState(
+                            () => iconKey = opt.key.isEmpty ? null : opt.key,
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ],
+                  const SizedBox(height: AppSpacing.sm),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeThumbColor: AppColors.primary,
+                    title: Text(
+                      'تفعيل التصنيف'.tr,
+                      style: TextStyle(
+                        fontWeight: AppFont.bold,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    value: isActive,
+                    onChanged: saving
+                        ? null
+                        : AppHaptics.change(
+                            (v) => setSheetState(() => isActive = v),
+                          ),
+                  ),
                   const SizedBox(height: AppSpacing.lg),
                   AppButton(
-                    label: 'حفظ'.tr,
-                    onPressed: () {
+                    label: 'حفظ التصنيف'.tr,
+                    isLoading: saving,
+                    onPressed: () async {
+                      FocusScope.of(sheetCtx).unfocus();
                       if (formKey.currentState?.validate() != true) return;
-                      Navigator.of(context).pop(true);
+                      setSheetState(() => saving = true);
+                      final actions = ref.read(adminActionProvider.notifier);
+                      final ok = await actions.upsertCategory(
+                        id: category?.id,
+                        name: nameCtrl.text,
+                        description: descCtrl.text,
+                        isActive: isActive,
+                        parentId: parentId,
+                        iconKey: parentId == null ? iconKey : null,
+                      );
+                      if (!mounted) return;
+                      if (!ok) {
+                        if (sheetCtx.mounted) {
+                          setSheetState(() => saving = false);
+                        }
+                        final err = ref.read(adminActionProvider).error;
+                        showAppSnackBar(
+                          context,
+                          err == null
+                              ? 'تعذر الحفظ'.tr
+                              : actions.errorMessage(err),
+                          isError: true,
+                        );
+                        return;
+                      }
+                      if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
+                      showAppSnackBar(context, 'تم حفظ التصنيف بنجاح'.tr);
                     },
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  AppButton(
+                    label: 'إلغاء'.tr,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: saving ? null : () => Navigator.of(sheetCtx).pop(),
                   ),
                 ],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
 
-    final name = nameController.text;
-    final description = descController.text;
-    final active = isActive;
-    nameController.dispose();
-    descController.dispose();
-    if (saved != true) return;
-
-    final actions = ref.read(adminActionProvider.notifier);
-    final ok = await actions.upsertCategory(
-      name: name,
-      description: description,
-      isActive: active,
-      id: category?.id,
-      parentId: parentId,
-      iconKey: parentId == null ? iconKey : null,
-    );
-    if (!context.mounted) return;
-    if (!ok) {
-      final error = ref.read(adminActionProvider).error;
-      showAppSnackBar(
-        context,
-        error == null ? 'تعذر الحفظ'.tr : actions.errorMessage(error),
-        isError: true,
-      );
-      return;
-    }
-    showAppSnackBar(context, 'تم حفظ التصنيف'.tr);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    nameCtrl.dispose();
+    descCtrl.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final categories = ref.watch(adminCategoriesProvider);
+    final categoriesAsync = ref.watch(adminCategoriesProvider);
     final busy = ref.watch(adminActionProvider).isLoading;
 
     return AdminScaffold(
-      title: 'التصنيفات'.tr,
-      body: AdminAsyncBody<List<CatalogCategory>>(
+      title: 'التصنيفات الرئيسية والفرعية'.tr,
+      showBack: true,
+      showBottomNav: false,
+      bottom: AppButton(
+        label: 'إضافة تصنيف جديد'.tr,
+        isLoading: busy,
+        onPressed: () => _openForm(),
+      ),
+      body: categoriesAsync.skeletonWhen(
         placeholder: LoadingFixtures.categories,
-        value: categories,
-        emptyMessage: 'لا توجد تصنيفات بعد'.tr,
-        isEmpty: (data) => data.isEmpty,
-        onRetry: () => ref.invalidate(adminCategoriesProvider),
-        onRefresh: () => ref.refresh(adminCategoriesProvider.future),
-        builder: (items) {
-          final filtered = filterAdminCategories(items, _filter);
-          final byId = {for (final c in items) c.id: c};
-          final childCountByParent = <String, int>{};
-          for (final c in items) {
-            if (c.parentId != null) {
-              childCountByParent[c.parentId!] =
-                  (childCountByParent[c.parentId!] ?? 0) + 1;
-            }
+        error: (err, _) => ListView(
+          padding: AppSpacing.page,
+          children: [
+            AdminNoticeBanner(
+              title: 'تعذر تحميل التصنيفات',
+              message: ref.read(adminRepositoryProvider).mapError(err),
+              tone: BadgeTone.error,
+              actionLabel: 'إعادة المحاولة',
+              onAction: () => ref.invalidate(adminCategoriesProvider),
+            ),
+          ],
+        ),
+        data: (items) {
+          if (items.isEmpty) {
+            return AdminCenteredEmptyView(
+              onRefresh: () => ref.refresh(adminCategoriesProvider.future),
+              title: 'لا توجد تصنيفات بعد',
+              message: 'أضف أول تصنيف رئيسي لتنظيم منتجات المتاجر.',
+            );
           }
+
+          final ordered = hierarchicalCategoryOptions(items);
+          final filtered = ordered.where((entry) {
+            final c = entry.category;
+            if (_filter.activeFilter == ActiveStateFilter.active &&
+                !c.isActive) {
+              return false;
+            }
+            if (_filter.activeFilter == ActiveStateFilter.inactive &&
+                c.isActive) {
+              return false;
+            }
+            final q = _filter.search.trim().toLowerCase();
+            if (q.isNotEmpty) {
+              final text =
+                  '${c.name} ${c.description ?? ''} ${entry.parent?.name ?? ''}'
+                      .toLowerCase();
+              if (!text.contains(q)) return false;
+            }
+            return true;
+          }).toList();
+
           final activeCount = items.where((c) => c.isActive).length;
           final inactiveCount = items.length - activeCount;
 
@@ -234,21 +276,9 @@ class _AdminCategoriesScreenState extends ConsumerState<AdminCategoriesScreen> {
             children: [
               AppFilterToolbar(
                 searchValue: _filter.search,
-                searchHint: 'ابحث باسم التصنيف أو المعرف...',
-                onSearchChanged: (val) =>
-                    setState(() => _filter = _filter.copyWith(search: val)),
-                sortLabel: _filter.sort.labelAr,
-                isDefaultSort: _filter.sort == DisplayOrderSort.displayOrder,
-                onOpenSort: () async {
-                  final selected = await showAppSortSheet<DisplayOrderSort>(
-                    context: context,
-                    current: _filter.sort,
-                    options: _sortChoices,
-                  );
-                  if (selected != null && mounted) {
-                    setState(() => _filter = _filter.copyWith(sort: selected));
-                  }
-                },
+                searchHint: 'ابحث باسم التصنيف...',
+                onSearchChanged: (v) =>
+                    setState(() => _filter = _filter.copyWith(search: v)),
                 quickOptions: [
                   AppQuickFilterOption(
                     id: 'cat_all',
@@ -263,34 +293,26 @@ class _AdminCategoriesScreenState extends ConsumerState<AdminCategoriesScreen> {
                   ),
                   AppQuickFilterOption(
                     id: 'cat_active',
-                    label: ActiveStateFilter.active.labelAr,
+                    label: 'نشط',
                     count: activeCount,
                     selected: _filter.activeFilter == ActiveStateFilter.active,
-                    onTap: () => setState(() {
-                      final same =
-                          _filter.activeFilter == ActiveStateFilter.active;
-                      _filter = _filter.copyWith(
-                        activeFilter: same
-                            ? ActiveStateFilter.all
-                            : ActiveStateFilter.active,
-                      );
-                    }),
+                    onTap: () => setState(
+                      () => _filter = _filter.copyWith(
+                        activeFilter: ActiveStateFilter.active,
+                      ),
+                    ),
                   ),
                   AppQuickFilterOption(
                     id: 'cat_inactive',
-                    label: ActiveStateFilter.inactive.labelAr,
+                    label: 'معطّل',
                     count: inactiveCount,
                     selected:
                         _filter.activeFilter == ActiveStateFilter.inactive,
-                    onTap: () => setState(() {
-                      final same =
-                          _filter.activeFilter == ActiveStateFilter.inactive;
-                      _filter = _filter.copyWith(
-                        activeFilter: same
-                            ? ActiveStateFilter.all
-                            : ActiveStateFilter.inactive,
-                      );
-                    }),
+                    onTap: () => setState(
+                      () => _filter = _filter.copyWith(
+                        activeFilter: ActiveStateFilter.inactive,
+                      ),
+                    ),
                   ),
                 ],
                 totalCount: items.length,
@@ -302,74 +324,118 @@ class _AdminCategoriesScreenState extends ConsumerState<AdminCategoriesScreen> {
               ),
               Expanded(
                 child: filtered.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: AppSpacing.page,
-                        children: [
-                          AppFilterEmptyState(
-                            onReset: () => setState(
-                              () => _filter = CatalogListFilterState.empty,
-                            ),
-                          ),
-                        ],
+                    ? AdminCenteredEmptyView(
+                        onRefresh: () =>
+                            ref.refresh(adminCategoriesProvider.future),
+                        title: 'لا توجد تصنيفات مطابقة',
+                        message: 'جرّب تعديل البحث أو إزالة الفلتر.',
                       )
-                    : ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: AppSpacing.page,
-                        children: filtered
-                            .map(
-                              (item) => Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: AppSpacing.sm,
+                    : AppRefreshIndicator(
+                        onRefresh: () =>
+                            ref.refresh(adminCategoriesProvider.future),
+                        child: ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: AppSpacing.page,
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: AppSpacing.sm),
+                          itemBuilder: (context, index) {
+                            final entry = filtered[index];
+                            final cat = entry.category;
+                            final isSub = entry.parent != null;
+
+                            return Padding(
+                              padding: EdgeInsetsDirectional.only(
+                                start: isSub ? AppSpacing.md : 0,
+                              ),
+                              child: Material(
+                                color: SellerDesign.statCardBackground,
+                                borderRadius: BorderRadius.circular(
+                                  CardDesign.radius,
                                 ),
-                                child: AppCard(
+                                child: InkWell(
                                   onTap: busy
                                       ? null
-                                      : () => _openForm(
-                                          context,
-                                          ref,
-                                          category: item,
+                                      : AppHaptics.action(
+                                          () => _openForm(category: cat),
                                         ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.name,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleLarge,
+                                  borderRadius: BorderRadius.circular(
+                                    CardDesign.radius,
+                                  ),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(
+                                      AppSpacing.md,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(
+                                        CardDesign.radius,
                                       ),
-                                      const SizedBox(height: AppSpacing.xs),
-                                      Text(
-                                        item.parentId != null
-                                            ? 'فرعي ضمن: ${byId[item.parentId]?.name ?? 'قسم رئيسي'} · ${item.isActive ? 'نشط'.tr : 'متوقف'.tr}'
-                                            : 'قسم رئيسي${(childCountByParent[item.id] ?? 0) > 0 ? ' (${childCountByParent[item.id]} فرعي)' : ''} · ${item.isActive ? 'نشط'.tr : 'متوقف'.tr}',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodyMedium,
+                                      border: Border.all(
+                                        color: SellerDesign.statCardBorder,
                                       ),
-                                      if (item.description != null &&
-                                          item.description!.isNotEmpty) ...[
-                                        const SizedBox(height: AppSpacing.xs),
-                                        Text(item.description!),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                cat.name,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleMedium
+                                                    ?.copyWith(
+                                                      fontWeight: AppFont.bold,
+                                                    ),
+                                              ),
+                                              const SizedBox(height: 3),
+                                              Text(
+                                                isSub
+                                                    ? '${'فرعي ضمن'.tr}: ${entry.parent!.name}'
+                                                    : (cat.description
+                                                                  ?.trim()
+                                                                  .isNotEmpty ==
+                                                              true
+                                                          ? cat.description!
+                                                                .trim()
+                                                          : 'قسم رئيسي'.tr),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color:
+                                                          AppColors.textMuted,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const SizedBox(width: AppSpacing.sm),
+                                        AppStatusBadge(
+                                          label: cat.isActive
+                                              ? 'نشط'
+                                              : 'معطّل',
+                                          tone: cat.isActive
+                                              ? BadgeTone.success
+                                              : BadgeTone.neutral,
+                                        ),
                                       ],
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            )
-                            .toList(),
+                            );
+                          },
+                        ),
                       ),
               ),
             ],
           );
         },
-      ),
-      bottom: AppButton(
-        label: 'إضافة تصنيف'.tr,
-        isLoading: busy,
-        onPressed: () => _openForm(context, ref),
       ),
     );
   }

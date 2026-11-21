@@ -83,8 +83,16 @@ class AdminProduct {
     required this.price,
     required this.status,
     this.description,
+    this.shopId,
     this.shopName,
+    this.shopCity,
     this.categoryName,
+    this.originalPrice,
+    this.discountAmount = 0,
+    this.discountPercent = 0,
+    this.offerTitle,
+    this.offerEndsAt,
+    this.coverImage,
   });
 
   final String id;
@@ -92,8 +100,27 @@ class AdminProduct {
   final String? description;
   final double price;
   final String status;
+  final String? shopId;
   final String? shopName;
+  final String? shopCity;
   final String? categoryName;
+  final double? originalPrice;
+  final double discountAmount;
+  final int discountPercent;
+  final String? offerTitle;
+  final DateTime? offerEndsAt;
+  final String? coverImage;
+
+  bool get isOfferExpired =>
+      discountPercent > 0 &&
+      offerEndsAt != null &&
+      !offerEndsAt!.isAfter(DateTime.now());
+
+  bool get hasOffer =>
+      discountPercent > 0 &&
+      originalPrice != null &&
+      originalPrice! > 0 &&
+      !isOfferExpired;
 
   String get statusLabel {
     switch (status) {
@@ -111,14 +138,48 @@ class AdminProduct {
   factory AdminProduct.fromMap(Map<String, dynamic> map) {
     final shop = map['shops'];
     final category = map['categories'];
+    final details = map['details'] is Map
+        ? Map<String, dynamic>.from(map['details'] as Map)
+        : const <String, dynamic>{};
+    final imagesRaw = map['product_images'];
+    String? cover;
+    if (imagesRaw is List && imagesRaw.isNotEmpty) {
+      final sorted = List<dynamic>.from(imagesRaw)
+        ..sort(
+          (a, b) => ((a['sort_order'] as num?) ?? 0).compareTo(
+            (b['sort_order'] as num?) ?? 0,
+          ),
+        );
+      cover = sorted.first['file_path'] as String?;
+    }
     return AdminProduct(
       id: map['id'] as String,
       name: map['name'] as String? ?? '',
       description: map['description'] as String?,
       price: (map['price'] as num?)?.toDouble() ?? 0,
       status: map['status'] as String? ?? 'draft',
+      shopId: map['shop_id'] as String?,
       shopName: shop is Map ? shop['name'] as String? : null,
+      shopCity: shop is Map ? shop['city'] as String? : null,
       categoryName: category is Map ? category['name'] as String? : null,
+      originalPrice:
+          (map['original_price'] as num?)?.toDouble() ??
+          (details['original_price'] as num?)?.toDouble(),
+      discountAmount:
+          (map['discount_amount'] as num?)?.toDouble() ??
+          (details['discount_amount'] as num?)?.toDouble() ??
+          0,
+      discountPercent:
+          (map['discount_percent'] as num?)?.toInt() ??
+          (details['discount_percent'] as num?)?.toInt() ??
+          0,
+      offerTitle:
+          (map['offer_title'] as String?) ??
+          (details['offer_title'] as String?),
+      offerEndsAt: DateTime.tryParse(
+        (map['offer_ends_at'] ?? details['offer_ends_at'])?.toString() ?? '',
+      )?.toLocal(),
+      coverImage: cover,
     );
   }
 }
@@ -130,7 +191,12 @@ class AdminOrder {
     required this.total,
     required this.createdAt,
     this.shopName,
+    this.shopCity,
+    this.customerName,
     this.customerEmail,
+    this.customerPhone,
+    this.shippingCity,
+    this.shippingAddress,
   });
 
   final String id;
@@ -138,7 +204,12 @@ class AdminOrder {
   final double total;
   final DateTime createdAt;
   final String? shopName;
+  final String? shopCity;
+  final String? customerName;
   final String? customerEmail;
+  final String? customerPhone;
+  final String? shippingCity;
+  final String? shippingAddress;
 
   String get statusLabel {
     switch (status) {
@@ -165,10 +236,19 @@ class AdminOrder {
       status: map['status'] as String? ?? 'pending',
       total: (map['total'] as num?)?.toDouble() ?? 0,
       createdAt:
-          DateTime.tryParse(map['created_at'] as String? ?? '') ??
+          DateTime.tryParse(map['created_at'] as String? ?? '')?.toLocal() ??
           DateTime.now(),
       shopName: shop is Map ? shop['name'] as String? : null,
+      shopCity: shop is Map ? shop['city'] as String? : null,
+      customerName: customer is Map ? customer['full_name'] as String? : null,
       customerEmail: customer is Map ? customer['email'] as String? : null,
+      customerPhone: customer is Map ? customer['phone'] as String? : null,
+      shippingCity:
+          (map['shipping_city'] as String?) ??
+          (customer is Map ? customer['city'] as String? : null),
+      shippingAddress:
+          (map['shipping_address'] as String?) ??
+          (customer is Map ? customer['address'] as String? : null),
     );
   }
 }
@@ -181,6 +261,9 @@ class AdminBanner {
     this.subtitle,
     this.imagePath,
     this.sortOrder = 0,
+    this.shopId,
+    this.isAutoOffer = false,
+    this.ctaLabel,
   });
 
   final String id;
@@ -189,6 +272,11 @@ class AdminBanner {
   final String? imagePath;
   final bool isActive;
   final int sortOrder;
+  final String? shopId;
+  final bool isAutoOffer;
+  final String? ctaLabel;
+
+  bool get isShopBanner => shopId != null && shopId!.trim().isNotEmpty;
 
   factory AdminBanner.fromMap(Map<String, dynamic> map) {
     return AdminBanner(
@@ -198,6 +286,9 @@ class AdminBanner {
       imagePath: map['image_path'] as String?,
       isActive: map['is_active'] as bool? ?? true,
       sortOrder: (map['sort_order'] as num?)?.toInt() ?? 0,
+      shopId: map['shop_id'] as String?,
+      isAutoOffer: map['is_auto_offer'] as bool? ?? false,
+      ctaLabel: map['cta_label'] as String?,
     );
   }
 }
@@ -212,6 +303,7 @@ class AdminNotification {
     this.shopId,
     this.senderRole = 'system',
     this.targetScope = 'audience',
+    this.targetRegion,
   });
 
   final String id;
@@ -222,10 +314,14 @@ class AdminNotification {
   final String? shopId;
   final String senderRole;
   final String targetScope;
+  final String? targetRegion;
 
   bool get isSentByShop => senderRole == 'shop';
 
   String get audienceLabel {
+    if (targetRegion != null && targetRegion!.trim().isNotEmpty) {
+      return 'منطقة: ${targetRegion!.trim()}';
+    }
     if (targetScope == 'shop_customers') {
       return 'عملاء المحل';
     }
@@ -249,11 +345,12 @@ class AdminNotification {
       body: map['body'] as String? ?? '',
       audience: map['audience'] as String? ?? 'all',
       createdAt:
-          DateTime.tryParse(map['created_at'] as String? ?? '') ??
+          DateTime.tryParse(map['created_at'] as String? ?? '')?.toLocal() ??
           DateTime.now(),
       shopId: map['shop_id'] as String?,
       senderRole: map['sender_role'] as String? ?? 'system',
       targetScope: map['target_scope'] as String? ?? 'audience',
+      targetRegion: map['target_region'] as String?,
     );
   }
 }

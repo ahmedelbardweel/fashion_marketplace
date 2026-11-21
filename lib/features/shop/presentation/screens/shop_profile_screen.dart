@@ -557,6 +557,14 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                         ),
                         const Divider(height: 1),
                         ShopProfileMenuRow(
+                          icon: AppIcons.banners,
+                          title: 'بنرات المتجر',
+                          subtitle:
+                              'التحكم في بنرات العروض والإعلانات الظاهرة للعملاء',
+                          onTap: () => context.go(AppRoutes.shopBanners),
+                        ),
+                        const Divider(height: 1),
+                        ShopProfileMenuRow(
                           icon: themeMode == ThemeMode.dark
                               ? IconsaxPlusLinear.moon
                               : AppIcons.sun,

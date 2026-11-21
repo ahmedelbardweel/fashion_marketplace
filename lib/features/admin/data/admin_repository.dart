@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:path/path.dart' as p;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
@@ -15,6 +17,8 @@ import '../../shop/domain/models/shop_product.dart';
 import '../domain/models/admin_stats.dart';
 import '../domain/models/catalog_models.dart';
 import '../domain/models/decart_settings_status.dart';
+import '../domain/models/gaza_region.dart';
+import '../domain/models/revenue_models.dart';
 
 class AdminRepository {
   AdminRepository({SupabaseClient? client})
@@ -338,7 +342,9 @@ class AdminRepository {
       try {
         var query = _client
             .from('products')
-            .select('*, shops(name), categories(name)')
+            .select(
+              '*, shops(name, city), categories(name), product_images(file_path, sort_order)',
+            )
             .neq('status', 'deleted');
 
         if (status != null && status.isNotEmpty) {
@@ -472,12 +478,51 @@ class AdminRepository {
     );
   }
 
+  Future<List<AdminProduct>> fetchActiveOffers() async {
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final rows = await _client
+            .from('products')
+            .select(
+              '*, shops(name, city), categories(name), product_images(file_path, sort_order)',
+            )
+            .neq('status', 'deleted')
+            .gt('discount_percent', 0)
+            .order('discount_percent', ascending: false)
+            .order('updated_at', ascending: false);
+        return (rows as List)
+            .map(
+              (row) =>
+                  AdminProduct.fromMap(Map<String, dynamic>.from(row as Map)),
+            )
+            .where((p) => p.hasOffer)
+            .toList();
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+    return const [];
+  }
+
+  Future<void> cancelProductOffer(String productId) async {
+    await _client.rpc(
+      'admin_cancel_product_offer',
+      params: {'p_product_id': productId},
+    );
+  }
+
   Future<List<AdminOrder>> fetchOrders() async {
     if (NetworkMonitorService.instance.isOnline) {
       try {
         final rows = await _client
             .from('orders')
-            .select('*, shops(name), profiles!customer_id(email)')
+            .select(
+              '*, shops(name, city), profiles!customer_id(full_name, email, phone, city, address)',
+            )
             .order('created_at', ascending: false);
         return (rows as List)
             .map(
@@ -494,6 +539,217 @@ class AdminRepository {
       }
     }
     return _localDb.getAdminOrders();
+  }
+
+  Future<void> updateOrderStatus({
+    required String orderId,
+    required String status,
+  }) async {
+    await _client.rpc(
+      'admin_update_order_status',
+      params: {'p_order_id': orderId, 'p_status': status},
+    );
+  }
+
+  Future<List<GazaRegion>> fetchGazaRegions({bool activeOnly = false}) async {
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        var query = _client.from('gaza_regions').select();
+        if (activeOnly) {
+          query = query.eq('is_active', true);
+        }
+        final rows = await query
+            .order('sort_order', ascending: true)
+            .order('name', ascending: true);
+        final list = (rows as List)
+            .map(
+              (row) => GazaRegion.fromMap(Map<String, dynamic>.from(row as Map)),
+            )
+            .toList();
+        if (list.isNotEmpty) return list;
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        }
+        // Fallback to built-in Gaza regions if migration 024 is not applied yet
+      }
+    }
+    return kDefaultGazaRegions;
+  }
+
+  Future<GazaRegion> upsertRegion({
+    required String name,
+    String? nameEn,
+    String? parentId,
+    double deliveryFee = 10,
+    String estimatedDelivery = 'نفس اليوم',
+    bool isDeliveryAvailable = true,
+    bool isActive = true,
+    int sortOrder = 0,
+    String? id,
+  }) async {
+    final data = await _client.rpc(
+      'admin_upsert_region',
+      params: {
+        'p_name': name.trim(),
+        'p_name_en': (nameEn?.trim().isEmpty ?? true) ? null : nameEn!.trim(),
+        'p_parent_id': (parentId?.trim().isEmpty ?? true) ? null : parentId,
+        'p_delivery_fee': deliveryFee,
+        'p_estimated_delivery': estimatedDelivery.trim().isEmpty
+            ? 'نفس اليوم'
+            : estimatedDelivery.trim(),
+        'p_is_delivery_available': isDeliveryAvailable,
+        'p_is_active': isActive,
+        'p_sort_order': sortOrder,
+        'p_id': id,
+      },
+    );
+    return GazaRegion.fromMap(asStringMap(data));
+  }
+
+  Future<void> deleteRegion(String id) async {
+    await _client.rpc('admin_delete_region', params: {'p_id': id});
+  }
+
+  Future<GazaRegion> toggleRegionDelivery({
+    required String id,
+    required bool isDeliveryAvailable,
+  }) async {
+    final data = await _client.rpc(
+      'admin_toggle_region_delivery',
+      params: {
+        'p_id': id,
+        'p_is_delivery_available': isDeliveryAvailable,
+      },
+    );
+    return GazaRegion.fromMap(asStringMap(data));
+  }
+
+  Future<String> uploadBannerImage({
+    required String fileName,
+    required Uint8List bytes,
+    String? contentType,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('يجب تسجيل الدخول أولاً');
+    }
+    final safeName =
+        '${DateTime.now().millisecondsSinceEpoch}_${p.basename(fileName)}';
+    final path = '$userId/admin-banners/$safeName';
+    await _client.storage.from('shop-media').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(upsert: true, contentType: contentType),
+        );
+    return _client.storage.from('shop-media').getPublicUrl(path);
+  }
+
+  Future<AdminRevenueOverview> fetchRevenueOverview() async {
+    final data = await _client.rpc('admin_revenue_overview');
+    return AdminRevenueOverview.fromMap(asStringMap(data));
+  }
+
+  Future<({List<CommissionLedgerEntry> ledger, List<ShopSettlement> settlements})>
+  fetchShopLedger(String shopId) async {
+    final data = await _client.rpc(
+      'admin_shop_ledger',
+      params: {'p_shop_id': shopId},
+    );
+    final map = asStringMap(data);
+    final ledgerRaw = map['ledger'] is List ? map['ledger'] as List : const [];
+    final settlementsRaw = map['settlements'] is List
+        ? map['settlements'] as List
+        : const [];
+    return (
+      ledger: ledgerRaw
+          .map(
+            (e) => CommissionLedgerEntry.fromMap(
+              Map<String, dynamic>.from(e as Map),
+            ),
+          )
+          .toList(),
+      settlements: settlementsRaw
+          .map(
+            (e) => ShopSettlement.fromMap(Map<String, dynamic>.from(e as Map)),
+          )
+          .toList(),
+    );
+  }
+
+  Future<void> updateShopAgreement({
+    required String shopId,
+    required String commissionType,
+    required double commissionRate,
+    double commissionFixedFee = 0,
+    double creditLimit = 300,
+    String settlementCycle = 'weekly',
+    bool autoSuspendOnLimit = true,
+    String? agreementNotes,
+  }) async {
+    await _client.rpc(
+      'admin_update_shop_agreement',
+      params: {
+        'p_shop_id': shopId,
+        'p_commission_type': commissionType,
+        'p_commission_rate': commissionRate,
+        'p_commission_fixed_fee': commissionFixedFee,
+        'p_credit_limit': creditLimit,
+        'p_settlement_cycle': settlementCycle,
+        'p_auto_suspend_on_limit': autoSuspendOnLimit,
+        'p_agreement_notes': (agreementNotes?.trim().isEmpty ?? true)
+            ? null
+            : agreementNotes!.trim(),
+      },
+    );
+  }
+
+  Future<void> setShopFinancialHold({
+    required String shopId,
+    required bool hold,
+  }) async {
+    await _client.rpc(
+      'admin_set_shop_financial_hold',
+      params: {'p_shop_id': shopId, 'p_hold': hold},
+    );
+  }
+
+  Future<void> reviewSettlement({
+    required String settlementId,
+    required bool approve,
+    String? adminNote,
+  }) async {
+    await _client.rpc(
+      'admin_review_settlement',
+      params: {
+        'p_settlement_id': settlementId,
+        'p_approve': approve,
+        'p_admin_note': (adminNote?.trim().isEmpty ?? true)
+            ? null
+            : adminNote!.trim(),
+      },
+    );
+  }
+
+  Future<void> recordShopPayment({
+    required String shopId,
+    required double amount,
+    String paymentMethod = 'cash',
+    String? referenceNumber,
+    String? note,
+  }) async {
+    await _client.rpc(
+      'admin_record_shop_payment',
+      params: {
+        'p_shop_id': shopId,
+        'p_amount': amount,
+        'p_payment_method': paymentMethod,
+        'p_reference_number': (referenceNumber?.trim().isEmpty ?? true)
+            ? null
+            : referenceNumber!.trim(),
+        'p_note': (note?.trim().isEmpty ?? true) ? null : note!.trim(),
+      },
+    );
   }
 
   Future<List<AdminBanner>> fetchBanners() async {
@@ -527,9 +783,13 @@ class AdminRepository {
     required String title,
     String? subtitle,
     String? imagePath,
+    String? ctaLabel,
+    int sortOrder = 0,
     bool isActive = true,
     String? id,
   }) async {
+    final cleanImage = imagePath?.trim();
+    final cleanCta = ctaLabel?.trim();
     final data = await _client.rpc(
       'admin_upsert_banner',
       params: {
@@ -537,21 +797,14 @@ class AdminRepository {
         'p_subtitle': subtitle,
         'p_is_active': isActive,
         'p_id': id,
+        'p_image_path': (cleanImage == null || cleanImage.isEmpty)
+            ? null
+            : cleanImage,
+        'p_cta_label': (cleanCta == null || cleanCta.isEmpty) ? null : cleanCta,
+        'p_sort_order': sortOrder,
       },
     );
-    var created = AdminBanner.fromMap(asStringMap(data));
-    if (imagePath != null) {
-      final cleanImage = imagePath.trim();
-      final updated = await _client
-          .from('banners')
-          .update({'image_path': cleanImage.isEmpty ? null : cleanImage})
-          .eq('id', created.id)
-          .select()
-          .maybeSingle();
-      if (updated != null) {
-        created = AdminBanner.fromMap(Map<String, dynamic>.from(updated));
-      }
-    }
+    final created = AdminBanner.fromMap(asStringMap(data));
     await _localDb.saveBanners([created]);
     return created;
   }
@@ -592,13 +845,18 @@ class AdminRepository {
     required String title,
     required String body,
     required String audience,
+    String? targetRegion,
   }) async {
+    final cleanRegion = targetRegion?.trim();
     final data = await _client.rpc(
       'admin_send_notification',
       params: {
         'p_title': title.trim(),
         'p_body': body.trim(),
         'p_audience': audience,
+        'p_target_region': (cleanRegion == null || cleanRegion.isEmpty)
+            ? null
+            : cleanRegion,
       },
     );
     final created = AdminNotification.fromMap(asStringMap(data));
@@ -617,11 +875,107 @@ class AdminRepository {
     return DecartSettingsStatus.fromMap(asStringMap(data));
   }
 
+  Future<DecartCreditsBalance> fetchDecartCredits() async {
+    if (!NetworkMonitorService.instance.isOnline) {
+      return const DecartCreditsBalance(
+        configured: true,
+        errorCode: 'offline',
+      );
+    }
+    try {
+      final response = await _client.functions.invoke(
+        'decart-session',
+        method: HttpMethod.get,
+      );
+      if (response.status == 405) {
+        return const DecartCreditsBalance(
+          configured: true,
+          needsFunctionDeploy: true,
+        );
+      }
+      final data = asStringMap(response.data);
+      return DecartCreditsBalance.fromMap(data);
+    } on FunctionException catch (e) {
+      if (e.status == 405) {
+        return const DecartCreditsBalance(
+          configured: true,
+          needsFunctionDeploy: true,
+        );
+      }
+      return DecartCreditsBalance(
+        configured: true,
+        errorCode: 'http_${e.status}',
+      );
+    } catch (_) {
+      return const DecartCreditsBalance(
+        configured: true,
+        errorCode: 'unavailable',
+      );
+    }
+  }
+
   Future<void> setDecartApiKey(String apiKey) async {
     await _client.rpc(
       'admin_set_decart_api_key',
       params: {'p_api_key': apiKey.trim()},
     );
+  }
+
+  Future<List<DecartApiKeyEntry>> fetchDecartKeys() async {
+    try {
+      final data = await _client.rpc('admin_list_decart_keys');
+      if (data is List) {
+        return data
+            .map(
+              (e) => DecartApiKeyEntry.fromMap(
+                Map<String, dynamic>.from(e as Map),
+              ),
+            )
+            .toList();
+      }
+      return const [];
+    } on PostgrestException catch (e) {
+      if (e.code == 'PGRST202' || e.code == '42883') return const [];
+      rethrow;
+    }
+  }
+
+  Future<void> addDecartApiKey({
+    required String apiKey,
+    String? label,
+  }) async {
+    final trimmedLabel = label?.trim();
+    try {
+      await _client.rpc(
+        'admin_add_decart_api_key',
+        params: {
+          'p_api_key': apiKey.trim(),
+          if (trimmedLabel != null && trimmedLabel.isNotEmpty)
+            'p_label': trimmedLabel,
+        },
+      );
+    } on PostgrestException catch (e) {
+      // Fallback to legacy single-key RPC if migration 027 is not applied yet.
+      if (e.code == 'PGRST202' || e.code == '42883') {
+        await setDecartApiKey(apiKey);
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> toggleDecartApiKey({
+    required String id,
+    required bool isActive,
+  }) async {
+    await _client.rpc(
+      'admin_toggle_decart_api_key',
+      params: {'p_id': id, 'p_is_active': isActive},
+    );
+  }
+
+  Future<void> deleteDecartApiKey(String id) async {
+    await _client.rpc('admin_delete_decart_api_key', params: {'p_id': id});
   }
 
   Future<TryonCostControls> fetchTryonControls() async {

@@ -14,6 +14,9 @@ import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../../core/widgets/gaza_region_picker_sheet.dart';
+import '../../../admin/domain/models/gaza_region.dart';
+import '../../../admin/presentation/providers/admin_providers.dart';
 import '../../domain/models/shop.dart';
 import '../../domain/models/shop_product.dart';
 import '../providers/shop_catalog_providers.dart';
@@ -1126,12 +1129,10 @@ class ShopDetailsFormFields extends StatelessWidget {
                 validator: (v) => Validators.required(v, field: 'وصف المحل'.tr),
               ),
               const SizedBox(height: AppSpacing.md),
-              AppTextField(
+              GazaRegionFormField(
                 controller: cityController,
-                label: 'المدينة'.tr,
                 enabled: enabled,
                 onChanged: (_) => onChanged?.call(),
-                validator: (v) => Validators.required(v, field: 'المدينة'.tr),
               ),
               const SizedBox(height: AppSpacing.md),
               AppTextField(

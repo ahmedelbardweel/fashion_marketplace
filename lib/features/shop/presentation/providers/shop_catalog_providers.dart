@@ -9,8 +9,10 @@ import '../../../../core/pagination/paginated_state.dart';
 export '../../../../core/pagination/paginated_state.dart';
 
 import '../../../admin/domain/models/catalog_models.dart';
+import '../../../admin/domain/models/revenue_models.dart';
 import '../../../auth/domain/models/user_role.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../customer/presentation/providers/customer_providers.dart';
 import '../../data/shop_catalog_repository.dart';
 import '../../data/shop_storage_repository.dart';
 import '../../domain/models/shop_product.dart';
@@ -201,6 +203,19 @@ final shopDocumentsProvider = FutureProvider.autoDispose<List<ShopMediaItem>>((
   return ref.watch(shopCatalogRepositoryProvider).fetchDocuments();
 });
 
+final shopBannersProvider = FutureProvider.autoDispose<List<AdminBanner>>((
+  ref,
+) async {
+  if (!_isShop(ref)) return const [];
+  return ref.watch(shopCatalogRepositoryProvider).fetchMyBanners();
+});
+
+final shopFinanceSummaryProvider =
+    FutureProvider.autoDispose<ShopFinanceSummary?>((ref) async {
+      if (!_isShop(ref)) return null;
+      return ref.watch(shopCatalogRepositoryProvider).fetchMyFinanceSummary();
+    });
+
 final shopCatalogActionProvider =
     StateNotifierProvider<ShopCatalogActionController, AsyncValue<void>>(
       (ref) => ShopCatalogActionController(ref),
@@ -279,6 +294,64 @@ class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
       }
       _ref.invalidate(shopStatsProvider);
       _ref.invalidate(shopProductProvider(productId));
+      _ref.invalidate(shopBannersProvider);
+      _ref.invalidate(customerBannersProvider);
+    });
+  }
+
+  Future<bool> upsertBanner({
+    required String title,
+    String? subtitle,
+    String? imagePath,
+    bool isActive = true,
+    String? ctaLabel,
+    String? id,
+  }) {
+    return _run(() async {
+      await _repo.upsertBanner(
+        title: title,
+        subtitle: subtitle,
+        imagePath: imagePath,
+        isActive: isActive,
+        ctaLabel: ctaLabel,
+        id: id,
+      );
+      _ref.invalidate(shopBannersProvider);
+      _ref.invalidate(customerBannersProvider);
+    });
+  }
+
+  Future<bool> deleteBanner(String bannerId) {
+    return _run(() async {
+      await _repo.deleteBanner(bannerId);
+      _ref.invalidate(shopBannersProvider);
+      _ref.invalidate(customerBannersProvider);
+    });
+  }
+
+  Future<bool> acceptCommissionAgreement() {
+    return _run(() async {
+      await _repo.acceptCommissionAgreement();
+      _ref.invalidate(shopFinanceSummaryProvider);
+    });
+  }
+
+  Future<bool> submitSettlement({
+    required double amount,
+    required String paymentMethod,
+    String? referenceNumber,
+    String? receiptUrl,
+    String? notes,
+  }) {
+    return _run(() async {
+      await _repo.submitSettlement(
+        amount: amount,
+        paymentMethod: paymentMethod,
+        referenceNumber: referenceNumber,
+        receiptUrl: receiptUrl,
+        notes: notes,
+      );
+      _ref.invalidate(shopFinanceSummaryProvider);
     });
   }
 

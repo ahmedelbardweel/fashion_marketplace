@@ -190,7 +190,8 @@ class CustomerRepository {
             .from('banners')
             .select()
             .eq('is_active', true)
-            .order('sort_order', ascending: true);
+            .order('sort_order', ascending: true)
+            .order('updated_at', ascending: false);
         final banners = (rows as List)
             .map((row) => AdminBanner.fromMap(asStringMap(row)))
             .toList();

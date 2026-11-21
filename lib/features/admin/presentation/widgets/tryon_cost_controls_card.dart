@@ -12,7 +12,9 @@ import '../../domain/models/decart_settings_status.dart';
 import '../providers/admin_providers.dart';
 
 class TryonCostControlsCard extends ConsumerStatefulWidget {
-  const TryonCostControlsCard({super.key});
+  const TryonCostControlsCard({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   ConsumerState<TryonCostControlsCard> createState() =>
@@ -87,12 +89,12 @@ class _TryonCostControlsCardState extends ConsumerState<TryonCostControlsCard> {
   Widget build(BuildContext context) {
     final asyncControls = ref.watch(adminTryonControlsProvider);
 
-    return AppCard(
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+    final content = Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!widget.embedded) ...[
             Row(
               children: [
                 Icon(Icons.tune_rounded, color: AppColors.primary, size: 22),
@@ -106,112 +108,117 @@ class _TryonCostControlsCardState extends ConsumerState<TryonCostControlsCard> {
               ],
             ),
             const SizedBox(height: AppSpacing.sm),
-            asyncControls.when(
-              loading: () => AppSkeleton(
-                child: Text('جارٍ تحميل إعدادات التكلفة…'.tr),
-              ),
-              error: (_, _) => Row(
+          ],
+          asyncControls.when(
+            loading: () => AppSkeleton(
+              child: Text('جارٍ تحميل إعدادات التكلفة…'.tr),
+            ),
+            error: (_, _) => Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'تعذر قراءة إعدادات التكلفة من السيرفر (تأكد من تطبيق تحديث 019).'
+                        .tr,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'إعادة المحاولة'.tr,
+                  onPressed: () {
+                    _hydrated = false;
+                    ref.invalidate(adminTryonControlsProvider);
+                  },
+                  icon: const Icon(AppIcons.refresh),
+                ),
+              ],
+            ),
+            data: (controls) {
+              _hydrateFrom(controls);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    child: Text(
-                      'تعذر قراءة إعدادات التكلفة من السيرفر (تأكد من تطبيق تحديث 019).'
-                          .tr,
+                  Material(
+                    type: MaterialType.transparency,
+                    child: SwitchListTile(
+                      value: _enabled,
+                      onChanged: _saving
+                          ? null
+                          : (value) => setState(() => _enabled = value),
+                      contentPadding: EdgeInsets.zero,
+                      activeTrackColor: AppColors.primary,
+                      title: Text(
+                        'تفعيل ميزة التجربة الافتراضية'.tr,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text(
+                        _enabled
+                            ? 'الخدمة متاحة حالياً للمستخدمين.'.tr
+                            : 'الخدمة متوقفة مؤقتاً لتوفير التكلفة.'.tr,
+                      ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'إعادة المحاولة'.tr,
-                    onPressed: () {
-                      _hydrated = false;
-                      ref.invalidate(adminTryonControlsProvider);
+                  const SizedBox(height: AppSpacing.sm),
+                  TextFormField(
+                    controller: _durationController,
+                    enabled: !_saving,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: 'مدة جلسة التجربة (بالثواني)'.tr,
+                      helperText:
+                          'القيمة المسموحة بين 10 و300 ثانية (الافتراضي 30).'
+                              .tr,
+                    ),
+                    validator: (value) {
+                      final n = int.tryParse(value?.trim() ?? '');
+                      if (n == null || n < 10 || n > 300) {
+                        return 'أدخل مدة بين 10 و300 ثانية.'.tr;
+                      }
+                      return null;
                     },
-                    icon: const Icon(AppIcons.refresh),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextFormField(
+                    controller: _dailyLimitController,
+                    enabled: !_saving,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: 'الحد اليومي للمحاولات لكل مستخدم'.tr,
+                      helperText:
+                          'القيمة المسموحة بين 1 و100 محاولة يومياً (الافتراضي 3).'
+                              .tr,
+                    ),
+                    validator: (value) {
+                      final n = int.tryParse(value?.trim() ?? '');
+                      if (n == null || n < 1 || n > 100) {
+                        return 'أدخل عدداً بين 1 و100 محاولة يومياً.'.tr;
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  AppButton(
+                    label: _saving
+                        ? 'جارٍ الحفظ…'.tr
+                        : 'حفظ إعدادات التكلفة'.tr,
+                    onPressed: _saving ? null : _save,
                   ),
                 ],
+              );
+            },
+          ),
+          if (_message != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              _message!,
+              style: TextStyle(
+                color: _failed ? Theme.of(context).colorScheme.error : null,
               ),
-              data: (controls) {
-                _hydrateFrom(controls);
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Material(
-                      type: MaterialType.transparency,
-                      child: SwitchListTile(
-                        value: _enabled,
-                        onChanged: _saving
-                            ? null
-                            : (value) => setState(() => _enabled = value),
-                        contentPadding: EdgeInsets.zero,
-                        activeTrackColor: AppColors.primary,
-                        title: Text(
-                          'تفعيل ميزة التجربة الافتراضية'.tr,
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        subtitle: Text(
-                          _enabled
-                              ? 'الخدمة متاحة حالياً للمستخدمين.'.tr
-                              : 'الخدمة متوقفة مؤقتاً لتوفير التكلفة.'.tr,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    TextFormField(
-                      controller: _durationController,
-                      enabled: !_saving,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(
-                        labelText: 'مدة جلسة التجربة (بالثواني)'.tr,
-                        helperText: 'القيمة المسموحة بين 10 و300 ثانية (الافتراضي 30).'.tr,
-                      ),
-                      validator: (value) {
-                        final n = int.tryParse(value?.trim() ?? '');
-                        if (n == null || n < 10 || n > 300) {
-                          return 'أدخل مدة بين 10 و300 ثانية.'.tr;
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    TextFormField(
-                      controller: _dailyLimitController,
-                      enabled: !_saving,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(
-                        labelText: 'الحد اليومي للمحاولات لكل مستخدم'.tr,
-                        helperText: 'القيمة المسموحة بين 1 و100 محاولة يومياً (الافتراضي 3).'.tr,
-                      ),
-                      validator: (value) {
-                        final n = int.tryParse(value?.trim() ?? '');
-                        if (n == null || n < 1 || n > 100) {
-                          return 'أدخل عدداً بين 1 و100 محاولة يومياً.'.tr;
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(
-                      label: _saving
-                          ? 'جارٍ الحفظ…'.tr
-                          : 'حفظ إعدادات التكلفة'.tr,
-                      onPressed: _saving ? null : _save,
-                    ),
-                  ],
-                );
-              },
             ),
-            if (_message != null) ...[
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                _message!,
-                style: TextStyle(
-                  color: _failed ? Theme.of(context).colorScheme.error : null,
-                ),
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
+    return widget.embedded ? content : AppCard(child: content);
   }
 }
