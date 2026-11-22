@@ -28,6 +28,18 @@ enum PushPermissionStatus {
   permanentlyDenied,
 }
 
+class PushTestResult {
+  const PushTestResult({
+    required this.ok,
+    required this.viaFcm,
+    required this.message,
+  });
+
+  final bool ok;
+  final bool viaFcm;
+  final String message;
+}
+
 extension PushPermissionStatusX on PushPermissionStatus {
   bool get isGranted =>
       this == PushPermissionStatus.granted ||
@@ -44,21 +56,44 @@ const String _shownNotifIdsKey = 'app_notifications_shown_ids';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
+    WidgetsFlutterBinding.ensureInitialized();
+    DartPluginRegistrant.ensureInitialized();
+  } catch (_) {}
+  try {
     await dotenv.load(fileName: '.env');
   } catch (_) {}
   await PushNotificationService.initializeFirebaseIfConfigured();
+
+  // If the server sent a data-only push while the app is terminated/background,
+  // render a high-priority local OS notification so the user never misses it.
+  if (message.notification == null && message.data.isNotEmpty) {
+    final title = (message.data['title'] as String?)?.trim() ?? '';
+    final body = (message.data['body'] as String?)?.trim() ?? '';
+    if (title.isNotEmpty || body.isNotEmpty) {
+      await PushNotificationService.instance.showLocalNotification(
+        id:
+            (message.data['notification_id'] as String?) ??
+            message.messageId ??
+            'bg_${DateTime.now().millisecondsSinceEpoch}',
+        title: title.isEmpty ? 'وصلة' : title,
+        body: body,
+        data: Map<String, dynamic>.from(message.data),
+      );
+    }
+  }
 }
 
 /// Top-level Workmanager entry point for Android background notification sync
-/// when FCM credentials are not configured yet.
+/// and closed-app test notifications.
 @pragma('vm:entry-point')
 void pushNotificationsBackgroundDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
-    if (taskName != _bgSyncTaskName) return true;
     try {
       WidgetsFlutterBinding.ensureInitialized();
       DartPluginRegistrant.ensureInitialized();
     } catch (_) {}
+
+    if (taskName != _bgSyncTaskName) return true;
     try {
       await dotenv.load(fileName: '.env');
     } catch (_) {}
@@ -134,9 +169,23 @@ class PushNotificationService {
       StreamController<Map<String, dynamic>>.broadcast();
   final StreamController<void> _incomingRefreshController =
       StreamController<void>.broadcast();
+  Map<String, dynamic>? _pendingLaunchTap;
 
   Stream<Map<String, dynamic>> get onNotificationTap => _tapController.stream;
   Stream<void> get onIncomingNotification => _incomingRefreshController.stream;
+
+  /// Consumes any notification tap that cold-launched the app from a
+  /// terminated state before the router/auth session finished initializing.
+  Map<String, dynamic>? consumePendingLaunchTap() {
+    final data = _pendingLaunchTap;
+    _pendingLaunchTap = null;
+    return data;
+  }
+
+  void _emitTap(Map<String, dynamic> data) {
+    _pendingLaunchTap = data;
+    _tapController.add(data);
+  }
 
   bool get isFirebaseReady => _firebaseReady;
   String? get currentToken => _currentToken;
@@ -217,13 +266,20 @@ class PushNotificationService {
       if (Firebase.apps.isNotEmpty) return true;
       final options = firebaseOptionsFromEnv();
       if (options != null) {
-        await Firebase.initializeApp(options: options);
-        return true;
+        try {
+          await Firebase.initializeApp(options: options);
+          return true;
+        } on FirebaseException catch (e) {
+          if (e.code == 'duplicate-app') return true;
+          // Fall through to native default initialization (google-services.json / GoogleService-Info.plist)
+        }
       }
       await Firebase.initializeApp();
       return true;
+    } on FirebaseException catch (e) {
+      return e.code == 'duplicate-app' || Firebase.apps.isNotEmpty;
     } catch (_) {
-      return false;
+      return Firebase.apps.isNotEmpty;
     }
   }
 
@@ -275,17 +331,17 @@ class PushNotificationService {
         onDidReceiveNotificationResponse: (NotificationResponse response) {
           final payload = response.payload;
           if (payload == null || payload.isEmpty) {
-            _tapController.add(const <String, dynamic>{});
+            _emitTap(const <String, dynamic>{});
             return;
           }
           try {
             final decoded = jsonDecode(payload);
             if (decoded is Map) {
-              _tapController.add(Map<String, dynamic>.from(decoded));
+              _emitTap(Map<String, dynamic>.from(decoded));
               return;
             }
           } catch (_) {}
-          _tapController.add(<String, dynamic>{'payload': payload});
+          _emitTap(<String, dynamic>{'payload': payload});
         },
       );
 
@@ -309,15 +365,19 @@ class PushNotificationService {
       final launchDetails = await _localNotifications
           .getNotificationAppLaunchDetails();
       final launchPayload = launchDetails?.notificationResponse?.payload;
-      if (launchDetails?.didNotificationLaunchApp == true &&
-          launchPayload != null &&
-          launchPayload.isNotEmpty) {
-        try {
-          final decoded = jsonDecode(launchPayload);
-          if (decoded is Map) {
-            _tapController.add(Map<String, dynamic>.from(decoded));
+      if (launchDetails?.didNotificationLaunchApp == true) {
+        if (launchPayload != null && launchPayload.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(launchPayload);
+            if (decoded is Map) {
+              _emitTap(Map<String, dynamic>.from(decoded));
+            }
+          } catch (_) {
+            _emitTap(<String, dynamic>{'payload': launchPayload});
           }
-        } catch (_) {}
+        } else {
+          _emitTap(const <String, dynamic>{});
+        }
       }
     } catch (_) {}
   }
@@ -351,6 +411,7 @@ class PushNotificationService {
   Future<void> _setupFirebaseMessagingListeners() async {
     try {
       final messaging = FirebaseMessaging.instance;
+      await messaging.setAutoInitEnabled(true);
 
       if (!kIsWeb &&
           (defaultTargetPlatform == TargetPlatform.iOS ||
@@ -392,7 +453,7 @@ class PushNotificationService {
 
       await _onOpenedSub?.cancel();
       _onOpenedSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
-        _tapController.add(message.data);
+        _emitTap(Map<String, dynamic>.from(message.data));
       });
 
       await _onTokenRefreshSub?.cancel();
@@ -413,7 +474,7 @@ class PushNotificationService {
 
       final initialMessage = await messaging.getInitialMessage();
       if (initialMessage != null) {
-        _tapController.add(initialMessage.data);
+        _emitTap(Map<String, dynamic>.from(initialMessage.data));
       }
     } catch (_) {}
   }
@@ -671,6 +732,7 @@ class PushNotificationService {
         if (token == null || token.trim().isEmpty) return null;
         _currentToken = token;
         await _registerTokenRpc(client, token: token, enabled: enabled);
+        debugPrint('[PushNotificationService] FCM token synced successfully.');
         return token;
       } catch (_) {
         return null;
@@ -731,6 +793,99 @@ class PushNotificationService {
     } catch (_) {}
   }
 
+  /// Dispatches a real FCM/APNs test push notification (with [delaySeconds]
+  /// server-side delay via EdgeRuntime.waitUntil) so the user can close the
+  /// app completely and receive the OS push notification on their device.
+  Future<PushTestResult> sendTestClosedAppNotification(
+    SupabaseClient? client, {
+    int delaySeconds = 5,
+  }) async {
+    await initialize();
+    final perm = await checkPermissionStatus();
+    if (!perm.isGranted) {
+      final requested = await requestPermissions();
+      if (!requested.isGranted) {
+        return const PushTestResult(
+          ok: false,
+          viaFcm: false,
+          message: 'يرجى السماح بالإشعارات من إعدادات الجهاز لتصلك التنبيهات',
+        );
+      }
+    }
+
+    if (!_firebaseReady && _currentToken == null) {
+      return const PushTestResult(
+        ok: false,
+        viaFcm: false,
+        message:
+            'خدمة FCM غير مربوطة بعد في التطبيق — أضف google-services.json أو مفاتيح Firebase في .env ثم أعد تشغيل التطبيق.',
+      );
+    }
+
+    if (client == null) {
+      return const PushTestResult(
+        ok: false,
+        viaFcm: false,
+        message: 'يرجى تسجيل الدخول أولاً لاختبار إشعارات FCM.',
+      );
+    }
+
+    final userId = client.auth.currentUser?.id;
+    if (userId != null && _currentToken == null) {
+      await syncTokenWithSupabase(client, userId: userId, enabled: true);
+    }
+
+    try {
+      final response = await client.functions.invoke(
+        'send-push-notification',
+        body: <String, dynamic>{
+          'action': 'test',
+          'delay_seconds': delaySeconds,
+          'title': 'إشعار تجريبي من وصلة 🔔',
+          'body':
+              'الإشعارات تعمل حتى عند إغلاق التطبيق — اضغط لفتح وصلة الآن!',
+        },
+      );
+      final data = response.data is Map
+          ? Map<String, dynamic>.from(response.data as Map)
+          : const <String, dynamic>{};
+      if (response.status >= 400 || data['ok'] == false) {
+        final serverErr = (data['error'] as String?)?.trim();
+        return PushTestResult(
+          ok: false,
+          viaFcm: true,
+          message: (serverErr != null && serverErr.isNotEmpty)
+              ? serverErr
+              : 'تعذر إرسال إشعار FCM من الخادم.',
+        );
+      }
+      return PushTestResult(
+        ok: true,
+        viaFcm: true,
+        message:
+            'تم جدولة إشعار FCM — أغلق التطبيق الآن، سيصلك خلال $delaySeconds ثوانٍ!',
+      );
+    } on FunctionException catch (e) {
+      String? detail;
+      if (e.details is Map) {
+        detail = ((e.details as Map)['error'] as String?)?.trim();
+      }
+      return PushTestResult(
+        ok: false,
+        viaFcm: true,
+        message: (detail != null && detail.isNotEmpty)
+            ? detail
+            : 'تعذر الاتصال بخدمة إشعارات FCM على الخادم.',
+      );
+    } catch (_) {
+      return const PushTestResult(
+        ok: false,
+        viaFcm: true,
+        message: 'تعذر إرسال إشعار FCM. تحقق من الاتصال بالإنترنت.',
+      );
+    }
+  }
+
   /// Queries Supabase for newly created notifications since the last check
   /// and displays local OS banners for unseen items.
   Future<void> checkAndNotifyMissed(
@@ -766,6 +921,9 @@ class PushNotificationService {
         if (createdBy == userId || shownIds.contains(notif.id)) continue;
 
         shownIds.add(notif.id);
+        final meta = map['metadata'] is Map
+            ? Map<String, dynamic>.from(map['metadata'] as Map)
+            : const <String, dynamic>{};
         await showLocalNotification(
           id: notif.id,
           title: notif.title,
@@ -774,6 +932,14 @@ class PushNotificationService {
             'notification_id': notif.id,
             'audience': notif.audience,
             'sender_role': notif.senderRole,
+            if (meta['route'] != null) 'route': meta['route'].toString(),
+            if (meta['event_type'] != null)
+              'event_type': meta['event_type'].toString(),
+            if (meta['order_id'] != null)
+              'order_id': meta['order_id'].toString(),
+            if (meta['product_id'] != null)
+              'product_id': meta['product_id'].toString(),
+            if (meta['shop_id'] != null) 'shop_id': meta['shop_id'].toString(),
           },
         );
       }
@@ -832,6 +998,9 @@ class PushNotificationService {
               _incomingRefreshController.add(null);
 
               if (showForegroundBanner) {
+                final meta = row['metadata'] is Map
+                    ? Map<String, dynamic>.from(row['metadata'] as Map)
+                    : const <String, dynamic>{};
                 unawaited(
                   showLocalNotification(
                     id: notif.id,
@@ -841,6 +1010,16 @@ class PushNotificationService {
                       'notification_id': notif.id,
                       'audience': notif.audience,
                       'sender_role': notif.senderRole,
+                      if (meta['route'] != null)
+                        'route': meta['route'].toString(),
+                      if (meta['event_type'] != null)
+                        'event_type': meta['event_type'].toString(),
+                      if (meta['order_id'] != null)
+                        'order_id': meta['order_id'].toString(),
+                      if (meta['product_id'] != null)
+                        'product_id': meta['product_id'].toString(),
+                      if (meta['shop_id'] != null)
+                        'shop_id': meta['shop_id'].toString(),
                     },
                   ),
                 );

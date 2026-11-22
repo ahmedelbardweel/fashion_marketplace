@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
@@ -14,12 +15,76 @@ import '../../../core/offline/offline_sync_engine.dart';
 import '../domain/models/app_user.dart';
 import '../domain/models/user_role.dart';
 
+class PendingSignupData {
+  const PendingSignupData({
+    required this.email,
+    required this.password,
+    required this.role,
+    required this.fullName,
+    required this.phone,
+    this.shopName,
+  });
+
+  final String email;
+  final String password;
+  final UserRole role;
+  final String fullName;
+  final String phone;
+  final String? shopName;
+}
+
+class PendingLoginData {
+  const PendingLoginData({required this.email, required this.password});
+
+  final String email;
+  final String password;
+}
+
+class RegistrationResult {
+  const RegistrationResult({
+    required this.email,
+    required this.requiresEmailVerification,
+    this.user,
+  });
+
+  final String email;
+  final bool requiresEmailVerification;
+  final AppUser? user;
+}
+
 class AuthRepository {
   AuthRepository({SupabaseClient? client})
     : _client = client ?? SupabaseConfig.client;
 
+  static const _trustedLoginEmailsKey = 'trusted_login_emails_v1';
+
   final SupabaseClient _client;
   final LocalDatabase _localDb = LocalDatabase.instance;
+
+  /// Returns true if [email] has already completed email OTP verification on
+  /// this app installation. Uninstalling and reinstalling the app clears
+  /// SharedPreferences (with `android:allowBackup="false"`), requiring a
+  /// one-time verification code on the first login after reinstall.
+  Future<bool> isEmailTrustedOnThisInstall(String email) async {
+    final clean = email.trim().toLowerCase();
+    if (clean.isEmpty) return false;
+    final prefs = await SharedPreferences.getInstance();
+    final trusted = prefs.getStringList(_trustedLoginEmailsKey) ?? const [];
+    return trusted.contains(clean);
+  }
+
+  Future<void> markEmailTrustedOnThisInstall(String email) async {
+    final clean = email.trim().toLowerCase();
+    if (clean.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final current = List<String>.from(
+      prefs.getStringList(_trustedLoginEmailsKey) ?? const [],
+    );
+    if (!current.contains(clean)) {
+      current.add(clean);
+      await prefs.setStringList(_trustedLoginEmailsKey, current);
+    }
+  }
 
   Session? get currentSession => _client.auth.currentSession;
   User? get currentAuthUser => _client.auth.currentUser;
@@ -187,6 +252,7 @@ class AuthRepository {
       await signOut();
       throw const AuthException('هذا الحساب موقوف. تواصل مع الإدارة');
     }
+    await markEmailTrustedOnThisInstall(profile.email);
     return profile;
   }
 
@@ -218,103 +284,130 @@ class AuthRepository {
     return profile;
   }
 
-  Future<AppUser> registerCustomer({
-    required String email,
-    required String password,
-    required String fullName,
-    required String phone,
-  }) async {
-    final response = await NetworkGuard.run(
-      () => _client.auth.signUp(
-        email: email.trim(),
-        password: password,
-        data: {
-          'role': UserRole.customer.value,
-          'full_name': fullName.trim(),
-          'phone': phone.trim(),
-        },
-      ),
-      timeout: AppTimeouts.auth,
-    );
-
-    if (response.user == null) {
-      throw AuthException('تعذر إنشاء الحساب');
-    }
-
-    // If email confirmation is enabled, session may be null.
-    if (response.session == null) {
-      throw AuthException(
-        'تم إنشاء الحساب. تحقق من بريدك لتفعيل الحساب ثم سجّل الدخول',
+  Future<Map<String, dynamic>> _invokeSignupOtp(
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final res = await NetworkGuard.run(
+        () => _client.functions.invoke('signup-otp', body: body),
+        timeout: AppTimeouts.auth,
       );
-    }
-
-    final profile = await _waitForProfile(response.user!.id);
-    await _localDb.saveUserProfile(profile, isCurrentSession: true);
-    unawaited(
-      BackgroundPreloaderService.instance.preloadAllSilently(
-        currentUser: profile,
-        force: true,
-      ),
-    );
-    return profile;
-  }
-
-  Future<AppUser> registerShop({
-    required String email,
-    required String password,
-    required String fullName,
-    required String phone,
-    required String shopName,
-  }) async {
-    final response = await NetworkGuard.run(
-      () => _client.auth.signUp(
-        email: email.trim(),
-        password: password,
-        data: {
-          'role': UserRole.shop.value,
-          'full_name': fullName.trim(),
-          'phone': phone.trim(),
-          'shop_name': shopName.trim(),
-        },
-      ),
-      timeout: AppTimeouts.auth,
-    );
-
-    if (response.user == null) {
-      throw AuthException('تعذر إنشاء حساب المحل');
-    }
-
-    if (response.session == null) {
-      throw AuthException(
-        'تم إنشاء الحساب. تحقق من بريدك لتفعيل الحساب ثم سجّل الدخول',
-      );
-    }
-
-    final profile = await _waitForProfile(response.user!.id);
-    await _localDb.saveUserProfile(profile, isCurrentSession: true);
-    unawaited(
-      BackgroundPreloaderService.instance.preloadAllSilently(
-        currentUser: profile,
-        force: true,
-      ),
-    );
-    return profile;
-  }
-
-  Future<AppUser> _waitForProfile(String userId) async {
-    // Trigger may take a brief moment after signup.
-    for (var attempt = 0; attempt < 8; attempt++) {
-      final data = await _client
-          .from('profiles')
-          .select()
-          .eq('id', userId)
-          .maybeSingle();
-      if (data != null) {
-        return AppUser.fromMap(Map<String, dynamic>.from(data));
+      final data = res.data is Map
+          ? Map<String, dynamic>.from(res.data as Map)
+          : <String, dynamic>{};
+      if (res.status >= 400 || data['error'] != null) {
+        final msg = (data['error'] as String?)?.trim();
+        throw AuthException(
+          (msg != null && msg.isNotEmpty)
+              ? msg
+              : 'تعذر معالجة رمز التحقق. حاول مجدداً.',
+        );
       }
-      await Future<void>.delayed(const Duration(milliseconds: 250));
+      return data;
+    } on FunctionException catch (e) {
+      String? serverMsg;
+      if (e.details is Map) {
+        serverMsg = ((e.details as Map)['error'] as String?)?.trim();
+      } else if (e.details is String && (e.details as String).trim().isNotEmpty) {
+        serverMsg = (e.details as String).trim();
+      }
+      throw AuthException(
+        (serverMsg != null && serverMsg.isNotEmpty)
+            ? serverMsg
+            : 'تعذر الاتصال بخدمة التحقق من البريد. حاول مجدداً.',
+      );
     }
-    throw AuthException('تم التسجيل لكن تعذر تحميل الملف الشخصي');
+  }
+
+  /// Sends a 6-digit OTP to [pending.email] WITHOUT creating any row in
+  /// `auth.users`, `profiles`, or `shops`. Account creation only happens in
+  /// [completeSignupWithOtp] after the code is verified.
+  Future<RegistrationResult> requestSignupOtp({
+    required PendingSignupData pending,
+  }) async {
+    final cleanEmail = pending.email.trim().toLowerCase();
+    await _invokeSignupOtp({
+      'action': 'send',
+      'email': cleanEmail,
+      'phone': pending.phone.trim(),
+    });
+    return RegistrationResult(
+      email: cleanEmail,
+      requiresEmailVerification: true,
+    );
+  }
+
+  /// Verifies the 6-digit OTP on the server, creates the confirmed account in
+  /// `auth.users` + `profiles` (+ draft `shops` for shop accounts), and signs
+  /// the user into their live session.
+  Future<AppUser> completeSignupWithOtp({
+    required PendingSignupData pending,
+    required String code,
+  }) async {
+    final cleanEmail = pending.email.trim().toLowerCase();
+    await _invokeSignupOtp({
+      'action': 'verify',
+      'email': cleanEmail,
+      'code': code.trim(),
+      'password': pending.password,
+      'role': pending.role.value,
+      'full_name': pending.fullName.trim(),
+      'phone': pending.phone.trim(),
+      if (pending.role == UserRole.shop && pending.shopName != null)
+        'shop_name': pending.shopName!.trim(),
+    });
+
+    // Account is now created and email-confirmed -> mark this install trusted
+    // and sign in to start session.
+    await markEmailTrustedOnThisInstall(cleanEmail);
+    return signIn(email: cleanEmail, password: pending.password);
+  }
+
+  Future<void> resendSignupOtp({required String email}) async {
+    await _invokeSignupOtp({
+      'action': 'resend',
+      'email': email.trim().toLowerCase(),
+    });
+  }
+
+  /// Verifies login credentials server-side and sends a 6-digit login OTP for
+  /// the first sign-in on a fresh install without opening a session yet.
+  Future<void> requestLoginOtp({
+    required String email,
+    required String password,
+  }) async {
+    await _invokeSignupOtp({
+      'action': 'login_send',
+      'email': email.trim().toLowerCase(),
+      'password': password,
+    });
+  }
+
+  Future<void> resendLoginOtp({
+    required String email,
+    required String password,
+  }) async {
+    await _invokeSignupOtp({
+      'action': 'login_resend',
+      'email': email.trim().toLowerCase(),
+      'password': password,
+    });
+  }
+
+  /// Confirms the 6-digit login OTP, marks this install trusted for [pending.email],
+  /// and signs the user in cleanly.
+  Future<AppUser> completeLoginWithOtp({
+    required PendingLoginData pending,
+    required String code,
+  }) async {
+    final cleanEmail = pending.email.trim().toLowerCase();
+    await _invokeSignupOtp({
+      'action': 'login_verify',
+      'email': cleanEmail,
+      'code': code.trim(),
+    });
+    await markEmailTrustedOnThisInstall(cleanEmail);
+    return signIn(email: cleanEmail, password: pending.password);
   }
 
   Future<void> signOut() async {

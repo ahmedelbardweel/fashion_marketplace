@@ -1136,7 +1136,7 @@ abstract final class SplashDesign {
   static Color get background => AppColors.white;
   static Color get logoBackground => Colors.transparent;
   static Color get logoIcon => AppColors.onPrimary;
-  static const double logoSize = 112;
+  static const double logoSize = 156;
   static Color get title => AppColors.text;
   static Color get indicator => AppColors.primary;
 }
@@ -1199,12 +1199,16 @@ class AppLogoMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final decodePx = (size * dpr).round().clamp(32, 512);
     return Image.asset(
       AppIcons.logoAsset,
       width: size,
       height: size,
       fit: fit,
-      filterQuality: FilterQuality.medium,
+      cacheWidth: decodePx,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.high,
     );
   }
 }

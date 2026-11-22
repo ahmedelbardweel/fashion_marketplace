@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../config/supabase_config.dart';
@@ -26,6 +27,10 @@ class BackgroundPreloaderService {
 
   static final BackgroundPreloaderService instance =
       BackgroundPreloaderService._();
+
+  static const int _maxDailyProducts = LocalDatabase.maxOfflineProducts; // 100
+  static const String _dailyDateKey = 'offline_products_cache_date_v1';
+  static const String _dailyOffsetKey = 'offline_products_cache_offset_v1';
 
   bool _isRunning = false;
   DateTime? _lastFullPreloadAt;
@@ -62,9 +67,9 @@ class BackgroundPreloaderService {
       // Yield briefly to keep UI frame rate at 60/120fps
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      // 2. Preload all published products + variants + images + reviews
+      // 2. Preload at most 100 published products, rotating daily (wiping old 100)
       final favoriteIds = await _preloadUserFavorites(currentUser?.id);
-      await _preloadAllPublishedProducts(favoriteIds);
+      await _syncDailyPublishedProducts(favoriteIds);
 
       // 3. Preload role-specific tables if authenticated
       final user = currentUser ?? await _preloadCurrentProfile();
@@ -178,74 +183,147 @@ class BackgroundPreloaderService {
     }
   }
 
-  Future<void> _preloadAllPublishedProducts(Set<String> favoriteIds) async {
+  String _todayKey() {
+    final now = DateTime.now();
+    final y = now.year.toString().padLeft(4, '0');
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  Future<List<customer_models.CustomerProduct>> _fetchPublishedProductRange({
+    required int start,
+    required int count,
+    required Set<String> favoriteIds,
+  }) async {
+    if (count <= 0) return const [];
+    final rawRows = await _client
+        .from('products')
+        .select('''
+          id, shop_id, category_id, name, description, details, price, status,
+          shops:shop_id(name),
+          categories:category_id(name),
+          variants:product_variants(*),
+          images:product_images(*)
+        ''')
+        .eq('status', 'published')
+        .order('created_at', ascending: false)
+        .range(start, start + count - 1) as List;
+
+    return rawRows.map((row) {
+      final map = asStringMap(row);
+      final shopMap = row['shops'] is Map ? asStringMap(row['shops']) : null;
+      final catMap = row['categories'] is Map
+          ? asStringMap(row['categories'])
+          : null;
+
+      map['shop_name'] = shopMap?['name'] ?? 'متجر';
+      map['category_name'] = catMap?['name'];
+
+      final variantsList = (row['variants'] as List? ?? [])
+          .map((v) => customer_models.ProductVariant.fromMap(asStringMap(v)))
+          .toList();
+
+      final imagesList = (row['images'] as List? ?? [])
+          .map((img) => customer_models.ProductImage.fromMap(asStringMap(img)))
+          .toList();
+
+      final pid = map['id']?.toString() ?? '';
+
+      return customer_models.CustomerProduct.fromMap(
+        map,
+        variants: variantsList,
+        images: imagesList,
+        isFavorite: favoriteIds.contains(pid),
+      );
+    }).toList();
+  }
+
+  /// Keeps at most 100 published products cached offline. Once per day, deletes
+  /// the previous 100 products (and their stale disk images) and downloads the
+  /// next rotating batch of 100 products so the app stays fast and lightweight.
+  Future<void> _syncDailyPublishedProducts(Set<String> favoriteIds) async {
     try {
-      const batchSize = 50;
-      var offset = 0;
-      final allProductIds = <String>[];
+      final prefs = await SharedPreferences.getInstance();
+      final today = _todayKey();
+      final lastDate = prefs.getString(_dailyDateKey);
+      final cachedCount = await _db.getCachedPublishedProductCount();
 
-      while (true) {
-        final rawRows = await _client
-            .from('products')
-            .select('''
-              id, shop_id, category_id, name, description, details, price, status,
-              shops:shop_id(name),
-              categories:category_id(name),
-              variants:product_variants(*),
-              images:product_images(*)
-            ''')
-            .eq('status', 'published')
-            .order('created_at', ascending: false)
-            .range(offset, offset + batchSize - 1) as List;
-
-        if (rawRows.isEmpty) break;
-
-        final products = rawRows.map((row) {
-          final map = asStringMap(row);
-          final shopMap = row['shops'] is Map ? asStringMap(row['shops']) : null;
-          final catMap = row['categories'] is Map
-              ? asStringMap(row['categories'])
-              : null;
-
-          map['shop_name'] = shopMap?['name'] ?? 'متجر';
-          map['category_name'] = catMap?['name'];
-
-          final variantsList = (row['variants'] as List? ?? [])
-              .map((v) => customer_models.ProductVariant.fromMap(asStringMap(v)))
-              .toList();
-
-          final imagesList = (row['images'] as List? ?? [])
-              .map((img) => customer_models.ProductImage.fromMap(asStringMap(img)))
-              .toList();
-
-          final pid = map['id']?.toString() ?? '';
-          allProductIds.add(pid);
-
-          return customer_models.CustomerProduct.fromMap(
-            map,
-            variants: variantsList,
-            images: imagesList,
-            isFavorite: favoriteIds.contains(pid),
-          );
-        }).toList();
-
-        await _db.saveCustomerProducts(products);
-
-        if (rawRows.length < batchSize) break;
-        offset += batchSize;
-        await Future<void>.delayed(const Duration(milliseconds: 30));
+      // Already rotated today and cache is populated within the 100-item cap.
+      if (lastDate == today &&
+          cachedCount > 0 &&
+          cachedCount <= _maxDailyProducts) {
+        return;
       }
 
-      // Preload product reviews for cached products
-      if (allProductIds.isNotEmpty) {
+      // Compute starting offset for today's rotating 100-product window.
+      var startOffset = prefs.getInt(_dailyOffsetKey) ?? 0;
+      if (startOffset < 0) startOffset = 0;
+
+      // Download today's 100 products in 2 light chunks of 50 to avoid UI jank.
+      const chunkSize = 50;
+      final collected = <customer_models.CustomerProduct>[];
+      final seenIds = <String>{};
+
+      var fetchedFromOffset = 0;
+      for (var fetched = 0; fetched < _maxDailyProducts; fetched += chunkSize) {
+        final remaining = _maxDailyProducts - fetched;
+        final take = remaining < chunkSize ? remaining : chunkSize;
+        final batch = await _fetchPublishedProductRange(
+          start: startOffset + fetched,
+          count: take,
+          favoriteIds: favoriteIds,
+        );
+        fetchedFromOffset += batch.length;
+        for (final item in batch) {
+          if (item.id.isNotEmpty && seenIds.add(item.id)) {
+            collected.add(item);
+          }
+        }
+        if (batch.length < take) break;
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+
+      // If we hit the end of the catalog while starting at a non-zero offset,
+      // wrap around from 0 so the user still gets up to 100 fresh products.
+      int nextOffset;
+      if (fetchedFromOffset < _maxDailyProducts) {
+        if (startOffset > 0 && collected.length < _maxDailyProducts) {
+          final needed = _maxDailyProducts - collected.length;
+          final wrapped = await _fetchPublishedProductRange(
+            start: 0,
+            count: needed,
+            favoriteIds: favoriteIds,
+          );
+          for (final item in wrapped) {
+            if (collected.length >= _maxDailyProducts) break;
+            if (item.id.isNotEmpty && seenIds.add(item.id)) {
+              collected.add(item);
+            }
+          }
+          nextOffset = wrapped.length < needed ? 0 : needed;
+        } else {
+          nextOffset = 0;
+        }
+      } else {
+        nextOffset = startOffset + _maxDailyProducts;
+      }
+
+      // Delete yesterday's cached products + stale images and save ONLY today's 100.
+      await _db.replaceOfflineCatalogProducts(collected);
+
+      // Preload reviews ONLY for today's cached <= 100 products.
+      final productIds = collected.map((p) => p.id).toList();
+      if (productIds.isNotEmpty) {
         final rows = await _client
             .from('product_reviews')
             .select('''
               id, product_id, customer_id, rating, comment, created_at,
               profiles:customer_id(full_name)
             ''')
+            .inFilter('product_id', productIds)
             .order('created_at', ascending: false)
-            .limit(300);
+            .limit(150);
 
         final byProduct = <String, List<customer_models.ProductReview>>{};
         for (final row in rows as List) {
@@ -262,6 +340,13 @@ class BackgroundPreloaderService {
           await _db.saveProductReviews(entry.key, entry.value);
         }
       }
+
+      await prefs.setString(_dailyDateKey, today);
+      await prefs.setInt(_dailyOffsetKey, nextOffset);
+      debugPrint(
+        '[BackgroundPreloaderService] Daily offline rotation complete: '
+        'cached ${collected.length} products (offset $startOffset -> next $nextOffset).',
+      );
     } catch (_) {}
   }
 

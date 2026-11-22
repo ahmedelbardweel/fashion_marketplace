@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>930732253264-m31qqntki6n8shfup5k5puo8tpfg38lo.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.930732253264-m31qqntki6n8shfup5k5puo8tpfg38lo</string>
+	<key>API_KEY</key>
+	<string>AIzaSyBzrqUZmt2Hv_bJo65wpsPp4JC_tfjwcRU</string>
+	<key>GCM_SENDER_ID</key>
+	<string>930732253264</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.example.fashionMarketplace</string>
+	<key>PROJECT_ID</key>
+	<string>login-to-acconte</string>
+	<key>STORAGE_BUCKET</key>
+	<string>login-to-acconte.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:930732253264:ios:bd4871013b435c9f07f155</string>
+	<key>DATABASE_URL</key>
+	<string>https://login-to-acconte-default-rtdb.firebaseio.com</string>
+</dict>
+</plist>

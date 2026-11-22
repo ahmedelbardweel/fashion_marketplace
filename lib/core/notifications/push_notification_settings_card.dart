@@ -36,8 +36,10 @@ class PushNotificationSettingsRow extends ConsumerWidget {
     final active = pushState.isEffectivelyActive;
 
     final String subtitle;
-    if (active) {
-      subtitle = 'مفعّلة — تصلك التنبيهات والطلبات فوراً'.tr;
+    if (active && pushState.fcmReady && pushState.hasToken) {
+      subtitle = 'FCM متصل — تصلك الإشعارات حتى عند إغلاق التطبيق'.tr;
+    } else if (active) {
+      subtitle = 'مفعّلة — بانتظار ربط Firebase (FCM) للإشعارات خارج التطبيق'.tr;
     } else if (granted && !pushState.notificationsEnabled) {
       subtitle = 'متوقفة مؤقتاً من التطبيق'.tr;
     } else if (pushState.permissionStatus == PushPermissionStatus.denied ||
@@ -118,14 +120,97 @@ class PushNotificationSettingsRow extends ConsumerWidget {
   }
 }
 
-class PushNotificationSettingsCard extends StatelessWidget {
+class PushNotificationSettingsCard extends ConsumerStatefulWidget {
   const PushNotificationSettingsCard({super.key});
 
   @override
+  ConsumerState<PushNotificationSettingsCard> createState() =>
+      _PushNotificationSettingsCardState();
+}
+
+class _PushNotificationSettingsCardState
+    extends ConsumerState<PushNotificationSettingsCard> {
+  bool _sendingTest = false;
+
+  Future<void> _triggerClosedAppTest() async {
+    if (_sendingTest) return;
+    setState(() => _sendingTest = true);
+    try {
+      final result = await ref
+          .read(pushNotificationControllerProvider.notifier)
+          .sendTestClosedAppNotification(delaySeconds: 5);
+      if (!mounted) return;
+      showAppSnackBar(context, result.message.tr, isError: !result.ok);
+    } finally {
+      if (mounted) setState(() => _sendingTest = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const AppCard(
+    final pushState = ref.watch(pushNotificationControllerProvider);
+    final active = pushState.isEffectivelyActive;
+
+    return AppCard(
       padding: EdgeInsets.zero,
-      child: PushNotificationSettingsRow(),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const PushNotificationSettingsRow(),
+          if (active) ...[
+            Divider(height: 1, color: AppColors.divider),
+            InkWell(
+              onTap: _sendingTest
+                  ? null
+                  : AppHaptics.action(_triggerClosedAppTest),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(AppRadii.card),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: 11,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      AppIcons.bellActive,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        'تجربة إشعار عند إغلاق التطبيق (خلال 5 ثوانٍ)'.tr,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: AppFont.semiBold,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    if (_sendingTest)
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primary,
+                        ),
+                      )
+                    else
+                      Icon(
+                        AppIcons.forward,
+                        size: 15,
+                        color: AppColors.primary,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

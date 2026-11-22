@@ -7,6 +7,14 @@ class AppRoutes {
   static const register = '/register';
   static const registerCustomer = '/register/customer';
   static const registerShop = '/register/shop';
+  static const verifyEmail = '/verify-email';
+
+  static String verifyEmailPath(String email, {bool isLogin = false}) {
+    final encoded = Uri.encodeQueryComponent(email.trim());
+    return isLogin
+        ? '$verifyEmail?email=$encoded&mode=login'
+        : '$verifyEmail?email=$encoded';
+  }
 
   static const adminRoot = '/admin';
   static const adminHome = '/admin/home';

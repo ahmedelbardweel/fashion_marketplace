@@ -1476,7 +1476,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                 ),
               ),
 
-              // 2) Floating Top Bar over the Gallery (Back, Logo, Try-On, Compare, Favorite, Cart)
+              // 2) Floating Top Bar over the Gallery (Back, Logo, Compare, Favorite, Cart)
               Positioned(
                 top: 0,
                 left: 0,
@@ -1498,12 +1498,6 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         const SizedBox(width: AppSpacing.xs),
                         const AppLogoMark(),
                         const Spacer(),
-                        _AnimatedTryOnButton(
-                          onTap: () => context.push(
-                            AppRoutes.customerRealtimeTryonPath(product.id),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
                         _FloatingCircleButton(
                           icon: AppIcons.compare,
                           tooltip: isInCompare
@@ -1574,7 +1568,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
             ],
           ),
 
-          // 3) Sticky Bottom Action Bar: Quantity Stepper + Primary Add to Cart CTA
+          // 3) Sticky Bottom Action Bar: Try-On CTA + Quantity Stepper & Add to Cart CTA
           bottomNavigationBar: Container(
             decoration: BoxDecoration(
               color: ProductDetailsDesign.bottomBarBackground,
@@ -1587,9 +1581,43 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
               top: false,
               child: Padding(
                 padding: ProductDetailsDesign.bottomBarPadding,
-                child: Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Quantity Stepper
+                    // Subtle Light-Gray Try-On Button above Add to Cart
+                    SizedBox(
+                      height: 44,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.surfaceAlt,
+                          foregroundColor: AppColors.text,
+                          elevation: 0,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppRadii.button,
+                            ),
+                            side: BorderSide(color: AppColors.border),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: AppFont.bold,
+                          ),
+                        ),
+                        icon: const Icon(AppIcons.tryOn, size: 19),
+                        label: Text('جرب الملابس'.tr),
+                        onPressed: AppHaptics.action(
+                          () => context.push(
+                            AppRoutes.customerRealtimeTryonPath(product.id),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Row(
+                      children: [
+                        // Quantity Stepper
                     Container(
                       height: ProductDetailsDesign.bottomBarButtonHeight,
                       width: ProductDetailsDesign.stepperWidth,
@@ -1687,6 +1715,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                         ),
                       ),
                     ),
+                  ],
+                ),
                   ],
                 ),
               ),
@@ -2310,49 +2340,5 @@ class _HeroGallerySliverDelegate extends SliverPersistentHeaderDelegate {
         oldDelegate.minHeight != minHeight ||
         oldDelegate.product != product ||
         oldDelegate.currentImageIndex != currentImageIndex;
-  }
-}
-
-class _AnimatedTryOnButton extends StatelessWidget {
-  const _AnimatedTryOnButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Flexible(
-      child: Tooltip(
-        message: 'جرّبها عليك الآن'.tr,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: AppHaptics.action(onTap),
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-            child: Container(
-              height: ProductDetailsDesign.floatingButtonSize,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: ProductDetailsDesign.floatingButtonBackground,
-                borderRadius: BorderRadius.circular(AppRadii.pill),
-                boxShadow: ProductDetailsDesign.floatingButtonShadow,
-              ),
-              child: Center(
-                widthFactor: 1,
-                child: Text(
-                  'جرب الملابس'.tr,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: AppFont.bold,
-                    color: ProductDetailsDesign.floatingButtonIcon,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

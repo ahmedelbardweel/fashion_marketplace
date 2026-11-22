@@ -338,6 +338,18 @@ class AppErrorMapper {
       if (lower.contains('email not confirmed')) {
         return 'يجب تأكيد البريد الإلكتروني أولاً'.tr;
       }
+      if (lower.contains('token has expired') ||
+          lower.contains('otp_expired') ||
+          lower.contains('invalid otp') ||
+          lower.contains('invalid token')) {
+        return 'رمز التحقق غير صحيح أو منتهي الصلاحية. تأكد من الرمز أو اطلب رمزاً جديداً.'
+            .tr;
+      }
+      if (lower.contains('over_email_send_rate_limit') ||
+          lower.contains('security purposes') ||
+          lower.contains('once every')) {
+        return 'يرجى الانتظار 60 ثانية قبل طلب رمز تحقق جديد.'.tr;
+      }
       if (lower.contains('user already registered') ||
           lower.contains('already been registered')) {
         return 'هذا البريد مسجل مسبقاً'.tr;
@@ -376,6 +388,9 @@ class AppErrorMapper {
         case '42501':
           return 'ليس لديك صلاحية لتنفيذ هذا الإجراء.'.tr;
         case '23505':
+          if (lower.contains('phone') || raw.contains('الهاتف')) {
+            return 'رقم الهاتف مسجل مسبقاً لحساب آخر'.tr;
+          }
           return 'هذه البيانات مسجلة مسبقاً ولا يمكن تكرارها.'.tr;
         case '23503':
           return 'لا يمكن تنفيذ العملية لارتباط هذا العنصر ببيانات أخرى.'.tr;

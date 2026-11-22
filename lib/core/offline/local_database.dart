@@ -62,6 +62,10 @@ class LocalDatabase {
   static const String _dbFileName = 'shopy_offline_vault_v1.db';
   static const int _dbVersion = 2;
 
+  /// Hard upper bound for cached published catalog products stored offline so
+  /// SQLite size, memory, and disk image cache stay lightweight.
+  static const int maxOfflineProducts = 100;
+
   Database? _db;
   final Lock _initLock = Lock();
   final Lock _writeLock = Lock();
@@ -1033,8 +1037,163 @@ class LocalDatabase {
   }
 
   // ===========================================================================
-  // 5. PRODUCTS, VARIANTS, IMAGES & REVIEWS
+  // 5. PRODUCTS, VARIANTS, IMAGES & REVIEWS (CAPPED AT 100 DAILY ROTATING)
   // ===========================================================================
+
+  Future<int> getCachedPublishedProductCount() async {
+    final db = await database;
+    if (db == null) return 0;
+    final res = await db.rawQuery(
+      "SELECT COUNT(*) AS cnt FROM products WHERE status = 'published'",
+    );
+    return Sqflite.firstIntValue(res) ?? 0;
+  }
+
+  /// Atomically deletes all previously cached published catalog products
+  /// (along with their variants, images, and reviews) and saves ONLY the new
+  /// daily batch of at most [maxOfflineProducts] (100) products.
+  Future<void> replaceOfflineCatalogProducts(
+    List<customer_models.CustomerProduct> products,
+  ) async {
+    final db = await database;
+    if (db == null) return;
+
+    final capped = products.length > maxOfflineProducts
+        ? products.take(maxOfflineProducts).toList()
+        : products;
+
+    await _writeLock.synchronized(() async {
+      final batch = db.batch();
+      final nowIso = DateTime.now().toIso8601String();
+
+      // Remove old published catalog products and their orphaned child rows
+      batch.delete(
+        'product_variants',
+        where:
+            "product_id IN (SELECT id FROM products WHERE status = 'published')",
+      );
+      batch.delete(
+        'product_images',
+        where:
+            "product_id IN (SELECT id FROM products WHERE status = 'published')",
+      );
+      batch.delete(
+        'product_reviews',
+        where:
+            "product_id IN (SELECT id FROM products WHERE status = 'published')",
+      );
+      batch.delete('products', where: "status = 'published'");
+
+      for (final pItem in capped) {
+        batch.insert(
+          'products',
+          {
+            'id': pItem.id,
+            'shop_id': pItem.shopId,
+            'shop_name': pItem.shopName,
+            'category_id': pItem.categoryId,
+            'category_name': pItem.categoryName,
+            'name': pItem.name,
+            'description': pItem.description,
+            'details_json': jsonEncode(pItem.details),
+            'price': pItem.price,
+            'status': pItem.status,
+            'rating_avg': pItem.ratingAvg,
+            'rating_count': pItem.ratingCount,
+            'created_at': nowIso,
+            'updated_at': nowIso,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+
+        for (final v in pItem.variants) {
+          batch.insert(
+            'product_variants',
+            {
+              'id': v.id.isNotEmpty
+                  ? v.id
+                  : '${pItem.id}_${v.color}_${v.size}',
+              'product_id': pItem.id,
+              'color': v.color,
+              'size': v.size,
+              'stock': v.stock,
+              'is_active': v.isActive ? 1 : 0,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+
+        for (var i = 0; i < pItem.images.length; i++) {
+          final img = pItem.images[i];
+          batch.insert(
+            'product_images',
+            {
+              'id': img.id.isNotEmpty ? img.id : '${pItem.id}_img_$i',
+              'product_id': pItem.id,
+              'file_path': img.filePath,
+              'kind': img.kind,
+              'sort_order': img.sortOrder,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+
+      await batch.commit(noResult: true);
+    });
+
+    await pruneStaleCachedImages();
+    OfflineImageCacheService.instance.prefetchUrlsSilently(
+      capped.expand((p) => p.images.map((img) => img.filePath)),
+    );
+  }
+
+  /// Trims cached published products down to [maxOfflineProducts] (100),
+  /// evicting the oldest entries along with their variants, images, and reviews.
+  /// Returns `true` if any stale products were evicted.
+  Future<bool> _enforcePublishedProductCapLocked(Database db) async {
+    final excessRows = await db.rawQuery(
+      '''
+      SELECT id FROM products
+      WHERE status = 'published'
+      ORDER BY updated_at DESC, rowid DESC
+      LIMIT -1 OFFSET ?
+      ''',
+      [maxOfflineProducts],
+    );
+    if (excessRows.isEmpty) return false;
+
+    final idsToEvict = excessRows
+        .map((r) => r['id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toList();
+    if (idsToEvict.isEmpty) return false;
+
+    final placeholders = List.filled(idsToEvict.length, '?').join(',');
+    final batch = db.batch();
+    batch.delete(
+      'product_variants',
+      where: 'product_id IN ($placeholders)',
+      whereArgs: idsToEvict,
+    );
+    batch.delete(
+      'product_images',
+      where: 'product_id IN ($placeholders)',
+      whereArgs: idsToEvict,
+    );
+    batch.delete(
+      'product_reviews',
+      where: 'product_id IN ($placeholders)',
+      whereArgs: idsToEvict,
+    );
+    batch.delete(
+      'products',
+      where: 'id IN ($placeholders)',
+      whereArgs: idsToEvict,
+    );
+    await batch.commit(noResult: true);
+    return true;
+  }
 
   Future<void> saveCustomerProducts(
     List<customer_models.CustomerProduct> products,
@@ -1042,11 +1201,16 @@ class LocalDatabase {
     final db = await database;
     if (db == null || products.isEmpty) return;
 
+    final capped = products.length > maxOfflineProducts
+        ? products.take(maxOfflineProducts).toList()
+        : products;
+
+    var evicted = false;
     await _writeLock.synchronized(() async {
       final batch = db.batch();
       final nowIso = DateTime.now().toIso8601String();
 
-      for (final pItem in products) {
+      for (final pItem in capped) {
         batch.insert(
           'products',
           {
@@ -1112,9 +1276,13 @@ class LocalDatabase {
       }
 
       await batch.commit(noResult: true);
+      evicted = await _enforcePublishedProductCapLocked(db);
     });
+    if (evicted) {
+      unawaited(pruneStaleCachedImages());
+    }
     OfflineImageCacheService.instance.prefetchUrlsSilently(
-      products.expand((p) => p.images.map((img) => img.filePath)),
+      capped.expand((p) => p.images.map((img) => img.filePath)),
     );
   }
 
@@ -3066,50 +3234,66 @@ class LocalDatabase {
     });
   }
 
+  Future<List<String?>> _collectReferencedImageUrls(Database db) async {
+    final urls = <String?>[];
+
+    final bannerRows = await db.query('banners', columns: ['image_path']);
+    for (final r in bannerRows) {
+      urls.add(r['image_path']?.toString());
+    }
+
+    final shopRows = await db.query(
+      'shops',
+      columns: ['logo_path', 'cover_path'],
+    );
+    for (final r in shopRows) {
+      urls.add(r['logo_path']?.toString());
+      urls.add(r['cover_path']?.toString());
+    }
+
+    final prodImgRows = await db.query(
+      'product_images',
+      columns: ['file_path'],
+    );
+    for (final r in prodImgRows) {
+      urls.add(r['file_path']?.toString());
+    }
+
+    final shopImgRows = await db.query('shop_images', columns: ['file_path']);
+    for (final r in shopImgRows) {
+      urls.add(r['file_path']?.toString());
+    }
+
+    final orderItemRows = await db.query(
+      'order_items',
+      columns: ['image_path'],
+    );
+    for (final r in orderItemRows) {
+      urls.add(r['image_path']?.toString());
+    }
+
+    return urls;
+  }
+
+  /// Removes cached disk image files belonging to evicted/rotated products so
+  /// storage stays bounded.
+  Future<void> pruneStaleCachedImages() async {
+    final db = await database;
+    if (db == null) return;
+    try {
+      final urls = await _collectReferencedImageUrls(db);
+      await OfflineImageCacheService.instance.pruneUnreferencedUrls(urls);
+    } catch (_) {}
+  }
+
   /// Ensures all image URLs stored across local SQLite tables (banners, shops,
-  /// products, shop gallery, order items) are queued for disk caching.
+  /// current 100 products, shop gallery, order items) are queued for disk caching.
   Future<void> prefetchAllCachedImageUrls() async {
     final db = await database;
     if (db == null) return;
 
     try {
-      final urls = <String?>[];
-
-      final bannerRows = await db.query('banners', columns: ['image_path']);
-      for (final r in bannerRows) {
-        urls.add(r['image_path']?.toString());
-      }
-
-      final shopRows = await db.query(
-        'shops',
-        columns: ['logo_path', 'cover_path'],
-      );
-      for (final r in shopRows) {
-        urls.add(r['logo_path']?.toString());
-        urls.add(r['cover_path']?.toString());
-      }
-
-      final prodImgRows = await db.query(
-        'product_images',
-        columns: ['file_path'],
-      );
-      for (final r in prodImgRows) {
-        urls.add(r['file_path']?.toString());
-      }
-
-      final shopImgRows = await db.query('shop_images', columns: ['file_path']);
-      for (final r in shopImgRows) {
-        urls.add(r['file_path']?.toString());
-      }
-
-      final orderItemRows = await db.query(
-        'order_items',
-        columns: ['image_path'],
-      );
-      for (final r in orderItemRows) {
-        urls.add(r['image_path']?.toString());
-      }
-
+      final urls = await _collectReferencedImageUrls(db);
       OfflineImageCacheService.instance.prefetchUrlsSilently(urls);
     } catch (_) {}
   }

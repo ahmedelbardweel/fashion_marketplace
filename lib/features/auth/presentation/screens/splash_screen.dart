@@ -19,49 +19,69 @@ class SplashScreen extends ConsumerStatefulWidget {
 
 class _SplashScreenState extends ConsumerState<SplashScreen>
     with SingleTickerProviderStateMixin {
+  static const _entranceDuration = Duration(milliseconds: 520);
+
   late final AnimationController _controller;
-  late final Animation<double> _fade;
-  late final Animation<double> _scale;
-  bool _warmedOnboarding = false;
+  late final Animation<double> _logoOpacity;
+  late final Animation<double> _logoScale;
+
+  Timer? _completionTimer;
+  bool _warmedAssets = false;
+  bool _completed = false;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: _entranceDuration,
     );
 
-    _fade = CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.0, 0.65, curve: Curves.easeOut),
-    );
-    _scale = Tween<double>(begin: 0.92, end: 1).animate(
+    // Start gently visible (0.42 -> 1.0) so there is zero blank flash on launch.
+    _logoOpacity = Tween<double>(begin: 0.42, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
+        curve: const Interval(0.0, 0.72, curve: Curves.easeOutCubic),
+      ),
+    );
+    _logoScale = Tween<double>(begin: 0.93, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.85, curve: Curves.easeOutQuart),
       ),
     );
 
-    _controller.forward().then((_) async {
-      await Future.delayed(const Duration(milliseconds: 300));
+    _controller.forward().whenComplete(_markSplashDone);
+
+    // Guaranteed fallback if OS animations are disabled (animator_duration_scale=0).
+    _completionTimer = Timer(
+      const Duration(milliseconds: 580),
+      _markSplashDone,
+    );
+
+    // Begin session restoration immediately in parallel with the entrance.
+    Future.microtask(() {
       if (mounted) {
-        ref.read(splashCompletedProvider.notifier).state = true;
+        ref.read(authControllerProvider.notifier).restoreSession();
       }
     });
-    // Ensure session restore starts immediately.
-    Future.microtask(() {
-      ref.read(authControllerProvider.notifier).restoreSession();
-    });
+  }
+
+  void _markSplashDone() {
+    if (_completed || !mounted) return;
+    _completed = true;
+    _completionTimer?.cancel();
+    ref.read(splashCompletedProvider.notifier).state = true;
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_warmedOnboarding && !ref.read(onboardingCompletedProvider)) {
-      _warmedOnboarding = true;
+    if (!_warmedAssets) {
+      _warmedAssets = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+        if (!mounted) return;
+        if (!ref.read(onboardingCompletedProvider)) {
           unawaited(OnboardingScreen.warmUpInitialSlides(context));
         }
       });
@@ -70,6 +90,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   void dispose() {
+    _completionTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -80,17 +101,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       backgroundColor: SplashDesign.background,
       body: SafeArea(
         child: Center(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) {
-              return FadeTransition(
-                opacity: _fade,
-                child: ScaleTransition(
-                  scale: _scale,
-                  child: const AppLogoMark(size: SplashDesign.logoSize),
-                ),
-              );
-            },
+          child: RepaintBoundary(
+            child: FadeTransition(
+              opacity: _logoOpacity,
+              child: ScaleTransition(
+                scale: _logoScale,
+                child: const AppLogoMark(size: SplashDesign.logoSize),
+              ),
+            ),
           ),
         ),
       ),

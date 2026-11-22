@@ -26,6 +26,7 @@ import '../features/auth/presentation/screens/register_choice_screen.dart';
 import '../features/auth/presentation/screens/register_customer_screen.dart';
 import '../features/auth/presentation/screens/register_shop_screen.dart';
 import '../features/auth/presentation/screens/splash_screen.dart';
+import '../features/auth/presentation/screens/verify_email_otp_screen.dart';
 import '../features/customer/presentation/screens/cart_screen.dart';
 import '../features/customer/presentation/screens/checkout_screen.dart';
 import '../features/customer/presentation/screens/customer_catalog_screen.dart';
@@ -108,7 +109,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoutes.login ||
           location == AppRoutes.register ||
           location == AppRoutes.registerCustomer ||
-          location == AppRoutes.registerShop;
+          location == AppRoutes.registerShop ||
+          location == AppRoutes.verifyEmail;
 
       if (auth.status == AuthStatus.unknown) {
         return isSplash ? null : AppRoutes.splash;
@@ -192,7 +194,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: AppRoutes.splash,
-        builder: (context, state) => const SplashScreen(),
+        pageBuilder: (context, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          transitionDuration: const Duration(milliseconds: 220),
+          reverseTransitionDuration: const Duration(milliseconds: 180),
+          child: const SplashScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              ),
+              child: child,
+            );
+          },
+        ),
       ),
       GoRoute(
         path: AppRoutes.onboarding,
@@ -213,6 +229,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.registerShop,
         builder: (context, state) => const RegisterShopScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.verifyEmail,
+        builder: (context, state) => VerifyEmailOtpScreen(
+          email: state.uri.queryParameters['email'] ?? '',
+          isLogin: state.uri.queryParameters['mode'] == 'login',
+        ),
       ),
       GoRoute(
         path: AppRoutes.adminHome,

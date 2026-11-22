@@ -284,6 +284,17 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
     }
   }
 
+  /// Sends a real FCM/APNs test push notification (5s server-side delay) so
+  /// the user can close the app and verify OS delivery & tap-to-open.
+  Future<PushTestResult> sendTestClosedAppNotification({
+    int delaySeconds = 5,
+  }) async {
+    final result = await PushNotificationService.instance
+        .sendTestClosedAppNotification(_client, delaySeconds: delaySeconds);
+    await refreshStatus();
+    return result;
+  }
+
   void _refreshNotificationsForCurrentUser() {
     final user = _ref.read(authControllerProvider).user;
     if (user == null) return;

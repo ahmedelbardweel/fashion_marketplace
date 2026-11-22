@@ -35,7 +35,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final ok = await ref
+    final outcome = await ref
         .read(authControllerProvider.notifier)
         .signIn(
           email: _emailController.text,
@@ -43,7 +43,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
     if (!mounted) return;
-    if (!ok) {
+    if (outcome == LoginOutcome.needsEmailVerification) {
+      showAppSnackBar(
+        context,
+        'تم إرسال رمز التحقق إلى بريدك الإلكتروني'.tr,
+      );
+      context.push(
+        AppRoutes.verifyEmailPath(_emailController.text, isLogin: true),
+      );
+      return;
+    }
+    if (outcome == LoginOutcome.failed) {
       final error = ref.read(authControllerProvider).errorMessage;
       showAppSnackBar(context, error ?? 'فشل تسجيل الدخول'.tr, isError: true);
     }

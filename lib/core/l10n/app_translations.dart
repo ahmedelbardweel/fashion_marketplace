@@ -2346,6 +2346,74 @@ class AppLang {
         'Too many requests. Please wait a moment and try again.',
     'تعذر إعداد الجلسة. تحقق من تسجيل الدخول واتصالك بالإنترنت.':
         'Could not prepare session. Check your sign-in and internet connection.',
+    'تأكيد البريد الإلكتروني': 'Verify Email Address',
+    'تحقق من بريدك الإلكتروني': 'Verify Your Email',
+    'أدخل رمز التحقق': 'Enter Verification Code',
+    'أدخل رمز التحقق المكوّن من 6 أرقام المرسل إلى بريدك الإلكتروني':
+        'Enter the 6-digit verification code sent to your email',
+    'أدخل رمز التحقق المكوّن من 6 أرقام':
+        'Enter the 6-digit verification code',
+    'لصق الرمز': 'Paste Code',
+    'لم يصلك الرمز؟': "Didn't receive the code?",
+    'إعادة إرسال الرمز': 'Resend Code',
+    'لا يوجد رمز مكوّن من 6 أرقام في الحافظة':
+        'No 6-digit code found in clipboard',
+    'لحماية المنصة من الحسابات الوهمية، أرسلنا رمز تحقق إلى بريدك الإلكتروني:':
+        'To protect the platform from fake accounts, we sent a verification code to your email:',
+    'رمز التحقق (OTP)': 'Verification Code (OTP)',
+    'أدخل رمز التحقق المكون من 6 أرقام على الأقل':
+        'Enter the verification code (at least 6 digits)',
+    'تفقّد صندوق الوارد أو مجلد الرسائل غير المرغوب فيها (Spam).':
+        'Check your inbox or Spam/Junk folder.',
+    'تأكيد الرمز وإتمام التسجيل': 'Verify Code & Complete Registration',
+    'إعادة إرسال الرمز بعد': 'Resend code in',
+    'إعادة إرسال رمز التحقق': 'Resend Verification Code',
+    'تغيير البريد الإلكتروني': 'Change Email Address',
+    'تم إرسال رمز التحقق إلى بريدك الإلكتروني':
+        'Verification code sent to your email',
+    'تم إرسال رمز تحقق جديد إلى بريدك الإلكتروني':
+        'A new verification code was sent to your email',
+    'تم تأكيد بريدك الإلكتروني بنجاح': 'Your email has been verified',
+    'تعذر إعادة إرسال رمز التحقق': 'Failed to resend verification code',
+    'رمز التحقق غير صحيح أو منتهي الصلاحية':
+        'Verification code is invalid or expired',
+    'رمز التحقق غير صحيح أو منتهي الصلاحية. تأكد من الرمز أو اطلب رمزاً جديداً.':
+        'Verification code is invalid or expired. Check the code or request a new one.',
+    'يرجى الانتظار 60 ثانية قبل طلب رمز تحقق جديد.':
+        'Please wait 60 seconds before requesting a new code.',
+    'انتهت جلسة التسجيل المؤقتة. يرجى الرجوع وإعادة إدخال بياناتك.':
+        'Your temporary signup session expired. Please go back and re-enter your details.',
+    'تعذر معالجة رمز التحقق. حاول مجدداً.':
+        'Could not process the verification code. Please try again.',
+    'تعذر الاتصال بخدمة التحقق من البريد. حاول مجدداً.':
+        'Could not reach the email verification service. Please try again.',
+    'رقم الهاتف مسجل مسبقاً لحساب آخر':
+        'This phone number is already registered to another account',
+    'تأكيد تسجيل الدخول': 'Verify Sign In',
+    'تأكيد الرمز وتسجيل الدخول': 'Verify Code & Sign In',
+    'تم تسجيل الدخول بنجاح': 'Signed in successfully',
+    'انتهت جلسة الدخول المؤقتة. يرجى الرجوع وإعادة إدخال بياناتك.':
+        'Your temporary sign-in session expired. Please go back and re-enter your details.',
+    'تجربة إشعار عند إغلاق التطبيق (خلال 5 ثوانٍ)':
+        'Test closed-app notification (in 5s)',
+    'سيصل إشعار تجريبي خلال 5 ثوانٍ — أغلق التطبيق الآن وشاهد ظهوره!':
+        'A test notification will arrive in 5 seconds — close the app now to see it!',
+    'FCM متصل — تصلك الإشعارات حتى عند إغلاق التطبيق':
+        'FCM connected — notifications arrive even when the app is closed',
+    'مفعّلة — بانتظار ربط Firebase (FCM) للإشعارات خارج التطبيق':
+        'Enabled — waiting for Firebase (FCM) setup for closed-app push',
+    'خدمة FCM غير مربوطة بعد في التطبيق — أضف google-services.json أو مفاتيح Firebase في .env ثم أعد تشغيل التطبيق.':
+        'FCM is not connected in the app yet — add google-services.json or Firebase keys in .env and restart.',
+    'تم جدولة إشعار FCM — أغلق التطبيق الآن، سيصلك خلال 5 ثوانٍ!':
+        'FCM push scheduled — close the app now, it will arrive in 5 seconds!',
+    'تعذر إرسال إشعار FCM من الخادم.':
+        'Failed to send FCM notification from server.',
+    'تعذر الاتصال بخدمة إشعارات FCM على الخادم.':
+        'Could not reach the FCM push service on the server.',
+    'تعذر إرسال إشعار FCM. تحقق من الاتصال بالإنترنت.':
+        'Failed to send FCM notification. Check your internet connection.',
+    'يرجى تسجيل الدخول أولاً لاختبار إشعارات FCM.':
+        'Please sign in first to test FCM notifications.',
   };
 }
 

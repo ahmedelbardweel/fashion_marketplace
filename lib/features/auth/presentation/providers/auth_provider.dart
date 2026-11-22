@@ -17,6 +17,18 @@ enum AuthStatus {
   unauthenticated,
 }
 
+enum RegistrationOutcome {
+  authenticated,
+  needsEmailVerification,
+  failed,
+}
+
+enum LoginOutcome {
+  authenticated,
+  needsEmailVerification,
+  failed,
+}
+
 class AuthSessionState {
   const AuthSessionState({
     required this.status,
@@ -73,6 +85,13 @@ class AuthController extends StateNotifier<AuthSessionState> {
   /// Serializes [restoreSession] calls so overlapping token refreshes never
   /// overwrite freshly completed profile state.
   Future<void>? _restoreInFlight;
+
+  /// Held strictly in memory while the user verifies their email OTP so ZERO
+  /// rows are written to `auth.users` / `profiles` / `shops` before verification.
+  PendingSignupData? _pendingSignup;
+
+  /// Held strictly in memory while the user verifies their first-install login OTP.
+  PendingLoginData? _pendingLogin;
 
   Future<void> _init() async {
     _listenAuthChanges();
@@ -196,17 +215,72 @@ class AuthController extends StateNotifier<AuthSessionState> {
     }
   }
 
-  Future<bool> signIn({
+  Future<LoginOutcome> signIn({
     required String email,
     required String password,
   }) async {
+    final cleanEmail = email.trim().toLowerCase();
     _manualAuthInProgress = true;
     state = state.copyWith(isBusy: true, clearError: true);
     try {
+      final isTrusted = await _repository.isEmailTrustedOnThisInstall(
+        cleanEmail,
+      );
+      if (!isTrusted) {
+        await _repository.requestLoginOtp(
+          email: cleanEmail,
+          password: password,
+        );
+        _pendingLogin = PendingLoginData(email: cleanEmail, password: password);
+        state = state.copyWith(isBusy: false, clearError: true);
+        return LoginOutcome.needsEmailVerification;
+      }
+
       final user = await _repository.signIn(
-        email: email,
+        email: cleanEmail,
         password: password,
       );
+      state = AuthSessionState(
+        status: AuthStatus.authenticated,
+        user: user,
+      );
+      return LoginOutcome.authenticated;
+    } catch (error) {
+      state = state.copyWith(
+        isBusy: false,
+        status: AuthStatus.unauthenticated,
+        clearUser: true,
+        errorMessage: _repository.mapAuthError(error),
+      );
+      return LoginOutcome.failed;
+    } finally {
+      _manualAuthInProgress = false;
+    }
+  }
+
+  Future<bool> verifyLoginOtp({
+    required String email,
+    required String code,
+  }) async {
+    final pending = _pendingLogin;
+    final cleanEmail = email.trim().toLowerCase();
+    if (pending == null || pending.email != cleanEmail) {
+      state = state.copyWith(
+        isBusy: false,
+        errorMessage:
+            'انتهت جلسة الدخول المؤقتة. يرجى الرجوع وإعادة إدخال بياناتك.',
+      );
+      return false;
+    }
+
+    _manualAuthInProgress = true;
+    state = state.copyWith(isBusy: true, clearError: true);
+    try {
+      final user = await _repository.completeLoginWithOtp(
+        pending: pending,
+        code: code,
+      );
+      _pendingLogin = null;
       state = AuthSessionState(
         status: AuthStatus.authenticated,
         user: user,
@@ -215,13 +289,36 @@ class AuthController extends StateNotifier<AuthSessionState> {
     } catch (error) {
       state = state.copyWith(
         isBusy: false,
-        status: AuthStatus.unauthenticated,
-        clearUser: true,
         errorMessage: _repository.mapAuthError(error),
       );
       return false;
     } finally {
       _manualAuthInProgress = false;
+    }
+  }
+
+  Future<bool> resendLoginOtp({required String email}) async {
+    final pending = _pendingLogin;
+    final cleanEmail = email.trim().toLowerCase();
+    if (pending == null || pending.email != cleanEmail) {
+      state = state.copyWith(
+        errorMessage:
+            'انتهت جلسة الدخول المؤقتة. يرجى الرجوع وإعادة إدخال بياناتك.',
+      );
+      return false;
+    }
+    state = state.copyWith(clearError: true);
+    try {
+      await _repository.resendLoginOtp(
+        email: cleanEmail,
+        password: pending.password,
+      );
+      return true;
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: _repository.mapAuthError(error),
+      );
+      return false;
     }
   }
 
@@ -251,7 +348,7 @@ class AuthController extends StateNotifier<AuthSessionState> {
     }
   }
 
-  Future<bool> registerCustomer({
+  Future<RegistrationOutcome> registerCustomer({
     required String email,
     required String password,
     required String fullName,
@@ -260,29 +357,29 @@ class AuthController extends StateNotifier<AuthSessionState> {
     _manualAuthInProgress = true;
     state = state.copyWith(isBusy: true, clearError: true);
     try {
-      final user = await _repository.registerCustomer(
-        email: email,
+      final pending = PendingSignupData(
+        email: email.trim().toLowerCase(),
         password: password,
-        fullName: fullName,
-        phone: phone,
+        role: UserRole.customer,
+        fullName: fullName.trim(),
+        phone: phone.trim(),
       );
-      state = AuthSessionState(
-        status: AuthStatus.authenticated,
-        user: user,
-      );
-      return true;
+      await _repository.requestSignupOtp(pending: pending);
+      _pendingSignup = pending;
+      state = state.copyWith(isBusy: false, clearError: true);
+      return RegistrationOutcome.needsEmailVerification;
     } catch (error) {
       state = state.copyWith(
         isBusy: false,
         errorMessage: _repository.mapAuthError(error),
       );
-      return false;
+      return RegistrationOutcome.failed;
     } finally {
       _manualAuthInProgress = false;
     }
   }
 
-  Future<bool> registerShop({
+  Future<RegistrationOutcome> registerShop({
     required String email,
     required String password,
     required String fullName,
@@ -292,13 +389,52 @@ class AuthController extends StateNotifier<AuthSessionState> {
     _manualAuthInProgress = true;
     state = state.copyWith(isBusy: true, clearError: true);
     try {
-      final user = await _repository.registerShop(
-        email: email,
+      final pending = PendingSignupData(
+        email: email.trim().toLowerCase(),
         password: password,
-        fullName: fullName,
-        phone: phone,
-        shopName: shopName,
+        role: UserRole.shop,
+        fullName: fullName.trim(),
+        phone: phone.trim(),
+        shopName: shopName.trim(),
       );
+      await _repository.requestSignupOtp(pending: pending);
+      _pendingSignup = pending;
+      state = state.copyWith(isBusy: false, clearError: true);
+      return RegistrationOutcome.needsEmailVerification;
+    } catch (error) {
+      state = state.copyWith(
+        isBusy: false,
+        errorMessage: _repository.mapAuthError(error),
+      );
+      return RegistrationOutcome.failed;
+    } finally {
+      _manualAuthInProgress = false;
+    }
+  }
+
+  Future<bool> verifySignupOtp({
+    required String email,
+    required String code,
+  }) async {
+    final pending = _pendingSignup;
+    final cleanEmail = email.trim().toLowerCase();
+    if (pending == null || pending.email != cleanEmail) {
+      state = state.copyWith(
+        isBusy: false,
+        errorMessage:
+            'انتهت جلسة التسجيل المؤقتة. يرجى الرجوع وإعادة إدخال بياناتك.',
+      );
+      return false;
+    }
+
+    _manualAuthInProgress = true;
+    state = state.copyWith(isBusy: true, clearError: true);
+    try {
+      final user = await _repository.completeSignupWithOtp(
+        pending: pending,
+        code: code,
+      );
+      _pendingSignup = null;
       state = AuthSessionState(
         status: AuthStatus.authenticated,
         user: user,
@@ -315,7 +451,27 @@ class AuthController extends StateNotifier<AuthSessionState> {
     }
   }
 
+  Future<bool> resendSignupOtp({required String email}) async {
+    state = state.copyWith(clearError: true);
+    try {
+      await _repository.resendSignupOtp(email: email);
+      return true;
+    } catch (error) {
+      state = state.copyWith(
+        errorMessage: _repository.mapAuthError(error),
+      );
+      return false;
+    }
+  }
+
+  void clearPendingSignup() {
+    _pendingSignup = null;
+    _pendingLogin = null;
+  }
+
   Future<void> signOut() async {
+    _pendingSignup = null;
+    _pendingLogin = null;
     _manualAuthInProgress = true;
     state = state.copyWith(isBusy: true, clearError: true);
     try {

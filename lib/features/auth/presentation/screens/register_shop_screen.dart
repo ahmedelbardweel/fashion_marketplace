@@ -46,7 +46,7 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    final ok = await ref
+    final outcome = await ref
         .read(authControllerProvider.notifier)
         .registerShop(
           email: _emailController.text,
@@ -57,7 +57,15 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
         );
 
     if (!mounted) return;
-    if (!ok) {
+    if (outcome == RegistrationOutcome.needsEmailVerification) {
+      showAppSnackBar(
+        context,
+        'تم إرسال رمز التحقق إلى بريدك الإلكتروني'.tr,
+      );
+      context.push(AppRoutes.verifyEmailPath(_emailController.text));
+      return;
+    }
+    if (outcome == RegistrationOutcome.failed) {
       final error = ref.read(authControllerProvider).errorMessage;
       showAppSnackBar(context, error ?? 'فشل إنشاء حساب المحل'.tr, isError: true);
     }
@@ -181,14 +189,6 @@ class _RegisterShopScreenState extends ConsumerState<RegisterShopScreen> {
                   label: 'إنشاء حساب المحل'.tr,
                   isLoading: auth.isBusy,
                   onPressed: _submit,
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                AppButton(
-                  label: 'العودة لتسجيل الدخول'.tr,
-                  variant: AppButtonVariant.text,
-                  onPressed: auth.isBusy
-                      ? null
-                      : () => context.go(AppRoutes.login),
                 ),
               ],
             ),

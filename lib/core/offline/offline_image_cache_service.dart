@@ -159,6 +159,54 @@ class OfflineImageCacheService {
     return null;
   }
 
+  /// Deletes any cached image files on disk whose URL is no longer in [keepUrls]
+  /// and removes stale URLs from the pending prefetch queue.
+  Future<int> pruneUnreferencedUrls(Iterable<String?> keepUrls) async {
+    if (kIsWeb) return 0;
+    if (!_initialized) {
+      await initialize();
+    }
+    final dir = _cacheDir;
+    if (dir == null || !dir.existsSync()) return 0;
+
+    final keepKeys = <String>{};
+    final keepCleanUrls = <String>{};
+    for (final raw in keepUrls) {
+      final clean = raw?.trim() ?? '';
+      if (clean.isEmpty || !clean.startsWith('http')) continue;
+      keepCleanUrls.add(clean);
+      keepKeys.add(_keyForUrl(clean));
+    }
+
+    // Drop queued URLs that are no longer needed
+    if (_prefetchQueue.isNotEmpty) {
+      final filtered = _prefetchQueue.where(keepCleanUrls.contains).toList();
+      _prefetchQueue
+        ..clear()
+        ..addAll(filtered);
+      _queuedUrls.removeWhere((u) => !keepCleanUrls.contains(u));
+    }
+
+    var removed = 0;
+    try {
+      await for (final entity in dir.list(followLinks: false)) {
+        if (entity is! File) continue;
+        final name = p.basename(entity.path);
+        if (name.endsWith('.tmp')) continue;
+        if (!keepKeys.contains(name)) {
+          try {
+            await entity.delete();
+            _cachedKeys.remove(name);
+            removed++;
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      debugPrint('[OfflineImageCacheService] Prune warning: $e');
+    }
+    return removed;
+  }
+
   /// Enqueues image URLs to be silently downloaded to disk in the background
   /// without blocking the UI or saturating network bandwidth.
   void prefetchUrlsSilently(Iterable<String?> urls) {

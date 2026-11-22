@@ -14,56 +14,77 @@ import 'core/offline/local_database.dart';
 import 'core/offline/network_monitor_service.dart';
 import 'core/offline/offline_security_service.dart';
 import 'core/offline/offline_sync_engine.dart';
+import 'core/theme/app_design.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/screens/config_error_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await AppPreferences.init();
-
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
+  // Run only the tiny local prerequisites in parallel so Flutter renders
+  // frame #1 immediately on both iOS & Android with zero launch lag.
+  await Future.wait([
+    AppPreferences.init(),
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]),
+    dotenv.load(fileName: '.env').catchError((_) {}),
   ]);
 
+  final isDark = AppColors.isDark;
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-
   SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
+    SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
       systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarIconBrightness: Brightness.dark,
+      systemNavigationBarIconBrightness:
+          isDark ? Brightness.light : Brightness.dark,
       systemNavigationBarDividerColor: Colors.transparent,
     ),
   );
 
-  // Initialize hardware-backed AES-256-GCM encryption & local SQLite tables
-  await OfflineSecurityService.instance.initialize();
-  await LocalDatabase.instance.initialize();
-
   try {
-    await dotenv.load(fileName: '.env');
+    if (!dotenv.isInitialized) {
+      await dotenv.load(fileName: '.env');
+    }
     await SupabaseConfig.initialize();
   } catch (error) {
     runApp(ConfigErrorScreen(message: error.toString()));
     return;
   }
 
-  // Initialize real-time network monitor & offline outbox sync engine
-  await NetworkMonitorService.instance.initialize();
-  await OfflineSyncEngine.instance.initialize();
-
-  // Silently preload all tables from Supabase into local SQLite in the background
-  unawaited(BackgroundPreloaderService.instance.preloadAllSilently());
-
+  // Register background FCM handler synchronously, then paint the UI first!
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  await PushNotificationService.instance.initialize();
 
-  runApp(
-    const ProviderScope(
-      child: FashionMarketplaceApp(),
-    ),
+  runApp(const ProviderScope(child: FashionMarketplaceApp()));
+
+  // Defer all heavy local/network/push services until after frame #1 is queued
+  // so nothing can ever block or stall the splash screen.
+  unawaited(_bootstrapBackgroundServices());
+}
+
+Future<void> _bootstrapBackgroundServices() async {
+  try {
+    await Future.wait([
+      OfflineSecurityService.instance.initialize().catchError((_) {}),
+      LocalDatabase.instance.initialize().catchError((_) {}),
+    ]);
+  } catch (_) {}
+
+  unawaited(
+    NetworkMonitorService.instance
+        .initialize()
+        .then((_) async {
+          await OfflineSyncEngine.instance.initialize();
+          unawaited(BackgroundPreloaderService.instance.preloadAllSilently());
+        })
+        .catchError((_) {}),
+  );
+
+  unawaited(
+    PushNotificationService.instance
+        .initialize()
+        .timeout(const Duration(seconds: 6), onTimeout: () {})
+        .catchError((_) {}),
   );
 }

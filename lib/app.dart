@@ -28,15 +28,21 @@ class FashionMarketplaceApp extends ConsumerStatefulWidget {
 
 class _FashionMarketplaceAppState extends ConsumerState<FashionMarketplaceApp> {
   StreamSubscription<Map<String, dynamic>>? _tapSub;
+  Map<String, dynamic>? _deferredTapData;
 
   @override
   void initState() {
     super.initState();
-    _tapSub = PushNotificationService.instance.onNotificationTap.listen((_) {
-      _openNotificationsForCurrentRole();
+    _tapSub = PushNotificationService.instance.onNotificationTap.listen((data) {
+      _handleNotificationTap(data);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      final pendingTap =
+          PushNotificationService.instance.consumePendingLaunchTap();
+      if (pendingTap != null) {
+        _handleNotificationTap(pendingTap);
+      }
       final auth = ref.read(authControllerProvider);
       if (auth.isAuthenticated && auth.user != null) {
         unawaited(
@@ -60,12 +66,31 @@ class _FashionMarketplaceAppState extends ConsumerState<FashionMarketplaceApp> {
     super.dispose();
   }
 
-  void _openNotificationsForCurrentRole() {
+  void _handleNotificationTap(Map<String, dynamic> data) {
     if (!mounted) return;
     final auth = ref.read(authControllerProvider);
     final user = auth.user;
-    if (!auth.isAuthenticated || user == null) return;
+    if (!auth.isAuthenticated || user == null) {
+      // App was cold-launched from a terminated state via notification tap;
+      // defer navigation until session restore finishes.
+      _deferredTapData = data;
+      return;
+    }
+    _deferredTapData = null;
     final router = ref.read(goRouterProvider);
+
+    final rawRoute = (data['route'] as String?)?.trim() ?? '';
+    final rolePrefix = switch (user.role) {
+      UserRole.admin => AppRoutes.adminRoot,
+      UserRole.shop => AppRoutes.shopRoot,
+      UserRole.customer => AppRoutes.customerRoot,
+    };
+
+    if (rawRoute.isNotEmpty && rawRoute.startsWith(rolePrefix)) {
+      router.push(rawRoute);
+      return;
+    }
+
     switch (user.role) {
       case UserRole.admin:
         router.push(AppRoutes.adminNotifications);
@@ -97,6 +122,18 @@ class _FashionMarketplaceAppState extends ConsumerState<FashionMarketplaceApp> {
             ),
           );
           unawaited(OfflineSyncEngine.instance.syncPendingActions());
+
+          // Complete deferred deep-link navigation if app was launched from a
+          // terminated-state notification tap.
+          final deferred =
+              _deferredTapData ??
+              PushNotificationService.instance.consumePendingLaunchTap();
+          if (deferred != null) {
+            _deferredTapData = null;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _handleNotificationTap(deferred);
+            });
+          }
         }
       }
     });
