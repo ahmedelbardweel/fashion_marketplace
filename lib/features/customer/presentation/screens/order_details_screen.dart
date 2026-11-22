@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/app_haptics.dart';
 import '../../../../core/utils/media_picker.dart';
@@ -704,7 +705,10 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
         title: 'تفاصيل الطلب'.tr,
         body: AppEmpty(
           icon: AppIcons.error,
-          message: 'تعذر تحميل تفاصيل الطلب: $err'.tr,
+          message: AppErrorMapper.message(
+            err,
+            fallback: 'تعذر تحميل تفاصيل الطلب حالياً. حاول مرة أخرى.',
+          ),
         ),
       ),
     );

@@ -18,6 +18,7 @@ import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import '../../../../core/offline/offline_image_cache_service.dart';
 import '../../../../core/painters/garment_overlay_painter.dart';
 import '../../../../core/services/garment_fitter.dart';
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../router/routes.dart';
@@ -123,7 +124,13 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
       _camIndex = frontIdx >= 0 ? frontIdx : 0;
       await _startCamera(_cameras[_camIndex]);
     } catch (e) {
-      setState(() => _camError = 'تعذر تشغيل الكاميرا: $e'.tr);
+      setState(
+        () => _camError = AppErrorMapper.message(
+          e,
+          fallback:
+              'تعذر تشغيل الكاميرا. تأكد من منح صلاحية الكاميرا وحاول مجدداً.',
+        ),
+      );
     }
   }
 
@@ -155,7 +162,13 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _camError = 'خطأ أثناء تشغيل الكاميرا: $e'.tr);
+      setState(
+        () => _camError = AppErrorMapper.message(
+          e,
+          fallback:
+              'تعذر تشغيل الكاميرا. تأكد من منح صلاحية الكاميرا وحاول مجدداً.',
+        ),
+      );
     }
   }
 
@@ -749,7 +762,10 @@ class _ProductArTryonScreenState extends ConsumerState<ProductArTryonScreen>
         ),
         error: (e, _) => Center(
           child: Text(
-            'حدث خطأ: $e'.tr,
+            AppErrorMapper.message(
+              e,
+              fallback: 'تعذر تحميل التجربة الافتراضية حالياً. حاول مرة أخرى.',
+            ),
             style: TextStyle(color: AppColors.white),
           ),
         ),

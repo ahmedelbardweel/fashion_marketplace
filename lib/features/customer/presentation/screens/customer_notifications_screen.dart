@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_empty.dart';
@@ -252,7 +253,10 @@ class _CustomerNotificationsScreenState
           },
           error: (err, _) => AppEmpty(
             icon: AppIcons.error,
-            message: 'تعذر تحميل الإشعارات: $err'.tr,
+            message: AppErrorMapper.message(
+              err,
+              fallback: 'تعذر تحميل الإشعارات حالياً. حاول مرة أخرى.',
+            ),
           ),
         ),
       ),

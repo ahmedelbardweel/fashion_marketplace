@@ -57,9 +57,27 @@ class AuthRepository {
     : _client = client ?? SupabaseConfig.client;
 
   static const _trustedLoginEmailsKey = 'trusted_login_emails_v1';
+  static const _oauthRedirectUrl = 'io.supabase.shopy://login-callback/';
 
   final SupabaseClient _client;
   final LocalDatabase _localDb = LocalDatabase.instance;
+  GoogleSignIn? _googleSignInInstance;
+
+  GoogleSignIn _resolveGoogleSignIn() {
+    if (_googleSignInInstance != null) return _googleSignInInstance!;
+    final webClientId = SupabaseConfig.googleWebClientId;
+    final iosClientId = SupabaseConfig.googleIosClientId;
+    _googleSignInInstance = GoogleSignIn(
+      scopes: const ['email', 'profile'],
+      serverClientId: webClientId.isEmpty ? null : webClientId,
+      clientId: (!kIsWeb &&
+              defaultTargetPlatform == TargetPlatform.iOS &&
+              iosClientId.isNotEmpty)
+          ? iosClientId
+          : null,
+    );
+    return _googleSignInInstance!;
+  }
 
   /// Returns true if [email] has already completed email OTP verification on
   /// this app installation. Uninstalling and reinstalling the app clears
@@ -157,57 +175,91 @@ class AuthRepository {
     return profile;
   }
 
+  Future<AppUser?> _signInWithGoogleOAuthFallback() async {
+    debugPrint('[GoogleSignIn] Falling back to Supabase OAuth flow...');
+    final launched = await NetworkGuard.run(
+      () => _client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb ? null : _oauthRedirectUrl,
+        authScreenLaunchMode: LaunchMode.inAppBrowserView,
+        queryParams: const {'prompt': 'select_account'},
+      ),
+      timeout: AppTimeouts.auth,
+    );
+    if (!launched) {
+      throw const AuthException('تعذر فتح صفحة تسجيل الدخول عبر Google');
+    }
+    // Session completion arrives via deep link -> authStateChanges -> restoreSession.
+    return null;
+  }
+
   /// يفتح نافذة اختيار حساب Google الأصلية (Bottom Sheet داخل التطبيق) على أندرويد وآيفون
-  /// ويسجل الدخول مباشرة في Supabase عبر ID Token بدون الخروج إلى المتصفح.
+  /// ويسجل الدخول مباشرة في Supabase عبر ID Token، مع تحويل تلقائي سلس إلى
+  /// Supabase OAuth (Chrome Custom Tab) إذا تعذّرت قناة google_sign_in الأصلية.
   Future<AppUser?> signInWithGoogle() async {
     await NetworkGuard.ensureOnline();
 
     final webClientId = SupabaseConfig.googleWebClientId;
-    final iosClientId = SupabaseConfig.googleIosClientId;
 
     if (!kIsWeb && webClientId.isEmpty) {
-      throw const AuthException(
-        'يرجى إضافة GOOGLE_WEB_CLIENT_ID في ملف .env لتفعيل الدخول المباشر عبر Google',
-      );
+      return _signInWithGoogleOAuthFallback();
     }
 
-    final googleSignIn = GoogleSignIn(
-      scopes: const ['email', 'profile'],
-      serverClientId: webClientId.isEmpty ? null : webClientId,
-      clientId: (!kIsWeb &&
-              defaultTargetPlatform == TargetPlatform.iOS &&
-              iosClientId.isNotEmpty)
-          ? iosClientId
-          : null,
-    );
+    final googleSignIn = _resolveGoogleSignIn();
 
-    try {
-      // ضمان ظهور نافذة اختيار الحساب السفلية (Bottom Sheet) دائماً
-      await googleSignIn.signOut().timeout(const Duration(seconds: 4));
-    } catch (_) {}
+    // Only sign out of Google first if a cached Google user exists in memory;
+    // calling signOut() unconditionally before signIn() can leave Android
+    // GoogleSignInPlugin's pendingOperation stuck and cause a timeout.
+    if (googleSignIn.currentUser != null) {
+      try {
+        debugPrint('[GoogleSignIn] clearing cached Google user before signIn');
+        await googleSignIn.signOut().timeout(const Duration(seconds: 4));
+      } catch (e) {
+        debugPrint('[GoogleSignIn] pre-signOut skipped: $e');
+      }
+    }
 
     final GoogleSignInAccount? googleUser;
     try {
+      debugPrint('[GoogleSignIn] launching native Google account picker...');
       googleUser = await googleSignIn.signIn().timeout(
         AppTimeouts.googleSignIn,
       );
+      debugPrint('[GoogleSignIn] picker finished: ${googleUser?.email}');
+    } on MissingPluginException catch (e) {
+      debugPrint('[GoogleSignIn] MissingPluginException: $e');
+      return _signInWithGoogleOAuthFallback();
     } on TimeoutException {
-      throw AppNetworkException.timeout(timeout: AppTimeouts.googleSignIn);
+      return _signInWithGoogleOAuthFallback();
     } on PlatformException catch (e) {
+      debugPrint(
+        '[GoogleSignIn] PlatformException code=${e.code} message=${e.message} details=${e.details}',
+      );
       final code = e.code.toLowerCase();
-      if (code.contains('canceled') || code.contains('cancelled')) {
+      final msg = e.message ?? '';
+      final lowerMsg = msg.toLowerCase();
+      if (code.contains('canceled') ||
+          code.contains('cancelled') ||
+          lowerMsg.contains('12501') ||
+          lowerMsg.contains('canceled') ||
+          lowerMsg.contains('cancelled')) {
         return null;
       }
-      if (code.contains('network_error') || (e.message?.contains('7:') ?? false)) {
+      if (code.contains('network_error') || msg.contains('7:')) {
         throw AppNetworkException.noInternet();
       }
-      if (code.contains('sign_in_failed') ||
-          (e.message?.contains('10:') ?? false)) {
-        throw const AuthException(
-          'تأكد من إضافة بصمة SHA-1 و Web Client ID في إعدادات Google Cloud Console',
-        );
+      // Native GoogleSignIn channel/configuration issues -> seamlessly fall back to
+      // Supabase OAuth in-app browser tab which returns via io.supabase.shopy://login-callback/
+      if (code.contains('channel-error') ||
+          lowerMsg.contains('unable to establish connection') ||
+          code.contains('sign_in_failed') ||
+          msg.contains('10:') ||
+          msg.contains('12500')) {
+        return _signInWithGoogleOAuthFallback();
       }
-      throw AuthException(e.message ?? 'تعذر تسجيل الدخول عبر Google');
+      throw const AuthException(
+        'تعذر تسجيل الدخول عبر Google حالياً. حاول مرة أخرى أو استخدم البريد الإلكتروني.',
+      );
     }
 
     // إذا أغلق المستخدم النافذة السفلية بدون اختيار حساب
@@ -225,19 +277,27 @@ class AuthRepository {
     final accessToken = googleAuth.accessToken;
 
     if (idToken == null) {
-      throw const AuthException(
-        'تعذر الحصول على رمز المصادقة (ID Token) من Google. تأكد من صحة GOOGLE_WEB_CLIENT_ID',
-      );
+      return _signInWithGoogleOAuthFallback();
     }
 
-    final response = await NetworkGuard.run(
-      () => _client.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
-      ),
-      timeout: AppTimeouts.auth,
-    );
+    final AuthResponse response;
+    try {
+      response = await NetworkGuard.run(
+        () => _client.auth.signInWithIdToken(
+          provider: OAuthProvider.google,
+          idToken: idToken,
+          accessToken: accessToken,
+        ),
+        timeout: AppTimeouts.auth,
+      );
+    } on AuthException catch (e) {
+      debugPrint(
+        '[GoogleSignIn] Supabase signInWithIdToken error: ${e.statusCode} ${e.message}',
+      );
+      throw const AuthException(
+        'تعذر تسجيل الدخول عبر Google حالياً. حاول مرة أخرى أو استخدم البريد الإلكتروني.',
+      );
+    }
 
     if (response.user == null) {
       throw const AuthException('تعذر تسجيل الدخول عبر Google');
@@ -412,6 +472,9 @@ class AuthRepository {
 
   Future<void> signOut() async {
     await _localDb.clearActiveSession();
+    try {
+      await _googleSignInInstance?.signOut().timeout(const Duration(seconds: 3));
+    } catch (_) {}
     try {
       await _client.auth.signOut().timeout(AppTimeouts.signOut);
     } catch (_) {}

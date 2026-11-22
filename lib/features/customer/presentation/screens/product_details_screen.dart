@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/fashion_color_palette.dart';
 import '../../../../core/utils/snackbar_utils.dart';
@@ -1895,7 +1896,10 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         body: AppEmpty(
           icon: AppIcons.error,
           title: 'تعذر تحميل تفاصيل المنتج'.tr,
-          message: '$err',
+          message: AppErrorMapper.message(
+            err,
+            fallback: 'تعذر تحميل تفاصيل المنتج حالياً. حاول مرة أخرى.',
+          ),
         ),
       ),
     );

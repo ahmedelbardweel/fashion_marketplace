@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_empty.dart';
@@ -290,7 +291,10 @@ class _CustomerOrdersScreenState extends ConsumerState<CustomerOrdersScreen> {
           },
           error: (err, _) => AppEmpty(
             icon: AppIcons.error,
-            message: 'تعذر تحميل الطلبات: $err'.tr,
+            message: AppErrorMapper.message(
+              err,
+              fallback: 'تعذر تحميل الطلبات حالياً. حاول مرة أخرى.',
+            ),
           ),
         ),
       ),

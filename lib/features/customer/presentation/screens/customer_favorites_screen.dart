@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_filter_bar.dart';
@@ -297,7 +298,10 @@ class _CustomerFavoritesScreenState
           },
           error: (err) => AppEmpty(
             icon: AppIcons.error,
-            message: 'تعذر تحميل المفضلة: $err'.tr,
+            message: AppErrorMapper.message(
+              err,
+              fallback: 'تعذر تحميل المفضلة حالياً. حاول مرة أخرى.',
+            ),
             actionLabel: 'إعادة المحاولة'.tr,
             onAction: ref
                 .read(customerFavoritesPaginatedProvider.notifier)

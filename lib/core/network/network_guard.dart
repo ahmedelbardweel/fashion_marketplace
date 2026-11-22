@@ -31,7 +31,7 @@ abstract final class AppTimeouts {
   static const Duration backgroundCutout = Duration(seconds: 12);
 
   /// Interactive Google Sign-In picker timeout.
-  static const Duration googleSignIn = Duration(seconds: 45);
+  static const Duration googleSignIn = Duration(seconds: 120);
 
   /// Sign-out cleanup timeout (never block user from signing out offline).
   static const Duration signOut = Duration(seconds: 5);
@@ -81,25 +81,17 @@ class AppNetworkException implements Exception {
   String get userMessage {
     switch (kind) {
       case AppNetworkFailureKind.noInternet:
-        return 'لا يوجد اتصال بالإنترنت. تأكد من تشغيل الواي فاي أو بيانات الهاتف ثم حاول مرة أخرى.'
+        return 'لا يوجد اتصال بالإنترنت. تحقق من الواي فاي أو بيانات الهاتف وحاول مرة أخرى.'
             .tr;
       case AppNetworkFailureKind.unreachable:
-        return 'الجهاز متصل بالشبكة لكن لا يوجد إنترنت فعلي أو تعذر الوصول للخادم. تحقق من اتصالك وحاول مجدداً.'
-            .tr;
+        return 'تعذر الاتصال بالخادم حالياً. تحقق من الإنترنت وحاول مجدداً.'.tr;
       case AppNetworkFailureKind.timeout:
-        if (timeout != null) {
-          return AppLang.isEn
-              ? 'Connection timed out after ${timeout!.inSeconds}s due to slow internet or server delay. Please try again.'
-              : 'انتهت مهلة الاتصال (${timeout!.inSeconds} ثانية) بسبب بطء الإنترنت أو عدم استجابة الخادم. حاول مرة أخرى.';
-        }
-        return 'انتهت مهلة الاتصال بسبب بطء الإنترنت أو عدم استجابة الخادم. حاول مرة أخرى.'
+        return 'الاتصال بطيء حالياً ولم يستجب الخادم في الوقت المناسب. حاول مرة أخرى.'
             .tr;
       case AppNetworkFailureKind.connectionDropped:
-        return 'انقطع الاتصال بالإنترنت أثناء تنفيذ العملية. تأكد من استقرار الشبكة وأعد المحاولة.'
-            .tr;
+        return 'انقطع الاتصال بالإنترنت أثناء تنفيذ العملية. حاول مرة أخرى.'.tr;
       case AppNetworkFailureKind.serverUnavailable:
-        return 'الخادم غير متاح مؤقتاً حالياً. يرجى المحاولة مرة أخرى بعد قليل.'
-            .tr;
+        return 'الخدمة غير متاحة مؤقتاً. يرجى المحاولة بعد قليل.'.tr;
     }
   }
 
@@ -328,8 +320,10 @@ class AppErrorMapper {
       if (_containsNetworkSignature(lower)) {
         return _networkMessageFromText(lower);
       }
-      if (lower.contains('passed nonce and nonce in id_token')) {
-        return 'يرجى تفعيل خيار Skip nonce checks داخل إعدادات Google في Supabase'
+      if (lower.contains('passed nonce and nonce in id_token') ||
+          lower.contains('audience') ||
+          (lower.contains('provider') && lower.contains('not enabled'))) {
+        return 'تعذر تسجيل الدخول عبر Google حالياً. حاول مجدداً أو استخدم البريد الإلكتروني.'
             .tr;
       }
       if (lower.contains('invalid login credentials')) {
@@ -367,10 +361,11 @@ class AppErrorMapper {
           lower.contains('refresh_token_not_found')) {
         return 'انتهت جلسة تسجيل الدخول. يرجى تسجيل الدخول مجدداً.'.tr;
       }
-      if (_arabicChars.hasMatch(raw)) {
+      if (_isCleanUserMessage(raw)) {
         return raw.tr;
       }
-      return 'تعذر إتمام المصادقة. تحقق من بياناتك واتصالك بالإنترنت.'.tr;
+      return 'تعذر تسجيل الدخول. تحقق من بياناتك واتصالك بالإنترنت وحاول مجدداً.'
+          .tr;
     }
 
     // 3) Supabase PostgreSQL / RPC errors
@@ -381,7 +376,7 @@ class AppErrorMapper {
         return _networkMessageFromText(lower);
       }
       // Preserve explicit Arabic domain/business rule messages returned by our RPCs
-      if (_arabicChars.hasMatch(raw)) {
+      if (_isCleanUserMessage(raw)) {
         return raw.tr;
       }
       switch (error.code) {
@@ -396,16 +391,16 @@ class AppErrorMapper {
           return 'لا يمكن تنفيذ العملية لارتباط هذا العنصر ببيانات أخرى.'.tr;
         case '22P02':
         case '22023':
-          return 'صيغة البيانات المدخلة غير صحيحة. راجع الحقول وحاول مجدداً.'.tr;
+          return 'البيانات المدخلة غير صحيحة. راجع الحقول وحاول مجدداً.'.tr;
         case '57014':
-          return 'استغرق الخادم وقتاً أطول من المعتاد. حاول مرة أخرى.'.tr;
+          return 'استغرقت العملية وقتاً أطول من المعتاد. حاول مرة أخرى.'.tr;
         case 'PGRST301':
         case 'PGRST303':
           return 'انتهت جلسة تسجيل الدخول. يرجى تسجيل الدخول مجدداً.'.tr;
         case 'PGRST202':
         case '42883':
         case '42P01':
-          return 'هذه الخدمة غير مهيأة بالكامل على الخادم بعد.'.tr;
+          return 'هذه الخدمة غير متوفرة مؤقتاً. حاول مرة أخرى لاحقاً.'.tr;
       }
       if (lower.contains('jwt') || lower.contains('expired')) {
         return 'انتهت جلسة تسجيل الدخول. يرجى تسجيل الدخول مجدداً.'.tr;
@@ -426,7 +421,7 @@ class AppErrorMapper {
       if (error.statusCode == '413' ||
           lower.contains('payload too large') ||
           lower.contains('exceeded the maximum')) {
-        return 'حجم الملف كبير جداً. اختر صورة أو ملفاً أصغر وحاول مجدداً.'.tr;
+        return 'حجم الملف كبير جداً. اختر صورة أصغر وحاول مجدداً.'.tr;
       }
       if (error.statusCode == '415' || lower.contains('mime type')) {
         return 'صيغة الملف غير مدعومة. يرجى اختيار صورة بصيغة JPG أو PNG.'.tr;
@@ -434,11 +429,10 @@ class AppErrorMapper {
       if (error.statusCode == '401' || error.statusCode == '403') {
         return 'انتهت الجلسة أو ليس لديك صلاحية لرفع الملفات.'.tr;
       }
-      if (_arabicChars.hasMatch(raw)) {
+      if (_isCleanUserMessage(raw)) {
         return raw.tr;
       }
-      return 'تعذر رفع الملف إلى الخادم. تحقق من الإنترنت وحجم الملف وحاول مجدداً.'
-          .tr;
+      return 'تعذر رفع الصورة. تحقق من الإنترنت وحجم الصورة وحاول مجدداً.'.tr;
     }
 
     // 5) Supabase Edge Function errors
@@ -448,7 +442,7 @@ class AppErrorMapper {
         return 'انتهت جلسة الدخول أو غير مصرح بتنفيذ هذا الإجراء.'.tr;
       }
       if (status == 404) {
-        return 'الخدمة المطلوبة غير متوفرة حالياً على الخادم.'.tr;
+        return 'الخدمة المطلوبة غير متوفرة مؤقتاً. حاول لاحقاً.'.tr;
       }
       if (status == 429) {
         return 'طلبات كثيرة متتالية. انتظر قليلاً ثم أعد المحاولة.'.tr;
@@ -461,7 +455,10 @@ class AppErrorMapper {
       return fallback.tr;
     }
 
-    // 6) Platform exceptions (e.g. Google Sign-In, native channels)
+    // 6) Native / Platform exceptions (Google Sign-In, Camera, Picker, Channels)
+    if (error is MissingPluginException) {
+      return 'حدث خطأ مؤقت في التطبيق. أعد تشغيل التطبيق وحاول مجدداً.'.tr;
+    }
     if (error is PlatformException) {
       final combined = '${error.code} ${error.message ?? ''}'.toLowerCase();
       if (combined.contains('network_error') ||
@@ -469,13 +466,29 @@ class AppErrorMapper {
           combined.contains('7:')) {
         return AppNetworkException.noInternet().userMessage;
       }
-      if (error.message != null && _arabicChars.hasMatch(error.message!)) {
+      if (combined.contains('camera') && combined.contains('denied') ||
+          combined.contains('photo') && combined.contains('denied') ||
+          combined.contains('permission')) {
+        return 'يرجى السماح للتطبيق بالوصول إلى الكاميرا أو الصور من إعدادات الجهاز.'
+            .tr;
+      }
+      if (combined.contains('channel-error') ||
+          combined.contains('pigeon') ||
+          combined.contains('unable to establish connection')) {
+        return 'حدث خطأ مؤقت في التطبيق. أعد تشغيل التطبيق وحاول مجدداً.'.tr;
+      }
+      if (error.message != null && _isCleanUserMessage(error.message!)) {
         return error.message!.tr;
       }
+      return fallback.tr;
+    }
+
+    if (error is FormatException) {
+      return 'البيانات المدخلة غير صالحة. يرجى مراجعتها والمحاولة مجدداً.'.tr;
     }
 
     // 7) Domain StateError / generic exceptions
-    if (error is StateError && _arabicChars.hasMatch(error.message)) {
+    if (error is StateError && _isCleanUserMessage(error.message)) {
       return error.message.tr;
     }
 
@@ -491,6 +504,33 @@ class AppErrorMapper {
     }
 
     return fallback.tr;
+  }
+
+  static bool _isCleanUserMessage(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty || !_arabicChars.hasMatch(trimmed)) return false;
+    final lower = trimmed.toLowerCase();
+    const technicalTokens = [
+      'exception',
+      'pigeon',
+      'channel-error',
+      'unable to establish connection',
+      'pgrst',
+      'supabase',
+      'google_web_client_id',
+      'skip nonce',
+      'stack trace',
+      'socketexception',
+      'clientexception',
+      'statuscode',
+      'dart:',
+      'sqlstate',
+      'instance of',
+    ];
+    for (final token in technicalTokens) {
+      if (lower.contains(token)) return false;
+    }
+    return true;
   }
 
   static bool _containsNetworkSignature(String lower) {

@@ -2656,6 +2656,66 @@ class AppLang {
         'Select a color, size, and valid stock quantity',
     'جميع الخيارات المختارة مضافة بالفعل؛ عدّلها من القائمة':
         'All selected options already exist; edit them from the list',
+    'لا يوجد اتصال بالإنترنت. تحقق من الواي فاي أو بيانات الهاتف وحاول مرة أخرى.':
+        'No internet connection. Check your Wi-Fi or mobile data and try again.',
+    'تعذر الاتصال بالخادم حالياً. تحقق من الإنترنت وحاول مجدداً.':
+        'Unable to reach the server right now. Check your internet and try again.',
+    'الاتصال بطيء حالياً ولم يستجب الخادم في الوقت المناسب. حاول مرة أخرى.':
+        'Your connection is slow and the server did not respond in time. Please try again.',
+    'انقطع الاتصال بالإنترنت أثناء تنفيذ العملية. حاول مرة أخرى.':
+        'Internet connection dropped during the request. Please try again.',
+    'الخدمة غير متاحة مؤقتاً. يرجى المحاولة بعد قليل.':
+        'Service is temporarily unavailable. Please try again shortly.',
+    'تعذر تسجيل الدخول عبر Google حالياً. حاول مجدداً أو استخدم البريد الإلكتروني.':
+        'Could not sign in with Google right now. Try again or use email.',
+    'تعذر تسجيل الدخول عبر Google حالياً. حاول مرة أخرى أو استخدم البريد الإلكتروني.':
+        'Could not sign in with Google right now. Try again or use email.',
+    'تعذر فتح صفحة تسجيل الدخول عبر Google':
+        'Could not open Google sign-in page',
+    'تعذر تسجيل الدخول. تحقق من بياناتك واتصالك بالإنترنت وحاول مجدداً.':
+        'Could not sign in. Please check your details and internet connection.',
+    'البيانات المدخلة غير صحيحة. راجع الحقول وحاول مجدداً.':
+        'The entered details are invalid. Please review the fields and try again.',
+    'استغرقت العملية وقتاً أطول من المعتاد. حاول مرة أخرى.':
+        'The operation took longer than expected. Please try again.',
+    'هذه الخدمة غير متوفرة مؤقتاً. حاول مرة أخرى لاحقاً.':
+        'This service is temporarily unavailable. Please try again later.',
+    'حجم الملف كبير جداً. اختر صورة أصغر وحاول مجدداً.':
+        'File is too large. Please choose a smaller image and try again.',
+    'تعذر رفع الصورة. تحقق من الإنترنت وحجم الصورة وحاول مجدداً.':
+        'Could not upload image. Check your internet and image size, then try again.',
+    'الخدمة المطلوبة غير متوفرة مؤقتاً. حاول لاحقاً.':
+        'This service is temporarily unavailable. Please try again later.',
+    'حدث خطأ مؤقت في التطبيق. أعد تشغيل التطبيق وحاول مجدداً.':
+        'A temporary app error occurred. Please restart the app and try again.',
+    'يرجى السماح للتطبيق بالوصول إلى الكاميرا أو الصور من إعدادات الجهاز.':
+        'Please allow camera or photo access in your device settings.',
+    'البيانات المدخلة غير صالحة. يرجى مراجعتها والمحاولة مجدداً.':
+        'Invalid input. Please review your details and try again.',
+    'تعذر تشغيل التطبيق حالياً. تحقق من اتصالك بالإنترنت وأعد المحاولة.':
+        'Could not start the app right now. Check your internet and try again.',
+    'تعذر تحميل المنتجات حالياً. حاول مرة أخرى.':
+        'Could not load products right now. Please try again.',
+    'تعذر تحميل المفضلة حالياً. حاول مرة أخرى.':
+        'Could not load favorites right now. Please try again.',
+    'تعذر تحميل الإشعارات حالياً. حاول مرة أخرى.':
+        'Could not load notifications right now. Please try again.',
+    'تعذر تحميل الطلبات حالياً. حاول مرة أخرى.':
+        'Could not load orders right now. Please try again.',
+    'تعذر تحميل المتاجر حالياً. حاول مرة أخرى.':
+        'Could not load shops right now. Please try again.',
+    'تعذر تحميل تفاصيل الطلب حالياً. حاول مرة أخرى.':
+        'Could not load order details right now. Please try again.',
+    'تعذر تحميل تفاصيل المنتج حالياً. حاول مرة أخرى.':
+        'Could not load product details right now. Please try again.',
+    'تعذر تحميل بيانات المتجر حالياً. حاول مرة أخرى.':
+        'Could not load shop details right now. Please try again.',
+    'تعذر تشغيل الكاميرا. تأكد من منح صلاحية الكاميرا وحاول مجدداً.':
+        'Could not start the camera. Make sure camera permission is granted and try again.',
+    'تعذر تحميل التجربة الافتراضية حالياً. حاول مرة أخرى.':
+        'Could not load virtual try-on right now. Please try again.',
+    'خدمة التجربة الافتراضية غير متوفرة مؤقتاً. يرجى المحاولة لاحقاً.':
+        'Virtual try-on is temporarily unavailable. Please try again later.',
   };
 }
 

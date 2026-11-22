@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'config/supabase_config.dart';
+import 'core/network/network_guard.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'core/offline/background_preloader_service.dart';
 import 'core/offline/local_database.dart';
@@ -49,7 +50,15 @@ Future<void> main() async {
     }
     await SupabaseConfig.initialize();
   } catch (error) {
-    runApp(ConfigErrorScreen(message: error.toString()));
+    runApp(
+      ConfigErrorScreen(
+        message: AppErrorMapper.message(
+          error,
+          fallback:
+              'تعذر تشغيل التطبيق حالياً. تحقق من اتصالك بالإنترنت وأعد المحاولة.',
+        ),
+      ),
+    );
     return;
   }
 

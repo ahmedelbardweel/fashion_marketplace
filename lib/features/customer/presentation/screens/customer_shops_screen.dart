@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_empty.dart';
@@ -325,7 +326,10 @@ class _CustomerShopsScreenState extends ConsumerState<CustomerShopsScreen> {
           },
           error: (err, _) => AppEmpty(
             icon: AppIcons.error,
-            message: 'تعذر تحميل المتاجر: $err'.tr,
+            message: AppErrorMapper.message(
+              err,
+              fallback: 'تعذر تحميل المتاجر حالياً. حاول مرة أخرى.',
+            ),
           ),
         ),
       ),

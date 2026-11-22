@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_pagination_footer.dart';
@@ -367,7 +368,10 @@ class CustomerHomeScreen extends ConsumerWidget {
                   },
                   error: (err) => AppEmpty(
                     icon: AppIcons.error,
-                    message: 'تعذر تحميل المنتجات: $err'.tr,
+                    message: AppErrorMapper.message(
+                      err,
+                      fallback: 'تعذر تحميل المنتجات حالياً. حاول مرة أخرى.',
+                    ),
                     actionLabel: 'إعادة المحاولة'.tr,
                     onAction: ref.read(homeProductsProvider.notifier).refresh,
                   ),
