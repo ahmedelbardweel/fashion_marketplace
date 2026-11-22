@@ -131,7 +131,7 @@ void main() {
   test(
     'missing backend, expired login and upstream rejection are distinguishable',
     () {
-      expect(sessionHttpFailure(404).message, contains('غير منشورة'));
+      expect(sessionHttpFailure(404).message, contains('غير متوفرة'));
       expect(sessionHttpFailure(401).message, contains('سجّل الدخول'));
       expect(sessionHttpFailure(502).message, contains('إصدار رمز جلسة'));
       expect(sessionHttpFailure(503).message, contains('غير مهيأة'));
