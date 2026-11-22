@@ -132,7 +132,7 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
                       ),
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(
-                        color: AppColors.primary.withValues(alpha: 0.25),
+                        color: AppColors.borderStrong,
                       ),
                     ),
                     child: Column(

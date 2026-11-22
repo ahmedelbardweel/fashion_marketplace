@@ -484,7 +484,7 @@ class _OtpCodeBoxes extends StatelessWidget {
                     borderWidth = 1.4;
                   } else if (isActive) {
                     bgColor = AppColors.primarySoft;
-                    borderColor = AppColors.primary;
+                    borderColor = AppColors.borderStrong;
                     borderWidth = 1.8;
                   } else if (isFilled) {
                     bgColor = AppColors.surface;

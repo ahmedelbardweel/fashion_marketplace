@@ -15,6 +15,7 @@ import '../../../../router/routes.dart';
 import '../../../auth/domain/models/app_user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/models/customer_product.dart';
+import '../../domain/models/customer_shop.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
 import '../widgets/category_department_grid.dart';
@@ -113,198 +114,32 @@ class CustomerHomeScreen extends ConsumerWidget {
                   placeholder: LoadingFixtures.customerShops,
                   data: (shops) {
                     if (shops.isEmpty) return const SizedBox.shrink();
-                    final isSkeleton = AppSkeleton.isActive(context);
-                    final header = AppSectionHeader(
-                      title: 'المتاجر المعتمدة'.tr,
-                      actionLabel: 'تصفح الكل'.tr,
-                      onAction: AppHaptics.action(
-                        () => context.push(AppRoutes.customerShops),
-                      ),
-                    );
-                    if (isSkeleton) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          header,
-                          const SizedBox(height: AppSpacing.sm),
-                          Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: AppSpacing.sm,
-                            ),
-                            child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final availableWidth =
-                                (constraints.maxWidth -
-                                        (AppSpacing.pageGutter * 2))
-                                    .clamp(0.0, double.infinity);
-                            final minWidth =
-                                (shops.length * HomeDesign.departmentSquareSize) +
-                                ((shops.length - 1) * 3.0);
-                            final needsScroll = minWidth > availableWidth;
-                            final row = ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minWidth: availableWidth,
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  for (var i = 0; i < shops.length; i++) ...[
-                                    if (needsScroll && i > 0)
-                                      const SizedBox(
-                                        width: HomeDesign.departmentGridGap,
-                                      ),
-                                    SizedBox(
-                                      width: HomeDesign.departmentSquareSize,
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Bone.square(
-                                            size: HomeDesign
-                                                .departmentSquareSize,
-                                            borderRadius:
-                                                BorderRadius.circular(
-                                                  HomeDesign
-                                                      .departmentCornerRadius,
-                                                ),
-                                          ),
-                                          const SizedBox(height: AppSpacing.xs),
-                                          Text(
-                                            shops[i].name,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.clip,
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              fontSize: HomeDesign.shopNameSize,
-                                              fontWeight:
-                                                  HomeDesign.shopNameWeight,
-                                              height: 1.2,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            );
-                            if (!needsScroll) {
-                              return Padding(
-                                padding: AppSpacing.pageHorizontal,
-                                child: row,
-                              );
-                            }
-                            return SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              padding: AppSpacing.pageHorizontal,
-                              child: row,
-                            );
-                          },
-                            ),
-                          ),
-                        ],
-                      );
-                    }
+                    final rootCategoriesCount = (categoriesAsync.asData?.value ??
+                            const [])
+                        .where((c) => c.parentId == null)
+                        .length;
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        header,
-                        const SizedBox(height: AppSpacing.sm),
+                        AppSectionHeader(
+                          title: 'المتاجر المعتمدة'.tr,
+                          actionLabel: 'تصفح الكل'.tr,
+                          onAction: AppHaptics.action(
+                            () => context.push(AppRoutes.customerShops),
+                          ),
+                        ),
                         Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                          child: SizedBox(
-                            height: HomeDesign.shopAvatarSize + 24,
-                        child: ListView.separated(
-                          padding: AppSpacing.pageHorizontal,
-                          scrollDirection: Axis.horizontal,
-                          itemCount: shops.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(width: HomeDesign.departmentGridGap),
-                          itemBuilder: (context, index) {
-                            final shop = shops[index];
-                            final hasLogo =
-                                shop.logoPath != null &&
-                                shop.logoPath!.trim().isNotEmpty;
-                            return InkWell(
-                              onTap: AppHaptics.action(
-                                () => context.push(
-                                  AppRoutes.customerShopProfilePath(shop.id),
-                                ),
-                              ),
-                              borderRadius: BorderRadius.circular(
-                                HomeDesign.departmentCornerRadius,
-                              ),
-                              child: SizedBox(
-                                width: HomeDesign.shopItemWidth,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: HomeDesign.shopAvatarSize,
-                                      height: HomeDesign.shopAvatarSize,
-                                      padding: const EdgeInsets.all(5),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(
-                                          HomeDesign.departmentCornerRadius,
-                                        ),
-                                        color: AppColors.primary.withValues(
-                                          alpha: AppColors.isDark ? 0.14 : 0.08,
-                                        ),
-                                        border: Border.all(
-                                          color: AppColors.primary.withValues(
-                                            alpha:
-                                                AppColors.isDark ? 0.24 : 0.08,
-                                          ),
-                                        ),
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(
-                                          HomeDesign.departmentCornerRadius - 4,
-                                        ),
-                                        child: hasLogo
-                                            ? AppNetworkImage(
-                                                shop.logoPath!,
-                                                fit: BoxFit.contain,
-                                                width: double.infinity,
-                                                height: double.infinity,
-                                                errorBuilder: (_, _, _) =>
-                                                    Center(
-                                                      child: Icon(
-                                                        AppIcons.shopActive,
-                                                        size: 24,
-                                                        color:
-                                                            AppColors.primary,
-                                                      ),
-                                                    ),
-                                              )
-                                            : Center(
-                                                child: Icon(
-                                                  AppIcons.shopActive,
-                                                  size: 24,
-                                                  color: AppColors.primary,
-                                                ),
-                                              ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: AppSpacing.xs),
-                                    Text(
-                                      shop.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: HomeDesign.shopNameSize,
-                                        fontWeight: HomeDesign.shopNameWeight,
-                                        color: AppColors.text,
-                                        height: 1.2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                              },
+                          padding: const EdgeInsets.only(
+                            top: AppSpacing.sm,
+                            bottom: AppSpacing.md,
+                          ),
+                          child: _ApprovedShopsStrip(
+                            shops: shops,
+                            referenceSlots: rootCategoriesCount >= 2
+                                ? rootCategoriesCount
+                                : 6,
+                            onSelected: (shop) => context.push(
+                              AppRoutes.customerShopProfilePath(shop.id),
                             ),
                           ),
                         ),
@@ -655,6 +490,169 @@ class _HomeGreetingHeader extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _ApprovedShopsStrip extends StatelessWidget {
+  const _ApprovedShopsStrip({
+    required this.shops,
+    required this.referenceSlots,
+    required this.onSelected,
+  });
+
+  final List<CustomerShop> shops;
+  final int referenceSlots;
+  final ValueChanged<CustomerShop> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSkeleton = AppSkeleton.isActive(context);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth =
+            (constraints.maxWidth - (AppSpacing.pageGutter * 2)).clamp(
+              0.0,
+              double.infinity,
+            );
+        const tileSize = HomeDesign.departmentSquareSize;
+        final refSlots = referenceSlots < 2 ? 6 : referenceSlots;
+        final rawGap =
+            (availableWidth - (refSlots * tileSize)) / (refSlots - 1);
+        final gap = rawGap >= 3.0 ? rawGap : HomeDesign.departmentGridGap;
+        final contentWidth =
+            (shops.length * tileSize) + ((shops.length - 1) * gap);
+        final needsScroll = contentWidth > availableWidth + 0.5;
+
+        final row = Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < shops.length; i++) ...[
+              if (i > 0) SizedBox(width: gap),
+              _buildTile(context, shops[i], isSkeleton),
+            ],
+          ],
+        );
+
+        if (!needsScroll) {
+          return Padding(
+            padding: AppSpacing.pageHorizontal,
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: row,
+            ),
+          );
+        }
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: AppSpacing.pageHorizontal,
+          child: row,
+        );
+      },
+    );
+  }
+
+  Widget _buildTile(BuildContext context, CustomerShop shop, bool isSkeleton) {
+    final hasLogo = shop.logoPath != null && shop.logoPath!.trim().isNotEmpty;
+    final label = shop.name.trim();
+    final labelStyle = TextStyle(
+      fontSize: HomeDesign.departmentLabelSize,
+      fontWeight: FontWeight.w700,
+      height: 1.2,
+      color: AppColors.text,
+    );
+
+    final labelWidget = isSkeleton
+        ? Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.clip,
+            textAlign: TextAlign.center,
+            style: labelStyle,
+          )
+        : label.contains(' ')
+        ? Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: labelStyle,
+          )
+        : FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(label, maxLines: 1, style: labelStyle),
+          );
+
+    return SizedBox(
+      width: HomeDesign.departmentSquareSize,
+      child: Semantics(
+        button: true,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(
+            HomeDesign.departmentCornerRadius,
+          ),
+          onTap: isSkeleton
+              ? null
+              : AppHaptics.action(() => onSelected(shop)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              isSkeleton
+                  ? Bone.square(
+                      size: HomeDesign.departmentSquareSize,
+                      borderRadius: BorderRadius.circular(
+                        HomeDesign.departmentCornerRadius,
+                      ),
+                    )
+                  : Container(
+                      width: HomeDesign.departmentSquareSize,
+                      height: HomeDesign.departmentSquareSize,
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(
+                          HomeDesign.departmentCornerRadius,
+                        ),
+                        color: AppColors.primary.withValues(
+                          alpha: AppColors.isDark ? 0.14 : 0.08,
+                        ),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(
+                          HomeDesign.departmentCornerRadius - 4,
+                        ),
+                        child: hasLogo
+                            ? AppNetworkImage(
+                                shop.logoPath!,
+                                fit: BoxFit.contain,
+                                width: double.infinity,
+                                height: double.infinity,
+                                errorBuilder: (_, _, _) => Center(
+                                  child: Icon(
+                                    AppIcons.shopActive,
+                                    size: HomeDesign.departmentIconSize - 2,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              )
+                            : Center(
+                                child: Icon(
+                                  AppIcons.shopActive,
+                                  size: HomeDesign.departmentIconSize - 2,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                      ),
+                    ),
+              const SizedBox(height: AppSpacing.xs),
+              labelWidget,
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

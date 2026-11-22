@@ -19,6 +19,7 @@ import '../domain/models/admin_stats.dart';
 import '../domain/models/catalog_models.dart';
 import '../domain/models/decart_settings_status.dart';
 import '../domain/models/gaza_region.dart';
+import '../domain/models/payment_method.dart';
 import '../domain/models/revenue_models.dart';
 
 class AdminRepository {
@@ -1060,6 +1061,73 @@ class AdminRepository {
       );
     }
     return setting;
+  }
+
+  Future<List<PaymentMethod>> fetchPaymentMethods({
+    bool activeOnly = false,
+  }) async {
+    var query = _client.from('payment_methods').select();
+    if (activeOnly) {
+      query = query.eq('is_active', true);
+    }
+    final rows = await query
+        .order('sort_order', ascending: true)
+        .order('name', ascending: true);
+    return (rows as List)
+        .map((row) => PaymentMethod.fromMap(asStringMap(row)))
+        .toList();
+  }
+
+  Future<PaymentMethod> upsertPaymentMethod({
+    String? id,
+    required String name,
+    required String accountNumber,
+    String type = 'bank',
+    String? nameEn,
+    String? iban,
+    String? accountHolder,
+    String? instructions,
+    bool isActive = true,
+    int sortOrder = 0,
+  }) async {
+    await NetworkGuard.ensureOnline();
+    final data = await _client.rpc(
+      'admin_upsert_payment_method',
+      params: {
+        'p_name': name.trim(),
+        'p_account_number': accountNumber.trim(),
+        'p_type': type,
+        'p_name_en': (nameEn?.trim().isEmpty ?? true) ? null : nameEn!.trim(),
+        'p_iban': (iban?.trim().isEmpty ?? true) ? null : iban!.trim(),
+        'p_account_holder': (accountHolder?.trim().isEmpty ?? true)
+            ? null
+            : accountHolder!.trim(),
+        'p_instructions': (instructions?.trim().isEmpty ?? true)
+            ? null
+            : instructions!.trim(),
+        'p_is_active': isActive,
+        'p_sort_order': sortOrder,
+        'p_id': id,
+      },
+    );
+    return PaymentMethod.fromMap(asStringMap(data));
+  }
+
+  Future<PaymentMethod> togglePaymentMethod({
+    required String id,
+    required bool isActive,
+  }) async {
+    await NetworkGuard.ensureOnline();
+    final data = await _client.rpc(
+      'admin_toggle_payment_method',
+      params: {'p_id': id, 'p_is_active': isActive},
+    );
+    return PaymentMethod.fromMap(asStringMap(data));
+  }
+
+  Future<void> deletePaymentMethod(String id) async {
+    await NetworkGuard.ensureOnline();
+    await _client.rpc('admin_delete_payment_method', params: {'p_id': id});
   }
 
   bool _isNetworkError(Object error) => AppErrorMapper.isNetworkError(error);

@@ -125,20 +125,31 @@ class CustomerProduct {
     final parsedOriginal =
         (map['original_price'] as num?)?.toDouble() ??
         (detailsMap['original_price'] as num?)?.toDouble();
+    final colDiscountAmount = (map['discount_amount'] as num?)?.toDouble();
+    final detDiscountAmount = (detailsMap['discount_amount'] as num?)
+        ?.toDouble();
     final parsedDiscountAmount =
-        (map['discount_amount'] as num?)?.toDouble() ??
-        (detailsMap['discount_amount'] as num?)?.toDouble() ??
-        (parsedOriginal != null && parsedOriginal > parsedPrice
-            ? parsedOriginal - parsedPrice
-            : 0.0);
+        (colDiscountAmount != null && colDiscountAmount > 0)
+        ? colDiscountAmount
+        : (detDiscountAmount != null && detDiscountAmount > 0)
+        ? detDiscountAmount
+        : (parsedOriginal != null && parsedOriginal > parsedPrice
+              ? parsedOriginal - parsedPrice
+              : 0.0);
+
+    final colDiscountPercent = (map['discount_percent'] as num?)?.toInt();
+    final detDiscountPercent = (detailsMap['discount_percent'] as num?)
+        ?.toInt();
     final parsedDiscountPercent =
-        (map['discount_percent'] as num?)?.toInt() ??
-        (detailsMap['discount_percent'] as num?)?.toInt() ??
-        (parsedOriginal != null &&
-                parsedOriginal > parsedPrice &&
-                parsedOriginal > 0
-            ? ((parsedOriginal - parsedPrice) / parsedOriginal * 100).round()
-            : 0);
+        (colDiscountPercent != null && colDiscountPercent > 0)
+        ? colDiscountPercent
+        : (detDiscountPercent != null && detDiscountPercent > 0)
+        ? detDiscountPercent
+        : (parsedOriginal != null &&
+                  parsedOriginal > parsedPrice &&
+                  parsedOriginal > 0
+              ? ((parsedOriginal - parsedPrice) / parsedOriginal * 100).round()
+              : 0);
     final parsedOfferTitle =
         (map['offer_title'] as String?)?.trim() ??
         (detailsMap['offer_title'] as String?)?.trim();

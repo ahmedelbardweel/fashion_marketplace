@@ -184,12 +184,14 @@ class _ShopCompleteProfileScreenState
           ],
         ),
         data: (shop) {
-          if (shop != null) _seedFromShop(shop);
+          final isPlaceholder =
+              shop != null && shop.id == LoadingFixtures.shop.id;
+          if (shop != null && !isPlaceholder) _seedFromShop(shop);
           final completed = _completedFieldsCount();
           final progress = completed / 7;
 
           return Form(
-            key: _formKey,
+            key: isPlaceholder ? null : _formKey,
             child: ListView(
               padding: AppSpacing.page,
               children: [

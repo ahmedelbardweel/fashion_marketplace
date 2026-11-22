@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:path/path.dart' as p;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
@@ -13,6 +15,7 @@ import '../../../core/search/smart_search_sheets.dart';
 import '../../../core/search/visual_search_service.dart';
 import '../../../core/utils/map_utils.dart';
 import '../../admin/domain/models/catalog_models.dart';
+import '../../admin/domain/models/payment_method.dart';
 import '../../auth/domain/models/app_user.dart';
 import '../domain/models/cart_item.dart';
 import '../domain/models/customer_order.dart';
@@ -287,7 +290,7 @@ class CustomerRepository {
         var query = _client
             .from('products')
             .select('''
-          id, shop_id, category_id, name, description, details, price, status,
+          id, shop_id, category_id, name, description, details, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
           shops:shop_id(name),
           categories:category_id(name),
           variants:product_variants(*),
@@ -408,7 +411,7 @@ class CustomerRepository {
             final fallbackRows = await _client
                 .from('products')
                 .select('''
-              id, shop_id, category_id, name, description, details, price, status,
+              id, shop_id, category_id, name, description, details, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
               shops:shop_id(name),
               categories:category_id(name),
               variants:product_variants(*),
@@ -538,7 +541,7 @@ class CustomerRepository {
         final row = await _client
             .from('products')
             .select('''
-          id, shop_id, category_id, name, description, details, price, status,
+          id, shop_id, category_id, name, description, details, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
           shops:shop_id(name),
           categories:category_id(name),
           variants:product_variants(*),
@@ -690,7 +693,7 @@ class CustomerRepository {
                     .from('favorites')
                     .select('''
           product:products(
-            id, shop_id, category_id, name, description, details, price, status,
+            id, shop_id, category_id, name, description, details, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
             shops:shop_id(name),
             categories:category_id(name),
             variants:product_variants(*),
@@ -866,7 +869,7 @@ class CustomerRepository {
             .select('''
               id, product_id, variant_id, color, size, quantity,
               product:products(
-                id, shop_id, name, price, status,
+                id, shop_id, name, details, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
                 shops:shop_id(name),
                 variants:product_variants(*),
                 images:product_images(*)
@@ -1094,7 +1097,7 @@ class CustomerRepository {
             .from('comparison_items')
             .select('''
               product:products(
-                id, shop_id, category_id, name, description, details, price, status,
+                id, shop_id, category_id, name, description, details, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
                 shops:shop_id(name),
                 categories:category_id(name),
                 variants:product_variants(*),
@@ -1237,122 +1240,120 @@ class CustomerRepository {
     );
   }
 
-  // Orders (Online RPC + Encrypted Offline Order Creation & Auto-Sync)
+  // Active Payment Methods (Banks & Gaza E-Wallets managed by Admin)
+  Future<List<PaymentMethod>> getActivePaymentMethods() async {
+    await NetworkGuard.ensureOnline();
+    final rows = await _client
+        .from('payment_methods')
+        .select()
+        .eq('is_active', true)
+        .order('sort_order', ascending: true)
+        .order('name', ascending: true);
+    return (rows as List)
+        .map((row) => PaymentMethod.fromMap(asStringMap(row)))
+        .toList();
+  }
+
+  /// Uploads a transfer receipt image to the `payment-receipts` bucket and
+  /// returns its public URL.
+  Future<String> uploadPaymentReceipt({
+    required Uint8List bytes,
+    required String fileName,
+    String? contentType,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('يجب تسجيل الدخول أولاً');
+    }
+    await NetworkGuard.ensureOnline();
+
+    final ext = p.extension(fileName).toLowerCase();
+    final safeExt = ext.isEmpty ? '.jpg' : ext;
+    final path =
+        '$userId/receipt_${DateTime.now().millisecondsSinceEpoch}$safeExt';
+
+    await NetworkGuard.run(
+      () => _client.storage.from('payment-receipts').uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: contentType ?? 'image/jpeg',
+            ),
+          ),
+      timeout: AppTimeouts.upload,
+      requireConnection: false,
+    );
+
+    return _client.storage.from('payment-receipts').getPublicUrl(path);
+  }
+
+  // Orders (Requires online connection to verify active payment method,
+  // upload transfer receipt, and calculate authoritative shop delivery fee)
   Future<CustomerOrder> placeOrder({
     required String shopId,
     required List<CartItem> items,
     required String deliveryAddress,
     required String phone,
     String? notes,
+    required String deliveryMode,
+    required String paymentMethodId,
+    required String paymentReceiptUrl,
   }) async {
     if (items.isEmpty) {
       throw StateError('السلة فارغة');
     }
+    if (paymentMethodId.trim().isEmpty) {
+      throw StateError('يرجى اختيار وسيلة الدفع');
+    }
+    if (paymentReceiptUrl.trim().isEmpty) {
+      throw StateError('يرجى رفع صورة إشعار الحوالة لإتمام الطلب');
+    }
+
+    await NetworkGuard.ensureOnline();
 
     final payload = items.map((i) => i.toOrderPayload()).toList();
     final trimmedAddress = deliveryAddress.trim();
     final trimmedPhone = phone.trim();
     final trimmedNotes = notes?.trim();
 
-    if (NetworkMonitorService.instance.isOnline) {
-      try {
-        dynamic result;
-        try {
-          result = await _client.rpc(
-            'customer_place_order',
-            params: {
-              'p_shop_id': shopId,
-              'p_items': payload,
-              'p_delivery_address': trimmedAddress,
-              'p_phone': trimmedPhone,
-              'p_notes': trimmedNotes,
-            },
-          );
-        } on PostgrestException catch (e) {
-          // Fallback if the 4-argument version of customer_place_order is still installed
-          if (e.message.contains('p_notes') || e.code == 'PGRST202') {
-            result = await _client.rpc(
-              'customer_place_order',
-              params: {
-                'p_shop_id': shopId,
-                'p_items': payload,
-                'p_delivery_address': trimmedAddress,
-                'p_phone': trimmedPhone,
-              },
-            );
-          } else {
-            rethrow;
-          }
-        }
-
-        final createdOrder = CustomerOrder.fromMap(asStringMap(result));
-        await _localDb.saveCustomerOrders([createdOrder]);
-        return createdOrder;
-      } catch (e) {
-        if (!_isNetworkError(e)) rethrow;
-        NetworkMonitorService.instance.reportNetworkFailure();
-      }
-    }
-
-    // Offline order creation path (Encrypted & HMAC-signed)
-    final userId = await _resolveUserId();
-    if (userId == null) throw StateError('يجب تسجيل الدخول');
-
-    final timestampMs = DateTime.now().millisecondsSinceEpoch;
-    final tempOrderId = 'offline_ord_${timestampMs}_$shopId';
-    final shopName = items.first.shopName;
-    final total = items.fold<double>(0.0, (sum, i) => sum + i.totalPrice);
-
-    final orderItems = items.asMap().entries.map((entry) {
-      final idx = entry.key;
-      final item = entry.value;
-      return CustomerOrderItem(
-        id: '${tempOrderId}_item_$idx',
-        orderId: tempOrderId,
-        productId: item.productId,
-        variantId: item.variantId,
-        productName: item.productName,
-        variantInfo: item.variantDescription,
-        unitPrice: item.unitPrice,
-        quantity: item.quantity,
-        totalPrice: item.totalPrice,
-        imagePath: item.imagePath,
-      );
-    }).toList();
-
-    final offlineOrder = CustomerOrder(
-      id: tempOrderId,
-      customerId: userId,
-      shopId: shopId,
-      shopName: shopName,
-      status: 'pending',
-      total: total,
-      createdAt: DateTime.now(),
-      deliveryAddress: trimmedAddress,
-      phone: trimmedPhone,
-      notes: trimmedNotes,
-      items: orderItems,
-    );
-
-    await _localDb.saveCustomerOrders([offlineOrder], isOfflinePending: true);
-
-    await OfflineSyncEngine.instance.enqueue(
-      id: 'place_order_$tempOrderId',
-      userId: userId,
-      actionType: 'place_order',
-      entityId: tempOrderId,
-      payload: {
-        'temp_order_id': tempOrderId,
-        'shop_id': shopId,
-        'items': payload,
-        'delivery_address': trimmedAddress,
-        'phone': trimmedPhone,
-        'notes': trimmedNotes,
-        'total': total,
+    final result = await _client.rpc(
+      'customer_place_order',
+      params: {
+        'p_shop_id': shopId,
+        'p_items': payload,
+        'p_delivery_address': trimmedAddress,
+        'p_phone': trimmedPhone,
+        'p_notes': trimmedNotes,
+        'p_delivery_mode': deliveryMode,
+        'p_payment_method_id': paymentMethodId,
+        'p_payment_receipt_url': paymentReceiptUrl.trim(),
       },
     );
 
-    return offlineOrder;
+    final createdOrder = CustomerOrder.fromMap(asStringMap(result));
+    await _localDb.saveCustomerOrders([createdOrder]);
+    return createdOrder;
+  }
+
+  Future<CustomerOrder> resubmitPaymentReceipt({
+    required String orderId,
+    required String receiptUrl,
+    String? paymentMethodId,
+  }) async {
+    await NetworkGuard.ensureOnline();
+    final result = await _client.rpc(
+      'customer_resubmit_payment_receipt',
+      params: {
+        'p_order_id': orderId,
+        'p_receipt_url': receiptUrl.trim(),
+        if (paymentMethodId != null && paymentMethodId.trim().isNotEmpty)
+          'p_payment_method_id': paymentMethodId.trim(),
+      },
+    );
+    final updated = CustomerOrder.fromMap(asStringMap(result));
+    await _localDb.saveCustomerOrders([updated]);
+    return updated;
   }
 
   Future<List<CustomerOrder>> getCustomerOrders() async {

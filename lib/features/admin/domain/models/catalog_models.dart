@@ -190,6 +190,14 @@ class AdminOrder {
     required this.status,
     required this.total,
     required this.createdAt,
+    this.subtotal,
+    this.deliveryFee = 0,
+    this.deliveryMode = 'shop_delivery',
+    this.paymentMethodName,
+    this.paymentAccountNumber,
+    this.paymentReceiptUrl,
+    this.paymentStatus = 'not_required',
+    this.paymentIssueNote,
     this.shopName,
     this.shopCity,
     this.customerName,
@@ -202,6 +210,14 @@ class AdminOrder {
   final String id;
   final String status;
   final double total;
+  final double? subtotal;
+  final double deliveryFee;
+  final String deliveryMode;
+  final String? paymentMethodName;
+  final String? paymentAccountNumber;
+  final String? paymentReceiptUrl;
+  final String paymentStatus;
+  final String? paymentIssueNote;
   final DateTime createdAt;
   final String? shopName;
   final String? shopCity;
@@ -210,6 +226,25 @@ class AdminOrder {
   final String? customerPhone;
   final String? shippingCity;
   final String? shippingAddress;
+
+  bool get isCustomerPickup => deliveryMode == 'customer_pickup';
+  bool get hasReceipt =>
+      paymentReceiptUrl != null && paymentReceiptUrl!.trim().isNotEmpty;
+  String get deliveryModeLabel =>
+      isCustomerPickup ? 'توصيل من الزبون' : 'توصيل من المحل';
+
+  String get paymentStatusLabel {
+    switch (paymentStatus) {
+      case 'pending_verification':
+        return 'إشعار بانتظار المراجعة';
+      case 'verified':
+        return 'حوالة مؤكدة';
+      case 'issue_reported':
+        return 'مشكلة في الحوالة';
+      default:
+        return 'دفع عادي';
+    }
+  }
 
   String get statusLabel {
     switch (status) {
@@ -231,10 +266,25 @@ class AdminOrder {
   factory AdminOrder.fromMap(Map<String, dynamic> map) {
     final shop = map['shops'];
     final customer = map['profiles'];
+    final total = (map['total'] as num?)?.toDouble() ?? 0;
+    final deliveryFee = (map['delivery_fee'] as num?)?.toDouble() ?? 0;
+    final rawSubtotal = (map['subtotal'] as num?)?.toDouble();
     return AdminOrder(
       id: map['id'] as String,
       status: map['status'] as String? ?? 'pending',
-      total: (map['total'] as num?)?.toDouble() ?? 0,
+      total: total,
+      subtotal: (rawSubtotal != null && rawSubtotal > 0)
+          ? rawSubtotal
+          : (total - deliveryFee).clamp(0.0, total),
+      deliveryFee: deliveryFee,
+      deliveryMode: map['delivery_mode']?.toString() == 'customer_pickup'
+          ? 'customer_pickup'
+          : 'shop_delivery',
+      paymentMethodName: map['payment_method_name'] as String?,
+      paymentAccountNumber: map['payment_account_number'] as String?,
+      paymentReceiptUrl: map['payment_receipt_url'] as String?,
+      paymentStatus: map['payment_status'] as String? ?? 'not_required',
+      paymentIssueNote: map['payment_issue_note'] as String?,
       createdAt:
           DateTime.tryParse(map['created_at'] as String? ?? '')?.toLocal() ??
           DateTime.now(),
@@ -242,11 +292,14 @@ class AdminOrder {
       shopCity: shop is Map ? shop['city'] as String? : null,
       customerName: customer is Map ? customer['full_name'] as String? : null,
       customerEmail: customer is Map ? customer['email'] as String? : null,
-      customerPhone: customer is Map ? customer['phone'] as String? : null,
+      customerPhone:
+          (map['phone'] as String?) ??
+          (customer is Map ? customer['phone'] as String? : null),
       shippingCity:
           (map['shipping_city'] as String?) ??
           (customer is Map ? customer['city'] as String? : null),
       shippingAddress:
+          (map['delivery_address'] as String?) ??
           (map['shipping_address'] as String?) ??
           (customer is Map ? customer['address'] as String? : null),
     );

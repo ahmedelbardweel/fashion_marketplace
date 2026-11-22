@@ -228,6 +228,33 @@ class _CustomerOrdersScreenState extends ConsumerState<CustomerOrdersScreen> {
                                       color: OrdersDesign.dateColor,
                                     ),
                                   ),
+                                  if (order.hasPaymentIssue ||
+                                      order.isPaymentPending ||
+                                      order.isPaymentVerified) ...[
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: AppSpacing.xs,
+                                      runSpacing: 4,
+                                      children: [
+                                        AppStatusBadge(
+                                          label: order.deliveryModeLabel,
+                                          tone: order.isCustomerPickup
+                                              ? BadgeTone.neutral
+                                              : BadgeTone.primary,
+                                        ),
+                                        AppStatusBadge(
+                                          label: order.hasPaymentIssue
+                                              ? 'مشكلة في الحوالة — اضغط للتحديث'
+                                              : order.paymentStatusLabel,
+                                          tone: order.hasPaymentIssue
+                                              ? BadgeTone.error
+                                              : order.isPaymentVerified
+                                              ? BadgeTone.success
+                                              : BadgeTone.warning,
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                   const SizedBox(height: AppSpacing.sm),
                                   const Divider(height: 1),
                                   const SizedBox(height: AppSpacing.sm),

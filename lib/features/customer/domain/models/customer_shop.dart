@@ -2,6 +2,7 @@ class CustomerShop {
   const CustomerShop({
     required this.id,
     required this.name,
+    this.deliveryFee = 0,
     this.description,
     this.city,
     this.address,
@@ -14,6 +15,7 @@ class CustomerShop {
     return CustomerShop(
       id: map['id']?.toString() ?? '',
       name: map['name']?.toString() ?? 'متجر',
+      deliveryFee: (map['delivery_fee'] as num?)?.toDouble() ?? 0.0,
       description: map['description']?.toString(),
       city: map['city']?.toString(),
       address: map['address']?.toString(),
@@ -25,6 +27,7 @@ class CustomerShop {
 
   final String id;
   final String name;
+  final double deliveryFee;
   final String? description;
   final String? city;
   final String? address;

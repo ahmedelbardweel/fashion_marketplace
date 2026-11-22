@@ -8,6 +8,7 @@ import '../features/admin/presentation/screens/admin_categories_screen.dart';
 import '../features/admin/presentation/screens/admin_dashboard_screen.dart';
 import '../features/admin/presentation/screens/admin_notifications_screen.dart';
 import '../features/admin/presentation/screens/admin_orders_screen.dart';
+import '../features/admin/presentation/screens/admin_payment_methods_screen.dart';
 import '../features/admin/presentation/screens/admin_products_screen.dart';
 import '../features/admin/presentation/screens/admin_regions_screen.dart';
 import '../features/admin/presentation/screens/admin_reports_screen.dart';
@@ -289,6 +290,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.adminRegions,
         builder: (context, state) => const AdminRegionsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminPaymentMethods,
+        builder: (context, state) => const AdminPaymentMethodsScreen(),
       ),
       GoRoute(
         path: AppRoutes.adminRevenue,

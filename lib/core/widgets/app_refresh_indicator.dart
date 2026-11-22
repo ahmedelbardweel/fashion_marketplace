@@ -262,7 +262,7 @@ class _AppRefreshIndicatorState extends State<AppRefreshIndicator>
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: _isRefreshing
-                                ? AppColors.primary
+                                ? AppColors.borderStrong
                                 : AppColors.border,
                             width: _isRefreshing ? 1.5 : 1,
                           ),

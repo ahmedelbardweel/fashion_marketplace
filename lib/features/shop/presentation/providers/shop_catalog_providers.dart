@@ -366,6 +366,30 @@ class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
     });
   }
 
+  Future<bool> verifyOrderPayment({
+    required String orderId,
+    required bool approved,
+    String? issueNote,
+  }) {
+    return _run(() async {
+      await _repo.verifyOrderPayment(
+        orderId: orderId,
+        approved: approved,
+        issueNote: issueNote,
+      );
+      _ref.invalidate(shopOrdersProvider);
+      _ref.invalidate(shopStatsProvider);
+    });
+  }
+
+  Future<bool> updateDeliveryFee(double deliveryFee) {
+    return _run(() async {
+      await _repo.updateDeliveryFee(deliveryFee);
+      _ref.invalidate(myShopProvider);
+      _ref.invalidate(customerShopsProvider);
+    });
+  }
+
   Future<bool> updateProfile({
     required String shopName,
     required String description,
@@ -374,6 +398,7 @@ class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
     required String commercialRegister,
     required String ownerName,
     required String phone,
+    double? deliveryFee,
   }) {
     return _run(() async {
       await _repo.updateProfile(
@@ -384,8 +409,10 @@ class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
         commercialRegister: commercialRegister,
         ownerName: ownerName,
         phone: phone,
+        deliveryFee: deliveryFee,
       );
       _ref.invalidate(myShopProvider);
+      _ref.invalidate(customerShopsProvider);
       await _ref.read(authControllerProvider.notifier).refreshProfile();
     });
   }

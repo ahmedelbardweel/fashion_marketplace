@@ -200,7 +200,7 @@ class _InteractiveBodyZoneSelectorState
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: AppColors.primary.withValues(alpha: 0.35),
+              color: AppColors.borderStrong,
               width: 1.5,
             ),
           ),
@@ -239,7 +239,7 @@ class _InteractiveBodyZoneSelectorState
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.border,
+              color: isSelected ? AppColors.borderStrong : AppColors.border,
               width: isSelected ? 1.8 : 1,
             ),
           ),
@@ -815,7 +815,7 @@ class _InteractiveBodyZoneSelectorState
                               ),
                               side: BorderSide(
                                 color: selectedZone == zone
-                                    ? AppColors.primary
+                                    ? AppColors.borderStrong
                                     : AppColors.border,
                               ),
                               padding: const EdgeInsets.symmetric(

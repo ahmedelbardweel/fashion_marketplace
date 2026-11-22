@@ -18,6 +18,7 @@ import '../../domain/models/admin_stats.dart';
 import '../../domain/models/catalog_models.dart';
 import '../../domain/models/decart_settings_status.dart';
 import '../../domain/models/gaza_region.dart';
+import '../../domain/models/payment_method.dart';
 import '../../domain/models/revenue_models.dart';
 
 final adminRepositoryProvider = Provider<AdminRepository>((ref) {
@@ -218,6 +219,23 @@ final adminGazaRegionsProvider = FutureProvider.autoDispose<List<GazaRegion>>((
   if (!_isAdmin(ref)) return const [];
   return ref.watch(adminRepositoryProvider).fetchGazaRegions(activeOnly: false);
 });
+
+/// Active bank & e-wallet transfer methods for Customers (Checkout & Order Details).
+final activePaymentMethodsProvider =
+    FutureProvider.autoDispose<List<PaymentMethod>>((ref) async {
+      return ref
+          .watch(adminRepositoryProvider)
+          .fetchPaymentMethods(activeOnly: true);
+    });
+
+/// Full list of bank & e-wallet transfer methods (active + paused) for Admin.
+final adminPaymentMethodsProvider =
+    FutureProvider.autoDispose<List<PaymentMethod>>((ref) async {
+      if (!_isAdmin(ref)) return const [];
+      return ref
+          .watch(adminRepositoryProvider)
+          .fetchPaymentMethods(activeOnly: false);
+    });
 
 final adminRevenueOverviewProvider =
     FutureProvider.autoDispose<AdminRevenueOverview>((ref) async {
@@ -555,6 +573,55 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
         adminNote: adminNote,
       );
       _ref.invalidate(adminRevenueOverviewProvider);
+    });
+  }
+
+  Future<bool> upsertPaymentMethod({
+    String? id,
+    required String name,
+    required String accountNumber,
+    String type = 'bank',
+    String? nameEn,
+    String? iban,
+    String? accountHolder,
+    String? instructions,
+    bool isActive = true,
+    int sortOrder = 0,
+  }) {
+    return _run(() async {
+      await _repo.upsertPaymentMethod(
+        id: id,
+        name: name,
+        accountNumber: accountNumber,
+        type: type,
+        nameEn: nameEn,
+        iban: iban,
+        accountHolder: accountHolder,
+        instructions: instructions,
+        isActive: isActive,
+        sortOrder: sortOrder,
+      );
+      _ref.invalidate(adminPaymentMethodsProvider);
+      _ref.invalidate(activePaymentMethodsProvider);
+    });
+  }
+
+  Future<bool> togglePaymentMethod({
+    required String id,
+    required bool isActive,
+  }) {
+    return _run(() async {
+      await _repo.togglePaymentMethod(id: id, isActive: isActive);
+      _ref.invalidate(adminPaymentMethodsProvider);
+      _ref.invalidate(activePaymentMethodsProvider);
+    });
+  }
+
+  Future<bool> deletePaymentMethod(String id) {
+    return _run(() async {
+      await _repo.deletePaymentMethod(id);
+      _ref.invalidate(adminPaymentMethodsProvider);
+      _ref.invalidate(activePaymentMethodsProvider);
     });
   }
 

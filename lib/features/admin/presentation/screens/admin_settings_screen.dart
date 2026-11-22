@@ -584,6 +584,14 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                     ),
                     const Divider(height: 1),
                     AdminProfileMenuRow(
+                      icon: IconsaxPlusLinear.bank,
+                      title: 'طرق الدفع والحوالات (غزة)',
+                      subtitle:
+                          'أرقام بنك فلسطين والمحافظ الإلكترونية وتفعيلها وإيقافها',
+                      onTap: () => context.push(AppRoutes.adminPaymentMethods),
+                    ),
+                    const Divider(height: 1),
+                    AdminProfileMenuRow(
                       icon: AppIcons.bell,
                       title: 'الإشعارات الجماعية والموجهة',
                       subtitle: 'إرسال تنبيهات للعملاء والمحلات ومناطق غزة',

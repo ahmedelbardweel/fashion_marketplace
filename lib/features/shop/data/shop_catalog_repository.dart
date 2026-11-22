@@ -545,7 +545,7 @@ class ShopCatalogRepository {
       try {
         final rows = await _client
             .from('orders')
-            .select('*, customer:profiles!customer_id(full_name, email)')
+            .select('*, customer:profiles!customer_id(full_name, email, phone)')
             .eq('shop_id', shopId)
             .order('created_at', ascending: false);
 
@@ -778,6 +778,36 @@ class ShopCatalogRepository {
     return _localDb.getShopDocuments(shopId);
   }
 
+  Future<ShopOrder> verifyOrderPayment({
+    required String orderId,
+    required bool approved,
+    String? issueNote,
+  }) async {
+    await NetworkGuard.ensureOnline();
+    final data = await _client.rpc(
+      'shop_verify_order_payment',
+      params: {
+        'p_order_id': orderId,
+        'p_approved': approved,
+        'p_issue_note': (issueNote?.trim().isEmpty ?? true)
+            ? null
+            : issueNote!.trim(),
+      },
+    );
+    return ShopOrder.fromMap(asStringMap(data));
+  }
+
+  Future<Shop> updateDeliveryFee(double deliveryFee) async {
+    await NetworkGuard.ensureOnline();
+    final data = await _client.rpc(
+      'shop_update_delivery_fee',
+      params: {'p_delivery_fee': deliveryFee},
+    );
+    final shop = Shop.fromMap(asStringMap(data), forOwner: true);
+    await _localDb.saveFullShop(shop);
+    return shop;
+  }
+
   Future<Shop> updateProfile({
     required String shopName,
     required String description,
@@ -786,6 +816,7 @@ class ShopCatalogRepository {
     required String commercialRegister,
     required String ownerName,
     required String phone,
+    double? deliveryFee,
   }) async {
     if (NetworkMonitorService.instance.isOnline) {
       try {
@@ -799,6 +830,7 @@ class ShopCatalogRepository {
             'p_commercial_register': commercialRegister,
             'p_owner_name': ownerName,
             'p_phone': phone,
+            'p_delivery_fee': ?deliveryFee,
           },
         );
         final shop = Shop.fromMap(asStringMap(data), forOwner: true);

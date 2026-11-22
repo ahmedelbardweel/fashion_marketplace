@@ -669,7 +669,7 @@ class _SheetOptionTile extends StatelessWidget {
           color: selected ? AppColors.primarySoft : AppColors.surfaceAlt,
           borderRadius: BorderRadius.circular(AppRadii.md),
           border: Border.all(
-            color: selected ? AppColors.primary : AppColors.border,
+            color: selected ? AppColors.borderStrong : AppColors.border,
             width: selected ? 1.5 : 1,
           ),
         ),

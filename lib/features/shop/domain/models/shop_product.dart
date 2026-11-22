@@ -293,6 +293,19 @@ class ShopOrder {
     required this.status,
     required this.total,
     required this.createdAt,
+    this.subtotal,
+    this.deliveryFee = 0,
+    this.deliveryMode = 'shop_delivery',
+    this.deliveryAddress,
+    this.phone,
+    this.notes,
+    this.paymentMethodId,
+    this.paymentMethodName,
+    this.paymentAccountNumber,
+    this.paymentReceiptUrl,
+    this.paymentStatus = 'not_required',
+    this.paymentIssueNote,
+    this.paymentVerifiedAt,
     this.customerId,
     this.customerEmail,
     this.customerName,
@@ -301,10 +314,52 @@ class ShopOrder {
   final String id;
   final String status;
   final double total;
+  final double? subtotal;
+  final double deliveryFee;
+  final String deliveryMode;
+  final String? deliveryAddress;
+  final String? phone;
+  final String? notes;
+  final String? paymentMethodId;
+  final String? paymentMethodName;
+  final String? paymentAccountNumber;
+  final String? paymentReceiptUrl;
+  final String paymentStatus;
+  final String? paymentIssueNote;
+  final DateTime? paymentVerifiedAt;
   final DateTime createdAt;
   final String? customerId;
   final String? customerEmail;
   final String? customerName;
+
+  double get effectiveSubtotal =>
+      subtotal ?? (total - deliveryFee).clamp(0.0, total);
+  bool get isCustomerPickup => deliveryMode == 'customer_pickup';
+  bool get isShopDelivery => !isCustomerPickup;
+  bool get isPaymentPending => paymentStatus == 'pending_verification';
+  bool get isPaymentVerified => paymentStatus == 'verified';
+  bool get hasPaymentIssue => paymentStatus == 'issue_reported';
+  bool get requiresPaymentVerification =>
+      paymentStatus == 'pending_verification' ||
+      paymentStatus == 'issue_reported';
+  bool get hasReceipt =>
+      paymentReceiptUrl != null && paymentReceiptUrl!.trim().isNotEmpty;
+
+  String get deliveryModeLabel =>
+      isCustomerPickup ? 'توصيل من الزبون' : 'توصيل من المحل';
+
+  String get paymentStatusLabel {
+    switch (paymentStatus) {
+      case 'pending_verification':
+        return 'إشعار بانتظار المراجعة';
+      case 'verified':
+        return 'حوالة مؤكدة';
+      case 'issue_reported':
+        return 'مشكلة في الحوالة';
+      default:
+        return 'دفع عادي';
+    }
+  }
 
   String get statusLabel {
     switch (status) {
@@ -329,11 +384,35 @@ class ShopOrder {
     if (customer is Map) {
       customerMap = Map<String, dynamic>.from(customer);
     }
+    final total = (map['total'] as num?)?.toDouble() ?? 0;
+    final deliveryFee = (map['delivery_fee'] as num?)?.toDouble() ?? 0;
+    final rawSubtotal = (map['subtotal'] as num?)?.toDouble();
+    final subtotal = (rawSubtotal != null && rawSubtotal > 0)
+        ? rawSubtotal
+        : (total - deliveryFee).clamp(0.0, total);
     return ShopOrder(
       id: map['id'] as String,
       status: map['status'] as String? ?? 'pending',
       customerId: map['customer_id'] as String?,
-      total: (map['total'] as num?)?.toDouble() ?? 0,
+      total: total,
+      subtotal: subtotal,
+      deliveryFee: deliveryFee,
+      deliveryMode: map['delivery_mode']?.toString() == 'customer_pickup'
+          ? 'customer_pickup'
+          : 'shop_delivery',
+      deliveryAddress: map['delivery_address'] as String?,
+      phone:
+          (map['phone'] as String?) ?? (customerMap?['phone'] as String?),
+      notes: map['notes'] as String?,
+      paymentMethodId: map['payment_method_id']?.toString(),
+      paymentMethodName: map['payment_method_name'] as String?,
+      paymentAccountNumber: map['payment_account_number'] as String?,
+      paymentReceiptUrl: map['payment_receipt_url'] as String?,
+      paymentStatus: map['payment_status'] as String? ?? 'not_required',
+      paymentIssueNote: map['payment_issue_note'] as String?,
+      paymentVerifiedAt: map['payment_verified_at'] == null
+          ? null
+          : DateTime.tryParse(map['payment_verified_at'].toString())?.toLocal(),
       createdAt:
           DateTime.tryParse(map['created_at'] as String? ?? '')?.toLocal() ??
           DateTime.now(),

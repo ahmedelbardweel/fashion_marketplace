@@ -231,7 +231,7 @@ class _MeasurementEditorState extends State<MeasurementEditor> {
                               color: AppColors.primarySoft,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: AppColors.primary.withValues(alpha: 0.3),
+                                color: AppColors.borderStrong,
                               ),
                             ),
                             child: Text(

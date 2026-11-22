@@ -9,6 +9,7 @@ import 'package:path/path.dart' as p;
 import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/background_removal_service.dart';
+import '../../../../core/utils/fashion_color_palette.dart';
 import '../../../../core/utils/media_picker.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
@@ -82,17 +83,6 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
     'تنظيف جاف',
     'لا يُكوى',
   ];
-  static const _colorPresets = [
-    'أسود',
-    'أبيض',
-    'كحلي',
-    'رمادي',
-    'بيج',
-    'بني',
-    'أحمر',
-    'أخضر',
-    'أزرق',
-  ];
   static const _sizePresets = [
     'XS',
     'S',
@@ -100,11 +90,15 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
     'L',
     'XL',
     'XXL',
+    '36',
+    '37',
     '38',
     '39',
     '40',
     '41',
     '42',
+    '43',
+    '44',
     'مقاس موحد',
   ];
   static const _stockPresets = ['1', '5', '10', '20', '50'];
@@ -490,116 +484,367 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
   }
 
   Future<void> _editVariant([int? index]) async {
-    final old = index == null ? null : _variants[index];
-    final color = TextEditingController(text: old?.color ?? '');
-    final size = TextEditingController(text: old?.size ?? '');
+    final isEditing = index != null;
+    final old = isEditing ? _variants[index] : null;
+    final selectedColors = <String>{
+      if (old != null && old.color.trim().isNotEmpty) old.color.trim(),
+    };
+    final selectedSizes = <String>{
+      if (old != null && old.size.trim().isNotEmpty) old.size.trim(),
+    };
+    final isOldPresetColor =
+        old != null &&
+        FashionColorPalette.presets.any(
+          (p) =>
+              p.nameAr == old.color.trim() ||
+              p.nameEn.toLowerCase() == old.color.trim().toLowerCase(),
+        );
+    final isOldPresetSize =
+        old != null &&
+        _sizePresets.any(
+          (s) => s == old.size.trim() || s.tr == old.size.trim(),
+        );
+
+    final customColor = TextEditingController(
+      text: old != null && !isOldPresetColor ? old.color : '',
+    );
+    final customSize = TextEditingController(
+      text: old != null && !isOldPresetSize ? old.size : '',
+    );
     final stock = TextEditingController(text: old?.stock.toString() ?? '5');
     String? error;
 
-    final result = await AppBottomSheet.show<_VariantDraft>(
+    final result = await AppBottomSheet.show<List<_VariantDraft>>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
+      maxHeightFactor: 0.92,
       child: StatefulBuilder(
-        builder: (context, update) => AppBottomSheetScaffold(
-          title: index == null ? 'إضافة لون ومقاس'.tr : 'تعديل الخيار'.tr,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              AppTextField(
-                controller: color,
-                label: 'اللون'.tr,
-                hint: 'مثال: أسود'.tr,
-                onChanged: (_) => update(() {}),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              _QuickChoiceRow(
-                options: _colorPresets,
-                selected: color.text.trim(),
-                onSelected: (v) => update(() => color.text = v.tr),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: size,
-                label: 'المقاس'.tr,
-                hint: 'مثال: M أو 40'.tr,
-                onChanged: (_) => update(() {}),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              _QuickChoiceRow(
-                options: _sizePresets,
-                selected: size.text.trim(),
-                onSelected: (v) => update(() => size.text = v.tr),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: stock,
-                label: 'عدد القطع المتاحة'.tr,
-                keyboardType: TextInputType.number,
-                onChanged: (_) => update(() {}),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              _QuickChoiceRow(
-                options: _stockPresets,
-                selected: stock.text.trim(),
-                translate: false,
-                onSelected: (v) => update(() => stock.text = v),
-              ),
-              if (error != null) ...[
+        builder: (sheetCtx, update) {
+          final allPresetColorNames = FashionColorPalette.presets
+              .map((p) => p.nameAr)
+              .toList();
+          final allColorsSelected =
+              !isEditing &&
+              allPresetColorNames.every((c) => selectedColors.contains(c));
+          final allSizesSelected =
+              !isEditing &&
+              _sizePresets.every((s) => selectedSizes.contains(s));
+
+          final activeColors = <String>{
+            ...selectedColors,
+            if (customColor.text.trim().isNotEmpty) customColor.text.trim(),
+          };
+          final activeSizes = <String>{
+            ...selectedSizes,
+            if (customSize.text.trim().isNotEmpty) customSize.text.trim(),
+          };
+          final comboCount = isEditing
+              ? 1
+              : activeColors.length * activeSizes.length;
+
+          return AppBottomSheetScaffold(
+            title: isEditing ? 'تعديل الخيار'.tr : 'إضافة ألوان ومقاسات'.tr,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 1) Color Swatch Picker (circle + name below)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        isEditing
+                            ? 'اختر اللون'.tr
+                            : '${'الألوان المتوفرة'.tr} (${activeColors.length})',
+                        style: Theme.of(sheetCtx).textTheme.titleSmall
+                            ?.copyWith(fontWeight: AppFont.bold),
+                      ),
+                    ),
+                    if (!isEditing)
+                      TextButton(
+                        onPressed: AppHaptics.action(() {
+                          update(() {
+                            error = null;
+                            if (allColorsSelected) {
+                              selectedColors.clear();
+                            } else {
+                              selectedColors
+                                ..clear()
+                                ..addAll(allPresetColorNames);
+                            }
+                          });
+                        }),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          allColorsSelected ? 'إلغاء الكل'.tr : 'تحديد الكل'.tr,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: AppFont.bold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
                 const SizedBox(height: AppSpacing.sm),
-                Text(
-                  error!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.error,
-                    fontWeight: AppFont.semiBold,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 10,
+                  children: FashionColorPalette.presets.map((preset) {
+                    final isSelected =
+                        selectedColors.contains(preset.nameAr) ||
+                        selectedColors.contains(preset.nameEn);
+                    return _ShopColorSwatchOption(
+                      preset: preset,
+                      selected: isSelected,
+                      onTap: () {
+                        update(() {
+                          error = null;
+                          if (isEditing) {
+                            selectedColors
+                              ..clear()
+                              ..add(preset.nameAr);
+                            customColor.clear();
+                          } else {
+                            if (isSelected) {
+                              selectedColors.remove(preset.nameAr);
+                              selectedColors.remove(preset.nameEn);
+                            } else {
+                              selectedColors.add(preset.nameAr);
+                            }
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AppTextField(
+                  controller: customColor,
+                  label: 'لون آخر (اختياري)'.tr,
+                  hint: 'مثال: كشميري'.tr,
+                  onChanged: (_) => update(() {
+                    error = null;
+                    if (isEditing && customColor.text.trim().isNotEmpty) {
+                      selectedColors.clear();
+                    }
+                  }),
+                ),
+
+                const SizedBox(height: AppSpacing.md),
+                const Divider(height: 1),
+                const SizedBox(height: AppSpacing.md),
+
+                // 2) Size Swatch Picker (small circles side-by-side)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        isEditing
+                            ? 'اختر المقاس'.tr
+                            : '${'المقاسات المتوفرة'.tr} (${activeSizes.length})',
+                        style: Theme.of(sheetCtx).textTheme.titleSmall
+                            ?.copyWith(fontWeight: AppFont.bold),
+                      ),
+                    ),
+                    if (!isEditing)
+                      TextButton(
+                        onPressed: AppHaptics.action(() {
+                          update(() {
+                            error = null;
+                            if (allSizesSelected) {
+                              selectedSizes.clear();
+                            } else {
+                              selectedSizes
+                                ..clear()
+                                ..addAll(_sizePresets);
+                            }
+                          });
+                        }),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          allSizesSelected ? 'إلغاء الكل'.tr : 'تحديد الكل'.tr,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: AppFont.bold,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _sizePresets.map((sz) {
+                    final isSelected =
+                        selectedSizes.contains(sz) ||
+                        selectedSizes.contains(sz.tr);
+                    return SizeSwatchCircle(
+                      label: sz,
+                      selected: isSelected,
+                      enabled: true,
+                      onTap: () {
+                        update(() {
+                          error = null;
+                          if (isEditing) {
+                            selectedSizes
+                              ..clear()
+                              ..add(sz);
+                            customSize.clear();
+                          } else {
+                            if (isSelected) {
+                              selectedSizes.remove(sz);
+                              selectedSizes.remove(sz.tr);
+                            } else {
+                              selectedSizes.add(sz);
+                            }
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AppTextField(
+                  controller: customSize,
+                  label: 'مقاس آخر (اختياري)'.tr,
+                  hint: 'مثال: 3XL أو 45'.tr,
+                  onChanged: (_) => update(() {
+                    error = null;
+                    if (isEditing && customSize.text.trim().isNotEmpty) {
+                      selectedSizes.clear();
+                    }
+                  }),
+                ),
+
+                const SizedBox(height: AppSpacing.md),
+                const Divider(height: 1),
+                const SizedBox(height: AppSpacing.md),
+
+                // 3) Stock
+                AppTextField(
+                  controller: stock,
+                  label: 'عدد القطع المتاحة'.tr,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => update(() => error = null),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                _QuickChoiceRow(
+                  options: _stockPresets,
+                  selected: stock.text.trim(),
+                  translate: false,
+                  onSelected: (v) => update(() => stock.text = v),
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    error!,
+                    style: Theme.of(sheetCtx).textTheme.bodySmall?.copyWith(
+                      color: AppColors.error,
+                      fontWeight: AppFont.semiBold,
+                    ),
                   ),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                AppButton(
+                  label: isEditing || comboCount <= 1
+                      ? 'حفظ الخيار'.tr
+                      : '${'حفظ الخيارات'.tr} ($comboCount)',
+                  onPressed: () {
+                    final amount = int.tryParse(stock.text.trim());
+                    final finalColors = activeColors
+                        .map((c) => c.trim())
+                        .where((c) => c.isNotEmpty)
+                        .toList();
+                    final finalSizes = activeSizes
+                        .map((s) => s.trim())
+                        .where((s) => s.isNotEmpty)
+                        .toList();
+                    if (finalColors.isEmpty ||
+                        finalSizes.isEmpty ||
+                        amount == null ||
+                        amount < 0 ||
+                        amount > 2147483647) {
+                      update(
+                        () => error = 'اختر لوناً ومقاساً وأدخل كمية صحيحة'.tr,
+                      );
+                      return;
+                    }
+
+                    if (isEditing) {
+                      final c = finalColors.first;
+                      final s = finalSizes.first;
+                      final duplicate = _variants.indexWhere(
+                        (v) =>
+                            v.color.toLowerCase() == c.toLowerCase() &&
+                            v.size.toLowerCase() == s.toLowerCase(),
+                      );
+                      if (duplicate != -1 && duplicate != index) {
+                        update(
+                          () => error =
+                              'هذا اللون والمقاس موجودان بالفعل؛ عدّل كميتهما'
+                                  .tr,
+                        );
+                        return;
+                      }
+                      Navigator.of(sheetCtx).pop([_VariantDraft(c, s, amount)]);
+                      return;
+                    }
+
+                    final added = <_VariantDraft>[];
+                    for (final c in finalColors) {
+                      for (final s in finalSizes) {
+                        final exists = _variants.any(
+                          (v) =>
+                              v.color.toLowerCase() == c.toLowerCase() &&
+                              v.size.toLowerCase() == s.toLowerCase(),
+                        );
+                        if (!exists) {
+                          added.add(_VariantDraft(c, s, amount));
+                        }
+                      }
+                    }
+                    if (added.isEmpty) {
+                      update(
+                        () => error =
+                            'جميع الخيارات المختارة مضافة بالفعل؛ عدّلها من القائمة'
+                                .tr,
+                      );
+                      return;
+                    }
+                    Navigator.of(sheetCtx).pop(added);
+                  },
                 ),
               ],
-              const SizedBox(height: AppSpacing.lg),
-              AppButton(
-                label: 'حفظ الخيار'.tr,
-                onPressed: () {
-                  final amount = int.tryParse(stock.text.trim());
-                  final duplicate = _variants.indexWhere(
-                    (v) =>
-                        v.color.toLowerCase() ==
-                            color.text.trim().toLowerCase() &&
-                        v.size.toLowerCase() == size.text.trim().toLowerCase(),
-                  );
-                  if (color.text.trim().isEmpty ||
-                      size.text.trim().isEmpty ||
-                      amount == null ||
-                      amount < 0 ||
-                      amount > 2147483647) {
-                    update(() => error = 'أدخل اللون والمقاس وكمية صحيحة'.tr);
-                    return;
-                  }
-                  if (duplicate != -1 && duplicate != index) {
-                    update(
-                      () => error =
-                          'هذا اللون والمقاس موجودان بالفعل؛ عدّل كميتهما'.tr,
-                    );
-                    return;
-                  }
-                  Navigator.of(context).pop(
-                    _VariantDraft(color.text.trim(), size.text.trim(), amount),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
     await Future<void>.delayed(const Duration(milliseconds: 350));
-    color.dispose();
-    size.dispose();
+    customColor.dispose();
+    customSize.dispose();
     stock.dispose();
-    if (result == null || !mounted) return;
+    if (result == null || result.isEmpty || !mounted) return;
     setState(() {
-      if (index == null) {
-        _variants.add(result);
+      if (isEditing) {
+        _variants[index] = result.first;
       } else {
-        _variants[index] = result;
+        _variants.addAll(result);
       }
       _dirty = true;
     });
@@ -1134,12 +1379,28 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
               ),
               child: Row(
                 children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: FashionColorPalette.resolveColor(v.color),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: FashionColorPalette.isLightColor(
+                          FashionColorPalette.resolveColor(v.color),
+                        )
+                            ? AppColors.borderStrong
+                            : AppColors.border,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${v.color} · ${v.size}',
+                          '${v.color.tr} · ${v.size.tr}',
                           style: Theme.of(context).textTheme.titleSmall
                               ?.copyWith(fontWeight: AppFont.bold),
                         ),
@@ -1174,7 +1435,7 @@ class _ShopProductFormScreenState extends ConsumerState<ShopProductFormScreen> {
           );
         }),
         AppButton(
-          label: 'إضافة لون ومقاس'.tr,
+          label: 'إضافة ألوان ومقاسات'.tr,
           variant: AppButtonVariant.secondary,
           onPressed: () => _editVariant(),
         ),
@@ -1467,6 +1728,91 @@ class _QuickChoiceRow extends StatelessWidget {
           onSelected: AppHaptics.change((_) => onSelected(opt)),
         );
       }).toList(),
+    );
+  }
+}
+
+class _ShopColorSwatchOption extends StatelessWidget {
+  const _ShopColorSwatchOption({
+    required this.preset,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final FashionColorOption preset;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLight = FashionColorPalette.isLightColor(preset.color);
+    final checkColor = isLight ? const Color(0xFF141414) : Colors.white;
+    final ringColor = AppColors.isDark
+        ? Colors.white.withValues(alpha: 0.92)
+        : AppColors.text;
+
+    return InkWell(
+      onTap: AppHaptics.action(onTap),
+      borderRadius: BorderRadius.circular(AppRadii.sm),
+      child: SizedBox(
+        width: 58,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: AppMotion.fast,
+                width: 38,
+                height: 38,
+                padding: const EdgeInsets.all(2.5),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: selected ? ringColor : Colors.transparent,
+                    width: 1.8,
+                  ),
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: preset.color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isLight
+                          ? AppColors.borderStrong
+                          : (AppColors.isDark
+                                ? Colors.white.withValues(alpha: 0.22)
+                                : Colors.black.withValues(alpha: 0.14)),
+                      width: 1,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: selected
+                      ? Icon(
+                          Icons.check_rounded,
+                          size: 15,
+                          color: checkColor,
+                        )
+                      : null,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                preset.displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: selected ? AppFont.bold : AppFont.medium,
+                  color: selected ? AppColors.primary : AppColors.textSecondary,
+                  height: 1.15,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

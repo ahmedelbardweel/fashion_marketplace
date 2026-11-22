@@ -735,6 +735,7 @@ class LocalDatabase {
     await _writeLock.synchronized(() async {
       final batch = db.batch();
       for (final s in shops) {
+        final metaJson = jsonEncode({'delivery_fee': s.deliveryFee});
         batch.insert(
           'shops',
           {
@@ -747,6 +748,7 @@ class LocalDatabase {
             'logo_path': s.logoPath,
             'cover_path': s.coverPath,
             'status': 'approved',
+            'owner_json': metaJson,
             'products_count': s.productsCount,
             'updated_at': DateTime.now().toIso8601String(),
           },
@@ -769,6 +771,7 @@ class LocalDatabase {
         'full_name': shop.ownerName,
         'email': shop.ownerEmail,
         'phone': shop.ownerPhone,
+        'delivery_fee': shop.deliveryFee,
       });
 
       await db.insert(
@@ -871,9 +874,20 @@ class LocalDatabase {
   }
 
   CustomerShop _mapRowToCustomerShop(Map<String, Object?> r) {
+    double deliveryFee = 0.0;
+    final ownerJson = r['owner_json'] as String?;
+    if (ownerJson != null && ownerJson.isNotEmpty) {
+      try {
+        final meta = jsonDecode(ownerJson);
+        if (meta is Map) {
+          deliveryFee = (meta['delivery_fee'] as num?)?.toDouble() ?? 0.0;
+        }
+      } catch (_) {}
+    }
     return CustomerShop(
       id: r['id']?.toString() ?? '',
       name: r['name']?.toString() ?? 'متجر',
+      deliveryFee: deliveryFee,
       description: r['description']?.toString(),
       city: r['city']?.toString(),
       address: r['address']?.toString(),
@@ -937,6 +951,7 @@ class LocalDatabase {
       'id': r['id']?.toString() ?? '',
       'owner_id': r['owner_id']?.toString() ?? '',
       'name': r['name']?.toString() ?? '',
+      'delivery_fee': (ownerMap?['delivery_fee'] as num?)?.toDouble() ?? 0.0,
       'description': r['description']?.toString(),
       'city': r['city']?.toString(),
       'address': r['address']?.toString(),
@@ -1085,6 +1100,27 @@ class LocalDatabase {
       batch.delete('products', where: "status = 'published'");
 
       for (final pItem in capped) {
+        final mergedDetails = Map<String, dynamic>.from(pItem.details);
+        if (pItem.originalPrice != null && pItem.originalPrice! > 0) {
+          mergedDetails['original_price'] = pItem.originalPrice;
+        }
+        if (pItem.discountAmount > 0) {
+          mergedDetails['discount_amount'] = pItem.discountAmount;
+        }
+        if (pItem.discountPercent > 0) {
+          mergedDetails['discount_percent'] = pItem.discountPercent;
+        }
+        if (pItem.offerTitle != null && pItem.offerTitle!.isNotEmpty) {
+          mergedDetails['offer_title'] = pItem.offerTitle;
+        }
+        if (pItem.offerStartsAt != null) {
+          mergedDetails['offer_starts_at'] =
+              pItem.offerStartsAt!.toUtc().toIso8601String();
+        }
+        if (pItem.offerEndsAt != null) {
+          mergedDetails['offer_ends_at'] =
+              pItem.offerEndsAt!.toUtc().toIso8601String();
+        }
         batch.insert(
           'products',
           {
@@ -1095,7 +1131,7 @@ class LocalDatabase {
             'category_name': pItem.categoryName,
             'name': pItem.name,
             'description': pItem.description,
-            'details_json': jsonEncode(pItem.details),
+            'details_json': jsonEncode(mergedDetails),
             'price': pItem.price,
             'status': pItem.status,
             'rating_avg': pItem.ratingAvg,
@@ -1211,6 +1247,27 @@ class LocalDatabase {
       final nowIso = DateTime.now().toIso8601String();
 
       for (final pItem in capped) {
+        final mergedDetails = Map<String, dynamic>.from(pItem.details);
+        if (pItem.originalPrice != null && pItem.originalPrice! > 0) {
+          mergedDetails['original_price'] = pItem.originalPrice;
+        }
+        if (pItem.discountAmount > 0) {
+          mergedDetails['discount_amount'] = pItem.discountAmount;
+        }
+        if (pItem.discountPercent > 0) {
+          mergedDetails['discount_percent'] = pItem.discountPercent;
+        }
+        if (pItem.offerTitle != null && pItem.offerTitle!.isNotEmpty) {
+          mergedDetails['offer_title'] = pItem.offerTitle;
+        }
+        if (pItem.offerStartsAt != null) {
+          mergedDetails['offer_starts_at'] =
+              pItem.offerStartsAt!.toUtc().toIso8601String();
+        }
+        if (pItem.offerEndsAt != null) {
+          mergedDetails['offer_ends_at'] =
+              pItem.offerEndsAt!.toUtc().toIso8601String();
+        }
         batch.insert(
           'products',
           {
@@ -1221,7 +1278,7 @@ class LocalDatabase {
             'category_name': pItem.categoryName,
             'name': pItem.name,
             'description': pItem.description,
-            'details_json': jsonEncode(pItem.details),
+            'details_json': jsonEncode(mergedDetails),
             'price': pItem.price,
             'status': pItem.status,
             'rating_avg': pItem.ratingAvg,
@@ -2503,9 +2560,19 @@ class LocalDatabase {
           'shop_name': order.shopName,
           'status': order.status,
           'total': order.total,
+          'subtotal': order.effectiveSubtotal,
+          'delivery_fee': order.deliveryFee,
+          'delivery_mode': order.deliveryMode,
           'delivery_address': order.deliveryAddress,
           'phone': order.phone,
           'notes': order.notes,
+          'payment_method_id': order.paymentMethodId,
+          'payment_method_name': order.paymentMethodName,
+          'payment_account_number': order.paymentAccountNumber,
+          'payment_receipt_url': order.paymentReceiptUrl,
+          'payment_status': order.paymentStatus,
+          'payment_issue_note': order.paymentIssueNote,
+          'payment_verified_at': order.paymentVerifiedAt?.toIso8601String(),
           'created_at': order.createdAt.toIso8601String(),
         });
 
@@ -2589,6 +2656,19 @@ class LocalDatabase {
           'shop_id': shopId,
           'status': o.status,
           'total': o.total,
+          'subtotal': o.effectiveSubtotal,
+          'delivery_fee': o.deliveryFee,
+          'delivery_mode': o.deliveryMode,
+          'delivery_address': o.deliveryAddress,
+          'phone': o.phone,
+          'notes': o.notes,
+          'payment_method_id': o.paymentMethodId,
+          'payment_method_name': o.paymentMethodName,
+          'payment_account_number': o.paymentAccountNumber,
+          'payment_receipt_url': o.paymentReceiptUrl,
+          'payment_status': o.paymentStatus,
+          'payment_issue_note': o.paymentIssueNote,
+          'payment_verified_at': o.paymentVerifiedAt?.toIso8601String(),
           'created_at': o.createdAt.toIso8601String(),
         });
 
@@ -2719,6 +2799,23 @@ class LocalDatabase {
     );
 
     return rows.map((r) {
+      Map<String, dynamic>? blobMap;
+      try {
+        final blob = r['encrypted_blob'] as String?;
+        if (blob != null && blob.isNotEmpty) {
+          blobMap = OfflineSecurityService.instance.decryptMap(blob);
+        }
+      } catch (_) {}
+      if (blobMap != null) {
+        return shop_models.ShopOrder.fromMap({
+          ...blobMap,
+          'profiles': {
+            'email': blobMap['customer_email'] ?? r['customer_email'],
+            'full_name': blobMap['customer_name'] ?? r['customer_name'],
+            'phone': blobMap['phone'],
+          },
+        });
+      }
       return shop_models.ShopOrder(
         id: r['id']?.toString() ?? '',
         status: r['status']?.toString() ?? 'pending',

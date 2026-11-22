@@ -8,6 +8,7 @@ import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
+import '../../../../core/widgets/receipt_image_viewer.dart';
 import '../../../auth/domain/models/app_user.dart';
 import '../../../shop/domain/models/shop.dart';
 import '../../domain/models/catalog_models.dart';
@@ -461,7 +462,7 @@ class AdminPreferenceTile extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppRadii.md),
             border: Border.all(
-              color: selected ? AppColors.primary : AppColors.border,
+              color: selected ? AppColors.borderStrong : AppColors.border,
             ),
           ),
           child: Row(
@@ -623,6 +624,31 @@ class AdminOrderCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (order.paymentStatus != 'not_required' ||
+                  order.isCustomerPickup) ...[
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: 4,
+                  children: [
+                    AppStatusBadge(
+                      label: order.deliveryModeLabel,
+                      tone: order.isCustomerPickup
+                          ? BadgeTone.neutral
+                          : BadgeTone.primary,
+                    ),
+                    if (order.paymentStatus != 'not_required')
+                      AppStatusBadge(
+                        label: order.paymentStatusLabel,
+                        tone: order.paymentStatus == 'verified'
+                            ? BadgeTone.success
+                            : order.paymentStatus == 'issue_reported'
+                            ? BadgeTone.error
+                            : BadgeTone.warning,
+                      ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -706,6 +732,33 @@ Future<void> showAdminOrderStatusSheet(
                     ],
                     const SizedBox(height: 6),
                     _OrderMetaRow(
+                      label: 'طريقة التوصيل'.tr,
+                      value: order.deliveryModeLabel.tr,
+                    ),
+                    if (order.deliveryFee > 0) ...[
+                      const SizedBox(height: 6),
+                      _OrderMetaRow(
+                        label: 'رسوم التوصيل'.tr,
+                        value: AppFormat.price(order.deliveryFee),
+                      ),
+                    ],
+                    if (order.paymentMethodName?.trim().isNotEmpty ??
+                        false) ...[
+                      const SizedBox(height: 6),
+                      _OrderMetaRow(
+                        label: 'وسيلة الدفع'.tr,
+                        value: order.paymentMethodName!.trim(),
+                      ),
+                    ],
+                    if (order.paymentStatus != 'not_required') ...[
+                      const SizedBox(height: 6),
+                      _OrderMetaRow(
+                        label: 'حالة الحوالة'.tr,
+                        value: order.paymentStatusLabel.tr,
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    _OrderMetaRow(
                       label: 'الإجمالي'.tr,
                       value: AppFormat.price(order.total),
                       bold: true,
@@ -713,6 +766,14 @@ Future<void> showAdminOrderStatusSheet(
                   ],
                 ),
               ),
+              if (order.hasReceipt) ...[
+                const SizedBox(height: AppSpacing.md),
+                ReceiptThumbnailCard(
+                  imageUrl: order.paymentReceiptUrl!,
+                  subtitle: '${'إشعار حوالة طلب'.tr} #$shortId',
+                  height: 150,
+                ),
+              ],
               const SizedBox(height: AppSpacing.md),
               Text(
                 'تحديث حالة الطلب'.tr,

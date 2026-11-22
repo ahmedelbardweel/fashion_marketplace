@@ -118,11 +118,7 @@ class CategoryDepartmentGrid extends StatelessWidget {
                         color: AppColors.primary.withValues(
                           alpha: AppColors.isDark ? 0.14 : 0.08,
                         ),
-                        border: Border.all(
-                          color: AppColors.primary.withValues(
-                            alpha: AppColors.isDark ? 0.24 : 0.08,
-                          ),
-                        ),
+                        border: Border.all(color: AppColors.border),
                       ),
                       child: Center(
                         child: SizedBox(

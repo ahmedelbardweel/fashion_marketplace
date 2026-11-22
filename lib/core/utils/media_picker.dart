@@ -53,6 +53,22 @@ class MediaPicker {
     );
   }
 
+  static Future<PickedBytes?> pickFromCamera() async {
+    final file = await _imagePicker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 85,
+      maxWidth: 1920,
+      maxHeight: 1920,
+    );
+    if (file == null) return null;
+    final bytes = await file.readAsBytes();
+    return PickedBytes(
+      bytes: bytes,
+      fileName: file.name,
+      contentType: file.mimeType,
+    );
+  }
+
   static Future<PickedBytes?> pickDocument() async {
     final result = await FilePicker.platform.pickFiles(
       withData: true,

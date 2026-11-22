@@ -197,8 +197,7 @@ class AppColors {
       isDark ? const Color(0xFF38C6CE) : AppPalette.primaryDark;
   static Color get primarySoft =>
       isDark ? const Color(0xFF132E32) : AppPalette.primarySoft;
-  static Color get primaryBorder =>
-      isDark ? const Color(0xFF1E4E54) : AppPalette.primaryBorder;
+  static Color get primaryBorder => AppColors.borderStrong;
   static const Color onPrimary = AppPalette.white;
 
   // --- الخطوط ---
@@ -363,7 +362,7 @@ abstract final class AppBorders {
 
   static BorderSide get side => BorderSide(color: AppColors.border, width: width);
   static BorderSide get selected => BorderSide(
-    color: AppColors.primary,
+    color: AppColors.borderStrong,
     width: widthSelected,
   );
 }
@@ -528,7 +527,7 @@ abstract final class ButtonDesign {
 abstract final class InputDesign {
   static Color get fill => AppColors.surfaceAlt;
   static const Color border = Colors.transparent;
-  static Color get focusedBorder => AppColors.primary;
+  static Color get focusedBorder => AppColors.borderStrong;
   static Color get errorBorder => AppColors.error;
   static const double borderWidth = 1;
   static const double focusedBorderWidth = 1.5;
@@ -557,7 +556,7 @@ abstract final class ChipDesign {
   static Color get text => AppColors.text;
   static const FontWeight textWeight = AppFont.semiBold;
   static Color get selectedBackground => AppColors.primary;
-  static Color get selectedBorder => AppColors.primary;
+  static Color get selectedBorder => AppColors.borderStrong;
   static Color get selectedText => AppColors.onPrimary;
   static const FontWeight selectedWeight = AppFont.bold;
   static const double textSize = 13;
@@ -782,13 +781,13 @@ abstract final class ProductDetailsDesign {
   static const double thumbSize = 58;
   static const double thumbRadius = AppRadii.sm;
   static Color get thumbBorder => AppColors.border;
-  static Color get thumbActiveBorder => AppColors.primary;
+  static Color get thumbActiveBorder => AppColors.borderStrong;
   static const double thumbActiveBorderWidth = 2;
   static const double thumbSpacing = 8;
 
   // --- ورقة المحتوى المتداخلة مع الصورة ---
-  static const double contentOverlap = 22;
-  static const double contentRadius = 26;
+  static const double contentOverlap = 34;
+  static const double contentRadius = 36;
   static Color get contentBackground => AppColors.white;
   static const EdgeInsets contentPadding = EdgeInsets.fromLTRB(20, 22, 20, 0);
 
@@ -826,7 +825,7 @@ abstract final class ProductDetailsDesign {
   static Color get optionText => AppColors.text;
   static const FontWeight optionWeight = AppFont.semiBold;
   static Color get optionSelectedBackground => AppColors.primarySoft;
-  static Color get optionSelectedBorder => AppColors.primary;
+  static Color get optionSelectedBorder => AppColors.borderStrong;
   static const double optionSelectedBorderWidth = 1.8;
   static Color get optionSelectedText => AppColors.text;
   static const FontWeight optionSelectedWeight = AppFont.extraBold;
@@ -841,7 +840,7 @@ abstract final class ProductDetailsDesign {
 
   // --- بطاقة التجربة الافتراضية ---
   static Color get tryOnCardBackground => AppColors.primarySoft;
-  static Color get tryOnCardBorder => AppColors.primaryBorder;
+  static Color get tryOnCardBorder => AppColors.border;
   static const double tryOnCardRadius = AppRadii.card;
   static Color get tryOnIconBackground => AppColors.primary;
   static Color get tryOnIcon => AppColors.onPrimary;
@@ -933,15 +932,15 @@ abstract final class HomeDesign {
   // --- التصنيفات ---
   static const double categoryHeight = 36;
 
-  // --- المحلات (بطاقات مربعة بحواف ناعمة مثل التصنيفات) ---
-  static const double shopAvatarSize = 54;
+  // --- المحلات (بطاقات مربعة بحواف ناعمة مطابقة للتصنيفات) ---
+  static const double shopAvatarSize = departmentSquareSize;
   static Color get shopAvatarBorder => Colors.transparent;
   static const double shopAvatarBorderWidth = 0;
   static Color get shopAvatarBackground => AppColors.surfaceAlt;
   static Color get shopAvatarIcon => AppColors.icon;
-  static const double shopNameSize = 11.5;
+  static const double shopNameSize = departmentLabelSize;
   static const FontWeight shopNameWeight = AppFont.bold;
-  static const double shopItemWidth = 64;
+  static const double shopItemWidth = departmentSquareSize;
 }
 
 // -----------------------------------------------------------------------------
@@ -1002,7 +1001,7 @@ abstract final class CheckoutDesign {
   static Color get sectionBackground => AppColors.white;
   static Color get sectionBorder => AppColors.border;
   static const double sectionRadius = AppRadii.card;
-  static Color get optionSelectedBorder => AppColors.primary;
+  static Color get optionSelectedBorder => AppColors.borderStrong;
   static Color get optionSelectedBackground => AppColors.primarySoft;
   static Color get successIconBackground => AppColors.primarySoft;
   static Color get successIcon => AppColors.primary;
@@ -1112,7 +1111,7 @@ abstract final class AuthDesign {
   static const double maxFormWidth = 460;
   static Color get linkColor => AppColors.primaryDark;
   static Color get choiceCardBorder => AppColors.border;
-  static Color get choiceCardSelectedBorder => AppColors.primary;
+  static Color get choiceCardSelectedBorder => AppColors.borderStrong;
   static const double choiceCardRadius = AppRadii.card;
 
   // --- التسجيل الاجتماعي (Google) والفاصل ---

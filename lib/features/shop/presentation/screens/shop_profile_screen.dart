@@ -14,6 +14,7 @@ import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../router/routes.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -139,6 +140,112 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
         },
       ),
     );
+  }
+
+  void _openDeliveryFeeSheet(Shop shop) {
+    final feeCtrl = TextEditingController(
+      text: shop.deliveryFee > 0
+          ? shop.deliveryFee.toStringAsFixed(
+              shop.deliveryFee.truncateToDouble() == shop.deliveryFee ? 0 : 2,
+            )
+          : '0',
+    );
+    var saving = false;
+
+    AppBottomSheet.show<void>(
+      context: context,
+      isScrollControlled: true,
+      child: StatefulBuilder(
+        builder: (sheetCtx, setSheetState) {
+          Future<void> save() async {
+            FocusScope.of(sheetCtx).unfocus();
+            final raw = feeCtrl.text.trim().replaceAll('٫', '.');
+            final fee = double.tryParse(raw);
+            if (fee == null || fee < 0 || fee > 5000) {
+              showAppSnackBar(
+                context,
+                'يرجى إدخال قيمة توصيل صحيحة (0 أو أكثر)'.tr,
+                isError: true,
+              );
+              return;
+            }
+            setSheetState(() => saving = true);
+            final actions = ref.read(shopCatalogActionProvider.notifier);
+            final ok = await actions.updateDeliveryFee(fee);
+            if (!mounted) return;
+            if (!ok) {
+              if (sheetCtx.mounted) setSheetState(() => saving = false);
+              final err = ref.read(shopCatalogActionProvider).error;
+              showAppSnackBar(
+                context,
+                err == null ? 'تعذر حفظ قيمة التوصيل'.tr : actions.errorMessage(err),
+                isError: true,
+              );
+              return;
+            }
+            if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
+            showAppSnackBar(context, 'تم تحديث رسوم التوصيل بنجاح'.tr);
+          }
+
+          return AppBottomSheetScaffold(
+            title: 'رسوم التوصيل الخاصة بالمحل'.tr,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'تُضاف هذه القيمة تلقائياً إلى إجمالي الطلب عند اختيار الزبون (توصيل من المحل)، ولا تُضاف عند اختيار (توصيل من الزبون).'
+                      .tr,
+                  style: Theme.of(sheetCtx).textTheme.bodySmall?.copyWith(
+                    color: AppColors.textMuted,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                Wrap(
+                  spacing: AppSpacing.xs,
+                  runSpacing: AppSpacing.xs,
+                  children: [0, 10, 15, 20, 25, 30].map((preset) {
+                    return ActionChip(
+                      label: Text(
+                        preset == 0 ? 'مجاناً (0 ₪)'.tr : '$preset ₪',
+                      ),
+                      onPressed: saving
+                          ? null
+                          : () {
+                              AppHaptics.selection();
+                              setSheetState(() => feeCtrl.text = '$preset');
+                            },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: feeCtrl,
+                  label: 'قيمة التوصيل بالشيكل (₪)'.tr,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  prefixIcon: IconsaxPlusLinear.truck_fast,
+                  enabled: !saving,
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                AppButton(
+                  label: 'حفظ قيمة التوصيل'.tr,
+                  isLoading: saving,
+                  onPressed: save,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                AppButton(
+                  label: 'إلغاء'.tr,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () => Navigator.of(sheetCtx).pop(),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    ).whenComplete(feeCtrl.dispose);
   }
 
   void _openMediaSheet() {
@@ -551,6 +658,15 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                           onTap: shop.canEdit
                               ? () => _openEditShopSheet(shop)
                               : null,
+                        ),
+                        const Divider(height: 1),
+                        ShopProfileMenuRow(
+                          icon: IconsaxPlusLinear.truck_fast,
+                          title: 'رسوم التوصيل الخاصة بالمحل',
+                          subtitle: shop.deliveryFee > 0
+                              ? '${'قيمة التوصيل الحالية'.tr}: ${AppFormat.price(shop.deliveryFee)}'
+                              : 'التوصيل مجاني حالياً (0 ₪) — اضغط للتحديد',
+                          onTap: () => _openDeliveryFeeSheet(shop),
                         ),
                         const Divider(height: 1),
                         ShopProfileMenuRow(

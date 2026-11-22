@@ -21,21 +21,29 @@ class AppSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!enabled) return child;
     final baseTheme = Theme.of(context);
     return Semantics(
-      label: 'جارٍ التحميل'.tr,
+      label: enabled ? 'جارٍ التحميل'.tr : null,
       child: ExcludeSemantics(
+        excluding: enabled,
         child: ExcludeFocus(
+          excluding: enabled,
           child: Theme(
-            data: baseTheme.copyWith(
-              switchTheme: SwitchThemeData(
-                thumbColor: WidgetStatePropertyAll(SkeletonDesign.highlight),
-                trackColor: WidgetStatePropertyAll(SkeletonDesign.base),
-                trackOutlineColor: WidgetStatePropertyAll(AppColors.border),
-              ),
-            ),
+            data: enabled
+                ? baseTheme.copyWith(
+                    switchTheme: SwitchThemeData(
+                      thumbColor: WidgetStatePropertyAll(
+                        SkeletonDesign.highlight,
+                      ),
+                      trackColor: WidgetStatePropertyAll(SkeletonDesign.base),
+                      trackOutlineColor: WidgetStatePropertyAll(
+                        AppColors.border,
+                      ),
+                    ),
+                  )
+                : baseTheme,
             child: Skeletonizer(
+              enabled: enabled,
               effect: ShimmerEffect(
                 baseColor: SkeletonDesign.base,
                 highlightColor: SkeletonDesign.highlight,
@@ -62,10 +70,15 @@ extension SkeletonAsyncValue<T> on AsyncValue<T> {
   }) => when(
     skipLoadingOnReload: skipLoadingOnReload,
     skipLoadingOnRefresh: skipLoadingOnRefresh,
-    data: data,
+    data: (value) => AppSkeleton(
+      enabled: false,
+      child: Builder(builder: (_) => data(value)),
+    ),
     error: error,
-    loading: () =>
-        AppSkeleton(child: Builder(builder: (_) => data(placeholder))),
+    loading: () => AppSkeleton(
+      enabled: true,
+      child: Builder(builder: (_) => data(placeholder)),
+    ),
   );
 }
 

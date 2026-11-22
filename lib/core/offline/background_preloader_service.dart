@@ -200,7 +200,7 @@ class BackgroundPreloaderService {
     final rawRows = await _client
         .from('products')
         .select('''
-          id, shop_id, category_id, name, description, details, price, status,
+          id, shop_id, category_id, name, description, details, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
           shops:shop_id(name),
           categories:category_id(name),
           variants:product_variants(*),
@@ -445,7 +445,7 @@ class BackgroundPreloaderService {
           .from('comparison_items')
           .select('''
             product:products(
-              id, shop_id, category_id, name, description, details, price, status,
+              id, shop_id, category_id, name, description, details, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
               shops:shop_id(name),
               categories:category_id(name),
               variants:product_variants(*),

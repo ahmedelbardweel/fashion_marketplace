@@ -216,6 +216,14 @@ class AdminDashboardScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           AdminFeatureTile(
+                            title: 'طرق الدفع والحوالات (غزة)',
+                            subtitle:
+                                'أرقام بنك فلسطين والمحافظ الإلكترونية وتفعيلها أو إيقافها',
+                            onTap: () =>
+                                context.push(AppRoutes.adminPaymentMethods),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AdminFeatureTile(
                             title: 'طلبات انضمام المحلات',
                             subtitle: 'مراجعة الوثائق وقبول أو رفض المتاجر',
                             badge: stats.pendingShops > 0

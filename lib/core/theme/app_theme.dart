@@ -296,7 +296,7 @@ class AppTheme {
       ),
       textSelectionTheme: TextSelectionThemeData(
         cursorColor: InputDesign.cursor,
-        selectionColor: AppColors.primaryBorder,
+        selectionColor: AppColors.primary.withValues(alpha: 0.25),
         selectionHandleColor: AppColors.primary,
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(

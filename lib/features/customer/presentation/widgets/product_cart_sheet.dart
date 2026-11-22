@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_design.dart';
+import '../../../../core/utils/fashion_color_palette.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_skeleton.dart';
@@ -156,13 +157,54 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          AppFormat.price(product.price),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: AppFont.extraBold,
-                            color: AppColors.text,
-                          ),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              AppFormat.price(product.price),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: AppFont.extraBold,
+                                color: AppColors.text,
+                              ),
+                            ),
+                            if (product.hasOffer &&
+                                product.originalPrice != null) ...[
+                              Text(
+                                AppFormat.price(product.originalPrice!),
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: AppFont.medium,
+                                  color: AppColors.textMuted,
+                                  decoration: TextDecoration.lineThrough,
+                                  decorationColor: AppColors.textMuted,
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.error,
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadii.pill,
+                                  ),
+                                ),
+                                child: Text(
+                                  '-${product.discountPercent}%',
+                                  style: const TextStyle(
+                                    color: AppPalette.white,
+                                    fontSize: 10.5,
+                                    fontWeight: AppFont.bold,
+                                    height: 1.1,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -182,84 +224,97 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
                   ),
                 )
               else ...[
-                // Color Selection
-                Row(
-                  children: [
-                    Text(
-                      'اللون'.tr,
-                      style: TextStyle(
-                        fontSize: ProductDetailsDesign.sectionTitleSize,
-                        fontWeight: ProductDetailsDesign.sectionTitleWeight,
-                        color: AppColors.text,
+                // Color & Size Selection (circles only, 50/50 split with full-height centered divider)
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsetsDirectional.fromSTEB(
+                            0,
+                            10,
+                            14,
+                            10,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'حدد اللون'.tr,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: AppFont.semiBold,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (final color in colors)
+                                    ColorSwatchCircle(
+                                      colorName: color,
+                                      selected: color == _selectedColor,
+                                      size: 30,
+                                      onTap: () => setState(() {
+                                        _selectedColor = color;
+                                        _selectedSize = null;
+                                      }),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                    if (_selectedColor != null) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        '· $_selectedColor',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: AppFont.semiBold,
-                          color: ProductDetailsDesign.sectionValueColor,
+                      VerticalDivider(
+                        width: 1,
+                        thickness: 1,
+                        color: AppColors.divider,
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsetsDirectional.fromSTEB(
+                            14,
+                            10,
+                            0,
+                            10,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'حدد القياس'.tr,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: AppFont.semiBold,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 8,
+                                children: [
+                                  for (final size in sizesForColor)
+                                    SizeSwatchCircle(
+                                      label: size,
+                                      selected: size == _selectedSize,
+                                      enabled: true,
+                                      size: 36,
+                                      onTap: () =>
+                                          setState(() => _selectedSize = size),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: [
-                    for (final color in colors)
-                      _OptionPill(
-                        label: color,
-                        selected: color == _selectedColor,
-                        onTap: () => setState(() {
-                          _selectedColor = color;
-                          _selectedSize = null;
-                        }),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
-
-                // Size Selection
-                Row(
-                  children: [
-                    Text(
-                      'المقاس'.tr,
-                      style: TextStyle(
-                        fontSize: ProductDetailsDesign.sectionTitleSize,
-                        fontWeight: ProductDetailsDesign.sectionTitleWeight,
-                        color: AppColors.text,
-                      ),
-                    ),
-                    if (_selectedSize != null) ...[
-                      const SizedBox(width: AppSpacing.xs),
-                      Text(
-                        '· $_selectedSize',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: AppFont.semiBold,
-                          color: ProductDetailsDesign.sectionValueColor,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                Wrap(
-                  spacing: AppSpacing.sm,
-                  runSpacing: AppSpacing.sm,
-                  children: [
-                    for (final size in sizesForColor)
-                      _OptionPill(
-                        label: size,
-                        selected: size == _selectedSize,
-                        onTap: () => setState(() => _selectedSize = size),
-                      ),
-                  ],
+                  ),
                 ),
               ],
 
@@ -295,62 +350,6 @@ class _ProductCartSheetState extends ConsumerState<_ProductCartSheet> {
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-class _OptionPill extends StatelessWidget {
-  const _OptionPill({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: AppHaptics.action(onTap),
-      borderRadius: BorderRadius.circular(ProductDetailsDesign.optionRadius),
-      child: Container(
-        constraints: const BoxConstraints(
-          minWidth: ProductDetailsDesign.optionMinWidth,
-          minHeight: ProductDetailsDesign.optionHeight,
-        ),
-        padding: ProductDetailsDesign.optionPadding,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected
-              ? ProductDetailsDesign.optionSelectedBackground
-              : ProductDetailsDesign.optionBackground,
-          borderRadius: BorderRadius.circular(
-            ProductDetailsDesign.optionRadius,
-          ),
-          border: Border.all(
-            color: selected
-                ? ProductDetailsDesign.optionSelectedBorder
-                : ProductDetailsDesign.optionBorder,
-            width: selected
-                ? ProductDetailsDesign.optionSelectedBorderWidth
-                : ProductDetailsDesign.optionBorderWidth,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: selected
-                ? ProductDetailsDesign.optionSelectedText
-                : ProductDetailsDesign.optionText,
-            fontWeight: selected
-                ? ProductDetailsDesign.optionSelectedWeight
-                : ProductDetailsDesign.optionWeight,
-            fontSize: 13,
-          ),
-        ),
       ),
     );
   }

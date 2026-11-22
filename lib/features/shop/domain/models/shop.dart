@@ -60,6 +60,7 @@ class Shop {
     required this.name,
     required this.status,
     required this.visibleStatus,
+    this.deliveryFee = 0,
     this.description,
     this.city,
     this.address,
@@ -79,6 +80,7 @@ class Shop {
   final String id;
   final String ownerId;
   final String name;
+  final double deliveryFee;
   final String? description;
   final String? city;
   final String? address;
@@ -140,6 +142,7 @@ class Shop {
       id: map['id'] as String,
       ownerId: map['owner_id'] as String,
       name: map['name'] as String? ?? '',
+      deliveryFee: (map['delivery_fee'] as num?)?.toDouble() ?? 0.0,
       description: map['description'] as String?,
       city: map['city'] as String?,
       address: map['address'] as String?,
