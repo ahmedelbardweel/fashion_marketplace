@@ -772,6 +772,16 @@ class LocalDatabase {
         'email': shop.ownerEmail,
         'phone': shop.ownerPhone,
         'delivery_fee': shop.deliveryFee,
+        'subscription_status': shop.subscriptionStatus,
+        'subscription_plan_id': shop.subscriptionPlanId,
+        'subscription_plan_name': shop.subscriptionPlanName,
+        'subscription_price': shop.subscriptionPrice,
+        'subscription_starts_at': shop.subscriptionStartsAt?.toIso8601String(),
+        'subscription_ends_at': shop.subscriptionEndsAt?.toIso8601String(),
+        'subscription_receipt_url': shop.subscriptionReceiptUrl,
+        'subscription_payment_method_name': shop.subscriptionPaymentMethodName,
+        'subscription_payment_account_number':
+            shop.subscriptionPaymentAccountNumber,
       });
 
       await db.insert(
@@ -815,6 +825,18 @@ class LocalDatabase {
           'full_name': shop.ownerName,
           'email': shop.ownerEmail,
           'phone': shop.ownerPhone,
+          'delivery_fee': shop.deliveryFee,
+          'subscription_status': shop.subscriptionStatus,
+          'subscription_plan_id': shop.subscriptionPlanId,
+          'subscription_plan_name': shop.subscriptionPlanName,
+          'subscription_price': shop.subscriptionPrice,
+          'subscription_starts_at': shop.subscriptionStartsAt?.toIso8601String(),
+          'subscription_ends_at': shop.subscriptionEndsAt?.toIso8601String(),
+          'subscription_receipt_url': shop.subscriptionReceiptUrl,
+          'subscription_payment_method_name':
+              shop.subscriptionPaymentMethodName,
+          'subscription_payment_account_number':
+              shop.subscriptionPaymentAccountNumber,
         });
         batch.insert(
           'shops',
@@ -963,6 +985,19 @@ class LocalDatabase {
       'decision_at': r['decision_at']?.toString(),
       'decision_visible_at': r['decision_visible_at']?.toString(),
       'submitted_at': r['submitted_at']?.toString(),
+      'subscription_status':
+          ownerMap?['subscription_status']?.toString() ?? 'none',
+      'subscription_plan_id': ownerMap?['subscription_plan_id']?.toString(),
+      'subscription_plan_name': ownerMap?['subscription_plan_name']?.toString(),
+      'subscription_price': ownerMap?['subscription_price'] ?? 0,
+      'subscription_starts_at': ownerMap?['subscription_starts_at']?.toString(),
+      'subscription_ends_at': ownerMap?['subscription_ends_at']?.toString(),
+      'subscription_receipt_url':
+          ownerMap?['subscription_receipt_url']?.toString(),
+      'subscription_payment_method_name':
+          ownerMap?['subscription_payment_method_name']?.toString(),
+      'subscription_payment_account_number':
+          ownerMap?['subscription_payment_account_number']?.toString(),
       'owner': ownerMap,
     }, forOwner: forOwner);
   }

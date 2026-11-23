@@ -18,6 +18,7 @@ import '../features/admin/presentation/screens/admin_shop_applications_screen.da
 import '../features/admin/presentation/screens/admin_shop_review_screen.dart';
 import '../features/admin/presentation/screens/admin_shops_manage_screen.dart';
 import '../features/admin/presentation/screens/admin_stats_screen.dart';
+import '../features/admin/presentation/screens/admin_subscription_plans_screen.dart';
 import '../features/admin/presentation/screens/admin_users_screen.dart';
 import '../features/auth/domain/models/user_role.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
@@ -294,6 +295,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.adminPaymentMethods,
         builder: (context, state) => const AdminPaymentMethodsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.adminSubscriptionPlans,
+        builder: (context, state) => const AdminSubscriptionPlansScreen(),
       ),
       GoRoute(
         path: AppRoutes.adminRevenue,

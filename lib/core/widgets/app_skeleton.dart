@@ -40,6 +40,27 @@ class AppSkeleton extends StatelessWidget {
                         AppColors.border,
                       ),
                     ),
+                    elevatedButtonTheme: ElevatedButtonThemeData(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: SkeletonDesign.base,
+                        foregroundColor: SkeletonDesign.highlight,
+                        disabledBackgroundColor: SkeletonDesign.base,
+                        elevation: 0,
+                      ),
+                    ),
+                    filledButtonTheme: FilledButtonThemeData(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: SkeletonDesign.base,
+                        foregroundColor: SkeletonDesign.highlight,
+                        disabledBackgroundColor: SkeletonDesign.base,
+                        elevation: 0,
+                      ),
+                    ),
+                    chipTheme: baseTheme.chipTheme.copyWith(
+                      selectedColor: SkeletonDesign.base,
+                      backgroundColor: SkeletonDesign.base,
+                      side: BorderSide(color: AppColors.border),
+                    ),
                   )
                 : baseTheme,
             child: Skeletonizer(

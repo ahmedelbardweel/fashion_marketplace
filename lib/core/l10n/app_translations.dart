@@ -2716,6 +2716,332 @@ class AppLang {
         'Could not load virtual try-on right now. Please try again.',
     'خدمة التجربة الافتراضية غير متوفرة مؤقتاً. يرجى المحاولة لاحقاً.':
         'Virtual try-on is temporarily unavailable. Please try again later.',
+    // --- Shop Subscriptions & 100% Per-Shop Financial Statements ---
+    'شهر واحد (30 يوم)': '1 Month (30 days)',
+    '3 شهور (90 يوم)': '3 Months (90 days)',
+    '6 شهور (180 يوم)': '6 Months (180 days)',
+    'سنة كاملة (365 يوم)': '1 Full Year (365 days)',
+    'معتمد ومفعّل': 'Approved & Active',
+    'منتهي': 'Expired',
+    'بانتظار المراجعة': 'Pending Review',
+    'عمولة 0%': '0% Commission',
+    'باقة الاشتراك وتحويل الرسوم': 'Subscription Plan & Fee Transfer',
+    'اشتراك ثابت بدون أي عمولة على المبيعات (0% عمولة)':
+        'Flat subscription with zero sales commission (0%)',
+    '1. اختر باقة الاشتراك': '1. Choose a Subscription Plan',
+    'تعذر تحميل باقات الاشتراك': 'Could not load subscription plans',
+    'لا توجد باقات اشتراك مفعّلة حالياً. يرجى التواصل مع الإدارة.':
+        'No active subscription plans right now. Please contact support.',
+    '2. حوّل قيمة الاشتراك إلى أحد حسابات الإدارة':
+        '2. Transfer the Subscription Fee to an Admin Account',
+    'تعذر تحميل حسابات التحويل': 'Could not load transfer accounts',
+    'لم تقم الإدارة بإضافة حسابات تحويل بعد. تواصل مع الدعم.':
+        'No transfer accounts configured yet. Please contact support.',
+    '3. أرفق صورة إشعار التحويل *': '3. Attach Transfer Receipt Photo *',
+    'التقط صورة واضحة أو اختر لقطة شاشة لإشعار الحوالة ليتم اعتماد اشتراكك بسرعة.':
+        'Take a clear photo or pick a screenshot of the transfer receipt for fast approval.',
+    'تم إرفاق صورة الإشعار': 'Receipt photo attached',
+    'إشعار الاشتراك المرفق سابقاً': 'Previously attached subscription receipt',
+    'ملاحظات إضافية حول الحوالة (اختياري)':
+        'Additional transfer notes (optional)',
+    'تعذر اختيار صورة الإشعار، حاول مرة أخرى':
+        'Could not select receipt image, please try again',
+    'رقم المحفظة / الجوال': 'Wallet / Mobile Number',
+    'استكمال بيانات المحل والاشتراك': 'Complete Shop Profile & Subscription',
+    'اكتمال ملف المتجر والاشتراك': 'Shop Profile & Subscription Progress',
+    'جميع البيانات وإشعار الاشتراك جاهزة — أرسل الطلب ليتم فتح متجرك.':
+        'All details and subscription receipt are ready — submit to open your shop.',
+    'أكمل بيانات المتجر ثم اختر باقة الاشتراك وأرفق إشعار التحويل لإرسال الطلب.':
+        'Complete your shop details, pick a plan, and attach your transfer receipt.',
+    'يرجى اختيار باقة الاشتراك أولاً':
+        'Please select a subscription plan first',
+    'يرجى اختيار حساب التحويل أولاً': 'Please select a transfer account first',
+    'يرجى إرفاق صورة إشعار تحويل الاشتراك قبل إرسال الطلب':
+        'Please attach your subscription transfer receipt before submitting',
+    'تم إرسال طلب اعتماد المتجر وإشعار الاشتراك للإدارة':
+        'Shop application & subscription receipt submitted to admin',
+    'إرسال الطلب والاشتراك': 'Submit Application & Subscription',
+    'انتهت مدة اشتراك متجرك': 'Your Shop Subscription Expired',
+    'تم إيقاف نشر المنتجات الجديدة مؤقتاً حتى تجديد الاشتراك وإرسال إشعار التحويل.':
+        'Publishing new products is temporarily paused until you renew your subscription.',
+    'تجديد الاشتراك الآن': 'Renew Subscription Now',
+    'اقترب موعد تجديد اشتراكك': 'Subscription Renewal Coming Up',
+    'تجديد الاشتراك': 'Renew Subscription',
+    'الاشتراك والكشف المالي': 'Subscription & Financial Statement',
+    'كشف حسابك 100% بدون عمولة وحالة الاشتراك':
+        'Your 100% zero-commission statement & subscription status',
+    'تجديد اشتراك المتجر': 'Renew Shop Subscription',
+    'اختر باقة التجديد وأرفق الإشعار':
+        'Choose Renewal Plan & Attach Receipt',
+    'بعد التحويل، سيتم تفعيل أو تمديد اشتراكك فور مراجعة الإدارة.':
+        'After transfer, your subscription will be activated or extended upon admin review.',
+    'إرسال طلب تجديد الاشتراك': 'Submit Subscription Renewal',
+    'يرجى إرفاق صورة إشعار تحويل الاشتراك':
+        'Please attach the subscription transfer receipt',
+    'تعذر إرسال طلب التجديد': 'Could not submit renewal request',
+    'تم إرسال إشعار تجديد الاشتراك وستقوم الإدارة بمراجعته':
+        'Subscription renewal receipt submitted for admin review',
+    'تعذر تحميل الكشف المالي': 'Could not load financial statement',
+    'المتبقي لك لدى المنصة (100%)': 'Remaining Balance Owed to You (100%)',
+    'مبيعات معتمدة (100% لك)': 'Verified Sales (100% Yours)',
+    'تم تحويله لك': 'Paid Out to You',
+    'طلبات قيد التنفيذ (غير مكتملة بعد)': 'In-Progress Orders (Not Completed Yet)',
+    'التحويلات': 'Payouts',
+    'الاشتراكات': 'Subscriptions',
+    'لا توجد طلبات مسجلة بعد': 'No Orders Recorded Yet',
+    'ستظهر هنا جميع طلبات متجرك وتفاصيل مستحقاتك الكاملة (100% بدون عمولة).':
+        'All your shop orders and full 100% zero-commission earnings will appear here.',
+    'لا توجد تحويلات مستحقات بعد': 'No Payouts Received Yet',
+    'عندما تقوم الإدارة بتحويل مستحقات مبيعاتك إلى حسابك ستظهر جميع التحويلات وإشعاراتها هنا.':
+        'When the platform transfers your sales proceeds, all payouts and receipts will appear here.',
+    'لا يوجد سجل اشتراكات بعد': 'No Subscription History Yet',
+    'ستظهر هنا جميع باقات الاشتراك والتجديدات مع حالة كل إشعار.':
+        'All your subscription plans, renewals, and receipt statuses will appear here.',
+    'حالة اشتراك المتجر': 'Shop Subscription Status',
+    'منتهي — يحتاج تجديد': 'Expired — Renewal Needed',
+    'فعّال': 'Active',
+    'غير مفعّل': 'Inactive',
+    'انتهى بتاريخ': 'Expired on',
+    'ينتهي بتاريخ': 'Expires on',
+    'لديك طلب تجديد اشتراك قيد المراجعة من الإدارة حالياً.':
+        'You have a subscription renewal request currently under admin review.',
+    'تجديد أو ترقية الباقة': 'Renew or Upgrade Plan',
+    'محتسب في رصيدك (100%)': 'Credited to your balance (100%)',
+    'بانتظار التأكيد/التسليم': 'Awaiting confirmation/delivery',
+    'رقم المرجع': 'Reference No.',
+    'إشعار تحويل المستحقات': 'Payout Transfer Receipt',
+    'تجديد اشتراك': 'Subscription Renewal',
+    'اشتراك تأسيس': 'Initial Subscription',
+    'الفترة': 'Period',
+    'إشعار تحويل الاشتراك': 'Subscription Transfer Receipt',
+    'باقات اشتراك المحلات': 'Shop Subscription Plans',
+    'إضافة باقة اشتراك': 'Add Subscription Plan',
+    'إضافة باقة اشتراك جديدة': 'Add New Subscription Plan',
+    'تعديل باقة الاشتراك': 'Edit Subscription Plan',
+    'اسم الباقة (مثال: الباقة الشهرية) *': 'Plan Name (e.g. Monthly Plan) *',
+    'اسم الباقة': 'Plan Name',
+    'قيمة الاشتراك (₪) *': 'Subscription Price (₪) *',
+    'أدخل سعراً صحيحاً': 'Enter a valid price',
+    'المدة بالأيام *': 'Duration in Days *',
+    'يوم على الأقل': 'At least 1 day',
+    '30 يوم': '30 Days',
+    '90 يوم': '90 Days',
+    '180 يوم': '180 Days',
+    '365 يوم': '365 Days',
+    'وصف ومزايا الباقة (اختياري)': 'Plan Description & Perks (Optional)',
+    'تفعيل الباقة للمحلات': 'Enable Plan for Shops',
+    'ظاهرة ومتاحة للمحلات عند التسجيل والتجديد':
+        'Visible and available to shops for onboarding & renewal',
+    'مخفية وموقفة مؤقتاً عن المحلات': 'Hidden and temporarily paused',
+    'حفظ الباقة': 'Save Plan',
+    'حذف الباقة': 'Delete Plan',
+    'تعذر حفظ باقة الاشتراك': 'Could not save subscription plan',
+    'تم حفظ باقة الاشتراك بنجاح': 'Subscription plan saved successfully',
+    'تعذر حذف باقة الاشتراك': 'Could not delete subscription plan',
+    'تم حذف باقة الاشتراك': 'Subscription plan deleted',
+    'يرجى إدخال سعر اشتراك صحيح': 'Please enter a valid subscription price',
+    'يرجى إدخال مدة صحيحة بالأيام (يوم واحد على الأقل)':
+        'Please enter a valid duration (at least 1 day)',
+    'كل الباقات': 'All Plans',
+    'لا توجد باقات اشتراك بعد': 'No Subscription Plans Yet',
+    'أضف باقات الاشتراك (مثل 30 ₪ شهرياً) لتظهر للمحلات عند التسجيل والتجديد.':
+        'Add subscription plans (e.g. 30 ₪/month) for shops to choose during signup & renewal.',
+    'اشتراك ثابت بدون أي عمولة على المبيعات (0%)':
+        'Flat subscription with zero sales commission (0%)',
+    'مراجعة المحل والاشتراك': 'Review Shop & Subscription',
+    'قبول المحل وتفعيل الاشتراك': 'Approve Shop & Activate Subscription',
+    'تأكيد القبول وتفعيل الاشتراك': 'Confirm Approval & Activate',
+    'تم اعتماد المحل وتفعيل اشتراكه بنجاح':
+        'Shop approved and subscription activated',
+    'رفض الطلب': 'Reject Application',
+    'اكتب سبب الرفض ليظهر للتاجر ويتمكن من تصحيح البيانات أو إشعار الحوالة وإعادة الإرسال.':
+        'Enter the rejection reason so the shop owner can fix the details or receipt and resubmit.',
+    'تم رفض الطلب وإشعار التاجر بالسبب':
+        'Application rejected and shop notified',
+    'اشتراك فعّال': 'Active Subscription',
+    'بانتظار التحقق': 'Awaiting Verification',
+    'بيانات الاشتراك وإشعار الحوالة': 'Subscription Details & Transfer Receipt',
+    'الباقة المختارة': 'Selected Plan',
+    'تم التحويل إلى': 'Transferred To',
+    'صورة إشعار التحويل (اضغط للتكبير والتحقق)':
+        'Transfer Receipt Photo (Tap to zoom & verify)',
+    'إشعار اشتراك': 'Subscription Receipt',
+    'لم يتم إرفاق إشعار تحويل اشتراك مع هذا الطلب.':
+        'No subscription transfer receipt attached to this application.',
+    'الاشتراكات والكشف المالي للمحلات': 'Subscriptions & Shop Payouts',
+    'إيرادات الاشتراكات، مراجعة الإشعارات، ومستحقات المحلات (100%)':
+        'Subscription revenue, receipt reviews, and 100% shop payouts',
+    'تحديد قيمة ومدد باقات الاشتراك (مثال: 30 ₪ شهرياً) بدون عمولة':
+        'Set subscription plan prices & durations (e.g. 30 ₪/mo) with 0% commission',
+    'طرق الدفع وحسابات التحويل (غزة)': 'Payment Methods & Transfer Accounts (Gaza)',
+    'أرقام بنك فلسطين والمحافظ الإلكترونية لتحويل الطلبات والاشتراكات':
+        'Bank of Palestine & e-wallet accounts for order and subscription transfers',
+    'مراجعة إشعارات الاشتراك وكشف مستحقات المحلات (100% بدون عمولة)':
+        'Review subscription receipts and 100% zero-commission shop balances',
+    'إدارة أسعار ومدد باقات اشتراك المتاجر':
+        'Manage shop subscription plan prices and durations',
+    'اشتراك': 'subscription',
+    'باقات الاشتراك': 'Subscription Plans',
+    'تعذر تحميل بيانات الاشتراكات والمالية':
+        'Could not load subscriptions and financial data',
+    'إشعارات اشتراك بانتظار المراجعة': 'Subscription Receipts Pending Review',
+    'هناك طلبات اشتراك أو تجديد جديدة مرفق معها إشعار الحوالة بانتظار التحقق والاعتماد.':
+        'New shop subscription or renewal receipts are waiting for verification.',
+    'مراجعة الإشعارات': 'Review Receipts',
+    'إيرادات الاشتراكات': 'Subscription Revenue',
+    'متبقي للمحلات (100%)': 'Owed to Shops (100%)',
+    'محوّل': 'Paid',
+    'إدارة باقات الاشتراك': 'Manage Plans',
+    'حسابات التحويل': 'Transfer Accounts',
+    'الكشف المالي للمحلات': 'Shop Statements',
+    'إشعارات الاشتراكات': 'Subscription Receipts',
+    'بحث باسم المحل أو المدينة...': 'Search by shop name or city...',
+    'سيظهر هنا الكشف المالي الكامل لكل محل (100% من مبيعاته بدون عمولة).':
+        'Each shop\'s full 100% zero-commission financial statement will appear here.',
+    'معتمدة': 'Approved',
+    'مرفوضة': 'Rejected',
+    'لا توجد طلبات اشتراك هنا': 'No Subscription Requests Here',
+    'ستظهر هنا جميع طلبات اشتراك وتجديد المحلات مع صور إشعارات التحويل.':
+        'All shop subscription and renewal requests with transfer receipts will appear here.',
+    'اشتراك نشط': 'Active Plan',
+    'اشتراك منتهي': 'Expired Plan',
+    'اشتراك قيد المراجعة': 'Pending Plan',
+    'غير مشترك': 'No Plan',
+    'ينتهي الاشتراك': 'Subscription Ends',
+    'مبيعات (100%)': 'Sales (100%)',
+    'تم تحويله': 'Paid Out',
+    'المتبقي للمحل': 'Remaining Owed',
+    'كشف الحساب': 'Statement',
+    'تحويل مستحقات': 'Record Payout',
+    'تسجيل جديد': 'New Signup',
+    'تجديد': 'Renewal',
+    'الصلاحية': 'Validity',
+    'ملاحظة التاجر': 'Shop Note',
+    'اعتماد وتفعيل الاشتراك': 'Approve & Activate',
+    'رفض إشعار الاشتراك': 'Reject Subscription Receipt',
+    'تعذر تحديث حالة الاشتراك': 'Could not update subscription status',
+    'تم اعتماد وتفعيل اشتراك المتجر بنجاح':
+        'Shop subscription approved and activated',
+    'تم رفض إشعار الاشتراك وإشعار التاجر':
+        'Subscription receipt rejected and shop notified',
+    'المتبقي للمحل حالياً (100% بدون عمولة)':
+        'Current Balance Owed to Shop (100%, 0% Fee)',
+    'المبلغ المحوّل للمحل (₪) *': 'Payout Amount to Shop (₪) *',
+    'طريقة التحويل': 'Transfer Method',
+    'نقدي': 'Cash',
+    'رقم الحوالة / المرجع (اختياري)': 'Transfer Reference No. (Optional)',
+    'إرفاق إشعار التحويل للمحل (اختياري)':
+        'Attach Payout Receipt Photo (Optional)',
+    'تصوير': 'Camera',
+    'ملاحظات للمحل (اختياري)': 'Notes for Shop (Optional)',
+    'تأكيد وتسجيل التحويل': 'Confirm & Record Payout',
+    'تعذر تسجيل التحويل': 'Could not record payout',
+    'تم تسجيل تحويل المستحقات للمحل وإشعار التاجر':
+        'Payout recorded and shop owner notified',
+    'الكشف المالي': 'Financial Statement',
+    'تعذر تحميل كشف المحل': 'Could not load shop statement',
+    'مبيعات معتمدة (100%)': 'Verified Sales (100%)',
+    'حوالة': 'payouts',
+    'صافي المتبقي للمحل (عمولة 0%)': 'Net Owed to Shop (0% Commission)',
+    'تسجيل تحويل': 'Record Payout',
+    'التحويلات المسجلة للمحل': 'Recorded Payouts to Shop',
+    'لم يتم تسجيل أي تحويلات لهذا المحل بعد.':
+        'No payouts have been recorded for this shop yet.',
+    'المرجع': 'Ref',
+    'لا توجد طلبات مسجلة لهذا المحل بعد.':
+        'No orders recorded for this shop yet.',
+    'استكمال بيانات المتجر والاشتراك': 'Complete Shop Profile & Subscription',
+    'إدخال المعلومات الأساسية واختيار الباقة وإرفاق إشعار التحويل':
+        'Enter shop details, pick a plan, and attach transfer receipt',
+    'مراجعة الإدارة والتحقق من الاشتراك': 'Admin Review & Receipt Verification',
+    'تحتاج البيانات أو إشعار الاشتراك إلى تعديل وإعادة إرسال':
+        'Details or subscription receipt need updates and resubmission',
+    'التحقق من بيانات المتجر وإشعار تحويل الاشتراك':
+        'Verifying shop details and subscription transfer receipt',
+    'فتح المتجر وتفعيل الاشتراك (عمولة 0%)':
+        'Open Shop & Activate Plan (0% Fee)',
+    'نشر المنتجات واستقبال الطلبات بدون أي عمولة':
+        'Publish products and receive orders with zero commission',
+    // --- 5-Step Shop Onboarding Wizard ---
+    'فتح متجر جديد': 'Open a New Shop',
+    'البيانات': 'Details',
+    'المالك': 'Owner',
+    'يرجى إكمال جميع الحقول المطلوبة في معلومات المتجر':
+        'Please complete all required shop details first',
+    'يرجى إدخال اسم صاحب المحل ورقم الهاتف بشكل صحيح':
+        'Please enter the shop owner name and phone number',
+    'أكمل بيانات المحل والمالك المطلوبة لحفظ المسودة':
+        'Complete the required shop and owner fields to save as draft',
+    'الهوية': 'Identity',
+    'الباقة': 'Plan',
+    'التحويل': 'Transfer',
+    'الإرسال': 'Submit',
+    'يرجى إكمال جميع الحقول المطلوبة في بيانات المحل':
+        'Please complete all required shop details first',
+    'يرجى اختيار باقة الاشتراك للمتابعة':
+        'Please choose a subscription plan to continue',
+    'يرجى إرفاق صورة إشعار تحويل الاشتراك قبل المتابعة':
+        'Please attach your subscription transfer receipt to continue',
+    'أكمل بيانات المحل المطلوبة لحفظ المسودة':
+        'Complete the required shop fields to save as draft',
+    'تم حفظ بيانات المتجر كمسودة بنجاح': 'Shop draft saved successfully',
+    'عرّفنا بمتجرك': 'Tell Us About Your Shop',
+    'أدخل البيانات الأساسية للمحل ومعلومات التواصل — هذه المعلومات ستظهر للعملاء وللإدارة عند مراجعة متجرك.':
+        'Enter your basic shop and contact info — shown to customers and used for admin review.',
+    'هوية المتجر ووثائق التوثيق': 'Shop Identity & Documents',
+    'أضف شعار وصورة غلاف متجرك ومستندات التوثيق لزيادة ثقة العملاء وتسريع الموافقة. هذه الخطوة اختيارية ويمكنك تعديلها لاحقاً.':
+        'Add your logo, cover photo, and verification docs to boost customer trust. Optional — you can update anytime.',
+    'اختياري': 'Optional',
+    'اختر باقة اشتراك متجرك': 'Choose Your Shop Plan',
+    'نظامنا بسيط وعادل: اشتراك ثابت فقط بدون أي نسبة أو عمولة على مبيعاتك (0% عمولة — 100% من أرباح طلباتك لك).':
+        'Simple and fair: flat subscription only with zero sales commission (0% fee — keep 100% of every order).',
+    'تحويل رسوم الاشتراك وإرفاق الإشعار': 'Transfer Fee & Upload Receipt',
+    'حوّل قيمة الباقة المختارة إلى أحد حسابات الإدارة أدناه ثم ارفع صورة واضحة لإشعار التحويل.':
+        'Transfer your selected plan fee to one of the admin accounts below, then upload a clear receipt photo.',
+    'أولاً: انسخ رقم أحد حسابات الإدارة وحوّل المبلغ':
+        '1. Copy an admin account number & transfer the fee',
+    'ثانياً: أرفق صورة إشعار التحويل *': '2. Attach Transfer Receipt Photo *',
+    'اختر لقطة شاشة من المعرض أو التقط صورة واضحة للإشعار لتسريع التحقق.':
+        'Pick a screenshot from gallery or take a clear photo for fast verification.',
+    'راجع طلبك قبل الإرسال': 'Review Before Submitting',
+    'تأكد من صحة بيانات متجرك وباقة الاشتراك وإشعار التحويل، ثم اضغط تأكيد وإرسال الطلب.':
+        'Double-check your shop details, chosen plan, and transfer receipt, then submit.',
+    'جاهز للإرسال': 'Ready to Submit',
+    'الاشتراك وإشعار التحويل': 'Subscription & Transfer Receipt',
+    'قيمة الاشتراك': 'Subscription Fee',
+    'العمولة على المبيعات': 'Sales Commission',
+    'ماذا يحدث بعد إرسال الطلب؟': 'What Happens Next?',
+    'يصل طلب متجرك مع صورة إشعار التحويل مباشرة للإدارة.':
+        'Your shop request and transfer receipt go straight to admin.',
+    'تتحقق الإدارة من الإشعار وتعتمد المتجر وتفعّل باقتك فوراً.':
+        'Admin verifies your receipt, approves your shop, and activates your plan.',
+    'يُفتح متجرك وتبدأ بنشر منتجاتك ومتابعة كشفك المالي الكامل (100% بدون عمولة).':
+        'Your shop opens and you start publishing products with 100% of sales (0% commission).',
+    '/ شهر': '/ month',
+    '/ 3 شهور': '/ 3 months',
+    '/ 6 شهور': '/ 6 months',
+    '/ سنة': '/ year',
+    'الأوفر': 'Best Value',
+    'عمولة 0% على المبيعات — 100% من أرباح طلباتك لك':
+        '0% sales commission — keep 100% of your order revenue',
+    'نشر المنتجات واستقبال الطلبات وكشف مالي متكامل':
+        'Publish products, receive orders & full financial statement',
+    // --- Product Details Description & Specs (EN) ---
+    'وصف القطعة': 'Product Description',
+    'المنتج غير موجود': 'Product not found',
+    'تعذر تحميل تفاصيل المنتج': 'Could not load product details',
+    'قصة عادية': 'Regular Fit',
+    'قصة مريحة': 'Relaxed Fit',
+    'قصة واسعة': 'Oversized Fit',
+    'قصة ضيقة': 'Slim Fit',
+    'غسيل آلي': 'Machine Wash',
+    'غسيل بماء بارد': 'Cold Water Wash',
+    'قطن': 'Cotton',
+    'تركيا': 'Turkey',
+    'فلسطين': 'Palestine',
+    'مصر': 'Egypt',
+    'الصين': 'China',
+    'إيطاليا': 'Italy',
   };
 }
 

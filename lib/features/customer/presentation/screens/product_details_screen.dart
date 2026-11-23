@@ -835,7 +835,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         final specFields = <MapEntry<String, String>>[];
         if (product.categoryName != null &&
             product.categoryName!.trim().isNotEmpty) {
-          specFields.add(MapEntry('التصنيف'.tr, product.categoryName!));
+          specFields.add(MapEntry('التصنيف'.tr, product.categoryName!.trim().tr));
         }
         for (final field in {
           'brand': 'الماركة'.tr,
@@ -846,7 +846,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
         }.entries) {
           final val = product.details[field.key]?.toString().trim() ?? '';
           if (val.isNotEmpty) {
-            specFields.add(MapEntry(field.value, val));
+            specFields.add(MapEntry(field.value, val.tr));
           }
         }
 
@@ -1323,18 +1323,44 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                             // Accordion Sections: Description & Specifications
                             const Divider(height: 1),
                             if (product.description?.trim().isNotEmpty ?? false)
-                              _DetailAccordion(
-                                title: 'وصف القطعة'.tr,
-                                icon: AppIcons.notes,
-                                initiallyExpanded: true,
-                                child: Text(
-                                  product.description!,
-                                  style: TextStyle(
-                                    fontSize: ProductDetailsDesign.bodyTextSize,
-                                    color: ProductDetailsDesign.bodyTextColor,
-                                    height: 1.65,
-                                  ),
-                                ),
+                              Builder(
+                                builder: (_) {
+                                  final descEn = product
+                                      .details['description_en']
+                                      ?.toString()
+                                      .trim();
+                                  final rawDesc =
+                                      (AppLang.isEn &&
+                                          descEn != null &&
+                                          descEn.isNotEmpty)
+                                      ? descEn
+                                      : product.description!.trim().tr;
+                                  final isArabicDesc = RegExp(
+                                    r'[\u0600-\u06FF]',
+                                  ).hasMatch(rawDesc);
+                                  return _DetailAccordion(
+                                    title: 'وصف القطعة'.tr,
+                                    icon: AppIcons.notes,
+                                    initiallyExpanded: true,
+                                    child: SizedBox(
+                                      width: double.infinity,
+                                      child: Text(
+                                        rawDesc,
+                                        textDirection: isArabicDesc
+                                            ? TextDirection.rtl
+                                            : TextDirection.ltr,
+                                        textAlign: TextAlign.start,
+                                        style: TextStyle(
+                                          fontSize: ProductDetailsDesign
+                                              .bodyTextSize,
+                                          color: ProductDetailsDesign
+                                              .bodyTextColor,
+                                          height: 1.65,
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             if (specFields.isNotEmpty)
                               _DetailAccordion(

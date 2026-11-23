@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:path/path.dart' as p;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
@@ -7,6 +9,7 @@ import '../../../core/network/network_guard.dart';
 import '../../../core/offline/local_database.dart';
 import '../../../core/offline/network_monitor_service.dart';
 import '../../../core/utils/map_utils.dart';
+import '../../admin/domain/models/subscription_models.dart';
 import '../domain/models/shop.dart';
 
 const _shopWithOwner =
@@ -104,6 +107,102 @@ class ShopRepository {
     final shop = Shop.fromMap(asStringMap(data), forOwner: true);
     await _localDb.saveFullShop(shop);
     return shop;
+  }
+
+  Future<List<SubscriptionPlan>> fetchActiveSubscriptionPlans() async {
+    final rows = await NetworkGuard.run(
+      () => _client
+          .from('subscription_plans')
+          .select()
+          .eq('is_active', true)
+          .order('sort_order', ascending: true)
+          .order('price', ascending: true),
+      timeout: AppTimeouts.read,
+    );
+    return (rows as List)
+        .map((r) => SubscriptionPlan.fromMap(asStringMap(r)))
+        .toList();
+  }
+
+  Future<String> uploadSubscriptionReceipt({
+    required Uint8List bytes,
+    required String fileName,
+    String? contentType,
+  }) async {
+    final userId = await _resolveUserId();
+    if (userId == null) throw StateError('يجب تسجيل الدخول أولاً');
+    final ext = p.extension(fileName).toLowerCase();
+    final safeExt = (ext == '.png' || ext == '.webp' || ext == '.jpeg' || ext == '.jpg')
+        ? ext
+        : '.jpg';
+    final path =
+        '$userId/subscriptions/${DateTime.now().millisecondsSinceEpoch}$safeExt';
+    await NetworkGuard.run(
+      () => _client.storage
+          .from('payment-receipts')
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: FileOptions(
+              upsert: true,
+              contentType: contentType ?? 'image/jpeg',
+            ),
+          ),
+      timeout: AppTimeouts.upload,
+    );
+    return _client.storage.from('payment-receipts').getPublicUrl(path);
+  }
+
+  Future<Shop> submitApplicationWithSubscription({
+    required String planId,
+    required String paymentMethodId,
+    required String receiptUrl,
+    String? notes,
+  }) async {
+    final data = await NetworkGuard.run(
+      () => _client.rpc(
+        'submit_shop_application_with_subscription',
+        params: {
+          'p_plan_id': planId,
+          'p_payment_method_id': paymentMethodId,
+          'p_receipt_url': receiptUrl.trim(),
+          'p_notes': (notes?.trim().isEmpty ?? true) ? null : notes!.trim(),
+        },
+      ),
+      timeout: AppTimeouts.action,
+    );
+    final shop = Shop.fromMap(asStringMap(data), forOwner: true);
+    await _localDb.saveFullShop(shop);
+    return shop;
+  }
+
+  Future<ShopSubscriptionRecord> submitSubscriptionRenewal({
+    required String planId,
+    required String paymentMethodId,
+    required String receiptUrl,
+    String? notes,
+  }) async {
+    final data = await NetworkGuard.run(
+      () => _client.rpc(
+        'shop_submit_subscription_renewal',
+        params: {
+          'p_plan_id': planId,
+          'p_payment_method_id': paymentMethodId,
+          'p_receipt_url': receiptUrl.trim(),
+          'p_notes': (notes?.trim().isEmpty ?? true) ? null : notes!.trim(),
+        },
+      ),
+      timeout: AppTimeouts.action,
+    );
+    return ShopSubscriptionRecord.fromMap(asStringMap(data));
+  }
+
+  Future<ShopFinancialStatement> fetchMyFinancialStatement() async {
+    final data = await NetworkGuard.run(
+      () => _client.rpc('get_shop_financial_statement'),
+      timeout: AppTimeouts.read,
+    );
+    return ShopFinancialStatement.fromMap(asStringMap(data));
   }
 
   Future<List<Shop>> fetchAllApplications() async {

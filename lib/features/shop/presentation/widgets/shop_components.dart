@@ -735,105 +735,17 @@ Future<void> showShopOrderStatusSheet(
     maxHeightFactor: 0.92,
     child: Builder(
       builder: (sheetCtx) => AppBottomSheetScaffold(
-      title: '${'طلب'.tr} ${shortOrderCode(order.id)}',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 1) Order & Delivery Summary
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceAlt,
-              borderRadius: BorderRadius.circular(AppRadii.md),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            customer,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(sheetCtx).textTheme.titleSmall
-                                ?.copyWith(fontWeight: AppFont.bold),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            formatShopDateTime(order.createdAt),
-                            style: Theme.of(sheetCtx).textTheme.bodySmall
-                                ?.copyWith(color: AppColors.textMuted),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    AppStatusBadge(
-                      label: order.statusLabel,
-                      tone: orderStatusTone(order.status),
-                    ),
-                  ],
-                ),
-                const Divider(height: AppSpacing.md),
-                _ShopOrderInfoLine(
-                  label: 'طريقة التوصيل'.tr,
-                  value: order.deliveryModeLabel.tr,
-                ),
-                if (order.phone?.trim().isNotEmpty ?? false)
-                  _ShopOrderInfoLine(
-                    label: 'الهاتف'.tr,
-                    value: order.phone!.trim(),
-                  ),
-                if (order.deliveryAddress?.trim().isNotEmpty ?? false)
-                  _ShopOrderInfoLine(
-                    label: 'العنوان'.tr,
-                    value: order.deliveryAddress!.trim(),
-                  ),
-                if (order.notes?.trim().isNotEmpty ?? false)
-                  _ShopOrderInfoLine(
-                    label: 'ملاحظات'.tr,
-                    value: order.notes!.trim(),
-                  ),
-                const Divider(height: AppSpacing.md),
-                _ShopOrderInfoLine(
-                  label: 'قيمة المنتجات'.tr,
-                  value: AppFormat.price(order.effectiveSubtotal),
-                ),
-                _ShopOrderInfoLine(
-                  label: 'رسوم التوصيل'.tr,
-                  value: order.deliveryFee > 0
-                      ? AppFormat.price(order.deliveryFee)
-                      : 'مجاناً'.tr,
-                ),
-                _ShopOrderInfoLine(
-                  label: 'الإجمالي المطلوب'.tr,
-                  value: AppFormat.price(order.total),
-                  bold: true,
-                ),
-              ],
-            ),
-          ),
-
-          // 2) Transfer Receipt & Payment Verification Section
-          if (order.paymentStatus != 'not_required' || order.hasReceipt) ...[
-            const SizedBox(height: AppSpacing.md),
+        title: '${'طلب'.tr} ${shortOrderCode(order.id)}',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1) Order & Delivery Summary
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: AppColors.surface,
+                color: AppColors.surfaceAlt,
                 borderRadius: BorderRadius.circular(AppRadii.md),
-                border: Border.all(
-                  color: order.isPaymentVerified
-                      ? AppColors.success.withValues(alpha: 0.45)
-                      : order.hasPaymentIssue
-                      ? AppColors.error.withValues(alpha: 0.45)
-                      : AppColors.warning.withValues(alpha: 0.45),
-                ),
+                border: Border.all(color: AppColors.border),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -841,173 +753,267 @@ Future<void> showShopOrderStatusSheet(
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          'إشعار الحوالة المالية'.tr,
-                          style: Theme.of(sheetCtx).textTheme.titleSmall
-                              ?.copyWith(fontWeight: AppFont.bold),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              customer,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(sheetCtx).textTheme.titleSmall
+                                  ?.copyWith(fontWeight: AppFont.bold),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              formatShopDateTime(order.createdAt),
+                              style: Theme.of(sheetCtx).textTheme.bodySmall
+                                  ?.copyWith(color: AppColors.textMuted),
+                            ),
+                          ],
                         ),
                       ),
+                      const SizedBox(width: AppSpacing.sm),
                       AppStatusBadge(
-                        label: order.paymentStatusLabel,
-                        tone: order.isPaymentVerified
-                            ? BadgeTone.success
-                            : order.hasPaymentIssue
-                            ? BadgeTone.error
-                            : BadgeTone.warning,
+                        label: order.statusLabel,
+                        tone: orderStatusTone(order.status),
                       ),
                     ],
                   ),
-                  if (order.paymentMethodName?.trim().isNotEmpty ?? false) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      '${order.paymentMethodName}${(order.paymentAccountNumber?.trim().isNotEmpty ?? false) ? ' · ${order.paymentAccountNumber}' : ''}',
-                      style: Theme.of(sheetCtx).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
+                  const Divider(height: AppSpacing.md),
+                  _ShopOrderInfoLine(
+                    label: 'طريقة التوصيل'.tr,
+                    value: order.deliveryModeLabel.tr,
+                  ),
+                  if (order.phone?.trim().isNotEmpty ?? false)
+                    _ShopOrderInfoLine(
+                      label: 'الهاتف'.tr,
+                      value: order.phone!.trim(),
                     ),
-                  ],
-                  if (order.hasPaymentIssue &&
-                      (order.paymentIssueNote?.trim().isNotEmpty ?? false)) ...[
-                    const SizedBox(height: AppSpacing.xs),
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.xs),
-                      decoration: BoxDecoration(
-                        color: AppColors.errorSoft,
-                        borderRadius: BorderRadius.circular(AppRadii.sm),
-                      ),
-                      child: Text(
-                        '${'الملاحظة المرسلة للعميل'.tr}: ${order.paymentIssueNote}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.error,
-                          fontWeight: AppFont.semiBold,
-                        ),
-                      ),
+                  if (order.deliveryAddress?.trim().isNotEmpty ?? false)
+                    _ShopOrderInfoLine(
+                      label: 'العنوان'.tr,
+                      value: order.deliveryAddress!.trim(),
                     ),
-                  ],
-                  if (order.hasReceipt) ...[
-                    const SizedBox(height: AppSpacing.sm),
-                    ReceiptThumbnailCard(
-                      imageUrl: order.paymentReceiptUrl!,
-                      subtitle:
-                          '${'إشعار حوالة'.tr} ${shortOrderCode(order.id)} — ${AppFormat.price(order.total)}',
-                      height: 168,
+                  if (order.notes?.trim().isNotEmpty ?? false)
+                    _ShopOrderInfoLine(
+                      label: 'ملاحظات'.tr,
+                      value: order.notes!.trim(),
                     ),
-                  ],
-                  if (needsVerification) ...[
-                    const SizedBox(height: AppSpacing.md),
-                    AppButton(
-                      label: 'تأكيد استلام الحوالة والمتابعة للشحن'.tr,
-                      onPressed: () =>
-                          Navigator.of(sheetCtx).pop('verify_payment_ok'),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: AppColors.warningSoft,
-                        foregroundColor: AppColors.warning,
-                        side: BorderSide(
-                          color: AppColors.warning.withValues(alpha: 0.35),
-                        ),
-                        minimumSize: const Size(
-                          double.infinity,
-                          ButtonDesign.height,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            ButtonDesign.radius,
-                          ),
-                        ),
-                      ),
-                      onPressed: AppHaptics.action(
-                        () => Navigator.of(sheetCtx).pop('verify_payment_issue'),
-                      ),
-                      child: Text('إبلاغ العميل بمشكلة في المبلغ أو الإشعار'.tr),
-                    ),
-                  ],
+                  const Divider(height: AppSpacing.md),
+                  _ShopOrderInfoLine(
+                    label: 'قيمة المنتجات'.tr,
+                    value: AppFormat.price(order.effectiveSubtotal),
+                  ),
+                  _ShopOrderInfoLine(
+                    label: 'رسوم التوصيل'.tr,
+                    value: order.deliveryFee > 0
+                        ? AppFormat.price(order.deliveryFee)
+                        : 'مجاناً'.tr,
+                  ),
+                  _ShopOrderInfoLine(
+                    label: 'الإجمالي المطلوب'.tr,
+                    value: AppFormat.price(order.total),
+                    bold: true,
+                  ),
                 ],
               ),
             ),
-          ],
 
-          const SizedBox(height: AppSpacing.md),
-
-          // 3) Shipping Progression Controls (unlocked once payment is verified)
-          if (needsVerification) ...[
-            Container(
-              padding: const EdgeInsets.all(AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(AppRadii.sm),
-              ),
-              child: Text(
-                'تُفتح مراحل التجهيز والشحن تلقائياً فور تأكيد استلام الحوالة المالية أعلاه.'
-                    .tr,
-                style: Theme.of(
-                  sheetCtx,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-          ] else ...[
-            if (nextStep != null) ...[
-              Text(
-                'الخطوة التالية المقترحة'.tr,
-                style: Theme.of(
-                  sheetCtx,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              AppButton(
-                label: orderActionLabel(nextStep).tr,
-                onPressed: () => Navigator.of(sheetCtx).pop(nextStep),
-              ),
+            // 2) Transfer Receipt & Payment Verification Section
+            if (order.paymentStatus != 'not_required' || order.hasReceipt) ...[
               const SizedBox(height: AppSpacing.md),
-            ],
-            if (otherSteps.isNotEmpty) ...[
-              Text(
-                'خيارات حالة أخرى'.tr,
-                style: Theme.of(
-                  sheetCtx,
-                ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              ...otherSteps.map(
-                (step) => Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: AppButton(
-                    label: orderActionLabel(step).tr,
-                    variant: AppButtonVariant.secondary,
-                    onPressed: () => Navigator.of(sheetCtx).pop(step),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                  border: Border.all(
+                    color: order.isPaymentVerified
+                        ? AppColors.success.withValues(alpha: 0.45)
+                        : order.hasPaymentIssue
+                        ? AppColors.error.withValues(alpha: 0.45)
+                        : AppColors.warning.withValues(alpha: 0.45),
                   ),
                 ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'إشعار الحوالة المالية'.tr,
+                            style: Theme.of(sheetCtx).textTheme.titleSmall
+                                ?.copyWith(fontWeight: AppFont.bold),
+                          ),
+                        ),
+                        AppStatusBadge(
+                          label: order.paymentStatusLabel,
+                          tone: order.isPaymentVerified
+                              ? BadgeTone.success
+                              : order.hasPaymentIssue
+                              ? BadgeTone.error
+                              : BadgeTone.warning,
+                        ),
+                      ],
+                    ),
+                    if (order.paymentMethodName?.trim().isNotEmpty ??
+                        false) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '${order.paymentMethodName}${(order.paymentAccountNumber?.trim().isNotEmpty ?? false) ? ' · ${order.paymentAccountNumber}' : ''}',
+                        style: Theme.of(sheetCtx).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                    if (order.hasPaymentIssue &&
+                        (order.paymentIssueNote?.trim().isNotEmpty ??
+                            false)) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.xs),
+                        decoration: BoxDecoration(
+                          color: AppColors.errorSoft,
+                          borderRadius: BorderRadius.circular(AppRadii.sm),
+                        ),
+                        child: Text(
+                          '${'الملاحظة المرسلة للعميل'.tr}: ${order.paymentIssueNote}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.error,
+                            fontWeight: AppFont.semiBold,
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (order.hasReceipt) ...[
+                      const SizedBox(height: AppSpacing.sm),
+                      ReceiptThumbnailCard(
+                        imageUrl: order.paymentReceiptUrl!,
+                        subtitle:
+                            '${'إشعار حوالة'.tr} ${shortOrderCode(order.id)} — ${AppFormat.price(order.total)}',
+                        height: 168,
+                      ),
+                    ],
+                    if (needsVerification) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      AppButton(
+                        label: 'تأكيد استلام الحوالة والمتابعة للشحن'.tr,
+                        onPressed: () =>
+                            Navigator.of(sheetCtx).pop('verify_payment_ok'),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: AppColors.warningSoft,
+                          foregroundColor: AppColors.warning,
+                          side: BorderSide(
+                            color: AppColors.warning.withValues(alpha: 0.35),
+                          ),
+                          minimumSize: const Size(
+                            double.infinity,
+                            ButtonDesign.height,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              ButtonDesign.radius,
+                            ),
+                          ),
+                        ),
+                        onPressed: AppHaptics.action(
+                          () => Navigator.of(
+                            sheetCtx,
+                          ).pop('verify_payment_issue'),
+                        ),
+                        child: Text(
+                          'إبلاغ العميل بمشكلة في المبلغ أو الإشعار'.tr,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: AppSpacing.md),
+
+            // 3) Shipping Progression Controls (unlocked once payment is verified)
+            if (needsVerification) ...[
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(AppRadii.sm),
+                ),
+                child: Text(
+                  'تُفتح مراحل التجهيز والشحن تلقائياً فور تأكيد استلام الحوالة المالية أعلاه.'
+                      .tr,
+                  style: Theme.of(
+                    sheetCtx,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+            ] else ...[
+              if (nextStep != null) ...[
+                Text(
+                  'الخطوة التالية المقترحة'.tr,
+                  style: Theme.of(
+                    sheetCtx,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                AppButton(
+                  label: orderActionLabel(nextStep).tr,
+                  onPressed: () => Navigator.of(sheetCtx).pop(nextStep),
+                ),
+                const SizedBox(height: AppSpacing.md),
+              ],
+              if (otherSteps.isNotEmpty) ...[
+                Text(
+                  'خيارات حالة أخرى'.tr,
+                  style: Theme.of(
+                    sheetCtx,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                ...otherSteps.map(
+                  (step) => Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: AppButton(
+                      label: orderActionLabel(step).tr,
+                      variant: AppButtonVariant.secondary,
+                      onPressed: () => Navigator.of(sheetCtx).pop(step),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+            if (order.status != 'cancelled' && order.status != 'delivered') ...[
+              const SizedBox(height: AppSpacing.xs),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  backgroundColor: AppColors.errorSoft,
+                  foregroundColor: AppColors.error,
+                  side: BorderSide(
+                    color: AppColors.error.withValues(alpha: 0.25),
+                  ),
+                  minimumSize: const Size(double.infinity, ButtonDesign.height),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(ButtonDesign.radius),
+                  ),
+                ),
+                onPressed: AppHaptics.action(
+                  () => Navigator.of(sheetCtx).pop('cancelled'),
+                ),
+                child: Text('إلغاء الطلب'.tr),
               ),
             ],
           ],
-          if (order.status != 'cancelled' && order.status != 'delivered') ...[
-            const SizedBox(height: AppSpacing.xs),
-            OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                backgroundColor: AppColors.errorSoft,
-                foregroundColor: AppColors.error,
-                side: BorderSide(
-                  color: AppColors.error.withValues(alpha: 0.25),
-                ),
-                minimumSize: const Size(double.infinity, ButtonDesign.height),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(ButtonDesign.radius),
-                ),
-              ),
-              onPressed: AppHaptics.action(
-                () => Navigator.of(sheetCtx).pop('cancelled'),
-              ),
-              child: Text('إلغاء الطلب'.tr),
-            ),
-          ],
-        ],
+        ),
       ),
-    ),
     ),
   );
 
@@ -1464,6 +1470,8 @@ class ShopDetailsFormFields extends StatelessWidget {
     required this.phoneController,
     this.enabled = true,
     this.onChanged,
+    this.showShopInfo = true,
+    this.showOwnerInfo = true,
   });
 
   final TextEditingController shopNameController;
@@ -1475,97 +1483,103 @@ class ShopDetailsFormFields extends StatelessWidget {
   final TextEditingController phoneController;
   final bool enabled;
   final VoidCallback? onChanged;
+  final bool showShopInfo;
+  final bool showOwnerInfo;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'معلومات المتجر'.tr,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: AppFont.bold),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: shopNameController,
-                label: 'اسم المحل'.tr,
-                enabled: enabled,
-                onChanged: (_) => onChanged?.call(),
-                validator: (v) => Validators.required(v, field: 'اسم المحل'.tr),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: descriptionController,
-                label: 'وصف المحل'.tr,
-                maxLines: 3,
-                enabled: enabled,
-                onChanged: (_) => onChanged?.call(),
-                validator: (v) => Validators.required(v, field: 'وصف المحل'.tr),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              GazaRegionFormField(
-                controller: cityController,
-                enabled: enabled,
-                onChanged: (_) => onChanged?.call(),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: addressController,
-                label: 'العنوان'.tr,
-                enabled: enabled,
-                onChanged: (_) => onChanged?.call(),
-                validator: (v) => Validators.required(v, field: 'العنوان'.tr),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: registerController,
-                label: 'السجل التجاري'.tr,
-                enabled: enabled,
-                onChanged: (_) => onChanged?.call(),
-                validator: (v) =>
-                    Validators.required(v, field: 'السجل التجاري'.tr),
-              ),
-            ],
+        if (showShopInfo)
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'معلومات المتجر'.tr,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(fontWeight: AppFont.bold),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: shopNameController,
+                  label: 'اسم المحل'.tr,
+                  enabled: enabled,
+                  onChanged: (_) => onChanged?.call(),
+                  validator: (v) =>
+                      Validators.required(v, field: 'اسم المحل'.tr),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: descriptionController,
+                  label: 'وصف المحل'.tr,
+                  maxLines: 3,
+                  enabled: enabled,
+                  onChanged: (_) => onChanged?.call(),
+                  validator: (v) =>
+                      Validators.required(v, field: 'وصف المحل'.tr),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                GazaRegionFormField(
+                  controller: cityController,
+                  enabled: enabled,
+                  onChanged: (_) => onChanged?.call(),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: addressController,
+                  label: 'العنوان'.tr,
+                  enabled: enabled,
+                  onChanged: (_) => onChanged?.call(),
+                  validator: (v) => Validators.required(v, field: 'العنوان'.tr),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: registerController,
+                  label: 'السجل التجاري'.tr,
+                  enabled: enabled,
+                  onChanged: (_) => onChanged?.call(),
+                  validator: (v) =>
+                      Validators.required(v, field: 'السجل التجاري'.tr),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'بيانات المالك والتواصل'.tr,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: AppFont.bold),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: ownerNameController,
-                label: 'اسم صاحب المحل'.tr,
-                enabled: enabled,
-                onChanged: (_) => onChanged?.call(),
-                validator: (v) =>
-                    Validators.required(v, field: 'اسم صاحب المحل'.tr),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: phoneController,
-                label: 'رقم الهاتف'.tr,
-                keyboardType: TextInputType.phone,
-                enabled: enabled,
-                onChanged: (_) => onChanged?.call(),
-                validator: Validators.phone,
-              ),
-            ],
+        if (showShopInfo && showOwnerInfo) const SizedBox(height: AppSpacing.md),
+        if (showOwnerInfo)
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'بيانات المالك والتواصل'.tr,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(fontWeight: AppFont.bold),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: ownerNameController,
+                  label: 'اسم صاحب المحل'.tr,
+                  enabled: enabled,
+                  onChanged: (_) => onChanged?.call(),
+                  validator: (v) =>
+                      Validators.required(v, field: 'اسم صاحب المحل'.tr),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: phoneController,
+                  label: 'رقم الهاتف'.tr,
+                  keyboardType: TextInputType.phone,
+                  enabled: enabled,
+                  onChanged: (_) => onChanged?.call(),
+                  validator: Validators.phone,
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }

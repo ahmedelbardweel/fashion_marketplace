@@ -121,6 +121,7 @@ abstract final class AppIcons {
   static const IconData city = IconsaxPlusLinear.buildings;
   static const IconData notes = IconsaxPlusLinear.note_text;
   static const IconData payment = IconsaxPlusLinear.wallet_money;
+  static const IconData wallet = IconsaxPlusLinear.wallet_2;
   static const IconData logout = IconsaxPlusLinear.logout;
   static const IconData verified = IconsaxPlusBold.verify;
   static const IconData shieldTick = IconsaxPlusLinear.shield_tick;

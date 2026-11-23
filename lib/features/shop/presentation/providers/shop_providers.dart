@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../admin/domain/models/subscription_models.dart';
 import '../../../auth/domain/models/user_role.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/shop_repository.dart';
@@ -21,6 +22,24 @@ final myShopProvider = FutureProvider<Shop?>((ref) async {
     return null;
   }
   return ref.read(shopRepositoryProvider).fetchMyShop();
+});
+
+final activeSubscriptionPlansProvider =
+    FutureProvider.autoDispose<List<SubscriptionPlan>>((ref) async {
+  return ref.read(shopRepositoryProvider).fetchActiveSubscriptionPlans();
+});
+
+final myShopFinancialStatementProvider =
+    FutureProvider.autoDispose<ShopFinancialStatement?>((ref) async {
+  final authKey = ref.watch(
+    authControllerProvider.select(
+      (s) => (s.isAuthenticated, s.user?.id, s.user?.role),
+    ),
+  );
+  if (!authKey.$1 || authKey.$3 != UserRole.shop) {
+    return null;
+  }
+  return ref.read(shopRepositoryProvider).fetchMyFinancialStatement();
 });
 
 final adminShopApplicationsProvider =
@@ -163,6 +182,87 @@ class ShopActionController extends StateNotifier<AsyncValue<void>> {
       } catch (_) {
         _ref.invalidate(myShopProvider);
       }
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (error, stack) {
+      state = AsyncValue.error(error, stack);
+      return false;
+    }
+  }
+
+  Future<bool> saveAndSubmitProfileWithSubscription({
+    required String shopName,
+    required String description,
+    required String city,
+    required String address,
+    required String commercialRegister,
+    required String ownerName,
+    required String phone,
+    required String planId,
+    required String paymentMethodId,
+    required String receiptUrl,
+    String? notes,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      final repo = _ref.read(shopRepositoryProvider);
+      await repo.completeShopProfile(
+        shopName: shopName,
+        description: description,
+        city: city,
+        address: address,
+        commercialRegister: commercialRegister,
+        ownerName: ownerName,
+        phone: phone,
+      );
+      await repo.submitApplicationWithSubscription(
+        planId: planId,
+        paymentMethodId: paymentMethodId,
+        receiptUrl: receiptUrl,
+        notes: notes,
+      );
+      final currentUser = _ref.read(authControllerProvider).user;
+      if (currentUser != null) {
+        _ref.read(authControllerProvider.notifier).setUser(
+              currentUser.copyWith(
+                fullName: ownerName.trim(),
+                phone: phone.trim(),
+                city: city.trim(),
+                address: address.trim(),
+                profileCompleted: true,
+              ),
+            );
+      }
+      try {
+        await _ref.refresh(myShopProvider.future);
+      } catch (_) {
+        _ref.invalidate(myShopProvider);
+      }
+      _ref.invalidate(myShopFinancialStatementProvider);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (error, stack) {
+      state = AsyncValue.error(error, stack);
+      return false;
+    }
+  }
+
+  Future<bool> submitSubscriptionRenewal({
+    required String planId,
+    required String paymentMethodId,
+    required String receiptUrl,
+    String? notes,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      await _ref.read(shopRepositoryProvider).submitSubscriptionRenewal(
+            planId: planId,
+            paymentMethodId: paymentMethodId,
+            receiptUrl: receiptUrl,
+            notes: notes,
+          );
+      _ref.invalidate(myShopProvider);
+      _ref.invalidate(myShopFinancialStatementProvider);
       state = const AsyncValue.data(null);
       return true;
     } catch (error, stack) {

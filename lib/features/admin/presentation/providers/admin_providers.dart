@@ -20,6 +20,7 @@ import '../../domain/models/decart_settings_status.dart';
 import '../../domain/models/gaza_region.dart';
 import '../../domain/models/payment_method.dart';
 import '../../domain/models/revenue_models.dart';
+import '../../domain/models/subscription_models.dart';
 
 final adminRepositoryProvider = Provider<AdminRepository>((ref) {
   return AdminRepository();
@@ -241,6 +242,32 @@ final adminRevenueOverviewProvider =
     FutureProvider.autoDispose<AdminRevenueOverview>((ref) async {
       if (!_isAdmin(ref)) return const AdminRevenueOverview();
       return ref.watch(adminRepositoryProvider).fetchRevenueOverview();
+    });
+
+final adminSubscriptionPlansProvider =
+    FutureProvider.autoDispose<List<SubscriptionPlan>>((ref) async {
+      if (!_isAdmin(ref)) return const [];
+      return ref
+          .watch(adminRepositoryProvider)
+          .fetchSubscriptionPlans(activeOnly: false);
+    });
+
+final adminSubscriptionPayoutOverviewProvider =
+    FutureProvider.autoDispose<AdminSubscriptionPayoutOverview>((ref) async {
+      if (!_isAdmin(ref)) return const AdminSubscriptionPayoutOverview();
+      return ref
+          .watch(adminRepositoryProvider)
+          .fetchSubscriptionPayoutOverview();
+    });
+
+final adminShopFinancialStatementProvider = FutureProvider.autoDispose
+    .family<ShopFinancialStatement, String>((ref, shopId) async {
+      if (!_isAdmin(ref)) {
+        return ShopFinancialStatement(shopId: shopId, shopName: '');
+      }
+      return ref
+          .watch(adminRepositoryProvider)
+          .fetchShopFinancialStatement(shopId);
     });
 
 final adminShopLedgerProvider = FutureProvider.autoDispose.family<
@@ -642,6 +669,96 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
       );
       _ref.invalidate(adminRevenueOverviewProvider);
       _ref.invalidate(adminShopLedgerProvider(shopId));
+    });
+  }
+
+  Future<bool> upsertSubscriptionPlan({
+    String? id,
+    required String name,
+    String? nameEn,
+    String? description,
+    required double price,
+    required int durationDays,
+    bool isActive = true,
+    int sortOrder = 0,
+  }) {
+    return _run(() async {
+      await _repo.upsertSubscriptionPlan(
+        id: id,
+        name: name,
+        nameEn: nameEn,
+        description: description,
+        price: price,
+        durationDays: durationDays,
+        isActive: isActive,
+        sortOrder: sortOrder,
+      );
+      _ref.invalidate(adminSubscriptionPlansProvider);
+      _ref.invalidate(activeSubscriptionPlansProvider);
+    });
+  }
+
+  Future<bool> toggleSubscriptionPlan({
+    required String id,
+    required bool isActive,
+  }) {
+    return _run(() async {
+      await _repo.toggleSubscriptionPlan(id: id, isActive: isActive);
+      _ref.invalidate(adminSubscriptionPlansProvider);
+      _ref.invalidate(activeSubscriptionPlansProvider);
+    });
+  }
+
+  Future<bool> deleteSubscriptionPlan(String id) {
+    return _run(() async {
+      await _repo.deleteSubscriptionPlan(id);
+      _ref.invalidate(adminSubscriptionPlansProvider);
+      _ref.invalidate(activeSubscriptionPlansProvider);
+    });
+  }
+
+  Future<bool> reviewSubscription({
+    required String subscriptionId,
+    required bool approve,
+    String? rejectionReason,
+    String? shopId,
+  }) {
+    return _run(() async {
+      await _repo.reviewSubscription(
+        subscriptionId: subscriptionId,
+        approve: approve,
+        rejectionReason: rejectionReason,
+      );
+      _ref.invalidate(adminSubscriptionPayoutOverviewProvider);
+      _ref.invalidate(adminShopApplicationsProvider);
+      _ref.invalidate(adminManagedShopsProvider);
+      _ref.invalidate(adminStatsProvider);
+      if (shopId != null) {
+        _ref.invalidate(adminShopFinancialStatementProvider(shopId));
+        _ref.invalidate(adminShopByIdProvider(shopId));
+      }
+    });
+  }
+
+  Future<bool> recordShopPayout({
+    required String shopId,
+    required double amount,
+    String paymentMethod = 'bank_transfer',
+    String? referenceNo,
+    String? receiptUrl,
+    String? notes,
+  }) {
+    return _run(() async {
+      await _repo.recordShopPayout(
+        shopId: shopId,
+        amount: amount,
+        paymentMethod: paymentMethod,
+        referenceNo: referenceNo,
+        receiptUrl: receiptUrl,
+        notes: notes,
+      );
+      _ref.invalidate(adminSubscriptionPayoutOverviewProvider);
+      _ref.invalidate(adminShopFinancialStatementProvider(shopId));
     });
   }
 }

@@ -30,7 +30,7 @@ class AdminDashboardScreen extends ConsumerWidget {
     final bannersAsync = ref.watch(adminBannersProvider);
     final ordersAsync = ref.watch(adminOrdersProvider);
     final regionsAsync = ref.watch(adminGazaRegionsProvider);
-    final revenueAsync = ref.watch(adminRevenueOverviewProvider);
+    final subOverviewAsync = ref.watch(adminSubscriptionPayoutOverviewProvider);
     final busy = ref.watch(adminActionProvider).isLoading;
 
     Future<void> handleRefresh() async {
@@ -39,7 +39,7 @@ class AdminDashboardScreen extends ConsumerWidget {
         ref.refresh(adminBannersProvider.future),
         ref.refresh(adminOrdersProvider.future),
         ref.refresh(adminGazaRegionsProvider.future),
-        ref.refresh(adminRevenueOverviewProvider.future),
+        ref.refresh(adminSubscriptionPayoutOverviewProvider.future),
         ref.refresh(adminShopApplicationsProvider.future),
         ref.refresh(adminDecartCreditsProvider.future),
       ]);
@@ -188,23 +188,36 @@ class AdminDashboardScreen extends ConsumerWidget {
                           const SizedBox(height: AppSpacing.sm),
 
                           AdminFeatureTile(
-                            title: 'الإيرادات والعمولات والاتفاقيات',
+                            title: 'الاشتراكات والكشف المالي للمحلات',
                             subtitle:
-                                'نسب الاتفاق مع المحلات، المستحقات، وطلبات التسوية',
+                                'إيرادات الاشتراكات، مراجعة الإشعارات، ومستحقات المحلات (100%)',
                             badge:
-                                (revenueAsync
+                                (subOverviewAsync
                                             .asData
                                             ?.value
-                                            .pendingSettlementsCount ??
+                                            .pendingSubscriptionsCount ??
                                         0) >
                                     0
-                                ? '${revenueAsync.asData!.value.pendingSettlementsCount} ${'تسوية'.tr}'
+                                ? '${subOverviewAsync.asData!.value.pendingSubscriptionsCount} ${'اشتراك'.tr}'
                                 : null,
                             badgeTone: BadgeTone.warning,
                             trailingValue: AppFormat.price(
-                              revenueAsync.asData?.value.totalOutstanding ?? 0,
+                              subOverviewAsync
+                                      .asData
+                                      ?.value
+                                      .totalOwedToShops ??
+                                  0,
                             ),
                             onTap: () => context.push(AppRoutes.adminRevenue),
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          AdminFeatureTile(
+                            title: 'باقات اشتراك المحلات',
+                            subtitle:
+                                'تحديد قيمة ومدد باقات الاشتراك (مثال: 30 ₪ شهرياً) بدون عمولة',
+                            onTap: () => context.push(
+                              AppRoutes.adminSubscriptionPlans,
+                            ),
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           AdminFeatureTile(
@@ -216,9 +229,9 @@ class AdminDashboardScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           AdminFeatureTile(
-                            title: 'طرق الدفع والحوالات (غزة)',
+                            title: 'طرق الدفع وحسابات التحويل (غزة)',
                             subtitle:
-                                'أرقام بنك فلسطين والمحافظ الإلكترونية وتفعيلها أو إيقافها',
+                                'أرقام بنك فلسطين والمحافظ الإلكترونية لتحويل الطلبات والاشتراكات',
                             onTap: () =>
                                 context.push(AppRoutes.adminPaymentMethods),
                           ),

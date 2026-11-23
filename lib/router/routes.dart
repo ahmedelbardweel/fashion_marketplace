@@ -31,6 +31,7 @@ class AppRoutes {
   static const adminReports = '/admin/reports';
   static const adminRegions = '/admin/regions';
   static const adminPaymentMethods = '/admin/payment-methods';
+  static const adminSubscriptionPlans = '/admin/subscription-plans';
   static const adminRevenue = '/admin/revenue';
   static const adminSettings = '/admin/settings';
 

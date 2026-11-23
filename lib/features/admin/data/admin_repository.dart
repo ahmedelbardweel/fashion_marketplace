@@ -21,6 +21,7 @@ import '../domain/models/decart_settings_status.dart';
 import '../domain/models/gaza_region.dart';
 import '../domain/models/payment_method.dart';
 import '../domain/models/revenue_models.dart';
+import '../domain/models/subscription_models.dart';
 
 class AdminRepository {
   AdminRepository({SupabaseClient? client})
@@ -1128,6 +1129,166 @@ class AdminRepository {
   Future<void> deletePaymentMethod(String id) async {
     await NetworkGuard.ensureOnline();
     await _client.rpc('admin_delete_payment_method', params: {'p_id': id});
+  }
+
+  // ---------------------------------------------------------------------------
+  // Subscriptions & 100% Per-Shop Financial Statements / Payouts
+  // ---------------------------------------------------------------------------
+
+  Future<List<SubscriptionPlan>> fetchSubscriptionPlans({
+    bool activeOnly = false,
+  }) async {
+    var query = _client.from('subscription_plans').select();
+    if (activeOnly) {
+      query = query.eq('is_active', true);
+    }
+    final rows = await query
+        .order('sort_order', ascending: true)
+        .order('price', ascending: true);
+    return (rows as List)
+        .map((row) => SubscriptionPlan.fromMap(asStringMap(row)))
+        .toList();
+  }
+
+  Future<SubscriptionPlan> upsertSubscriptionPlan({
+    String? id,
+    required String name,
+    String? nameEn,
+    String? description,
+    required double price,
+    required int durationDays,
+    bool isActive = true,
+    int sortOrder = 0,
+  }) async {
+    await NetworkGuard.ensureOnline();
+    final data = await _client.rpc(
+      'admin_upsert_subscription_plan',
+      params: {
+        'p_id': id,
+        'p_name': name.trim(),
+        'p_name_en': (nameEn?.trim().isEmpty ?? true) ? null : nameEn!.trim(),
+        'p_description': (description?.trim().isEmpty ?? true)
+            ? null
+            : description!.trim(),
+        'p_price': price,
+        'p_duration_days': durationDays,
+        'p_is_active': isActive,
+        'p_sort_order': sortOrder,
+      },
+    );
+    return SubscriptionPlan.fromMap(asStringMap(data));
+  }
+
+  Future<SubscriptionPlan> toggleSubscriptionPlan({
+    required String id,
+    required bool isActive,
+  }) async {
+    await NetworkGuard.ensureOnline();
+    final data = await _client.rpc(
+      'admin_toggle_subscription_plan',
+      params: {'p_id': id, 'p_is_active': isActive},
+    );
+    return SubscriptionPlan.fromMap(asStringMap(data));
+  }
+
+  Future<void> deleteSubscriptionPlan(String id) async {
+    await NetworkGuard.ensureOnline();
+    await _client.rpc('admin_delete_subscription_plan', params: {'p_id': id});
+  }
+
+  Future<AdminSubscriptionPayoutOverview>
+  fetchSubscriptionPayoutOverview() async {
+    await NetworkGuard.ensureOnline();
+    final data = await _client.rpc(
+      'get_admin_subscription_and_payout_overview',
+    );
+    return AdminSubscriptionPayoutOverview.fromMap(asStringMap(data));
+  }
+
+  Future<ShopFinancialStatement> fetchShopFinancialStatement(
+    String shopId,
+  ) async {
+    await NetworkGuard.ensureOnline();
+    final data = await _client.rpc(
+      'get_shop_financial_statement',
+      params: {'p_shop_id': shopId},
+    );
+    return ShopFinancialStatement.fromMap(asStringMap(data));
+  }
+
+  Future<ShopSubscriptionRecord> reviewSubscription({
+    required String subscriptionId,
+    required bool approve,
+    String? rejectionReason,
+  }) async {
+    await NetworkGuard.ensureOnline();
+    final data = await _client.rpc(
+      'admin_review_subscription',
+      params: {
+        'p_subscription_id': subscriptionId,
+        'p_approve': approve,
+        'p_rejection_reason': (rejectionReason?.trim().isEmpty ?? true)
+            ? null
+            : rejectionReason!.trim(),
+      },
+    );
+    return ShopSubscriptionRecord.fromMap(asStringMap(data));
+  }
+
+  Future<String> uploadPayoutReceipt({
+    required Uint8List bytes,
+    required String fileName,
+    String? contentType,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw StateError('يجب تسجيل الدخول أولاً');
+    }
+    final ext = p.extension(fileName).toLowerCase();
+    final safeExt =
+        (ext == '.png' || ext == '.webp' || ext == '.jpeg' || ext == '.jpg')
+        ? ext
+        : '.jpg';
+    final path =
+        '$userId/payouts/${DateTime.now().millisecondsSinceEpoch}$safeExt';
+    await _client.storage
+        .from('payment-receipts')
+        .uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(
+            upsert: true,
+            contentType: contentType ?? 'image/jpeg',
+          ),
+        );
+    return _client.storage.from('payment-receipts').getPublicUrl(path);
+  }
+
+  Future<ShopPayoutRecord> recordShopPayout({
+    required String shopId,
+    required double amount,
+    String paymentMethod = 'bank_transfer',
+    String? referenceNo,
+    String? receiptUrl,
+    String? notes,
+  }) async {
+    await NetworkGuard.ensureOnline();
+    final data = await _client.rpc(
+      'admin_record_shop_payout',
+      params: {
+        'p_shop_id': shopId,
+        'p_amount': amount,
+        'p_payment_method': paymentMethod,
+        'p_reference_no': (referenceNo?.trim().isEmpty ?? true)
+            ? null
+            : referenceNo!.trim(),
+        'p_receipt_url': (receiptUrl?.trim().isEmpty ?? true)
+            ? null
+            : receiptUrl!.trim(),
+        'p_notes': (notes?.trim().isEmpty ?? true) ? null : notes!.trim(),
+      },
+    );
+    return ShopPayoutRecord.fromMap(asStringMap(data));
   }
 
   bool _isNetworkError(Object error) => AppErrorMapper.isNetworkError(error);

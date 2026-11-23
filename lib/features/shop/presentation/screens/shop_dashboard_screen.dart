@@ -80,6 +80,36 @@ class ShopDashboardScreen extends ConsumerWidget {
             if (!awaitingShop && shop != null && !approved) ...[
               _buildApprovalBanner(context, shop),
               const SizedBox(height: AppSpacing.md),
+            ] else if (!awaitingShop &&
+                shop != null &&
+                approved &&
+                shop.isSubscriptionExpired) ...[
+              ShopNoticeBanner(
+                title: 'انتهت مدة اشتراك متجرك'.tr,
+                message:
+                    'تم إيقاف نشر المنتجات الجديدة مؤقتاً حتى تجديد الاشتراك وإرسال إشعار التحويل.'
+                        .tr,
+                tone: BadgeTone.error,
+                actionLabel: 'تجديد الاشتراك الآن'.tr,
+                onAction: () => context.push(AppRoutes.shopSales),
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ] else if (!awaitingShop &&
+                shop != null &&
+                approved &&
+                shop.isSubscriptionActive &&
+                shop.subscriptionDaysRemaining > 0 &&
+                shop.subscriptionDaysRemaining <= 5) ...[
+              ShopNoticeBanner(
+                title: 'اقترب موعد تجديد اشتراكك'.tr,
+                message: AppLang.isEn
+                    ? '${shop.subscriptionDaysRemaining} days remaining in your subscription. Renew early to keep publishing.'
+                    : 'متبقي ${shop.subscriptionDaysRemaining} أيام على انتهاء اشتراكك. يمكنك التجديد مبكراً دون انقطاع.',
+                tone: BadgeTone.warning,
+                actionLabel: 'تجديد الاشتراك'.tr,
+                onAction: () => context.push(AppRoutes.shopSales),
+              ),
+              const SizedBox(height: AppSpacing.md),
             ],
             statsAsync.skeletonWhen(
               placeholder: LoadingFixtures.shopStats,
@@ -114,8 +144,8 @@ class ShopDashboardScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: AppSpacing.sm),
                   ShopFeatureTile(
-                    title: 'المبيعات والأرباح',
-                    subtitle: 'ملخص المبيعات والمخزون',
+                    title: 'الاشتراك والكشف المالي',
+                    subtitle: 'كشف حسابك 100% بدون عمولة وحالة الاشتراك',
                     trailingValue: AppFormat.price(stats.salesTotal),
                     onTap: () => context.push(AppRoutes.shopSales),
                   ),
@@ -149,47 +179,50 @@ class ShopDashboardScreen extends ConsumerWidget {
                           .toList()
                         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
-                  if (todayOrders.isEmpty) {
-                    return const ShopEmptyState(
-                      title: 'لا توجد طلبات اليوم',
-                      message:
-                          'ستظهر هنا جميع طلبات اليوم منذ بداية الدوام وحتى نهاية اليوم.',
-                    );
-                  }
+                        if (todayOrders.isEmpty) {
+                          return const ShopEmptyState(
+                            title: 'لا توجد طلبات اليوم',
+                            message:
+                                'ستظهر هنا جميع طلبات اليوم منذ بداية الدوام وحتى نهاية اليوم.',
+                          );
+                        }
 
-                  final todayTotal = todayOrders.fold<double>(
-                    0,
-                    (sum, o) => sum + o.total,
-                  );
+                        final todayTotal = todayOrders.fold<double>(
+                          0,
+                          (sum, o) => sum + o.total,
+                        );
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      ShopKpiCard(
-                        label: '${'إجمالي اليوم'.tr} (${todayOrders.length})',
-                        value: AppFormat.price(todayTotal),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      for (final order in todayOrders)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                          child: ShopOrderCard(
-                            order: order,
-                            onTap: busy
-                                ? null
-                                : () => showShopOrderStatusSheet(
-                                    context,
-                                    ref,
-                                    order,
-                                  ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ],
-            const SizedBox(height: AppSpacing.md),
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ShopKpiCard(
+                              label:
+                                  '${'إجمالي اليوم'.tr} (${todayOrders.length})',
+                              value: AppFormat.price(todayTotal),
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            for (final order in todayOrders)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.sm,
+                                ),
+                                child: ShopOrderCard(
+                                  order: order,
+                                  onTap: busy
+                                      ? null
+                                      : () => showShopOrderStatusSheet(
+                                          context,
+                                          ref,
+                                          order,
+                                        ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: AppSpacing.md),
                 ],
               ),
             ),

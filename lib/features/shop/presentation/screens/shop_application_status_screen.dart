@@ -163,18 +163,21 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
                       const SizedBox(height: AppSpacing.md),
                       _StatusTimelineStep(
                         index: 1,
-                        title: 'استكمال بيانات المتجر'.tr,
-                        subtitle: 'إدخال المعلومات الأساسية ورفع الهوية'.tr,
+                        title: 'استكمال بيانات المتجر والاشتراك'.tr,
+                        subtitle:
+                            'إدخال المعلومات الأساسية واختيار الباقة وإرفاق إشعار التحويل'
+                                .tr,
                         done: currentStep > 0 || shop.isProfileReady,
                         active: currentStep == 0,
                         isLast: false,
                       ),
                       _StatusTimelineStep(
                         index: 2,
-                        title: 'مراجعة الإدارة'.tr,
+                        title: 'مراجعة الإدارة والتحقق من الاشتراك'.tr,
                         subtitle: status == ShopStatus.rejected
-                            ? 'تحتاج البيانات إلى تعديل وإعادة إرسال'.tr
-                            : 'التحقق من السجل التجاري والبيانات'.tr,
+                            ? 'تحتاج البيانات أو إشعار الاشتراك إلى تعديل وإعادة إرسال'
+                                  .tr
+                            : 'التحقق من بيانات المتجر وإشعار تحويل الاشتراك'.tr,
                         done: currentStep > 1,
                         active: currentStep == 1,
                         hasError: status == ShopStatus.rejected,
@@ -182,10 +185,10 @@ class ShopApplicationStatusScreen extends ConsumerWidget {
                       ),
                       _StatusTimelineStep(
                         index: 3,
-                        title: 'تفعيل المتجر وبدء البيع'.tr,
+                        title: 'فتح المتجر وتفعيل الاشتراك (عمولة 0%)'.tr,
                         subtitle: status == ShopStatus.suspended
                             ? 'المتجر موقوف حالياً'.tr
-                            : 'إضافة المنتجات واستقبال طلبات العملاء'.tr,
+                            : 'نشر المنتجات واستقبال الطلبات بدون أي عمولة'.tr,
                         done: status == ShopStatus.approved,
                         active: currentStep == 2,
                         hasError: status == ShopStatus.suspended,

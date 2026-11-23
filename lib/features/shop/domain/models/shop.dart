@@ -75,6 +75,15 @@ class Shop {
     this.ownerName,
     this.ownerEmail,
     this.ownerPhone,
+    this.subscriptionStatus = 'none',
+    this.subscriptionPlanId,
+    this.subscriptionPlanName,
+    this.subscriptionPrice = 0,
+    this.subscriptionStartsAt,
+    this.subscriptionEndsAt,
+    this.subscriptionReceiptUrl,
+    this.subscriptionPaymentMethodName,
+    this.subscriptionPaymentAccountNumber,
   });
 
   final String id;
@@ -97,8 +106,38 @@ class Shop {
   final String? ownerName;
   final String? ownerEmail;
   final String? ownerPhone;
+  final String subscriptionStatus;
+  final String? subscriptionPlanId;
+  final String? subscriptionPlanName;
+  final double subscriptionPrice;
+  final DateTime? subscriptionStartsAt;
+  final DateTime? subscriptionEndsAt;
+  final String? subscriptionReceiptUrl;
+  final String? subscriptionPaymentMethodName;
+  final String? subscriptionPaymentAccountNumber;
 
   bool get isApprovedVisible => visibleStatus == ShopStatus.approved;
+
+  bool get isSubscriptionActive =>
+      subscriptionStatus == 'active' &&
+      (subscriptionEndsAt == null ||
+          subscriptionEndsAt!.isAfter(DateTime.now()));
+
+  bool get isSubscriptionExpired =>
+      status == ShopStatus.approved &&
+      (subscriptionStatus == 'expired' ||
+          (subscriptionStatus == 'active' &&
+              subscriptionEndsAt != null &&
+              !subscriptionEndsAt!.isAfter(DateTime.now())));
+
+  bool get isSubscriptionPending => subscriptionStatus == 'pending';
+
+  int get subscriptionDaysRemaining {
+    if (subscriptionEndsAt == null) return 0;
+    final diff = subscriptionEndsAt!.difference(DateTime.now());
+    if (diff.isNegative) return 0;
+    return (diff.inSeconds / 86400).ceil();
+  }
 
   bool get isProfileReady {
     return name.trim().isNotEmpty &&
@@ -165,6 +204,24 @@ class Shop {
       ownerName: ownerMap?['full_name'] as String?,
       ownerEmail: ownerMap?['email'] as String?,
       ownerPhone: ownerMap?['phone'] as String?,
+      subscriptionStatus: map['subscription_status']?.toString() ?? 'none',
+      subscriptionPlanId: map['subscription_plan_id']?.toString(),
+      subscriptionPlanName: map['subscription_plan_name']?.toString(),
+      subscriptionPrice:
+          (map['subscription_price'] as num?)?.toDouble() ?? 0.0,
+      subscriptionStartsAt: map['subscription_starts_at'] == null
+          ? null
+          : DateTime.tryParse(map['subscription_starts_at'].toString())
+                ?.toLocal(),
+      subscriptionEndsAt: map['subscription_ends_at'] == null
+          ? null
+          : DateTime.tryParse(map['subscription_ends_at'].toString())
+                ?.toLocal(),
+      subscriptionReceiptUrl: map['subscription_receipt_url']?.toString(),
+      subscriptionPaymentMethodName:
+          map['subscription_payment_method_name']?.toString(),
+      subscriptionPaymentAccountNumber:
+          map['subscription_payment_account_number']?.toString(),
     );
   }
 }

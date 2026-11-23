@@ -12,6 +12,7 @@ import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
+import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/widgets/gaza_region_picker_sheet.dart';
 import '../../../../router/routes.dart';
@@ -209,8 +210,20 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
             title: 'إعدادات المنصة العامة'.tr,
             child: settingsAsync.when(
               loading: () => const Padding(
-                padding: EdgeInsets.all(AppSpacing.xl),
-                child: Center(child: CircularProgressIndicator()),
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                child: Column(
+                  children: [
+                    AppSkeleton(
+                      enabled: true,
+                      child: SizedBox(height: 56, width: double.infinity),
+                    ),
+                    SizedBox(height: AppSpacing.sm),
+                    AppSkeleton(
+                      enabled: true,
+                      child: SizedBox(height: 56, width: double.infinity),
+                    ),
+                  ],
+                ),
               ),
               error: (_, _) => AppButton(
                 label: 'إعادة تحميل إعدادات المنصة'.tr,
@@ -570,10 +583,18 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                     const Divider(height: 1),
                     AdminProfileMenuRow(
                       icon: AppIcons.payment,
-                      title: 'الإيرادات والعمولات والاتفاقيات',
+                      title: 'الاشتراكات والكشف المالي للمحلات',
                       subtitle:
-                          'نسب الاتفاق مع المحلات، المستحقات، وطلبات التسوية',
+                          'مراجعة إشعارات الاشتراك وكشف مستحقات المحلات (100% بدون عمولة)',
                       onTap: () => context.push(AppRoutes.adminRevenue),
+                    ),
+                    const Divider(height: 1),
+                    AdminProfileMenuRow(
+                      icon: AppIcons.wallet,
+                      title: 'باقات اشتراك المحلات',
+                      subtitle: 'إدارة أسعار ومدد باقات اشتراك المتاجر',
+                      onTap: () =>
+                          context.push(AppRoutes.adminSubscriptionPlans),
                     ),
                     const Divider(height: 1),
                     AdminProfileMenuRow(

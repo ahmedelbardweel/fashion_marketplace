@@ -1,17 +1,18 @@
-import '../../../../core/widgets/app_skeleton.dart';
-import '../../../../core/widgets/loading_fixtures.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../../core/widgets/loading_fixtures.dart';
+import '../../../../core/widgets/receipt_image_viewer.dart';
 import '../../../shop/domain/models/shop.dart';
 import '../../../shop/presentation/providers/shop_providers.dart';
 import '../providers/admin_providers.dart';
@@ -26,27 +27,30 @@ class AdminShopReviewScreen extends ConsumerWidget {
   Future<void> _approve(BuildContext context, WidgetRef ref, Shop shop) async {
     final confirmed = await AppBottomSheet.show<bool>(
       context: context,
-      child: AppBottomSheetScaffold(
-        title: 'قبول المحل'.tr,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'قبول طلب "${shop.name}"؟ سيظهر القرار للمحل حسب إعداد تأخير القرار.'.tr,
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            AppButton(
-              label: 'تأكيد القبول'.tr,
-              onPressed: () => Navigator.of(context).pop(true),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            AppButton(
-              label: 'إلغاء'.tr,
-              variant: AppButtonVariant.secondary,
-              onPressed: () => Navigator.of(context).pop(false),
-            ),
-          ],
+      child: Builder(
+        builder: (sheetCtx) => AppBottomSheetScaffold(
+          title: 'قبول المحل وتفعيل الاشتراك'.tr,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'قبول طلب "${shop.name}" وتفعيل اشتراكه (${shop.subscriptionPlanName ?? 'الباقة المختارة'} — ${AppFormat.price(shop.subscriptionPrice)})؟ سيتمكن التاجر من نشر منتجاته فوراً بدون عمولة.'
+                    .tr,
+                style: Theme.of(sheetCtx).textTheme.bodyLarge,
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              AppButton(
+                label: 'تأكيد القبول وتفعيل الاشتراك'.tr,
+                onPressed: () => Navigator.of(sheetCtx).pop(true),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AppButton(
+                label: 'إلغاء'.tr,
+                variant: AppButtonVariant.secondary,
+                onPressed: () => Navigator.of(sheetCtx).pop(false),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -67,7 +71,8 @@ class AdminShopReviewScreen extends ConsumerWidget {
     }
     ref.invalidate(adminStatsProvider);
     ref.invalidate(adminManagedShopsProvider);
-    showAppSnackBar(context, 'تم قبول الطلب'.tr);
+    ref.invalidate(adminSubscriptionPayoutOverviewProvider);
+    showAppSnackBar(context, 'تم اعتماد المحل وتفعيل اشتراكه بنجاح'.tr);
     if (context.mounted) Navigator.of(context).pop();
   }
 
@@ -77,40 +82,43 @@ class AdminShopReviewScreen extends ConsumerWidget {
 
     final confirmed = await AppBottomSheet.show<bool>(
       context: context,
-      child: AppBottomSheetScaffold(
-        title: 'رفض المحل'.tr,
-        child: Form(
-          key: formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'اكتب سبب الرفض. سيظهر للمحل حسب إعداد تأخير القرار.'.tr,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AppTextField(
-                controller: reasonController,
-                label: 'سبب الرفض'.tr,
-                maxLines: 3,
-                validator: (value) =>
-                    Validators.required(value, field: 'سبب الرفض'.tr),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              AppButton(
-                label: 'تأكيد الرفض'.tr,
-                onPressed: () {
-                  if (formKey.currentState?.validate() != true) return;
-                  Navigator.of(context).pop(true);
-                },
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              AppButton(
-                label: 'إلغاء'.tr,
-                variant: AppButtonVariant.secondary,
-                onPressed: () => Navigator.of(context).pop(false),
-              ),
-            ],
+      child: Builder(
+        builder: (sheetCtx) => AppBottomSheetScaffold(
+          title: 'رفض الطلب'.tr,
+          child: Form(
+            key: formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'اكتب سبب الرفض ليظهر للتاجر ويتمكن من تصحيح البيانات أو إشعار الحوالة وإعادة الإرسال.'
+                      .tr,
+                  style: Theme.of(sheetCtx).textTheme.bodyLarge,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: reasonController,
+                  label: 'سبب الرفض'.tr,
+                  maxLines: 3,
+                  validator: (value) =>
+                      Validators.required(value, field: 'سبب الرفض'.tr),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                AppButton(
+                  label: 'تأكيد الرفض'.tr,
+                  onPressed: () {
+                    if (formKey.currentState?.validate() != true) return;
+                    Navigator.of(sheetCtx).pop(true);
+                  },
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                AppButton(
+                  label: 'إلغاء'.tr,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () => Navigator.of(sheetCtx).pop(false),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -138,7 +146,8 @@ class AdminShopReviewScreen extends ConsumerWidget {
     }
     ref.invalidate(adminStatsProvider);
     ref.invalidate(adminManagedShopsProvider);
-    showAppSnackBar(context, 'تم رفض الطلب'.tr);
+    ref.invalidate(adminSubscriptionPayoutOverviewProvider);
+    showAppSnackBar(context, 'تم رفض الطلب وإشعار التاجر بالسبب'.tr);
     if (context.mounted) Navigator.of(context).pop();
   }
 
@@ -150,7 +159,7 @@ class AdminShopReviewScreen extends ConsumerWidget {
     final busy = ref.watch(shopActionProvider).isLoading;
 
     return AdminScaffold(
-      title: 'مراجعة المحل'.tr,
+      title: 'مراجعة المحل والاشتراك'.tr,
       body: AdminAsyncBody<Shop?>(
         placeholder: LoadingFixtures.shop,
         value: shopAsync,
@@ -168,31 +177,137 @@ class AdminShopReviewScreen extends ConsumerWidget {
         ]),
         builder: (shop) {
           final current = shop!;
+          final hasReceipt =
+              current.subscriptionReceiptUrl?.trim().isNotEmpty ?? false;
+          final subBadgeTone = switch (current.subscriptionStatus) {
+            'active' => BadgeTone.success,
+            'rejected' || 'expired' => BadgeTone.error,
+            'pending' => BadgeTone.warning,
+            _ => BadgeTone.neutral,
+          };
+          final subBadgeLabel = switch (current.subscriptionStatus) {
+            'active' => 'اشتراك فعّال'.tr,
+            'expired' => 'منتهي'.tr,
+            'rejected' => 'مرفوض'.tr,
+            'pending' => 'بانتظار التحقق'.tr,
+            _ => 'غير محدد'.tr,
+          };
+
           return ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: AppSpacing.page,
             children: [
               AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text(
-                      current.name,
-                      style: Theme.of(context).textTheme.headlineSmall,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            current.name,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: AppSpacing.xs),
+                          Text('${'الحالة'.tr}: ${current.status.labelAr.tr}'),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text('الحالة: ${current.status.labelAr}'.tr),
+                    AppStatusBadge(label: subBadgeLabel, tone: subBadgeTone),
                   ],
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
+
+              // Subscription & Receipt Verification Card
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          AppIcons.wallet,
+                          size: 20,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Expanded(
+                          child: Text(
+                            'بيانات الاشتراك وإشعار الحوالة'.tr,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: AppFont.bold),
+                          ),
+                        ),
+                        if (current.subscriptionPrice > 0)
+                          Text(
+                            AppFormat.price(current.subscriptionPrice),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  fontWeight: AppFont.extraBold,
+                                  color: AppColors.primary,
+                                ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _InfoRow(
+                      label: 'الباقة المختارة'.tr,
+                      value: current.subscriptionPlanName ?? '-',
+                    ),
+                    if (current.subscriptionPaymentMethodName?.isNotEmpty ??
+                        false)
+                      _InfoRow(
+                        label: 'تم التحويل إلى'.tr,
+                        value:
+                            '${current.subscriptionPaymentMethodName!}${(current.subscriptionPaymentAccountNumber?.isNotEmpty ?? false) ? ' (${current.subscriptionPaymentAccountNumber!})' : ''}',
+                      ),
+                    if (hasReceipt) ...[
+                      Text(
+                        'صورة إشعار التحويل (اضغط للتكبير والتحقق)'.tr,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      ReceiptThumbnailCard(
+                        imageUrl: current.subscriptionReceiptUrl!.trim(),
+                        subtitle:
+                            '${'إشعار اشتراك'.tr}: ${current.name} (${AppFormat.price(current.subscriptionPrice)})',
+                        height: 200,
+                      ),
+                    ] else
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.sm),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceAlt,
+                          borderRadius: BorderRadius.circular(AppRadii.sm),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Text(
+                          'لم يتم إرفاق إشعار تحويل اشتراك مع هذا الطلب.'.tr,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.textMuted),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+
               AppCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _InfoRow(label: 'الوصف'.tr, value: current.description ?? '-'),
+                    _InfoRow(
+                      label: 'الوصف'.tr,
+                      value: current.description ?? '-',
+                    ),
                     _InfoRow(label: 'المدينة'.tr, value: current.city ?? '-'),
-                    _InfoRow(label: 'العنوان'.tr, value: current.address ?? '-'),
+                    _InfoRow(
+                      label: 'العنوان'.tr,
+                      value: current.address ?? '-',
+                    ),
                     _InfoRow(
                       label: 'السجل التجاري'.tr,
                       value: current.commercialRegister ?? '-',
@@ -201,8 +316,14 @@ class AdminShopReviewScreen extends ConsumerWidget {
                       label: 'اسم المسؤول'.tr,
                       value: current.ownerName ?? '-',
                     ),
-                    _InfoRow(label: 'البريد'.tr, value: current.ownerEmail ?? '-'),
-                    _InfoRow(label: 'الهاتف'.tr, value: current.ownerPhone ?? '-'),
+                    _InfoRow(
+                      label: 'البريد'.tr,
+                      value: current.ownerEmail ?? '-',
+                    ),
+                    _InfoRow(
+                      label: 'الهاتف'.tr,
+                      value: current.ownerPhone ?? '-',
+                    ),
                   ],
                 ),
               ),
@@ -221,15 +342,17 @@ class AdminShopReviewScreen extends ConsumerWidget {
                         current.logoPath!,
                         height: 96,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            Text('تعذر عرض الشعار'.tr),
+                        errorBuilder: (_, _, _) => Text('تعذر عرض الشعار'.tr),
                       ),
                     ],
                   ),
                 ),
               ],
               const SizedBox(height: AppSpacing.md),
-              Text('صور المحل'.tr, style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                'صور المحل'.tr,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: AppSpacing.sm),
               imagesAsync.skeletonWhen(
                 placeholder: LoadingFixtures.media,
@@ -255,7 +378,7 @@ class AdminShopReviewScreen extends ConsumerWidget {
                                       image.filePath,
                                       height: 140,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) =>
+                                      errorBuilder: (_, _, _) =>
                                           Text(image.filePath),
                                     )
                                   : Text(image.filePath),
@@ -267,7 +390,10 @@ class AdminShopReviewScreen extends ConsumerWidget {
                 },
               ),
               const SizedBox(height: AppSpacing.md),
-              Text('المستندات'.tr, style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                'المستندات'.tr,
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: AppSpacing.sm),
               docsAsync.skeletonWhen(
                 placeholder: LoadingFixtures.documents,
@@ -326,9 +452,9 @@ class AdminShopReviewScreen extends ConsumerWidget {
                                   const SizedBox(height: AppSpacing.xs),
                                   Text(
                                     'اضغط لإنشاء رابط مؤقت للعرض'.tr,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodySmall,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
                                   ),
                                 ],
                               ),
@@ -342,13 +468,13 @@ class AdminShopReviewScreen extends ConsumerWidget {
               if (current.status == ShopStatus.pending) ...[
                 const SizedBox(height: AppSpacing.lg),
                 AppButton(
-                  label: 'قبول'.tr,
+                  label: 'قبول المحل وتفعيل الاشتراك'.tr,
                   isLoading: busy,
                   onPressed: () => _approve(context, ref, current),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AppButton(
-                  label: 'رفض'.tr,
+                  label: 'رفض الطلب'.tr,
                   variant: AppButtonVariant.outlined,
                   isLoading: busy,
                   onPressed: () => _reject(context, ref, current),
