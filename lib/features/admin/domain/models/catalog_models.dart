@@ -205,6 +205,9 @@ class AdminOrder {
     this.customerPhone,
     this.shippingCity,
     this.shippingAddress,
+    this.checkoutGroupId,
+    this.groupTotal,
+    this.groupShopsCount = 1,
   });
 
   final String id;
@@ -226,10 +229,25 @@ class AdminOrder {
   final String? customerPhone;
   final String? shippingCity;
   final String? shippingAddress;
+  final String? checkoutGroupId;
+  final double? groupTotal;
+  final int groupShopsCount;
 
   bool get isCustomerPickup => deliveryMode == 'customer_pickup';
   bool get hasReceipt =>
       paymentReceiptUrl != null && paymentReceiptUrl!.trim().isNotEmpty;
+  bool get isPaymentPending => paymentStatus == 'pending_verification';
+  bool get isPaymentVerified => paymentStatus == 'verified';
+  bool get hasPaymentIssue => paymentStatus == 'issue_reported';
+  bool get requiresPaymentVerification =>
+      paymentStatus == 'pending_verification' ||
+      paymentStatus == 'issue_reported';
+  bool get isGroupedPayment =>
+      checkoutGroupId != null &&
+      checkoutGroupId!.trim().isNotEmpty &&
+      groupShopsCount > 1;
+  double get effectiveGroupTotal =>
+      (groupTotal != null && groupTotal! > 0) ? groupTotal! : total;
   String get deliveryModeLabel =>
       isCustomerPickup ? 'توصيل من الزبون' : 'توصيل من المحل';
 
@@ -302,6 +320,9 @@ class AdminOrder {
           (map['delivery_address'] as String?) ??
           (map['shipping_address'] as String?) ??
           (customer is Map ? customer['address'] as String? : null),
+      checkoutGroupId: map['checkout_group_id']?.toString(),
+      groupTotal: (map['group_total'] as num?)?.toDouble(),
+      groupShopsCount: (map['group_shops_count'] as num?)?.toInt() ?? 1,
     );
   }
 }

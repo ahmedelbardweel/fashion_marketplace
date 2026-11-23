@@ -11,6 +11,7 @@ import '../../../core/offline/local_database.dart';
 import '../../../core/offline/network_monitor_service.dart';
 import '../../../core/offline/offline_sync_engine.dart';
 import '../../../core/pagination/paginated_state.dart';
+import '../../../core/utils/app_image_compressor.dart';
 import '../../../core/utils/map_utils.dart';
 import '../../auth/domain/models/app_user.dart';
 import '../../shop/domain/models/shop.dart';
@@ -554,6 +555,28 @@ class AdminRepository {
     );
   }
 
+  Future<int> verifyOrderPayment({
+    required String orderId,
+    required bool approved,
+    String? issueNote,
+    bool applyToGroup = true,
+  }) async {
+    await NetworkGuard.ensureOnline();
+    final data = await _client.rpc(
+      'admin_verify_order_payment',
+      params: {
+        'p_order_id': orderId,
+        'p_approved': approved,
+        'p_issue_note': (issueNote?.trim().isEmpty ?? true)
+            ? null
+            : issueNote!.trim(),
+        'p_apply_to_group': applyToGroup,
+      },
+    );
+    final map = asStringMap(data);
+    return (map['updated_count'] as num?)?.toInt() ?? 1;
+  }
+
   Future<List<GazaRegion>> fetchGazaRegions({bool activeOnly = false}) async {
     if (NetworkMonitorService.instance.isOnline) {
       try {
@@ -637,13 +660,22 @@ class AdminRepository {
     if (userId == null) {
       throw StateError('يجب تسجيل الدخول أولاً');
     }
+    final compressed = await AppImageCompressor.compressForUpload(
+      bytes: bytes,
+      fileName: fileName,
+      contentType: contentType,
+      preset: ImageCompressPreset.banner,
+    );
     final safeName =
-        '${DateTime.now().millisecondsSinceEpoch}_${p.basename(fileName)}';
+        '${DateTime.now().millisecondsSinceEpoch}_${p.basename(compressed.fileName)}';
     final path = '$userId/admin-banners/$safeName';
     await _client.storage.from('shop-media').uploadBinary(
           path,
-          bytes,
-          fileOptions: FileOptions(upsert: true, contentType: contentType),
+          compressed.bytes,
+          fileOptions: FileOptions(
+            upsert: true,
+            contentType: compressed.contentType,
+          ),
         );
     return _client.storage.from('shop-media').getPublicUrl(path);
   }
@@ -1244,7 +1276,13 @@ class AdminRepository {
     if (userId == null) {
       throw StateError('يجب تسجيل الدخول أولاً');
     }
-    final ext = p.extension(fileName).toLowerCase();
+    final compressed = await AppImageCompressor.compressForUpload(
+      bytes: bytes,
+      fileName: fileName,
+      contentType: contentType,
+      preset: ImageCompressPreset.receipt,
+    );
+    final ext = p.extension(compressed.fileName).toLowerCase();
     final safeExt =
         (ext == '.png' || ext == '.webp' || ext == '.jpeg' || ext == '.jpg')
         ? ext
@@ -1255,10 +1293,10 @@ class AdminRepository {
         .from('payment-receipts')
         .uploadBinary(
           path,
-          bytes,
+          compressed.bytes,
           fileOptions: FileOptions(
             upsert: true,
-            contentType: contentType ?? 'image/jpeg',
+            contentType: compressed.contentType,
           ),
         );
     return _client.storage.from('payment-receipts').getPublicUrl(path);

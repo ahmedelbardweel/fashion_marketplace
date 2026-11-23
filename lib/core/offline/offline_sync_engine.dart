@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../config/supabase_config.dart';
+import '../../core/network/tryon_bandwidth_guard.dart';
 import '../../core/utils/map_utils.dart';
 import '../../features/customer/domain/models/customer_order.dart';
 import 'background_preloader_service.dart';
@@ -111,7 +112,7 @@ class OfflineSyncEngine {
 
   /// Flushes all pending actions in `sync_outbox` in strict FIFO order.
   Future<int> syncPendingActions() async {
-    if (_isSyncing) return 0;
+    if (_isSyncing || TryonNetworkFocus.instance.isActive) return 0;
     final online = await NetworkMonitorService.instance.checkNow();
     if (!online) {
       await _emitSnapshot();

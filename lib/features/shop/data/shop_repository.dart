@@ -8,6 +8,7 @@ import '../../../config/supabase_config.dart';
 import '../../../core/network/network_guard.dart';
 import '../../../core/offline/local_database.dart';
 import '../../../core/offline/network_monitor_service.dart';
+import '../../../core/utils/app_image_compressor.dart';
 import '../../../core/utils/map_utils.dart';
 import '../../admin/domain/models/subscription_models.dart';
 import '../domain/models/shop.dart';
@@ -131,7 +132,13 @@ class ShopRepository {
   }) async {
     final userId = await _resolveUserId();
     if (userId == null) throw StateError('يجب تسجيل الدخول أولاً');
-    final ext = p.extension(fileName).toLowerCase();
+    final compressed = await AppImageCompressor.compressForUpload(
+      bytes: bytes,
+      fileName: fileName,
+      contentType: contentType,
+      preset: ImageCompressPreset.receipt,
+    );
+    final ext = p.extension(compressed.fileName).toLowerCase();
     final safeExt = (ext == '.png' || ext == '.webp' || ext == '.jpeg' || ext == '.jpg')
         ? ext
         : '.jpg';
@@ -142,10 +149,10 @@ class ShopRepository {
           .from('payment-receipts')
           .uploadBinary(
             path,
-            bytes,
+            compressed.bytes,
             fileOptions: FileOptions(
               upsert: true,
-              contentType: contentType ?? 'image/jpeg',
+              contentType: compressed.contentType,
             ),
           ),
       timeout: AppTimeouts.upload,

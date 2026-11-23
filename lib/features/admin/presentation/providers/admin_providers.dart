@@ -473,6 +473,31 @@ class AdminActionController extends StateNotifier<AsyncValue<void>> {
     });
   }
 
+  Future<int?> verifyOrderPayment({
+    required String orderId,
+    required bool approved,
+    String? issueNote,
+    bool applyToGroup = true,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      final count = await _repo.verifyOrderPayment(
+        orderId: orderId,
+        approved: approved,
+        issueNote: issueNote,
+        applyToGroup: applyToGroup,
+      );
+      _ref.invalidate(adminOrdersProvider);
+      _ref.invalidate(adminStatsProvider);
+      _ref.invalidate(adminSubscriptionPayoutOverviewProvider);
+      state = const AsyncValue.data(null);
+      return count;
+    } catch (error, stack) {
+      state = AsyncValue.error(error, stack);
+      return null;
+    }
+  }
+
   Future<bool> upsertRegion({
     required String name,
     String? nameEn,

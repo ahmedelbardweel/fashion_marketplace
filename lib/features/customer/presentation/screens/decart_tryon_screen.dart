@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +8,7 @@ import 'package:decart_vton_flutter/decart_vton_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../config/supabase_config.dart';
+import '../../../../core/network/tryon_bandwidth_guard.dart';
 import '../../../../core/services/decart_vton_sdk_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_skeleton.dart';
@@ -27,32 +29,45 @@ class DecartTryonScreen extends ConsumerStatefulWidget {
 
 class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     with WidgetsBindingObserver {
+  static const int _warmupDurationSeconds = 10;
+  static const List<double> _zoomPresets = [0.5, 1.0, 1.5, 2.0];
+  static const MethodChannel _soundChannel = MethodChannel(
+    'fashion/tryon_sound',
+  );
+
   late DecartVtonSdkService _service;
   late DecartTryonNotifier _controller;
   bool _ready = false,
       _started = false,
       _showGarments = false,
+      _showOtherProductsInDock = false,
       _showOriginal = false;
   bool _foreground = true;
-  bool _switchingCamera = false;
   bool _checkingGuidelines = true;
   bool _guidelinesAccepted = false;
   TryonQuota _quota = const TryonQuota();
   Timer? _countdownTimer;
-  int _remainingSeconds = 30;
+  Timer? _warmupTimer;
+  final ValueNotifier<int> _warmupSecondsNotifier = ValueNotifier<int>(
+    _warmupDurationSeconds,
+  );
+  final ValueNotifier<int> _remainingSecondsNotifier = ValueNotifier<int>(30);
+  final ValueNotifier<double> _zoomNotifier = ValueNotifier<double>(1.0);
+  final ValueNotifier<bool> _switchingCameraNotifier = ValueNotifier<bool>(
+    false,
+  );
+  final ValueNotifier<double> _cameraFlipTurnsNotifier = ValueNotifier<double>(
+    0.0,
+  );
+  bool _warmupActive = false;
+  bool _hasConnectedInSession = false;
+  bool _networkFocusAcquired = false;
+  bool _isPinching = false;
+  bool _lastGenerating = false;
+  bool _lastQualityPoor = false;
+  double _pinchBaseZoom = 1.0;
   bool _sessionTimedOut = false;
   String? _rendererError;
-
-  Timer? _snackHideTimer;
-  Timer? _snackNextTimer;
-  Timer? _lightingTipTimer;
-  bool _showLightingTip = true;
-  bool _snackVisible = false;
-  bool _snackSyncScheduled = false;
-  int _snackIndex = 0;
-  _CameraAlert? _displayedAlert;
-  List<_CameraAlert> _latestAlerts = const [];
-  String _lastAlertKeySet = '';
 
   @override
   void initState() {
@@ -69,8 +84,23 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   Future<void> _initialize() async {
     var accepted = false;
     try {
+      // Default to Data Saver, then run a single 0-byte latency check BEFORE
+      // Try-On starts (never during live streaming) to auto-select the best mode.
+      unawaited(
+        TryonNetworkFocus.instance.autoDetectBandwidthMode(
+          resetManualOverride: true,
+        ),
+      );
       // Preload product & catalog immediately for Step 1 (Interactive Body Zone Selector)
-      unawaited(_controller.preloadCatalog());
+      unawaited(
+        _controller.preloadCatalog().then((_) {
+          if (!mounted) return;
+          final refUrl = ref
+              .read(decartTryonProvider(widget.productId))
+              .effectiveImageUrl;
+          unawaited(_service.prewarmGarmentImage(refUrl));
+        }),
+      );
       final uid = ref.read(authControllerProvider).user?.id ?? 'guest';
       accepted = await TryonOnboardingStore.hasAccepted(uid);
       unawaited(_loadQuota());
@@ -109,7 +139,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
             (cfg.dailyLimit - cfg.usedToday).clamp(0, cfg.dailyLimit),
       );
       if (_countdownTimer == null) {
-        _remainingSeconds = cfg.sessionDurationSeconds;
+        _remainingSecondsNotifier.value = cfg.sessionDurationSeconds;
       }
     });
   }
@@ -122,7 +152,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       setState(() {
         _quota = loaded;
         if (_countdownTimer == null && !_started) {
-          _remainingSeconds = loaded.sessionDurationSeconds;
+          _remainingSecondsNotifier.value = loaded.sessionDurationSeconds;
         }
       });
     } catch (_) {
@@ -141,18 +171,20 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     if (_countdownTimer != null || _sessionTimedOut) return;
     final total = _service.sessionConfig.value?.sessionDurationSeconds ??
         _quota.sessionDurationSeconds;
-    _remainingSeconds = total;
+    _remainingSecondsNotifier.value = total;
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
       }
-      if (_remainingSeconds <= 1) {
+      final current = _remainingSecondsNotifier.value;
+      if (current <= 1) {
         timer.cancel();
         _countdownTimer = null;
         _handleSessionTimeout();
       } else {
-        setState(() => _remainingSeconds--);
+        // ValueNotifier updates ONLY the tiny countdown pill — zero full-screen rebuilds!
+        _remainingSecondsNotifier.value = current - 1;
       }
     });
   }
@@ -162,17 +194,101 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     _countdownTimer = null;
   }
 
+  void _playCountdownCue({bool finish = false}) {
+    if (finish) {
+      HapticFeedback.mediumImpact();
+    } else {
+      HapticFeedback.selectionClick();
+    }
+    unawaited(
+      _soundChannel.invokeMethod<void>(finish ? 'go' : 'tick').catchError((_) {
+        unawaited(SystemSound.play(SystemSoundType.click));
+      }),
+    );
+  }
+
+  void _startWarmup() {
+    _warmupTimer?.cancel();
+    _warmupSecondsNotifier.value = _warmupDurationSeconds;
+    _warmupActive = true;
+    _playCountdownCue();
+    _warmupTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      final current = _warmupSecondsNotifier.value;
+      if (current <= 1) {
+        timer.cancel();
+        _warmupTimer = null;
+        _warmupSecondsNotifier.value = 0;
+        _playCountdownCue(finish: true);
+        setState(() => _warmupActive = false);
+      } else {
+        // ValueNotifier updates ONLY the centered digit — zero PlatformView rebuilds!
+        _warmupSecondsNotifier.value = current - 1;
+        _playCountdownCue();
+      }
+    });
+  }
+
+  void _stopWarmup() {
+    _warmupTimer?.cancel();
+    _warmupTimer = null;
+    _warmupSecondsNotifier.value = 0;
+    if (_warmupActive && mounted) {
+      setState(() => _warmupActive = false);
+    } else {
+      _warmupActive = false;
+    }
+  }
+
+  void _acquireNetworkFocus() {
+    if (_networkFocusAcquired) return;
+    _networkFocusAcquired = true;
+    final user = ref.read(authControllerProvider).user;
+    TryonNetworkFocus.instance.acquire(
+      userId: user?.id,
+      userRole: user?.role.name,
+    );
+  }
+
+  void _releaseNetworkFocus() {
+    if (!_networkFocusAcquired) return;
+    _networkFocusAcquired = false;
+    TryonNetworkFocus.instance.release();
+  }
+
+  void _stopAndExitToProduct() {
+    HapticFeedback.lightImpact();
+    _warmupTimer?.cancel();
+    _warmupTimer = null;
+    _warmupActive = false;
+    _warmupSecondsNotifier.value = 0;
+    _stopCountdown();
+    // Pop IMMEDIATELY (0ms UI latency) before tearing down native WebRTC/camera
+    // and resuming background network services so the route transition stays 60fps.
+    if (mounted) {
+      context.pop();
+    }
+    final controller = _controller;
+    Future<void>.delayed(const Duration(milliseconds: 80), () {
+      if (controller.mounted) {
+        unawaited(controller.suspend());
+      }
+      _releaseNetworkFocus();
+    });
+  }
+
   void _handleSessionTimeout() {
-    _cancelSnackTimers();
+    _releaseNetworkFocus();
     unawaited(_controller.suspend());
     unawaited(_loadQuota());
     if (!mounted) return;
+    _remainingSecondsNotifier.value = 0;
     setState(() {
-      _remainingSeconds = 0;
       _sessionTimedOut = true;
       _showGarments = false;
-      _snackVisible = false;
-      _displayedAlert = null;
     });
   }
 
@@ -185,24 +301,30 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   void _generationChanged() {
     if (!mounted) return;
-    if (_service.isGenerating.value &&
-        _showLightingTip &&
-        _lightingTipTimer == null) {
-      _lightingTipTimer = Timer(const Duration(seconds: 12), () {
-        if (!mounted) return;
-        setState(() => _showLightingTip = false);
-      });
+    final generating = _service.isGenerating.value;
+    final quality = _service.connectionQuality.value;
+    final isPoor =
+        quality == VtonConnectionQuality.poor ||
+        quality == VtonConnectionQuality.unusable;
+
+    // Only rebuild when generating or poor-connection state actually flips
+    // (ignores high-frequency identical WebRTC telemetry ticks).
+    if (generating != _lastGenerating || isPoor != _lastQualityPoor) {
+      _lastGenerating = generating;
+      _lastQualityPoor = isPoor;
+      setState(() {});
     }
-    if (mounted) setState(() {});
   }
 
   Future<void> _switchCamera() async {
-    if (_switchingCamera) return;
-    setState(() => _switchingCamera = true);
+    if (_switchingCameraNotifier.value) return;
+    HapticFeedback.selectionClick();
+    _switchingCameraNotifier.value = true;
+    _cameraFlipTurnsNotifier.value += 0.5;
     try {
       await _controller.switchCamera();
     } finally {
-      if (mounted) setState(() => _switchingCamera = false);
+      if (mounted) _switchingCameraNotifier.value = false;
     }
   }
 
@@ -231,250 +353,51 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     }
     _stopCountdown();
     if (!mounted || !_foreground) return;
+    _acquireNetworkFocus();
+    _remainingSecondsNotifier.value = _quota.sessionDurationSeconds;
+    _zoomNotifier.value = 1.0;
     setState(() {
       _started = true;
+      _hasConnectedInSession = false;
       _sessionTimedOut = false;
-      _remainingSeconds = _quota.sessionDurationSeconds;
-      _showLightingTip = true;
-      _lightingTipTimer?.cancel();
-      _lightingTipTimer = null;
       _showOriginal = false;
       _showGarments = false;
     });
+    _startWarmup();
     await _controller.start();
   }
 
-  Future<void> _returnToBodyMap() async {
-    _cancelSnackTimers();
-    await _controller.suspend();
+  void _returnToBodyMap() {
+    HapticFeedback.lightImpact();
+    _warmupTimer?.cancel();
+    _warmupTimer = null;
+    _warmupSecondsNotifier.value = 0;
     _stopCountdown();
-    unawaited(_loadQuota());
-    if (!mounted) return;
-    setState(() {
-      _started = false;
-      _sessionTimedOut = false;
-      _showOriginal = false;
-      _showGarments = false;
-      _snackVisible = false;
-      _displayedAlert = null;
-      _latestAlerts = const [];
-      _lastAlertKeySet = '';
-    });
-  }
+    _zoomNotifier.value = 1.0;
 
-  void _cancelSnackTimers() {
-    _snackHideTimer?.cancel();
-    _snackHideTimer = null;
-    _snackNextTimer?.cancel();
-    _snackNextTimer = null;
-  }
-
-  List<_CameraAlert> _collectCameraAlerts(
-    DecartTryonState state, {
-    required bool failed,
-    required bool generating,
-    required TryonBodyZone activeZone,
-    required VtonConnectionQuality quality,
-  }) {
-    if (!_started && !failed) return const [];
-    final alerts = <_CameraAlert>[];
-    final seenKeys = <String>{};
-
-    void addAlert(_CameraAlert alert) {
-      if (seenKeys.add(alert.key)) alerts.add(alert);
-    }
-
-    if (failed) {
-      final errMsg =
-          state.errorMessage?.tr ??
-          _rendererError ??
-          'توقفت التجربة. يمكنك إعادة المحاولة الآن.'.tr;
-      addAlert(
-        _CameraAlert(
-          key: 'fatal:$errMsg:${state.retryPending}',
-          message: errMsg,
-          icon: Icons.error_outline_rounded,
-          accent: const Color(0xFFEF4444),
-          canRetry: !state.retryPending,
-        ),
-      );
-      if (state.retryPending) {
-        addAlert(
-          _CameraAlert(
-            key: 'retry:${state.retryAttempt}',
-            message:
-                'جارٍ استئناف التجربة تلقائياً… (${state.retryAttempt}/3)'.tr,
-            icon: Icons.refresh_rounded,
-            accent: AppColors.primary,
-          ),
-        );
-      }
-      return alerts;
-    }
-
-    if (!state.isConnected) {
-      addAlert(
-        _CameraAlert(
-          key: 'wait:connecting',
-          message: 'انتظر لحظة، جارٍ تجهيز الإطلالة…'.tr,
-          icon: Icons.auto_awesome_rounded,
-          accent: AppColors.primary,
-        ),
-      );
-      return alerts;
-    }
-
-    if (state.errorMessage != null && state.errorMessage!.trim().isNotEmpty) {
-      addAlert(
-        _CameraAlert(
-          key: 'session_err:${state.errorMessage}',
-          message: state.errorMessage!.tr,
-          icon: Icons.error_outline_rounded,
-          accent: const Color(0xFFEF4444),
-        ),
-      );
-    }
-
-    if (!state.isUpdating && !_showOriginal && generating) {
-      if (quality == VtonConnectionQuality.poor ||
-          quality == VtonConnectionQuality.unusable) {
-        addAlert(
-          _CameraAlert(
-            key: 'net_quality:${quality.name}',
-            message: 'اتصال الإنترنت ضعيف حالياً؛ قد تقل دقة المعاينة مؤقتاً.'.tr,
-            icon: Icons.wifi_tethering_error_rounded,
-            accent: const Color(0xFFF59E0B),
-          ),
-        );
-      }
-      if (_showLightingTip) {
-        addAlert(
-          _CameraAlert(
-            key: 'tip:lighting',
-            message:
-                'لثبات الوجه والجسم: قف في إضاءة أمامية واضحة دون ضوء خلفي قوي.'.tr,
-            icon: Icons.wb_sunny_outlined,
-            accent: const Color(0xFFF59E0B),
-          ),
-        );
-        addAlert(
-          _CameraAlert(
-            key: 'tip:zone:${activeZone.name}',
-            message: activeZone.framingInstruction.tr,
-            icon: Icons.accessibility_new_rounded,
-            accent: Color(activeZone.colorHex),
-          ),
-        );
-      }
-    }
-
-    if (state.isUpdating) {
-      addAlert(
-        _CameraAlert(
-          key: 'wait:updating',
-          message: 'جارٍ تبديل القطعة…'.tr,
-          icon: Icons.checkroom_rounded,
-          accent: AppColors.primary,
-        ),
-      );
-    } else if (!_showOriginal && !generating) {
-      addAlert(
-        _CameraAlert(
-          key: 'live_warming',
-          message: 'جارٍ تطبيق القطعة على جسمك…'.tr,
-          icon: Icons.auto_awesome_rounded,
-          accent: AppColors.primary,
-        ),
-      );
-    }
-
-    return alerts;
-  }
-
-  void _syncAlerts(List<_CameraAlert> alerts) {
-    _latestAlerts = alerts;
-    final keySet = alerts.map((e) => e.key).join('|');
-    final changed = keySet != _lastAlertKeySet;
-    _lastAlertKeySet = keySet;
-
-    if (alerts.isEmpty) {
-      if (_displayedAlert != null ||
-          _snackVisible ||
-          _snackHideTimer != null ||
-          _snackNextTimer != null) {
-        _scheduleSnackSync(() {
-          if (!mounted || _latestAlerts.isNotEmpty) return;
-          _cancelSnackTimers();
-          setState(() {
-            _snackVisible = false;
-            _displayedAlert = null;
-            _snackIndex = 0;
-          });
-        });
-      }
-      return;
-    }
-
-    final shouldInterruptImmediately =
-        changed &&
-        (_displayedAlert == null ||
-            (alerts.first.canRetry && !(_displayedAlert?.canRetry ?? false)));
-
-    if ((_snackHideTimer == null && _snackNextTimer == null) ||
-        shouldInterruptImmediately) {
-      _scheduleSnackSync(() {
-        if (!mounted || _latestAlerts.isEmpty) return;
-        _showAlertAt(0);
+    // Switch back to the Body Map IMMEDIATELY on this frame (0ms delay),
+    // never blocking the UI on native WebRTC/Camera2 disconnect.
+    if (mounted) {
+      setState(() {
+        _started = false;
+        _warmupActive = false;
+        _hasConnectedInSession = false;
+        _sessionTimedOut = false;
+        _showOriginal = false;
+        _showGarments = false;
       });
-    }
-  }
-
-  void _scheduleSnackSync(VoidCallback action) {
-    if (_snackSyncScheduled) return;
-    _snackSyncScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _snackSyncScheduled = false;
-      action();
-    });
-  }
-
-  void _showAlertAt(int index) {
-    if (!mounted || _latestAlerts.isEmpty) return;
-    _cancelSnackTimers();
-    final safeIndex = index % _latestAlerts.length;
-    setState(() {
-      _snackIndex = safeIndex;
-      _displayedAlert = _latestAlerts[safeIndex];
-      _snackVisible = true;
-    });
-    _snackHideTimer = Timer(const Duration(seconds: 5), _onSnackFiveSeconds);
-  }
-
-  void _onSnackFiveSeconds() {
-    _snackHideTimer = null;
-    if (!mounted) return;
-    final previousKey = _displayedAlert?.key;
-    setState(() => _snackVisible = false);
-
-    if (_latestAlerts.isEmpty) {
-      _displayedAlert = null;
-      return;
+    } else {
+      _warmupActive = false;
     }
 
-    final nextIndex = (_snackIndex + 1) % _latestAlerts.length;
-    final hasOtherAlert =
-        _latestAlerts.length > 1 || _latestAlerts.first.key != previousKey;
-    final pauseDuration = hasOtherAlert
-        ? const Duration(milliseconds: 550)
-        : const Duration(milliseconds: 1800);
-
-    _snackNextTimer = Timer(pauseDuration, () {
-      _snackNextTimer = null;
-      if (!mounted || _latestAlerts.isEmpty) {
-        if (mounted) setState(() => _displayedAlert = null);
-        return;
+    // Tear down the native stream asynchronously right after the UI switches,
+    // and defer background sync/quota refresh so the transition has zero lag.
+    unawaited(_controller.suspend());
+    Future<void>.delayed(const Duration(milliseconds: 400), () {
+      _releaseNetworkFocus();
+      if (mounted && !_started) {
+        unawaited(_loadQuota());
       }
-      _showAlertAt(nextIndex);
     });
   }
 
@@ -533,7 +456,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   void _openLightingTipsSheet(BuildContext context, TryonBodyZone activeZone) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF14171D),
+      backgroundColor: const Color(0xFF121212),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -662,12 +585,15 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
       _foreground = false;
+      _stopWarmup();
       _stopCountdown();
+      _releaseNetworkFocus();
       if (_ready && _started) {
         unawaited(_controller.suspend());
         if (mounted) {
           setState(() {
             _started = false;
+            _hasConnectedInSession = false;
             _showGarments = false;
             _showOriginal = false;
             _sessionTimedOut = false;
@@ -682,13 +608,19 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   @override
   void dispose() {
-    _cancelSnackTimers();
+    _warmupTimer?.cancel();
+    _releaseNetworkFocus();
     WidgetsBinding.instance.removeObserver(this);
     _service.isGenerating.removeListener(_generationChanged);
     _service.connectionQuality.removeListener(_generationChanged);
     _service.sessionConfig.removeListener(_configChanged);
     _stopCountdown();
-    _lightingTipTimer?.cancel();
+    _warmupSecondsNotifier.dispose();
+    _remainingSecondsNotifier.dispose();
+    _zoomNotifier.dispose();
+    _switchingCameraNotifier.dispose();
+    _cameraFlipTurnsNotifier.dispose();
+    PaintingBinding.instance.imageCache.clearLiveImages();
     if (_ready) {
       final controller = _controller;
       Future(() {
@@ -704,33 +636,53 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(decartTryonProvider(widget.productId));
+    if (state.isConnected) {
+      _hasConnectedInSession = true;
+    }
     final activeZone = state.effectiveZone;
-    final failed =
+    final rawFailed =
         !_sessionTimedOut &&
         (_rendererError != null ||
-        state.status == DecartSessionStatus.error ||
-        (_started && state.status == DecartSessionStatus.disconnected));
+            state.status == DecartSessionStatus.error ||
+            (_started &&
+                _hasConnectedInSession &&
+                state.status == DecartSessionStatus.disconnected));
+    // Never flash transient error banners while the 10s warm-up countdown is
+    // actively handshaking or auto-recovering.
+    final failed = rawFailed && !(_warmupActive && state.retryPending);
     final zoneColor = Color(activeZone.colorHex);
     final showOverlay =
         state.isConnected &&
+        !_warmupActive &&
         !_showOriginal &&
-        !_switchingCamera &&
         _foreground &&
         !failed;
 
-    final alerts = _collectCameraAlerts(
-      state,
-      failed: failed,
-      generating: _service.isGenerating.value,
-      activeZone: activeZone,
-      quality: _service.connectionQuality.value,
-    );
-    _syncAlerts(alerts);
+    // Only surface a calm, steady app-style snackbar when an unrecoverable state
+    // stops the session — never expose internal vendor/billing/key details.
+    final fatalNotice = (failed && !state.retryPending)
+        ? _buildFriendlyNotice(state.errorMessage ?? _rendererError)
+        : null;
 
-    if (state.isConnected && _started && !_sessionTimedOut && !failed) {
+    if (fatalNotice != null && _warmupActive) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _stopWarmup());
+    }
+
+    final quality = _service.connectionQuality.value;
+    final isPoorSignal =
+        quality == VtonConnectionQuality.poor ||
+        quality == VtonConnectionQuality.unusable;
+
+    if (state.isConnected &&
+        _started &&
+        !_warmupActive &&
+        !_sessionTimedOut &&
+        !failed) {
       if (_countdownTimer == null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _started && !_sessionTimedOut) _startCountdown();
+          if (mounted && _started && !_warmupActive && !_sessionTimedOut) {
+            _startCountdown();
+          }
         });
       }
     } else if (!_started || failed || _sessionTimedOut) {
@@ -739,8 +691,36 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
     if (_checkingGuidelines) {
       return Scaffold(
-        backgroundColor: AppColors.surface,
-        body: const Center(child: CircularProgressIndicator()),
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: AppSkeleton(
+            enabled: true,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       );
     }
 
@@ -755,27 +735,28 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
     if (!_started && !failed) {
       return Scaffold(
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.background,
         body: SafeArea(
           child: Column(
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+                  horizontal: 8,
+                  vertical: 2,
                 ),
                 child: Row(
                   children: [
                     IconButton(
                       tooltip: 'رجوع'.tr,
                       onPressed: () => context.pop(),
-                      icon: Icon(AppIcons.back),
+                      icon: Icon(AppIcons.back, color: AppColors.icon),
                     ),
                     Expanded(
                       child: Text(
                         'تجربة الملابس'.tr,
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: AppColors.text,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -784,7 +765,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                       tooltip: 'تعليمات التجربة الافتراضية'.tr,
                       onPressed: () =>
                           setState(() => _guidelinesAccepted = false),
-                      icon: const Icon(Icons.info_outline_rounded),
+                      icon: Icon(AppIcons.info, color: AppColors.icon),
                     ),
                   ],
                 ),
@@ -811,16 +792,16 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     final showGarmentDock =
         state.isConnected &&
         _showGarments &&
-        !state.isUpdating &&
         !failed &&
-        state.availableProducts.isNotEmpty;
+        (state.availableProducts.isNotEmpty ||
+            (state.selectedProduct?.tryonReferenceImages.isNotEmpty ?? false));
 
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         if (_started) {
-          unawaited(_returnToBodyMap());
+          _returnToBodyMap();
         } else {
           context.pop();
         }
@@ -836,25 +817,64 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
         body: Stack(
           fit: StackFit.expand,
           children: [
-            // 1) Edge-to-Edge Full-Screen Native Decart VTON Stream
+            // 1) Isolated Native Decart VTON Stream with Zero-Rebuild Pinch/Preset Zoom
             if (_ready && isVtonNativePlatformSupported)
               Positioned.fill(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    const ColoredBox(color: Colors.black),
-                    VtonLocalPreview(
-                      fit: VtonVideoFit.cover,
-                      mirror: state.isFrontCamera,
-                    ),
-                    AnimatedOpacity(
-                      opacity: showOverlay ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 180),
-                      child: const IgnorePointer(
-                        child: VtonRemoteView(fit: VtonVideoFit.cover),
+                child: RepaintBoundary(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onScaleStart: (_) {
+                      _isPinching = true;
+                      _pinchBaseZoom = _zoomNotifier.value;
+                    },
+                    onScaleEnd: (_) => _isPinching = false,
+                    onScaleUpdate: (details) {
+                      if (details.pointerCount < 2) return;
+                      final next = (_pinchBaseZoom * details.scale).clamp(
+                        0.5,
+                        2.5,
+                      );
+                      if ((next - _zoomNotifier.value).abs() > 0.015) {
+                        _zoomNotifier.value = next;
+                      }
+                    },
+                    child: ClipRect(
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: _zoomNotifier,
+                        builder: (context, zoom, _) {
+                          final wide = zoom <= 0.65;
+                          final fit = wide
+                              ? VtonVideoFit.contain
+                              : VtonVideoFit.cover;
+                          return AnimatedScale(
+                            scale: wide ? 1.0 : zoom,
+                            duration: _isPinching
+                                ? Duration.zero
+                                : const Duration(milliseconds: 140),
+                            curve: Curves.easeOutCubic,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                const ColoredBox(color: Colors.black),
+                                VtonLocalPreview(
+                                  fit: fit,
+                                  mirror: state.isFrontCamera,
+                                ),
+                                // Exact 1.0 / 0.0 Opacity skips offscreen saveLayer
+                                // allocation on Android Hybrid Composition PlatformViews.
+                                Opacity(
+                                  opacity: showOverlay ? 1.0 : 0.0,
+                                  child: IgnorePointer(
+                                    child: VtonRemoteView(fit: fit),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
                     ),
-                  ],
+                  ),
                 ),
               )
             else if (_ready)
@@ -873,6 +893,13 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                     ),
                   ),
                 ),
+              ),
+
+            // 1.5) Lightweight Frosted Blur + Giant Centered 10s Countdown
+            // Mounted ONLY while warming up so zero blur/ImageReader cost remains live.
+            if (_started && _warmupActive && !_sessionTimedOut && !failed)
+              Positioned.fill(
+                child: RepaintBoundary(child: _buildWarmupOverlay()),
               ),
 
             // Subtle top gradient so floating controls & status bar stay crisp
@@ -897,203 +924,183 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
               ),
             ),
 
-            // 2) Minimal Floating Top Controls over Camera
+            // 2) Clean, Zero-Overflow Floating Top Controls over Camera
             Positioned(
               top: 0,
               left: 0,
               right: 0,
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
+              child: RepaintBoundary(
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
+                    horizontal: 12,
                     vertical: 8,
                   ),
                   child: Row(
                     children: [
-                      _CameraFloatingCircleButton(
-                        icon: AppIcons.back,
-                        tooltip: 'رجوع'.tr,
-                        onTap: () {
-                          if (_started) {
-                            unawaited(_returnToBodyMap());
-                          } else {
-                            context.pop();
-                          }
-                        },
+                      Expanded(
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Material(
+                            color: Colors.black.withValues(alpha: 0.48),
+                            shape: StadiumBorder(
+                              side: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.16),
+                              ),
+                            ),
+                            child: InkWell(
+                              customBorder: const StadiumBorder(),
+                              onTap: () => _openBodyZoneModal(context),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 11,
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: BoxDecoration(
+                                        color: zoneColor,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        activeZone.shortLabel.tr,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.tune_rounded,
+                                      size: 14,
+                                      color: Colors.white70,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 8),
-                      Material(
-                        color: Colors.black.withValues(alpha: 0.48),
-                        shape: StadiumBorder(
-                          side: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.16),
-                          ),
-                        ),
-                        child: InkWell(
-                          customBorder: const StadiumBorder(),
-                          onTap: () => _openBodyZoneModal(context),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 9,
-                                  height: 9,
-                                  decoration: BoxDecoration(
-                                    color: zoneColor,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 7),
-                                Text(
-                                  activeZone.shortLabel.tr,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                const Icon(
-                                  Icons.tune_rounded,
-                                  size: 14,
-                                  color: Colors.white70,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      if (state.isConnected) ...[
-                        Material(
-                          color: Colors.black.withValues(alpha: 0.48),
-                          shape: StadiumBorder(
-                            side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.16),
-                            ),
-                          ),
-                          child: InkWell(
-                            customBorder: const StadiumBorder(),
-                            onTap: () =>
-                                setState(() => _showOriginal = !_showOriginal),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    _showOriginal
-                                        ? AppIcons.garment
-                                        : AppIcons.compare,
-                                    size: 15,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    _showOriginal
-                                        ? 'عرض القطعة'.tr
-                                        : 'الصورة الأصلية'.tr,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _CameraFloatingCircleButton(
-                          icon: AppIcons.garment,
-                          tooltip: 'اختيار قطعة'.tr,
-                          active: _showGarments,
-                          onTap: state.isUpdating
-                              ? null
-                              : () => setState(
-                                  () => _showGarments = !_showGarments,
-                                ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      if (_ready) ...[
+                      if (_ready)
                         _CameraFloatingCircleButton(
                           icon: Icons.wb_sunny_outlined,
                           tooltip: 'نصائح الإضاءة والوضعية'.tr,
                           onTap: () =>
                               _openLightingTipsSheet(context, activeZone),
                         ),
-                        const SizedBox(width: 8),
-                      ],
-                      if (_ready)
-                        _CameraFloatingCircleButton(
-                          icon: Icons.cameraswitch_rounded,
-                          tooltip: 'تبديل الكاميرا'.tr,
-                          onTap: _switchingCamera || state.isUpdating
-                              ? null
-                              : _switchCamera,
-                        ),
                     ],
                   ),
                 ),
               ),
+              ),
             ),
 
-            // 2.5) Floating Live Session Countdown Pill
-            if (state.isConnected && !_sessionTimedOut)
+            // 2.5) Calm Compact Top Center Status & Timer Pill (zero noisy popups)
+            if (_started && !_warmupActive && !_sessionTimedOut && !failed)
               Positioned(
-                top: MediaQuery.paddingOf(context).top + 60,
+                top: MediaQuery.paddingOf(context).top + 58,
                 left: 0,
                 right: 0,
-                child: IgnorePointer(
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: (_remainingSeconds <= 5
-                                ? const Color(0xFFEF4444)
-                                : _remainingSeconds <= 10
-                                ? const Color(0xFFF59E0B)
-                                : Colors.black)
-                            .withValues(alpha: 0.72),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.22),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.timer_outlined,
-                            size: 14,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            _formatCountdown(_remainingSeconds),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w800,
-                              fontFeatures: [FontFeature.tabularFigures()],
+                child: RepaintBoundary(
+                  child: IgnorePointer(
+                    child: Center(
+                      child: state.isConnected
+                          ? ValueListenableBuilder<int>(
+                              valueListenable: _remainingSecondsNotifier,
+                              builder: (context, remaining, _) => Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: (remaining <= 5
+                                          ? const Color(0xFFEF4444)
+                                          : remaining <= 10
+                                          ? const Color(0xFFF59E0B)
+                                          : Colors.black)
+                                      .withValues(alpha: 0.72),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.22),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.timer_outlined,
+                                      size: 14,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      _formatCountdown(remaining),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w800,
+                                        fontFeatures: [
+                                          FontFeature.tabularFigures(),
+                                        ],
+                                      ),
+                                    ),
+                                    if (state.isUpdating) ...[
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'جارٍ التبديل…'.tr,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ] else if (isPoorSignal) ...[
+                                      const SizedBox(width: 7),
+                                      const Icon(
+                                        Icons.wifi_rounded,
+                                        size: 13,
+                                        color: Color(0xFFF59E0B),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            )
+                          : Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.65),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.16),
+                                ),
+                              ),
+                              child: Text(
+                                'جارٍ تجهيز الإطلالة…'.tr,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ),
@@ -1110,10 +1117,10 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                       constraints: const BoxConstraints(maxWidth: 360),
                       padding: const EdgeInsets.all(22),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF161A22),
+                        color: const Color(0xFF121212),
                         borderRadius: BorderRadius.circular(22),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
+                          color: const Color(0xFF262626),
                         ),
                       ),
                       child: Column(
@@ -1215,37 +1222,45 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                 ),
               ),
 
-            // 3) Bottom Floating 5-Second Auto-Rotating SnackBar + Optional Garment Dock
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_displayedAlert != null)
-                        Padding(
-                          padding: EdgeInsets.only(
-                            bottom: showGarmentDock ? 10 : 0,
-                          ),
-                          child: _CameraStatusSnackBar(
-                            alert: _displayedAlert!,
-                            visible: _snackVisible,
-                            onRetry: _displayedAlert!.canRetry
-                                ? _controller.retry
-                                : null,
-                          ),
-                        ),
-                      if (showGarmentDock) _garmentDock(state),
-                    ],
+            // 3) Bottom Floating Alerts + Garment Dock + Zoom Control + Stop Try-On Bar
+            if (!_warmupActive && !_sessionTimedOut)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: RepaintBoundary(
+                  child: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (fatalNotice != null)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _CameraStatusSnackBar(
+                                message: fatalNotice.message,
+                                onRetry: fatalNotice.canRetry
+                                    ? _controller.retry
+                                    : null,
+                              ),
+                            ),
+                          if (showGarmentDock) ...[
+                            _garmentDock(state),
+                            const SizedBox(height: 10),
+                          ],
+                          if (_ready && !failed) ...[
+                            _buildZoomAndFlipRow(state),
+                            const SizedBox(height: 10),
+                          ],
+                          _buildBottomActionBar(state),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -1253,9 +1268,351 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     );
   }
 
+  _CameraNotice _buildFriendlyNotice(String? rawMessage) {
+    final raw = (rawMessage ?? '').trim();
+    final lower = raw.toLowerCase();
+
+    // Never expose internal provider names, API keys, credits, or billing to customers.
+    final isDailyOrServiceCap =
+        lower.contains('decart') ||
+        lower.contains('lucy') ||
+        lower.contains('credit') ||
+        lower.contains('balance') ||
+        lower.contains('billing') ||
+        lower.contains('quota') ||
+        lower.contains('402') ||
+        raw.contains('نفد رصيد') ||
+        raw.contains('مفتاح') ||
+        raw.contains('الاشتراك') ||
+        raw.contains('شحن الرصيد') ||
+        raw.contains('محاولاتك اليومية') ||
+        raw.contains('إيقاف خدمة') ||
+        raw.contains('غير مهيأة') ||
+        raw.contains('غير متوفرة');
+
+    if (isDailyOrServiceCap) {
+      return _CameraNotice(
+        message: 'انتهت جلسات التجربة المتاحة لليوم، نراك مجدداً قريباً.'.tr,
+        canRetry: false,
+      );
+    }
+
+    if (raw.contains('الكاميرا') || lower.contains('camera')) {
+      return _CameraNotice(
+        message: raw.isNotEmpty
+            ? raw.tr
+            : 'يرجى السماح بالوصول إلى الكاميرا ثم إعادة المحاولة.'.tr,
+        canRetry: true,
+      );
+    }
+
+    return _CameraNotice(
+      message: 'تعذر إكمال البث حالياً، تحقق من الإنترنت وجرّب مجدداً.'.tr,
+      canRetry: true,
+    );
+  }
+
+  Widget _buildWarmupOverlay() {
+    return ClipRect(
+      child: BackdropFilter(
+        // sigma 7 delivers smooth frosted glass at ~7x lower GPU memory bandwidth
+        // than sigma 18 over Android Hybrid Composition PlatformViews.
+        filter: ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+        child: Container(
+          color: Colors.black.withValues(alpha: 0.34),
+          alignment: Alignment.center,
+          child: ValueListenableBuilder<int>(
+            valueListenable: _warmupSecondsNotifier,
+            builder: (context, seconds, _) => AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 0.78, end: 1.0).animate(
+                    CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeOutCubic,
+                    ),
+                  ),
+                  child: child,
+                ),
+              ),
+              child: Text(
+                '$seconds',
+                key: ValueKey(seconds),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 124,
+                  height: 1.0,
+                  fontWeight: FontWeight.w900,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      blurRadius: 24,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildZoomAndFlipRow(DecartTryonState state) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildZoomControlPill(),
+        const SizedBox(width: 10),
+        ValueListenableBuilder<bool>(
+          valueListenable: _switchingCameraNotifier,
+          builder: (context, switching, _) {
+            final disabled = switching || state.isUpdating;
+            return Tooltip(
+              message: 'تبديل الكاميرا'.tr,
+              child: Material(
+                color: Colors.black.withValues(alpha: 0.56),
+                shape: CircleBorder(
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.16)),
+                ),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: disabled ? null : _switchCamera,
+                  child: SizedBox(
+                    width: 38,
+                    height: 38,
+                    child: Center(
+                      child: ValueListenableBuilder<double>(
+                        valueListenable: _cameraFlipTurnsNotifier,
+                        builder: (context, turns, _) => AnimatedRotation(
+                          turns: turns,
+                          duration: const Duration(milliseconds: 260),
+                          curve: Curves.easeOutCubic,
+                          child: Icon(
+                            Icons.cameraswitch_rounded,
+                            size: 19,
+                            color: disabled ? Colors.white38 : Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildZoomControlPill() {
+    String formatZoom(double v) =>
+        v == v.roundToDouble() ? '${v.toInt()}x' : '${v.toStringAsFixed(1)}x';
+
+    return ValueListenableBuilder<double>(
+      valueListenable: _zoomNotifier,
+      builder: (context, zoom, _) {
+        bool isPresetSelected(double preset) => (zoom - preset).abs() < 0.18;
+        return Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.56),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final preset in _zoomPresets) ...[
+                GestureDetector(
+                  onTap: () {
+                    _isPinching = false;
+                    _zoomNotifier.value = preset;
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 140),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isPresetSelected(preset)
+                          ? AppColors.primary
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Text(
+                      formatZoom(preset),
+                      style: TextStyle(
+                        color: isPresetSelected(preset)
+                            ? Colors.white
+                            : Colors.white70,
+                        fontSize: 11.5,
+                        fontWeight: isPresetSelected(preset)
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomActionBar(DecartTryonState state) {
+    final canInteract = state.isConnected && !state.isUpdating;
+    final hasVariants =
+        (state.selectedProduct?.tryonReferenceImages.length ?? 0) > 1;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.64),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        children: [
+          // Hanger / Colors & Garments Toggle
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: canInteract
+                  ? () => setState(() => _showGarments = !_showGarments)
+                  : null,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 9,
+                ),
+                decoration: BoxDecoration(
+                  color: _showGarments
+                      ? AppColors.primary
+                      : Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      AppIcons.garment,
+                      size: 16,
+                      color: canInteract ? Colors.white : Colors.white38,
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        hasVariants ? 'ألوان القطعة'.tr : 'القطع'.tr,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: canInteract ? Colors.white : Colors.white38,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Prominent Stop Try-On Button -> Exits straight to Product Details
+          Expanded(
+            flex: 2,
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFD92D20),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                minimumSize: const Size(0, 40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: _stopAndExitToProduct,
+              icon: const Icon(Icons.stop_circle_rounded, size: 18),
+              label: Text(
+                'إيقاف التجربة'.tr,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // Compare / Original Camera Toggle
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: state.isConnected
+                  ? () => setState(() => _showOriginal = !_showOriginal)
+                  : null,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 9,
+                ),
+                decoration: BoxDecoration(
+                  color: _showOriginal
+                      ? AppColors.primary
+                      : Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _showOriginal ? AppIcons.garment : AppIcons.compare,
+                      size: 16,
+                      color: state.isConnected ? Colors.white : Colors.white38,
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        _showOriginal ? 'القطعة'.tr : 'الأصلية'.tr,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: state.isConnected
+                              ? Colors.white
+                              : Colors.white38,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildQuotaBanner() {
     final blocked = !_quota.enabled || !_quota.hasRemaining;
-    final color = blocked ? const Color(0xFFEF4444) : AppColors.primary;
+    final color = blocked ? AppColors.error : AppColors.primary;
     final text = !_quota.enabled
         ? 'تم إيقاف خدمة التجربة الافتراضية مؤقتاً من قبل الإدارة.'.tr
         : !_quota.hasRemaining
@@ -1267,28 +1624,77 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.11),
-          borderRadius: BorderRadius.circular(12),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
             Icon(
-              blocked ? Icons.block_rounded : Icons.timer_outlined,
-              size: 16,
+              blocked ? Icons.block_rounded : IconsaxPlusLinear.timer_1,
+              size: 15,
               color: color,
             ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w700,
-                  color: color,
+                  color: blocked ? AppColors.error : AppColors.textSecondary,
                 ),
               ),
+            ),
+            const SizedBox(width: 8),
+            ValueListenableBuilder<TryonBandwidthMode>(
+              valueListenable: TryonNetworkFocus.instance.bandwidthMode,
+              builder: (context, mode, _) {
+                final isSaver = mode == TryonBandwidthMode.dataSaver;
+                return InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () {
+                    final next = isSaver
+                        ? TryonBandwidthMode.highQuality
+                        : TryonBandwidthMode.dataSaver;
+                    TryonNetworkFocus.instance.setManualBandwidthMode(next);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          IconsaxPlusLinear.wifi,
+                          size: 13,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isSaver ? 'توفير النت'.tr : 'جودة عالية'.tr,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.text,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -1297,21 +1703,197 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   }
 
   Widget _garmentDock(DecartTryonState state) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.62),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+    final product = state.selectedProduct;
+    final variantImages = product?.tryonReferenceImages ?? const <String>[];
+    final hasMultipleVariants = variantImages.length > 1;
+    final hasOtherProducts = state.availableProducts.length > 1;
+    final showVariants = hasMultipleVariants && !_showOtherProductsInDock;
+
+    return IgnorePointer(
+      ignoring: state.isUpdating,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 160),
+        opacity: state.isUpdating ? 0.65 : 1.0,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.68),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (hasMultipleVariants) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        showVariants
+                            ? '${'ألوان وصور القطعة'.tr} (${variantImages.length})'
+                            : '${'قطع أخرى للتجربة'.tr} (${state.availableProducts.length})',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (hasOtherProducts)
+                      Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _dockModeChip(
+                              label: 'ألوان القطعة'.tr,
+                              selected: showVariants,
+                              onTap: () => setState(
+                                () => _showOtherProductsInDock = false,
+                              ),
+                            ),
+                            _dockModeChip(
+                              label: 'قطع أخرى'.tr,
+                              selected: !showVariants,
+                              onTap: () => setState(
+                                () => _showOtherProductsInDock = true,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+              ],
+              SizedBox(
+                height: showVariants ? 84 : 92,
+                child: showVariants
+                    ? ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: variantImages.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 10),
+                        itemBuilder: (_, i) => _productImageVariantTile(
+                          imageUrl: variantImages[i],
+                          index: i,
+                          product: product!,
+                          state: state,
+                        ),
+                      )
+                    : ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: state.availableProducts.length,
+                        separatorBuilder: (_, _) => const SizedBox(width: 10),
+                        itemBuilder: (_, i) =>
+                            _garmentTile(state.availableProducts[i], state),
+                      ),
+              ),
+            ],
+          ),
+        ),
       ),
-      child: SizedBox(
-        height: 92,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: state.availableProducts.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 10),
-          itemBuilder: (_, i) =>
-              _garmentTile(state.availableProducts[i], state),
+    );
+  }
+
+  Widget _dockModeChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.black : Colors.white70,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _productImageVariantTile({
+    required String imageUrl,
+    required int index,
+    required CustomerProduct product,
+    required DecartTryonState state,
+  }) {
+    final selected = state.effectiveImageUrl == imageUrl;
+    final colors = product.availableColors.toList();
+    final label = index < colors.length
+        ? colors[index].tr
+        : (AppLang.isEn ? 'Style ${index + 1}' : 'خيار ${index + 1}');
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _controller.selectGarmentImage(imageUrl),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 78,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? Colors.white : Colors.white30,
+              width: selected ? 2.4 : 1,
+            ),
+          ),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: AppNetworkImage(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    cacheWidth: 192,
+                    errorBuilder: (_, _, _) => const Icon(
+                      AppIcons.garment,
+                      color: Colors.black54,
+                    ),
+                  ),
+                ),
+              ),
+              if (selected)
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: const BoxDecoration(
+                      color: Colors.black87,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      size: 12,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -1327,7 +1909,12 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       label: product.name,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => _controller.selectGarment(product),
+        onTap: () {
+          _controller.selectGarment(product);
+          if (product.tryonReferenceImages.length > 1) {
+            setState(() => _showOtherProductsInDock = false);
+          }
+        },
         child: Container(
           width: 80,
           padding: const EdgeInsets.all(6),
@@ -1391,19 +1978,13 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   }
 }
 
-class _CameraAlert {
-  const _CameraAlert({
-    required this.key,
+class _CameraNotice {
+  const _CameraNotice({
     required this.message,
-    required this.icon,
-    required this.accent,
     this.canRetry = false,
   });
 
-  final String key;
   final String message;
-  final IconData icon;
-  final Color accent;
   final bool canRetry;
 }
 
@@ -1449,103 +2030,59 @@ class _CameraFloatingCircleButton extends StatelessWidget {
   }
 }
 
+/// Minimal, steady app-standard SnackBar without icons or blinking animations.
 class _CameraStatusSnackBar extends StatelessWidget {
   const _CameraStatusSnackBar({
-    required this.alert,
-    required this.visible,
+    required this.message,
     this.onRetry,
   });
 
-  final _CameraAlert alert;
-  final bool visible;
+  final String message;
   final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      ignoring: !visible || onRetry == null,
-      child: AnimatedSlide(
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOutCubic,
-        offset: visible ? Offset.zero : const Offset(0, 0.35),
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 240),
-          opacity: visible ? 1.0 : 0.0,
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 240),
-            child: Container(
-              key: ValueKey(alert.key),
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xE011161F),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: alert.accent.withValues(alpha: 0.45),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: alert.accent.withValues(alpha: 0.16),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(alert.icon, size: 17, color: alert.accent),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      alert.message,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        height: 1.35,
-                      ),
-                    ),
-                  ),
-                  if (onRetry != null) ...[
-                    const SizedBox(width: 8),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        backgroundColor: alert.accent.withValues(alpha: 0.25),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      onPressed: onRetry,
-                      child: Text(
-                        'إعادة'.tr,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      decoration: BoxDecoration(
+        color: SnackBarDesign.background,
+        borderRadius: BorderRadius.circular(SnackBarDesign.radius),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: SnackBarDesign.text,
+                fontSize: 13,
+                fontWeight: AppFont.semiBold,
+                height: 1.4,
               ),
             ),
           ),
-        ),
+          if (onRetry != null) ...[
+            const SizedBox(width: 12),
+            TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: onRetry,
+              child: Text(
+                'إعادة'.tr,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

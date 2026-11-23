@@ -887,12 +887,49 @@ Future<void> showShopOrderStatusSheet(
                         ),
                       ),
                     ],
+                    if (order.isGroupedPayment) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.xs),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceAlt,
+                          borderRadius: BorderRadius.circular(AppRadii.sm),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              AppLang.isEn
+                                  ? 'Combined Transfer (${order.groupShopsCount} shops)'
+                                  : 'حوالة مجمّعة لـ ${order.groupShopsCount} متاجر',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: AppFont.bold,
+                                color: AppColors.text,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              AppLang.isEn
+                                  ? 'Receipt total: ${AppFormat.price(order.effectiveGroupTotal)} · Your shop share: ${AppFormat.price(order.total)}'
+                                  : 'إجمالي الحوالة في الإشعار: ${AppFormat.price(order.effectiveGroupTotal)} · حصة متجرك منها: ${AppFormat.price(order.total)}',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (order.hasReceipt) ...[
                       const SizedBox(height: AppSpacing.sm),
                       ReceiptThumbnailCard(
                         imageUrl: order.paymentReceiptUrl!,
-                        subtitle:
-                            '${'إشعار حوالة'.tr} ${shortOrderCode(order.id)} — ${AppFormat.price(order.total)}',
+                        subtitle: order.isGroupedPayment
+                            ? '${'إشعار حوالة مجمّعة'.tr} — ${AppFormat.price(order.effectiveGroupTotal)} (${'حصتك'.tr}: ${AppFormat.price(order.total)})'
+                            : '${'إشعار حوالة'.tr} ${shortOrderCode(order.id)} — ${AppFormat.price(order.total)}',
                         height: 168,
                       ),
                     ],
@@ -1547,7 +1584,8 @@ class ShopDetailsFormFields extends StatelessWidget {
               ],
             ),
           ),
-        if (showShopInfo && showOwnerInfo) const SizedBox(height: AppSpacing.md),
+        if (showShopInfo && showOwnerInfo)
+          const SizedBox(height: AppSpacing.md),
         if (showOwnerInfo)
           AppCard(
             child: Column(

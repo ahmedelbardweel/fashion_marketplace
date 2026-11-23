@@ -9,6 +9,7 @@ import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../router/routes.dart';
+import '../../domain/models/customer_shop.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
 
@@ -19,6 +20,17 @@ class CartScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cartItems = ref.watch(cartProvider);
     final cartNotifier = ref.read(cartProvider.notifier);
+    final shops = ref.watch(customerShopsProvider).asData?.value ??
+        const <CustomerShop>[];
+    final shopById = <String, CustomerShop>{for (final s in shops) s.id: s};
+    final itemsByShop = cartNotifier.itemsByShop;
+    final shopsCount = itemsByShop.length;
+    final subtotal = cartNotifier.totalAmount;
+    final estimatedDelivery = itemsByShop.keys.fold<double>(
+      0.0,
+      (sum, shopId) => sum + (shopById[shopId]?.deliveryFee ?? 0.0),
+    );
+    final estimatedTotal = subtotal + estimatedDelivery;
 
     return CustomerScaffold(
       title: 'سلة المشتريات'.tr,
@@ -278,7 +290,7 @@ class CartScreen extends ConsumerWidget {
                             style: TextStyle(color: CartDesign.summaryLabel),
                           ),
                           Text(
-                            AppFormat.price(cartNotifier.totalAmount),
+                            AppFormat.price(subtotal),
                             style: TextStyle(
                               fontWeight: AppFont.semiBold,
                               color: AppColors.text,
@@ -290,19 +302,46 @@ class CartScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'التوصيل'.tr,
-                            style: TextStyle(color: CartDesign.summaryLabel),
+                          Expanded(
+                            child: Text(
+                              shopsCount > 1
+                                  ? (AppLang.isEn
+                                        ? 'Delivery ($shopsCount shops)'
+                                        : 'التوصيل ($shopsCount متاجر)')
+                                  : 'التوصيل'.tr,
+                              style: TextStyle(color: CartDesign.summaryLabel),
+                            ),
                           ),
                           Text(
-                            'مجاناً'.tr,
+                            estimatedDelivery > 0
+                                ? AppFormat.price(estimatedDelivery)
+                                : 'مجاناً'.tr,
                             style: TextStyle(
-                              color: AppColors.primaryDark,
+                              color: estimatedDelivery > 0
+                                  ? AppColors.text
+                                  : AppColors.success,
                               fontWeight: AppFont.bold,
                             ),
                           ),
                         ],
                       ),
+                      if (estimatedDelivery > 0) ...[
+                        const SizedBox(height: 2),
+                        Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: Text(
+                            shopsCount > 1
+                                ? 'يمكنك اختيار التوصيل أو الاستلام لكل محل في الخطوة التالية.'
+                                      .tr
+                                : 'يمكنك اختيار الاستلام الشخصي (مجاناً) في الخطوة التالية.'
+                                      .tr,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ),
+                      ],
                       const Divider(height: AppSpacing.lg),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -316,7 +355,7 @@ class CartScreen extends ConsumerWidget {
                             ),
                           ),
                           Text(
-                            AppFormat.price(cartNotifier.totalAmount),
+                            AppFormat.price(estimatedTotal),
                             style: TextStyle(
                               fontSize: CartDesign.totalSize,
                               fontWeight: CartDesign.totalWeight,

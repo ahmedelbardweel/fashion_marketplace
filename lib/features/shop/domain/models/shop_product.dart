@@ -309,6 +309,9 @@ class ShopOrder {
     this.customerId,
     this.customerEmail,
     this.customerName,
+    this.checkoutGroupId,
+    this.groupTotal,
+    this.groupShopsCount = 1,
   });
 
   final String id;
@@ -331,6 +334,9 @@ class ShopOrder {
   final String? customerId;
   final String? customerEmail;
   final String? customerName;
+  final String? checkoutGroupId;
+  final double? groupTotal;
+  final int groupShopsCount;
 
   double get effectiveSubtotal =>
       subtotal ?? (total - deliveryFee).clamp(0.0, total);
@@ -344,6 +350,12 @@ class ShopOrder {
       paymentStatus == 'issue_reported';
   bool get hasReceipt =>
       paymentReceiptUrl != null && paymentReceiptUrl!.trim().isNotEmpty;
+  bool get isGroupedPayment =>
+      checkoutGroupId != null &&
+      checkoutGroupId!.trim().isNotEmpty &&
+      groupShopsCount > 1;
+  double get effectiveGroupTotal =>
+      (groupTotal != null && groupTotal! > 0) ? groupTotal! : total;
 
   String get deliveryModeLabel =>
       isCustomerPickup ? 'توصيل من الزبون' : 'توصيل من المحل';
@@ -418,6 +430,9 @@ class ShopOrder {
           DateTime.now(),
       customerEmail: customerMap?['email'] as String?,
       customerName: customerMap?['full_name'] as String?,
+      checkoutGroupId: map['checkout_group_id']?.toString(),
+      groupTotal: (map['group_total'] as num?)?.toDouble(),
+      groupShopsCount: (map['group_shops_count'] as num?)?.toInt() ?? 1,
     );
   }
 }

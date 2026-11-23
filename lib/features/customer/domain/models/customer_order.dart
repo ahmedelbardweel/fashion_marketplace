@@ -61,6 +61,9 @@ class CustomerOrder {
     this.paymentStatus = 'not_required',
     this.paymentIssueNote,
     this.paymentVerifiedAt,
+    this.checkoutGroupId,
+    this.groupTotal,
+    this.groupShopsCount = 1,
     this.items = const [],
   });
 
@@ -101,6 +104,9 @@ class CustomerOrder {
       paymentVerifiedAt: map['payment_verified_at'] == null
           ? null
           : DateTime.tryParse(map['payment_verified_at'].toString())?.toLocal(),
+      checkoutGroupId: map['checkout_group_id']?.toString(),
+      groupTotal: (map['group_total'] as num?)?.toDouble(),
+      groupShopsCount: (map['group_shops_count'] as num?)?.toInt() ?? 1,
       items: items ?? const [],
     );
   }
@@ -125,10 +131,20 @@ class CustomerOrder {
   final String paymentStatus;
   final String? paymentIssueNote;
   final DateTime? paymentVerifiedAt;
+  final String? checkoutGroupId;
+  final double? groupTotal;
+  final int groupShopsCount;
   final List<CustomerOrderItem> items;
 
   double get effectiveSubtotal =>
       subtotal ?? (total - deliveryFee).clamp(0.0, total);
+
+  bool get isGroupedPayment =>
+      checkoutGroupId != null &&
+      checkoutGroupId!.trim().isNotEmpty &&
+      groupShopsCount > 1;
+  double get effectiveGroupTotal =>
+      (groupTotal != null && groupTotal! > 0) ? groupTotal! : total;
 
   bool get isCustomerPickup => deliveryMode == 'customer_pickup';
   bool get isShopDelivery => !isCustomerPickup;

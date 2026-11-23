@@ -13,6 +13,7 @@ import '../../../core/offline/offline_sync_engine.dart';
 import '../../../core/pagination/paginated_state.dart';
 import '../../../core/search/smart_search_sheets.dart';
 import '../../../core/search/visual_search_service.dart';
+import '../../../core/utils/app_image_compressor.dart';
 import '../../../core/utils/map_utils.dart';
 import '../../admin/domain/models/catalog_models.dart';
 import '../../admin/domain/models/payment_method.dart';
@@ -1267,7 +1268,13 @@ class CustomerRepository {
     }
     await NetworkGuard.ensureOnline();
 
-    final ext = p.extension(fileName).toLowerCase();
+    final compressed = await AppImageCompressor.compressForUpload(
+      bytes: bytes,
+      fileName: fileName,
+      contentType: contentType,
+      preset: ImageCompressPreset.receipt,
+    );
+    final ext = p.extension(compressed.fileName).toLowerCase();
     final safeExt = ext.isEmpty ? '.jpg' : ext;
     final path =
         '$userId/receipt_${DateTime.now().millisecondsSinceEpoch}$safeExt';
@@ -1275,10 +1282,10 @@ class CustomerRepository {
     await NetworkGuard.run(
       () => _client.storage.from('payment-receipts').uploadBinary(
             path,
-            bytes,
+            compressed.bytes,
             fileOptions: FileOptions(
               upsert: true,
-              contentType: contentType ?? 'image/jpeg',
+              contentType: compressed.contentType,
             ),
           ),
       timeout: AppTimeouts.upload,
@@ -1299,6 +1306,9 @@ class CustomerRepository {
     required String deliveryMode,
     required String paymentMethodId,
     required String paymentReceiptUrl,
+    String? checkoutGroupId,
+    double? groupTotal,
+    int groupShopsCount = 1,
   }) async {
     if (items.isEmpty) {
       throw StateError('السلة فارغة');
@@ -1328,6 +1338,10 @@ class CustomerRepository {
         'p_delivery_mode': deliveryMode,
         'p_payment_method_id': paymentMethodId,
         'p_payment_receipt_url': paymentReceiptUrl.trim(),
+        if (checkoutGroupId != null && checkoutGroupId.trim().isNotEmpty)
+          'p_checkout_group_id': checkoutGroupId.trim(),
+        if (groupTotal != null && groupTotal > 0) 'p_group_total': groupTotal,
+        if (groupShopsCount > 1) 'p_group_shops_count': groupShopsCount,
       },
     );
 

@@ -327,8 +327,12 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                           if (activeMethods.isNotEmpty) ...[
                             const SizedBox(height: AppSpacing.xs),
                             Text(
-                              'المبلغ الإجمالي المطلوب: ${AppFormat.price(order.total)}'
-                                  .tr,
+                              order.isGroupedPayment
+                                  ? (AppLang.isEn
+                                        ? 'Combined transfer (${order.groupShopsCount} shops): ${AppFormat.price(order.effectiveGroupTotal)} · Updating receipt syncs all linked orders.'
+                                        : 'إجمالي الحوالة المجمّعة (${order.groupShopsCount} متاجر): ${AppFormat.price(order.effectiveGroupTotal)} · إعادة رفع الإشعار تحدّث جميع طلبات الحوالة تلقائياً.')
+                                  : 'المبلغ الإجمالي المطلوب: ${AppFormat.price(order.total)}'
+                                        .tr,
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 12,

@@ -9,6 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../network/tryon_bandwidth_guard.dart';
+import '../utils/app_image_compressor.dart';
 import 'network_monitor_service.dart';
 
 /// Persistent disk cache and background pre-downloader for all network images
@@ -148,8 +150,23 @@ class OfflineImageCacheService {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
+        final contentType = response.headers['content-type'];
+        var bytesToStore = response.bodyBytes;
+        if (AppImageCompressor.isCompressibleImage(
+          fileName: uri.path,
+          contentType: contentType,
+        )) {
+          final preferPng =
+              (contentType?.toLowerCase().contains('png') ?? false) ||
+              uri.path.toLowerCase().endsWith('.png');
+          bytesToStore = await AppImageCompressor.compressBytes(
+            bytesToStore,
+            preset: ImageCompressPreset.diskCache,
+            preferPng: preferPng,
+          );
+        }
         final tmpFile = File(p.join(_cacheDir!.path, '$key.tmp'));
-        await tmpFile.writeAsBytes(response.bodyBytes, flush: true);
+        await tmpFile.writeAsBytes(bytesToStore, flush: true);
         final saved = await tmpFile.rename(targetFile.path);
         _cachedKeys.add(key);
         return saved;
@@ -222,10 +239,17 @@ class OfflineImageCacheService {
     _pumpPrefetchQueue();
   }
 
+  /// Resumes background image prefetching after a Try-On focus session ends.
+  void resumePrefetch() {
+    if (kIsWeb || TryonNetworkFocus.instance.isActive) return;
+    _pumpPrefetchQueue();
+  }
+
   void _pumpPrefetchQueue() {
-    if (kIsWeb) return;
+    if (kIsWeb || TryonNetworkFocus.instance.isActive) return;
     while (_activePrefetchWorkers < _maxConcurrentPrefetches &&
-        _prefetchQueue.isNotEmpty) {
+        _prefetchQueue.isNotEmpty &&
+        !TryonNetworkFocus.instance.isActive) {
       final nextUrl = _prefetchQueue.removeFirst();
       _activePrefetchWorkers++;
       unawaited(_runPrefetchWorker(nextUrl));
@@ -234,6 +258,11 @@ class OfflineImageCacheService {
 
   Future<void> _runPrefetchWorker(String url) async {
     try {
+      if (TryonNetworkFocus.instance.isActive) {
+        // Re-queue so it downloads cleanly once Try-On ends.
+        _prefetchQueue.addFirst(url);
+        return;
+      }
       if (!NetworkMonitorService.instance.isOnline) {
         _queuedUrls.remove(url);
         return;
@@ -241,9 +270,12 @@ class OfflineImageCacheService {
       await getOrDownloadFile(url);
     } catch (_) {
     } finally {
-      _queuedUrls.remove(url);
+      if (!TryonNetworkFocus.instance.isActive) {
+        _queuedUrls.remove(url);
+      }
       _activePrefetchWorkers--;
       if (_prefetchQueue.isNotEmpty &&
+          !TryonNetworkFocus.instance.isActive &&
           NetworkMonitorService.instance.isOnline) {
         // Small yield between background image downloads to keep UI silky smooth
         Future<void>.delayed(

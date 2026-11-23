@@ -1,3 +1,4 @@
+import AudioToolbox
 import Flutter
 import UIKit
 import UserNotifications
@@ -85,6 +86,22 @@ import MediaPipeTasksVision
           DispatchQueue.main.async {
             UIApplication.shared.registerForRemoteNotifications()
           }
+          result(nil)
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
+    }
+
+    if let soundRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "FashionTryonSound") {
+      let soundChannel = FlutterMethodChannel(name: "fashion/tryon_sound", binaryMessenger: soundRegistrar.messenger())
+      soundChannel.setMethodCallHandler { call, result in
+        switch call.method {
+        case "tick":
+          AudioServicesPlaySystemSound(1104)
+          result(nil)
+        case "go":
+          AudioServicesPlaySystemSound(1113)
           result(nil)
         default:
           result(FlutterMethodNotImplemented)

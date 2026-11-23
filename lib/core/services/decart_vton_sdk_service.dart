@@ -10,7 +10,9 @@ import '../../features/virtual_tryon/data/decart_session_config.dart';
 import '../../features/virtual_tryon/data/tryon_errors.dart';
 import '../../features/virtual_tryon/domain/tryon_session.dart';
 import '../l10n/app_translations.dart';
+import '../network/tryon_bandwidth_guard.dart';
 import '../offline/offline_image_cache_service.dart';
+import '../utils/app_image_compressor.dart';
 
 /// Abstraction over [DecartVton] so [DecartVtonSdkService] can be tested in
 /// pure Dart without requiring native platform channels.
@@ -242,19 +244,21 @@ class _LiveVtonClient implements VtonClient {
     }
 
     _facing = camera;
+    final bw = TryonNetworkFocus.instance.bandwidthMode.value;
+    final targetFps = bw.maxFramerate < model.fps ? bw.maxFramerate : model.fps;
     final args = <String, Object?>{
       'model': model.id,
       'width': model.width,
       'height': model.height,
-      'fps': model.fps,
+      'fps': targetFps,
       'supportsReferenceImage': model.supportsReferenceImage,
       'facing': camera.name,
       'mirror': VtonMirrorMode.auto.name,
       'resolution': VtonResolution.p720.wireValue,
-      'connectTimeoutMs': 45000,
+      'connectTimeoutMs': bw.connectTimeoutMs,
       'video': VtonVideoConfig(
-        maxBitrate: 2000000,
-        maxFramerate: model.fps,
+        maxBitrate: bw.maxBitrate,
+        maxFramerate: targetFps,
         preferredCodec: defaultTargetPlatform == TargetPlatform.iOS
             ? 'h264'
             : 'vp8',
@@ -404,6 +408,7 @@ class DecartVtonSdkService implements TryonSession {
   StreamSubscription<VtonEvent>? _sdkEvents;
   DecartSessionConfig? _latestConfig;
   GarmentSelection? _lastGarment;
+  final Map<String, Uint8List> _compressedGarmentCache = <String, Uint8List>{};
   bool _front = true;
   bool _disposed = false;
   int _generation = 0;
@@ -518,7 +523,6 @@ class DecartVtonSdkService implements TryonSession {
     try {
       final facing = await client.switchCamera();
       _front = facing == VtonCameraFacing.front;
-      _emit(DecartSessionStatus.connected);
     } on DecartVtonException catch (error) {
       // Fallback for iOS/Android camera drivers where in-place LiveKit lens
       // switching is unsupported: reconnect seamlessly with the opposite lens.
@@ -566,7 +570,73 @@ class DecartVtonSdkService implements TryonSession {
     isGenerating.dispose();
     connectionQuality.dispose();
     sessionConfig.dispose();
+    _compressedGarmentCache.clear();
     await _events.close();
+  }
+
+  /// Pre-downloads and compresses a garment reference image while the user is
+  /// still on the body-map screen so starting the session uploads instantly.
+  Future<void> prewarmGarmentImage(String? imageUrl) async {
+    if (_disposed) return;
+    final clean = imageUrl?.trim() ?? '';
+    if (clean.isEmpty || _compressedGarmentCache.containsKey(clean)) return;
+    try {
+      await _loadCompressedGarmentBytes(clean);
+    } catch (_) {}
+  }
+
+  void _rememberCompressedGarment(String url, Uint8List bytes) {
+    if (_compressedGarmentCache.length >= 8) {
+      _compressedGarmentCache.remove(_compressedGarmentCache.keys.first);
+    }
+    _compressedGarmentCache[url] = bytes;
+  }
+
+  Future<Uint8List> _loadCompressedGarmentBytes(String url) async {
+    final inMem = _compressedGarmentCache[url];
+    if (inMem != null && inMem.isNotEmpty) return inMem;
+
+    Uint8List? rawBytes;
+    final cached = await OfflineImageCacheService.instance.getOrDownloadFile(
+      url,
+    );
+    if (cached != null && await cached.exists()) {
+      final fileBytes = await cached.readAsBytes();
+      if (fileBytes.isNotEmpty) {
+        rawBytes = fileBytes;
+      }
+    }
+
+    if (rawBytes == null) {
+      final uri = Uri.tryParse(url);
+      if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
+        throw TryonFailure('رابط صورة القطعة غير صالح للتجربة.'.tr);
+      }
+
+      final client = _http ?? http.Client();
+      final ownsClient = _http == null;
+      try {
+        final response = await client
+            .get(uri)
+            .timeout(const Duration(seconds: 20));
+        if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
+          throw TryonFailure('تعذر تحميل صورة القطعة للتجربة.'.tr);
+        }
+        if (response.bodyBytes.length > _maxGarmentBytes) {
+          throw TryonFailure('حجم صورة القطعة كبير جداً للتجربة.'.tr);
+        }
+        rawBytes = response.bodyBytes;
+      } finally {
+        if (ownsClient) client.close();
+      }
+    }
+
+    final compressed = await AppImageCompressor.compressBytes(
+      rawBytes,
+      preset: ImageCompressPreset.tryonGarment,
+    );
+    _rememberCompressedGarment(url, compressed);
+    return compressed;
   }
 
   VtonClient _ensureClient() {
@@ -699,42 +769,12 @@ class DecartVtonSdkService implements TryonSession {
     if (customResolver != null) return customResolver(garment);
 
     final prompt = buildSdkPrompt(garment);
-    final cached = await OfflineImageCacheService.instance.getOrDownloadFile(
-      garment.imageUrl,
+    final compressedBytes = await _loadCompressedGarmentBytes(garment.imageUrl);
+    return VtonOutfit(
+      prompt: prompt,
+      referenceImage: compressedBytes,
+      enhance: false,
     );
-    if (cached != null && await cached.exists() && await cached.length() > 0) {
-      return VtonOutfit(
-        prompt: prompt,
-        referenceImagePath: cached.path,
-        enhance: false,
-      );
-    }
-
-    final uri = Uri.tryParse(garment.imageUrl);
-    if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
-      throw TryonFailure('رابط صورة القطعة غير صالح للتجربة.'.tr);
-    }
-
-    final client = _http ?? http.Client();
-    final ownsClient = _http == null;
-    try {
-      final response = await client
-          .get(uri)
-          .timeout(const Duration(seconds: 12));
-      if (response.statusCode != 200 || response.bodyBytes.isEmpty) {
-        throw TryonFailure('تعذر تحميل صورة القطعة للتجربة.'.tr);
-      }
-      if (response.bodyBytes.length > _maxGarmentBytes) {
-        throw TryonFailure('حجم صورة القطعة كبير جداً للتجربة.'.tr);
-      }
-      return VtonOutfit(
-        prompt: prompt,
-        referenceImage: response.bodyBytes,
-        enhance: false,
-      );
-    } finally {
-      if (ownsClient) client.close();
-    }
   }
 
   void _handleSdkEvent(VtonEvent event) {

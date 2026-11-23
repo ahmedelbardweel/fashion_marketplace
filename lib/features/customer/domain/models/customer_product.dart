@@ -272,8 +272,8 @@ class CustomerProduct {
     return null;
   }
 
-  /// Prefer an explicit front reference; never send a 3D asset or rear image.
-  String? get tryonReferenceImage {
+  /// All valid front reference images (colors/styles) of this product for Try-On.
+  List<String> get tryonReferenceImages {
     final candidates =
         images.where((image) {
           final uri = Uri.tryParse(image.filePath);
@@ -288,8 +288,15 @@ class CustomerProduct {
           );
           return priority != 0 ? priority : a.sortOrder.compareTo(b.sortOrder);
         });
-    return candidates.firstOrNull?.filePath;
+    final seen = <String>{};
+    return [
+      for (final c in candidates)
+        if (seen.add(c.filePath)) c.filePath,
+    ];
   }
+
+  /// Prefer an explicit front reference; never send a 3D asset or rear image.
+  String? get tryonReferenceImage => tryonReferenceImages.firstOrNull;
 
   /// 3D Model file URL (.glb, .gltf, .deepar) for 3D Mesh AR Virtual Try-On
   String? get model3dUrl {

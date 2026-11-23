@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -61,7 +62,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _phoneController = TextEditingController();
   final _notesController = TextEditingController();
 
-  String _deliveryMode = 'shop_delivery'; // 'shop_delivery' | 'customer_pickup'
+  final Map<String, String> _deliveryModeByShop = {};
   String _paymentType = 'bank'; // 'bank' | 'wallet'
   String? _selectedPaymentMethodId;
   String? _uploadedReceiptUrl;
@@ -69,7 +70,26 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _isUploadingReceipt = false;
   bool _isSubmitting = false;
 
-  bool get _isShopDelivery => _deliveryMode == 'shop_delivery';
+  String _deliveryModeFor(String shopId) =>
+      _deliveryModeByShop[shopId] ?? 'shop_delivery';
+
+  bool _isShopDeliveryFor(String shopId) =>
+      _deliveryModeFor(shopId) == 'shop_delivery';
+
+  bool _hasAnyShopDelivery(Iterable<String> shopIds) {
+    if (shopIds.isEmpty) return true;
+    return shopIds.any(_isShopDeliveryFor);
+  }
+
+  String _generateUuidV4() {
+    final rng = Random.secure();
+    final bytes = List<int>.generate(16, (_) => rng.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    String hex(int b) => b.toRadixString(16).padLeft(2, '0');
+    final h = bytes.map(hex).join();
+    return '${h.substring(0, 8)}-${h.substring(8, 12)}-${h.substring(12, 16)}-${h.substring(16, 20)}-${h.substring(20, 32)}';
+  }
 
   @override
   void initState() {
@@ -82,7 +102,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
-  Future<void> _openAddressSheet() async {
+  Future<void> _openAddressSheet({required bool needsAddress}) async {
     if (_isSubmitting) return;
     await AppBottomSheet.show<void>(
       context: context,
@@ -93,14 +113,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           return SafeArea(
             top: false,
             child: AppBottomSheetScaffold(
-              title: _isShopDelivery
+              title: needsAddress
                   ? 'منطقة التوصيل والتواصل'.tr
                   : 'بيانات التواصل'.tr,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_isShopDelivery) ...[
+                  if (needsAddress) ...[
                     GazaRegionFormField(
                       controller: _cityController,
                       label: 'منطقة التوصيل في قطاع غزة *',
@@ -162,15 +182,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     super.dispose();
   }
 
-  double _computeDeliveryFee(
-    Map<String, List<dynamic>> itemsByShop,
-    List<CustomerShop> shops,
+  double _deliveryFeeForShop(String shopId, Map<String, CustomerShop> shopById) {
+    if (!_isShopDeliveryFor(shopId)) return 0.0;
+    return shopById[shopId]?.deliveryFee ?? 0.0;
+  }
+
+  double _computeTotalDeliveryFee(
+    Map<String, List<CartItem>> itemsByShop,
+    Map<String, CustomerShop> shopById,
   ) {
-    if (!_isShopDelivery) return 0.0;
-    final shopById = <String, CustomerShop>{for (final s in shops) s.id: s};
     var sum = 0.0;
     for (final shopId in itemsByShop.keys) {
-      sum += shopById[shopId]?.deliveryFee ?? 0.0;
+      sum += _deliveryFeeForShop(shopId, shopById);
     }
     return sum;
   }
@@ -224,7 +247,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
-  Future<void> _submitOrder(List<PaymentMethod> activeMethods) async {
+  Future<void> _submitOrder(
+    List<PaymentMethod> activeMethods,
+    Map<String, CustomerShop> shopById,
+  ) async {
+    final itemsByShop = ref.read(cartProvider.notifier).itemsByShop;
+    if (itemsByShop.isEmpty) {
+      showAppSnackBar(context, 'السلة فارغة'.tr, isError: true);
+      return;
+    }
+
+    final needsAddress = _hasAnyShopDelivery(itemsByShop.keys);
     final phone = _phoneController.text.trim();
     final city = _cityController.text.trim();
     final address = _addressController.text.trim();
@@ -233,19 +266,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     if (phone.isEmpty) {
       showAppSnackBar(context, 'يرجى إدخال رقم هاتف التواصل'.tr, isError: true);
-      await _openAddressSheet();
+      await _openAddressSheet(needsAddress: needsAddress);
       return;
     }
 
-    String fullAddress;
-    if (_isShopDelivery) {
+    if (needsAddress) {
       if (!isValidGazaRegionSelection(city, regions)) {
         showAppSnackBar(
           context,
           'يرجى اختيار منطقة التوصيل من قائمة قطاع غزة المعتمدة'.tr,
           isError: true,
         );
-        await _openAddressSheet();
+        await _openAddressSheet(needsAddress: true);
         return;
       }
       if (address.isEmpty) {
@@ -254,12 +286,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           'يرجى إدخال العنوان التفصيلي للتوصيل'.tr,
           isError: true,
         );
-        await _openAddressSheet();
+        await _openAddressSheet(needsAddress: true);
         return;
       }
-      fullAddress = '$city — $address';
-    } else {
-      fullAddress = 'توصيل من الزبون';
     }
 
     final selectedMethod = _resolveSelectedMethod(activeMethods);
@@ -281,11 +310,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       return;
     }
 
-    final itemsByShop = ref.read(cartProvider.notifier).itemsByShop;
-    if (itemsByShop.isEmpty) {
-      showAppSnackBar(context, 'السلة فارغة'.tr, isError: true);
-      return;
-    }
+    final shopsCount = itemsByShop.length;
+    final checkoutGroupId = shopsCount > 1 ? _generateUuidV4() : null;
+    final subtotal = ref.read(cartProvider.notifier).totalAmount;
+    final grandTotal =
+        subtotal + _computeTotalDeliveryFee(itemsByShop, shopById);
 
     setState(() => _isSubmitting = true);
 
@@ -293,15 +322,22 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       final repo = ref.read(customerRepositoryProvider);
 
       for (final entry in itemsByShop.entries) {
+        final mode = _deliveryModeFor(entry.key);
+        final shopAddress = mode == 'shop_delivery'
+            ? '$city — $address'
+            : 'توصيل من الزبون';
         await repo.placeOrder(
           shopId: entry.key,
           items: entry.value,
-          deliveryAddress: fullAddress,
+          deliveryAddress: shopAddress,
           phone: phone,
           notes: _notesController.text,
-          deliveryMode: _deliveryMode,
+          deliveryMode: mode,
           paymentMethodId: selectedMethod.id,
           paymentReceiptUrl: _uploadedReceiptUrl!,
+          checkoutGroupId: checkoutGroupId,
+          groupTotal: grandTotal,
+          groupShopsCount: shopsCount,
         );
       }
 
@@ -336,7 +372,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    'تم إرسال طلبك وإشعار الحوالة بنجاح'.tr,
+                    shopsCount > 1
+                        ? (AppLang.isEn
+                              ? '$shopsCount Orders Placed with One Transfer!'
+                              : 'تم إرسال $shopsCount طلبات بحوالة واحدة بنجاح')
+                        : 'تم إرسال طلبك وإشعار الحوالة بنجاح'.tr,
                     style: Theme.of(
                       ctx,
                     ).textTheme.titleLarge?.copyWith(fontWeight: AppFont.bold),
@@ -344,8 +384,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    'سيراجع صاحب المتجر إشعار الحوالة ويبدأ بتجهيز وشحن طلبك فوراً، وسيصلك إشعار بكل تحديث.'
-                        .tr,
+                    shopsCount > 1
+                        ? 'تم تقسيم سلتك تلقائياً إلى شحنات مستقلة لكل متجر، وسيتم تأكيد الحوالة وتجهيز كل شحنة من محلها.'
+                              .tr
+                        : 'سيتم مراجعة إشعار الحوالة وتأكيده ليبدأ المتجر بتجهيز وشحن طلبك فوراً، وسيصلك إشعار بكل تحديث.'
+                              .tr,
                     style: Theme.of(
                       ctx,
                     ).textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
@@ -403,9 +446,27 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final paymentMethodsAsync = ref.watch(activePaymentMethodsProvider);
 
     final shops = shopsAsync.asData?.value ?? const <CustomerShop>[];
-    final shopDeliveryFee = _computeDeliveryFee(itemsByShop, shops);
-    final activeDeliveryFee = _isShopDelivery ? shopDeliveryFee : 0.0;
+    final shopById = <String, CustomerShop>{for (final s in shops) s.id: s};
+    final shopEntries = itemsByShop.entries.toList();
+    final isMultiShop = shopEntries.length > 1;
+    final anyShopDelivery = _hasAnyShopDelivery(itemsByShop.keys);
+    final activeDeliveryFee = _computeTotalDeliveryFee(itemsByShop, shopById);
     final grandTotal = subtotal + activeDeliveryFee;
+
+    final shipments = [
+      for (final entry in shopEntries)
+        _ShopShipmentSummary(
+          shopId: entry.key,
+          shopName:
+              shopById[entry.key]?.name ??
+              (entry.value.isNotEmpty ? entry.value.first.shopName : 'متجر'.tr),
+          shopCity: shopById[entry.key]?.city,
+          items: entry.value,
+          subtotal: entry.value.fold<double>(0, (s, i) => s + i.totalPrice),
+          shopConfiguredDeliveryFee: shopById[entry.key]?.deliveryFee ?? 0.0,
+          deliveryMode: _deliveryModeFor(entry.key),
+        ),
+    ];
 
     final activeMethods =
         paymentMethodsAsync.asData?.value ?? const <PaymentMethod>[];
@@ -424,13 +485,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       showBottomNav: false,
       bottomNavigationBar: _CheckoutStickyFooter(
         items: cartItems,
+        shipments: shipments,
         subtotal: subtotal,
         deliveryFee: activeDeliveryFee,
         grandTotal: grandTotal,
-        isShopDelivery: _isShopDelivery,
+        hasAnyShopDelivery: anyShopDelivery,
         isSubmitting: _isSubmitting,
         canSubmit: canSubmit,
-        onSubmit: () => _submitOrder(activeMethods),
+        onSubmit: () => _submitOrder(activeMethods, shopById),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
@@ -443,45 +505,93 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // =================================================================
-            // 1) اختيار التوصيل في أعلى الشاشة مباشرة
+            // 1) الشحنات وخيار التوصيل لكل محل (شحنة واحدة أو عدة شحنات مستقلة)
             // =================================================================
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(AppRadii.md),
-                border: Border.all(color: AppColors.border),
+            if (!isMultiShop && shipments.length == 1) ...[
+              Builder(
+                builder: (_) {
+                  final sh = shipments.first;
+                  final shopDel = sh.isShopDelivery;
+                  return Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadii.md),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _SegmentedDeliveryTab(
+                            selected: shopDel,
+                            title: sh.shopConfiguredDeliveryFee > 0
+                                ? '${'توصيل المحل'.tr} (${AppFormat.price(sh.shopConfiguredDeliveryFee)})'
+                                : 'توصيل المحل'.tr,
+                            onTap: _isSubmitting
+                                ? null
+                                : () {
+                                    AppHaptics.selection();
+                                    setState(
+                                      () => _deliveryModeByShop[sh.shopId] =
+                                          'shop_delivery',
+                                    );
+                                  },
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: _SegmentedDeliveryTab(
+                            selected: !shopDel,
+                            title: 'توصيل الزبون'.tr,
+                            onTap: _isSubmitting
+                                ? null
+                                : () {
+                                    AppHaptics.selection();
+                                    setState(
+                                      () => _deliveryModeByShop[sh.shopId] =
+                                          'customer_pickup',
+                                    );
+                                  },
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
-              child: Row(
+            ] else if (isMultiShop) ...[
+              Row(
                 children: [
                   Expanded(
-                    child: _SegmentedDeliveryTab(
-                      selected: _isShopDelivery,
-                      title: 'توصيل المحل'.tr,
-                      onTap: _isSubmitting
-                          ? null
-                          : () {
-                              AppHaptics.selection();
-                              setState(() => _deliveryMode = 'shop_delivery');
-                            },
+                    child: _CompactSectionTitle(
+                      title: AppLang.isEn
+                          ? 'Shipments by Shop (${shipments.length})'
+                          : 'الشحنات حسب المحل (${shipments.length} متاجر)',
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: _SegmentedDeliveryTab(
-                      selected: !_isShopDelivery,
-                      title: 'توصيل الزبون'.tr,
-                      onTap: _isSubmitting
-                          ? null
-                          : () {
-                              AppHaptics.selection();
-                              setState(() => _deliveryMode = 'customer_pickup');
-                            },
-                    ),
+                  AppStatusBadge(
+                    label: 'توصيل مستقل لكل محل'.tr,
+                    tone: BadgeTone.neutral,
                   ),
                 ],
               ),
-            ),
+              const SizedBox(height: 6),
+              for (var i = 0; i < shipments.length; i++) ...[
+                _MultiShopShipmentCard(
+                  index: i + 1,
+                  totalShipments: shipments.length,
+                  shipment: shipments[i],
+                  disabled: _isSubmitting,
+                  onModeChanged: (mode) {
+                    AppHaptics.selection();
+                    setState(
+                      () => _deliveryModeByShop[shipments[i].shopId] = mode,
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+              ],
+            ],
 
             const SizedBox(height: AppSpacing.sm),
 
@@ -494,17 +604,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 final addrText = _addressController.text.trim();
                 final phoneText = _phoneController.text.trim();
                 final summaryParts = <String>[
-                  if (_isShopDelivery && cityText.isNotEmpty) cityText,
-                  if (_isShopDelivery && addrText.isNotEmpty) addrText,
+                  if (anyShopDelivery && cityText.isNotEmpty) cityText,
+                  if (anyShopDelivery && addrText.isNotEmpty) addrText,
                   if (phoneText.isNotEmpty) phoneText,
                 ];
                 final summaryLine = summaryParts.isEmpty
-                    ? 'اضغط لإدخال المنطقة والعنوان ورقم الهاتف'.tr
+                    ? (anyShopDelivery
+                          ? 'اضغط لإدخال المنطقة والعنوان ورقم الهاتف'.tr
+                          : 'اضغط لإدخال رقم هاتف التواصل'.tr)
                     : summaryParts.join(' · ');
 
                 return AppCard(
                   padding: EdgeInsets.zero,
-                  onTap: _isSubmitting ? null : _openAddressSheet,
+                  onTap: _isSubmitting
+                      ? null
+                      : () => _openAddressSheet(needsAddress: anyShopDelivery),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -520,7 +634,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                             borderRadius: BorderRadius.circular(AppRadii.sm),
                           ),
                           child: Icon(
-                            _isShopDelivery
+                            anyShopDelivery
                                 ? AppIcons.location
                                 : AppIcons.phone,
                             size: 15,
@@ -534,7 +648,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                _isShopDelivery
+                                anyShopDelivery
                                     ? 'منطقة التوصيل والتواصل'.tr
                                     : 'بيانات التواصل'.tr,
                                 style: TextStyle(
@@ -600,7 +714,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   focusedBorder: InputBorder.none,
                   filled: false,
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                  hintText: _isShopDelivery
+                  hintText: anyShopDelivery
                       ? 'ملاحظات للتوصيل (اختياري)'.tr
                       : 'ملاحظات أو اسم المندوب (اختياري)'.tr,
                   hintStyle: TextStyle(
@@ -651,6 +765,42 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (isMultiShop) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(AppRadii.sm),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            AppIcons.info,
+                            size: 15,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              AppLang.isEn
+                                  ? 'One combined transfer of ${AppFormat.price(grandTotal)} for ${shipments.length} shops — each shop ships independently.'
+                                  : 'حوالة واحدة مجمّعة بقيمة ${AppFormat.price(grandTotal)} لـ ${shipments.length} متاجر — تصلك كل شحنة من محلها بشكل مستقل.',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.textSecondary,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
                   // Bank / Wallet selector + account details (unified AppSkeleton shimmer)
                   paymentMethodsAsync.skeletonWhen(
                     placeholder: _kPlaceholderPaymentMethods,
@@ -1182,29 +1332,208 @@ class _CompactReceiptAction extends StatelessWidget {
   }
 }
 
+class _ShopShipmentSummary {
+  const _ShopShipmentSummary({
+    required this.shopId,
+    required this.shopName,
+    this.shopCity,
+    required this.items,
+    required this.subtotal,
+    required this.shopConfiguredDeliveryFee,
+    required this.deliveryMode,
+  });
+
+  final String shopId;
+  final String shopName;
+  final String? shopCity;
+  final List<CartItem> items;
+  final double subtotal;
+  final double shopConfiguredDeliveryFee;
+  final String deliveryMode;
+
+  bool get isShopDelivery => deliveryMode == 'shop_delivery';
+  double get activeDeliveryFee =>
+      isShopDelivery ? shopConfiguredDeliveryFee : 0.0;
+  double get total => subtotal + activeDeliveryFee;
+}
+
+class _MultiShopShipmentCard extends StatelessWidget {
+  const _MultiShopShipmentCard({
+    required this.index,
+    required this.totalShipments,
+    required this.shipment,
+    required this.disabled,
+    required this.onModeChanged,
+  });
+
+  final int index;
+  final int totalShipments;
+  final _ShopShipmentSummary shipment;
+  final bool disabled;
+  final ValueChanged<String> onModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final city = shipment.shopCity?.trim();
+    return AppCard(
+      padding: const EdgeInsets.all(AppSpacing.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Text(
+                  AppLang.isEn
+                      ? 'Shipment $index/$totalShipments'
+                      : 'شحنة $index من $totalShipments',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: AppFont.bold,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  shipment.shopName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: AppFont.bold,
+                    color: AppColors.text,
+                  ),
+                ),
+              ),
+              if (city != null && city.isNotEmpty) ...[
+                const SizedBox(width: 4),
+                Icon(AppIcons.location, size: 12, color: AppColors.textMuted),
+                const SizedBox(width: 2),
+                Text(
+                  city,
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (final item in shipment.items)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 1.5),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${item.productName} (${item.variantDescription}) × ${item.quantity}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    AppFormat.price(item.totalPrice),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: AppFont.semiBold,
+                      color: AppColors.text,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(AppRadii.sm),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _SegmentedDeliveryTab(
+                    selected: shipment.isShopDelivery,
+                    title: shipment.shopConfiguredDeliveryFee > 0
+                        ? '${'توصيل المحل'.tr} (${AppFormat.price(shipment.shopConfiguredDeliveryFee)})'
+                        : '${'توصيل المحل'.tr} (${'مجاناً'.tr})',
+                    onTap: disabled ? null : () => onModeChanged('shop_delivery'),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: _SegmentedDeliveryTab(
+                    selected: !shipment.isShopDelivery,
+                    title: '${'توصيل الزبون'.tr} (${'مجاناً'.tr})',
+                    onTap:
+                        disabled ? null : () => onModeChanged('customer_pickup'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'إجمالي هذه الشحنة'.tr,
+                style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+              ),
+              Text(
+                AppFormat.price(shipment.total),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: AppFont.extraBold,
+                  color: AppColors.text,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CheckoutStickyFooter extends StatelessWidget {
   const _CheckoutStickyFooter({
     required this.items,
+    required this.shipments,
     required this.subtotal,
     required this.deliveryFee,
     required this.grandTotal,
-    required this.isShopDelivery,
+    required this.hasAnyShopDelivery,
     required this.isSubmitting,
     required this.canSubmit,
     required this.onSubmit,
   });
 
   final List<CartItem> items;
+  final List<_ShopShipmentSummary> shipments;
   final double subtotal;
   final double deliveryFee;
   final double grandTotal;
-  final bool isShopDelivery;
+  final bool hasAnyShopDelivery;
   final bool isSubmitting;
   final bool canSubmit;
   final VoidCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
+    final isMultiShop = shipments.length > 1;
     return Material(
       color: AppColors.surface,
       elevation: 0,
@@ -1226,7 +1555,47 @@ class _CheckoutStickyFooter extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (items.isNotEmpty) ...[
+                if (isMultiShop) ...[
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 62),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: shipments.map((sh) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 1.5),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${sh.shopName} (${sh.isShopDelivery ? 'توصيل المحل'.tr : 'توصيل الزبون'.tr})',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpacing.sm),
+                                Text(
+                                  AppFormat.price(sh.total),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: AppFont.bold,
+                                    color: AppColors.text,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 10),
+                ] else if (items.isNotEmpty) ...[
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxHeight: 54),
                     child: SingleChildScrollView(
@@ -1287,13 +1656,16 @@ class _CheckoutStickyFooter extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (isShopDelivery) ...[
+                if (hasAnyShopDelivery) ...[
                   const SizedBox(height: 3),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'رسوم التوصيل (من المحل)'.tr,
+                        isMultiShop
+                            ? 'إجمالي رسوم التوصيل (${shipments.where((s) => s.isShopDelivery).length} متاجر)'
+                                  .tr
+                            : 'رسوم التوصيل (من المحل)'.tr,
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
@@ -1329,9 +1701,11 @@ class _CheckoutStickyFooter extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'المبلغ المطلوب تحويله'.tr,
+                        isMultiShop
+                            ? 'المبلغ المطلوب تحويله (حوالة واحدة)'.tr
+                            : 'المبلغ المطلوب تحويله'.tr,
                         style: TextStyle(
-                          fontSize: 13.5,
+                          fontSize: 13,
                           fontWeight: AppFont.bold,
                           color: AppColors.text,
                         ),

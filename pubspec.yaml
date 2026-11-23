@@ -60,5 +60,9 @@ flutter:
   assets:
     - .env
     - assets/images/app_logo.png
+    - assets/images/tryon_body_model_slim.png
+    - assets/images/tryon_body_model.png
+    - assets/images/tryon_body_model_plus.png
+    - assets/images/tryon_body_model_xl.png
     - assets/images/onboarding/
     - assets/models/pose_landmarker_lite.task

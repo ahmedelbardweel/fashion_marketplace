@@ -23,7 +23,9 @@ class DecartTryonState {
   const DecartTryonState({
     this.status = DecartSessionStatus.idle,
     this.selectedProduct,
+    this.selectedImageUrl,
     this.appliedProductId,
+    this.appliedImageUrl,
     this.availableProducts = const [],
     this.selectedZone = TryonBodyZone.upperBody,
     this.zoneManuallySelected = false,
@@ -35,7 +37,9 @@ class DecartTryonState {
   });
   final DecartSessionStatus status;
   final CustomerProduct? selectedProduct;
+  final String? selectedImageUrl;
   final String? appliedProductId;
+  final String? appliedImageUrl;
   final List<CustomerProduct> availableProducts;
   final TryonBodyZone selectedZone;
   final bool zoneManuallySelected;
@@ -48,6 +52,10 @@ class DecartTryonState {
   bool get isOverlayLoading =>
       status == DecartSessionStatus.initializing ||
       status == DecartSessionStatus.connecting;
+  String? get effectiveImageUrl =>
+      (selectedImageUrl?.isNotEmpty ?? false)
+      ? selectedImageUrl
+      : selectedProduct?.tryonReferenceImage;
   TryonBodyZone get effectiveZone =>
       zoneManuallySelected || selectedProduct == null
       ? selectedZone
@@ -59,7 +67,9 @@ class DecartTryonState {
   DecartTryonState copyWith({
     DecartSessionStatus? status,
     CustomerProduct? selectedProduct,
+    String? selectedImageUrl,
     String? appliedProductId,
+    String? appliedImageUrl,
     List<CustomerProduct>? availableProducts,
     TryonBodyZone? selectedZone,
     bool? zoneManuallySelected,
@@ -67,14 +77,21 @@ class DecartTryonState {
     bool? isUpdating,
     String? errorMessage,
     bool clearApplied = false,
+    bool clearSelectedImage = false,
     bool? retryPending,
     int? retryAttempt,
   }) => DecartTryonState(
     status: status ?? this.status,
     selectedProduct: selectedProduct ?? this.selectedProduct,
+    selectedImageUrl: clearSelectedImage
+        ? null
+        : selectedImageUrl ?? this.selectedImageUrl,
     appliedProductId: clearApplied
         ? null
         : appliedProductId ?? this.appliedProductId,
+    appliedImageUrl: clearApplied
+        ? null
+        : appliedImageUrl ?? this.appliedImageUrl,
     availableProducts: availableProducts ?? this.availableProducts,
     selectedZone: selectedZone ?? this.selectedZone,
     zoneManuallySelected: zoneManuallySelected ?? this.zoneManuallySelected,
@@ -157,6 +174,7 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
   late final StreamSubscription<TryonSessionEvent> _subscription;
   Timer? _debounce;
   CustomerProduct? _pending;
+  String? _pendingImageUrl;
   bool _draining = false;
   bool _starting = false;
   bool _suspended = false;
@@ -197,16 +215,24 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
         (product.tryonReferenceImage?.isNotEmpty ?? false);
   }
 
-  GarmentSelection _garment(CustomerProduct product) => GarmentSelection(
-    id: product.id,
-    name: product.name,
-    imageUrl: product.tryonReferenceImage ?? '',
-    category: product.categoryName,
-    description: product.description,
-    targetZone: state.zoneManuallySelected
-        ? state.selectedZone
-        : TryonBodyZone.infer(product.name, product.categoryName),
-  );
+  GarmentSelection _garment(CustomerProduct product, {String? imageUrl}) {
+    final resolvedImage = (imageUrl?.trim().isNotEmpty ?? false)
+        ? imageUrl!.trim()
+        : ((state.selectedProduct?.id == product.id &&
+                  (state.selectedImageUrl?.trim().isNotEmpty ?? false))
+              ? state.selectedImageUrl!.trim()
+              : (product.tryonReferenceImage ?? ''));
+    return GarmentSelection(
+      id: product.id,
+      name: product.name,
+      imageUrl: resolvedImage,
+      category: product.categoryName,
+      description: product.description,
+      targetZone: state.zoneManuallySelected
+          ? state.selectedZone
+          : TryonBodyZone.infer(product.name, product.categoryName),
+    );
+  }
 
   /// Preloads the initial product and catalog during Step 1 (Body Map screen)
   /// so the user sees the product and its auto-detected body zone before starting the camera.
@@ -223,6 +249,7 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
       state = state.copyWith(
         availableProducts: garments,
         selectedProduct: initial,
+        selectedImageUrl: initial.tryonReferenceImage,
         selectedZone: state.zoneManuallySelected
             ? state.selectedZone
             : TryonBodyZone.infer(initial.name, initial.categoryName),
@@ -244,6 +271,7 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
     if (changed && state.isConnected && state.selectedProduct != null) {
       ++_revision;
       _pending = state.selectedProduct;
+      _pendingImageUrl = state.effectiveImageUrl;
       state = state.copyWith(isUpdating: true);
       _debounce?.cancel();
       _debounce = Timer(const Duration(milliseconds: 120), _drain);
@@ -280,18 +308,22 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
         state = state.copyWith(
           availableProducts: garments,
           selectedProduct: initial,
+          selectedImageUrl: initial.tryonReferenceImage,
           selectedZone: state.zoneManuallySelected
               ? state.selectedZone
               : TryonBodyZone.infer(initial.name, initial.categoryName),
         );
       }
       final selected = state.selectedProduct!;
-      await _session.start(_garment(selected));
+      final chosenUrl = state.effectiveImageUrl ?? selected.tryonReferenceImage;
+      await _session.start(_garment(selected, imageUrl: chosenUrl));
       if (!mounted || revision != _revision) return;
       // Service emits errors itself; an applied ID is only useful after ready.
       if (state.status != DecartSessionStatus.error) {
         state = state.copyWith(
           appliedProductId: selected.id,
+          appliedImageUrl: chosenUrl,
+          selectedImageUrl: chosenUrl,
           isFrontCamera: _session.isUsingFrontCamera,
         );
       }
@@ -312,26 +344,37 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
     }
   }
 
-  void selectGarment(CustomerProduct product, {bool keepManualZone = false}) {
+  void selectGarment(
+    CustomerProduct product, {
+    String? imageUrl,
+    bool keepManualZone = false,
+  }) {
     if (!mounted) return;
+    final targetImage = (imageUrl?.trim().isNotEmpty ?? false)
+        ? imageUrl!.trim()
+        : product.tryonReferenceImage;
     final inferredZone = keepManualZone && state.zoneManuallySelected
         ? state.selectedZone
         : TryonBodyZone.infer(product.name, product.categoryName);
     if (!state.isConnected) {
       state = state.copyWith(
         selectedProduct: product,
+        selectedImageUrl: targetImage,
         selectedZone: inferredZone,
         zoneManuallySelected: keepManualZone && state.zoneManuallySelected,
       );
       return;
     }
-    if (state.selectedProduct?.id == product.id) {
+    if (state.selectedProduct?.id == product.id &&
+        state.effectiveImageUrl == targetImage) {
       return;
     }
     ++_revision;
     _pending = product;
+    _pendingImageUrl = targetImage;
     state = state.copyWith(
       selectedProduct: product,
+      selectedImageUrl: targetImage,
       selectedZone: inferredZone,
       zoneManuallySelected: keepManualZone && state.zoneManuallySelected,
       isUpdating: true,
@@ -340,19 +383,29 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
     _debounce = Timer(const Duration(milliseconds: 120), _drain);
   }
 
+  /// Switches to another color/image of the currently selected product live.
+  void selectGarmentImage(String imageUrl) {
+    final current = state.selectedProduct;
+    if (current == null || imageUrl.trim().isEmpty) return;
+    selectGarment(current, imageUrl: imageUrl, keepManualZone: true);
+  }
+
   Future<void> _drain() async {
     if (_draining || !mounted) return;
     _draining = true;
     try {
       while (_pending != null && mounted && state.isConnected) {
         final product = _pending!;
+        final imageUrl = _pendingImageUrl ?? product.tryonReferenceImage;
         final revision = _revision;
         _pending = null;
+        _pendingImageUrl = null;
         try {
-          await _session.select(_garment(product));
+          await _session.select(_garment(product, imageUrl: imageUrl));
           if (!mounted || revision != _revision) continue;
           state = state.copyWith(
             appliedProductId: product.id,
+            appliedImageUrl: imageUrl,
             isUpdating: false,
           );
         } catch (error) {
@@ -370,6 +423,8 @@ class DecartTryonNotifier extends StateNotifier<DecartTryonState> {
           if (applied != null) {
             state = state.copyWith(
               selectedProduct: applied,
+              selectedImageUrl:
+                  state.appliedImageUrl ?? applied.tryonReferenceImage,
               errorMessage: state.errorMessage,
             );
           }

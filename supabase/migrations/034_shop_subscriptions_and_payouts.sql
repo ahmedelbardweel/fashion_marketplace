@@ -22,9 +22,9 @@ create table if not exists public.subscription_plans (
   is_active boolean not null default true,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now().
-  
+  updated_at timestamptz not null default now()
 );
+
 
 create index if not exists subscription_plans_active_idx
   on public.subscription_plans (is_active, sort_order, created_at);
@@ -429,16 +429,34 @@ begin
   where id = v_uid;
 
   -- Notify admins
-  for v_admin_id in select id from public.profiles where role = 'admin' and is_active = true loop
-    insert into public.notifications (user_id, title, body, data)
+  for v_admin_id in
+    select id from public.profiles
+    where role = 'admin' and is_active = true and id is distinct from v_uid
+  loop
+    insert into public.notifications (
+      title,
+      body,
+      audience,
+      created_by,
+      target_user_id,
+      shop_id,
+      sender_role,
+      target_scope,
+      metadata
+    )
     values (
-      v_admin_id,
       'طلب اعتماد متجر واشتراك جديد',
       format('أرسل متجر "%s" طلب اعتماد مع إشعار اشتراك %s بقيمة %s ₪.', v_shop.name, v_plan.name, v_plan.price),
+      'all',
+      v_uid,
+      v_admin_id,
+      v_shop.id,
+      'system',
+      'user',
       jsonb_build_object(
-        'type', 'shop_subscription_submitted',
+        'event_type', 'shop_subscription_submitted',
         'shop_id', v_shop.id,
-        'route', '/admin/shop-applications/' || v_shop.id::text
+        'route', '/admin/shops/' || v_shop.id::text
       )
     );
   end loop;
@@ -543,14 +561,32 @@ begin
     updated_at = now()
   where id = v_shop.id;
 
-  for v_admin_id in select id from public.profiles where role = 'admin' and is_active = true loop
-    insert into public.notifications (user_id, title, body, data)
+  for v_admin_id in
+    select id from public.profiles
+    where role = 'admin' and is_active = true and id is distinct from v_uid
+  loop
+    insert into public.notifications (
+      title,
+      body,
+      audience,
+      created_by,
+      target_user_id,
+      shop_id,
+      sender_role,
+      target_scope,
+      metadata
+    )
     values (
-      v_admin_id,
       'طلب تجديد اشتراك متجر',
       format('أرسل متجر "%s" إشعار تجديد %s بقيمة %s ₪.', v_shop.name, v_plan.name, v_plan.price),
+      'all',
+      v_uid,
+      v_admin_id,
+      v_shop.id,
+      'system',
+      'user',
       jsonb_build_object(
-        'type', 'shop_subscription_renewal',
+        'event_type', 'shop_subscription_renewal',
         'shop_id', v_shop.id,
         'subscription_id', v_sub.id,
         'route', '/admin/revenue'
@@ -667,18 +703,33 @@ begin
     raise exception 'تعذر تحديث حالة الطلب أو أنه تمت مراجعته مسبقاً';
   end if;
 
-  insert into public.notifications (user_id, title, body, data)
+  insert into public.notifications (
+    title,
+    body,
+    audience,
+    created_by,
+    target_user_id,
+    shop_id,
+    sender_role,
+    target_scope,
+    metadata
+  )
   values (
-    v_shop.owner_id,
     case when p_approve then 'تم اعتماد متجرك وتفعيل اشتراكك' else 'تم رفض طلب اعتماد المتجر' end,
     case
       when p_approve then format('مبارك! تم اعتماد متجر "%s" وتفعيل اشتراك %s. يمكنك الآن نشر منتجاتك.', v_shop.name, v_plan_name)
       else format('تم رفض طلب متجر "%s": %s. يمكنك تصحيح البيانات أو إشعار الحوالة وإعادة الإرسال.', v_shop.name, trim(p_rejection_reason))
     end,
+    'shop',
+    auth.uid(),
+    v_shop.owner_id,
+    v_shop.id,
+    'system',
+    'user',
     jsonb_build_object(
-      'type', case when p_approve then 'shop_approved' else 'shop_rejected' end,
+      'event_type', case when p_approve then 'shop_approved' else 'shop_rejected' end,
       'shop_id', v_shop.id,
-      'route', case when p_approve then '/shop' else '/shop/complete-profile' end
+      'route', case when p_approve then '/shop/home' else '/shop/complete-profile' end
     )
   );
 
@@ -764,13 +815,28 @@ begin
       updated_at = now()
     where id = v_shop.id;
 
-    insert into public.notifications (user_id, title, body, data)
+    insert into public.notifications (
+      title,
+      body,
+      audience,
+      created_by,
+      target_user_id,
+      shop_id,
+      sender_role,
+      target_scope,
+      metadata
+    )
     values (
-      v_shop.owner_id,
       'تم تفعيل اشتراك متجرك بنجاح',
       format('تم اعتماد اشتراك "%s" لمتجر "%s" بنجاح.', v_sub.plan_name, v_shop.name),
+      'shop',
+      auth.uid(),
+      v_shop.owner_id,
+      v_shop.id,
+      'system',
+      'user',
       jsonb_build_object(
-        'type', 'subscription_approved',
+        'event_type', 'subscription_approved',
         'shop_id', v_shop.id,
         'subscription_id', v_sub.id,
         'route', '/shop/sales'
@@ -802,13 +868,28 @@ begin
       where id = v_shop.id;
     end if;
 
-    insert into public.notifications (user_id, title, body, data)
+    insert into public.notifications (
+      title,
+      body,
+      audience,
+      created_by,
+      target_user_id,
+      shop_id,
+      sender_role,
+      target_scope,
+      metadata
+    )
     values (
-      v_shop.owner_id,
       'تم رفض إشعار الاشتراك',
       format('تم رفض إشعار اشتراك متجر "%s": %s. يمكنك إعادة رفع إشعار صحيح.', v_shop.name, trim(p_rejection_reason)),
+      'shop',
+      auth.uid(),
+      v_shop.owner_id,
+      v_shop.id,
+      'system',
+      'user',
       jsonb_build_object(
-        'type', 'subscription_rejected',
+        'event_type', 'subscription_rejected',
         'shop_id', v_shop.id,
         'subscription_id', v_sub.id,
         'route', case when v_sub.is_renewal then '/shop/sales' else '/shop/complete-profile' end
@@ -1298,13 +1379,28 @@ begin
   )
   returning * into v_payout;
 
-  insert into public.notifications (user_id, title, body, data)
+  insert into public.notifications (
+    title,
+    body,
+    audience,
+    created_by,
+    target_user_id,
+    shop_id,
+    sender_role,
+    target_scope,
+    metadata
+  )
   values (
-    v_shop.owner_id,
     'تم تحويل مستحقات لمتجرك',
     format('تم تحويل مبلغ %s ₪ من مستحقات مبيعات متجر "%s" بنجاح.', round(p_amount, 2), v_shop.name),
+    'shop',
+    auth.uid(),
+    v_shop.owner_id,
+    v_shop.id,
+    'system',
+    'user',
     jsonb_build_object(
-      'type', 'shop_payout_recorded',
+      'event_type', 'shop_payout_recorded',
       'shop_id', v_shop.id,
       'payout_id', v_payout.id,
       'route', '/shop/sales'

@@ -3042,6 +3042,58 @@ class AppLang {
     'مصر': 'Egypt',
     'الصين': 'China',
     'إيطاليا': 'Italy',
+    // --- Multi-Shop Shipments & Grouped Payment Transfer ---
+    'توصيل مستقل لكل محل': 'Independent delivery per shop',
+    'اضغط لإدخال رقم هاتف التواصل': 'Tap to enter contact phone number',
+    'إجمالي هذه الشحنة': 'Shipment total',
+    'المبلغ المطلوب تحويله (حوالة واحدة)': 'Total to Transfer (1 Transfer)',
+    'تم تقسيم سلتك تلقائياً إلى شحنات مستقلة لكل متجر، وسيتم تأكيد الحوالة وتجهيز كل شحنة من محلها.':
+        'Your cart was automatically split into separate shipments per shop. Once your transfer is verified, each shop prepares its shipment.',
+    'سيتم مراجعة إشعار الحوالة وتأكيده ليبدأ المتجر بتجهيز وشحن طلبك فوراً، وسيصلك إشعار بكل تحديث.':
+        'Your transfer receipt will be verified so the shop can start preparing and shipping your order right away.',
+    'إشعار حوالة مجمّعة': 'Combined Transfer Receipt',
+    'حصتك': 'Your share',
+    'تأكيد استلام الحوالة': 'Confirm Transfer Receipt',
+    'تم تأكيد استلام الحوالة بنجاح': 'Transfer confirmed successfully',
+    'الإبلاغ عن مشكلة في الإشعار': 'Report Receipt Issue',
+    'الإبلاغ عن مشكلة في الحوالة': 'Report Transfer Issue',
+    'مثال: المبلغ المحوّل ناقص أو صورة الإشعار غير واضحة':
+        'e.g. Transferred amount is incomplete or receipt photo is blurry',
+    'تم إشعار العميل بالمشكلة لإعادة رفع الإشعار':
+        'Customer notified to re-upload the transfer receipt',
+    'يمكنك اختيار التوصيل أو الاستلام لكل محل في الخطوة التالية.':
+        'You can choose delivery or pickup for each shop in the next step.',
+    'يمكنك اختيار الاستلام الشخصي (مجاناً) في الخطوة التالية.':
+        'You can choose self-pickup (free) in the next step.',
+    'ألوان وصور القطعة': 'Item Colors & Photos',
+    'قطع أخرى للتجربة': 'Other Items to Try',
+    'ألوان القطعة': 'Colors',
+    'قطع أخرى': 'Other Items',
+    'جارٍ تجهيز التجربة الافتراضية': 'Preparing Virtual Try-On',
+    'التجربة جاهزة الآن!': 'Try-On is Ready!',
+    'تم التحقق من الكاميرا والقطعة بنجاح.':
+        'Camera and garment verified successfully.',
+    'نتحقق من الكاميرا والاتصال ونجهّز القطعة لتدخل على بث جاهز مباشرة.':
+        'Verifying camera, connection, and preparing your outfit so you enter a ready live preview.',
+    'الكاميرا والاتصال': 'Camera & Connection',
+    'تجهيز القطعة': 'Garment Ready',
+    'البث المباشر': 'Live Stream',
+    'دخول للتجربة الآن': 'Enter Try-On Now',
+    'إلغاء والعودة للمنتج': 'Cancel & Back to Product',
+    'إيقاف التجربة': 'Stop Try-On',
+    'القطع': 'Items',
+    'القطعة': 'Garment',
+    'الأصلية': 'Original',
+    'توفير النت': 'Data Saver',
+    'جودة عالية': 'High Quality',
+    'جارٍ التبديل…': 'Switching…',
+    'جارٍ تجهيز الإطلالة…': 'Preparing look…',
+    'انتهت جلسات التجربة المتاحة لليوم، نراك مجدداً قريباً.':
+        'Today\'s try-on sessions have ended. See you again soon.',
+    'يرجى السماح بالوصول إلى الكاميرا ثم إعادة المحاولة.':
+        'Please allow camera access and try again.',
+    'تعذر إكمال البث حالياً، تحقق من الإنترنت وجرّب مجدداً.':
+        'Unable to continue the preview right now. Please check your connection and try again.',
   };
 }
 

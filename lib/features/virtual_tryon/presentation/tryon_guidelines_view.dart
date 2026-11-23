@@ -29,15 +29,9 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final cardBg = isDark ? const Color(0xFF161A22) : Colors.white;
-    final borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : AppColors.border;
 
     Widget buildGuidelineCard({
       required IconData icon,
-      required Color accent,
       required String title,
       required String description,
     }) {
@@ -45,9 +39,9 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: cardBg,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -56,10 +50,11 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.14),
+                color: AppColors.surfaceAlt,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
               ),
-              child: Icon(icon, color: accent, size: 22),
+              child: Icon(icon, color: AppColors.primary, size: 21),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -69,6 +64,7 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
                   Text(
                     title,
                     style: theme.textTheme.titleSmall?.copyWith(
+                      color: AppColors.text,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -89,7 +85,7 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -100,13 +96,14 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
                   IconButton(
                     tooltip: 'رجوع'.tr,
                     onPressed: widget.onBack,
-                    icon: Icon(AppIcons.back),
+                    icon: Icon(AppIcons.back, color: AppColors.icon),
                   ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       'تعليمات التجربة الافتراضية'.tr,
-                      style: const TextStyle(
+                      style: TextStyle(
+                        color: AppColors.text,
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
                       ),
@@ -122,46 +119,49 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.primary.withValues(alpha: 0.14),
-                          AppColors.primary.withValues(alpha: 0.04),
-                        ],
-                        begin: Alignment.topRight,
-                        end: Alignment.bottomLeft,
-                      ),
+                      color: AppColors.surface,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: AppColors.borderStrong,
-                      ),
+                      border: Border.all(color: AppColors.border),
                     ),
-                    child: Column(
+                    child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.verified_user_outlined,
-                              color: AppColors.primary,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceAlt,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Icon(
+                            AppIcons.shieldTick,
+                            color: AppColors.primary,
+                            size: 21,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
                                 'للحصول على أفضل نتيجة قبل البدء'.tr,
                                 style: theme.textTheme.titleMedium?.copyWith(
+                                  color: AppColors.text,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'تظهر هذه الإرشادات في المرة الأولى فقط لمساعدتك على الحصول على تجربة واقعية وسلسة.'.tr,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.textSecondary,
-                            height: 1.45,
+                              const SizedBox(height: 6),
+                              Text(
+                                'تظهر هذه الإرشادات في المرة الأولى فقط لمساعدتك على الحصول على تجربة واقعية وسلسة.'
+                                    .tr,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: AppColors.textSecondary,
+                                  height: 1.45,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -169,32 +169,28 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
                   ),
                   const SizedBox(height: 16),
                   buildGuidelineCard(
-                    icon: Icons.wb_sunny_rounded,
-                    accent: const Color(0xFFF59E0B),
+                    icon: AppIcons.sun,
                     title: 'إضاءة قوية وواضحة'.tr,
                     description:
                         'قف في مكان بإضاءة أمامية قوية وموزعة جيداً، وتجنب العتمة أو وجود نافذة مضيئة خلفك.'
                             .tr,
                   ),
                   buildGuidelineCard(
-                    icon: Icons.camera_alt_outlined,
-                    accent: const Color(0xFF00ACC1),
+                    icon: AppIcons.camera,
                     title: 'كاميرا نظيفة وثابتة'.tr,
                     description:
                         'امسح عدسة الكاميرا جيداً قبل البدء ليظهر الوجه وتفاصيل الملابس أو الإكسسوارات بوضوح.'
                             .tr,
                   ),
                   buildGuidelineCard(
-                    icon: Icons.wifi_rounded,
-                    accent: const Color(0xFF10B981),
+                    icon: IconsaxPlusLinear.wifi,
                     title: 'إنترنت قوي ومستقر'.tr,
                     description:
                         'استخدم شبكة Wi-Fi سريعة أو بيانات جوال قوية (4G/5G) لضمان استقرار البث المباشر دون تقطيع.'
                             .tr,
                   ),
                   buildGuidelineCard(
-                    icon: Icons.auto_awesome_rounded,
-                    accent: const Color(0xFF8B5CF6),
+                    icon: AppIcons.sparkles,
                     title: 'تفسير وتوضيح التجربة'.tr,
                     description:
                         'تعمل التجربة بالذكاء الاصطناعي لإعطائك تصوراً تقريبياً للقطعة على جسمك أو يدك؛ قد تختلف درجات الألوان أو التفاصيل الدقيقة قليلاً حسب الإضاءة. يتم إيقاف الجلسة تلقائياً عند الخروج.'
@@ -203,20 +199,21 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
-                      vertical: 10,
+                      vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.border),
                     ),
                     child: Row(
                       children: [
                         Icon(
-                          Icons.timer_outlined,
+                          IconsaxPlusLinear.timer_1,
                           size: 18,
                           color: AppColors.primary,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             'مدة كل جلسة: ${widget.sessionDurationSeconds} ثانية · الحد اليومي: ${widget.dailyLimit} محاولات'
@@ -224,7 +221,7 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
                             style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
+                              color: AppColors.text,
                             ),
                           ),
                         ),
@@ -237,8 +234,8 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
             Container(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
               decoration: BoxDecoration(
-                color: cardBg,
-                border: Border(top: BorderSide(color: borderColor)),
+                color: AppColors.surface,
+                border: Border(top: BorderSide(color: AppColors.border)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -251,9 +248,15 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
                       controlAffinity: ListTileControlAffinity.leading,
                       contentPadding: EdgeInsets.zero,
                       activeColor: AppColors.primary,
+                      checkColor: AppColors.onPrimary,
+                      side: BorderSide(
+                        color: AppColors.borderStrong,
+                        width: 1.5,
+                      ),
                       title: Text(
                         'أوافق على الشروط والتعليمات'.tr,
-                        style: const TextStyle(
+                        style: TextStyle(
+                          color: AppColors.text,
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
@@ -264,8 +267,8 @@ class _TryonGuidelinesViewState extends State<TryonGuidelinesView> {
                   FilledButton(
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: AppColors.gray300,
+                      foregroundColor: AppColors.onPrimary,
+                      disabledBackgroundColor: AppColors.surfaceAlt,
                       disabledForegroundColor: AppColors.textMuted,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(

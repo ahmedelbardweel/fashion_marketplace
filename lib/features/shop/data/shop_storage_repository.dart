@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
 import '../../../core/network/network_guard.dart';
+import '../../../core/utils/app_image_compressor.dart';
 import '../../../core/utils/background_removal_service.dart';
 
 class ShopStorageRepository {
@@ -49,6 +50,23 @@ class ShopStorageRepository {
         // Silent fallback so logo uploads never block if cutout fails or times out.
       }
     }
+
+    // Compress all uploaded images before sending to Supabase Storage
+    // to dramatically reduce upload time & data usage on slow connections.
+    final preset = folder == 'logo'
+        ? ImageCompressPreset.logo
+        : (bucket == 'shop-documents'
+              ? ImageCompressPreset.receipt
+              : ImageCompressPreset.product);
+    final compressed = await AppImageCompressor.compressForUpload(
+      bytes: uploadData,
+      fileName: uploadName,
+      contentType: uploadContentType,
+      preset: preset,
+    );
+    uploadData = compressed.bytes;
+    uploadName = compressed.fileName;
+    uploadContentType = compressed.contentType;
 
     final safeName =
         '${DateTime.now().millisecondsSinceEpoch}_${p.basename(uploadName)}';

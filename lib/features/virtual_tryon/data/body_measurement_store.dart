@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/body_measurements.dart';
 
 /// Named body measurement profile belonging to one person on this account.
@@ -66,10 +67,14 @@ class BodyProfileCollection {
   }
 }
 
-/// Local, account-scoped storage. No measurements are sent to the try-on service.
+/// Account-scoped body measurement storage backed by Supabase (when signed in)
+/// with SharedPreferences as an instant local cache & offline fallback.
+/// No measurements are ever sent to the third-party try-on rendering service.
 class BodyMeasurementStore {
   BodyMeasurementStore(this.profileId);
   final String profileId;
+
+  static const String _remoteTable = 'user_body_measurements';
 
   String get storageKey =>
       'body_measurements.v1.${Uri.encodeComponent(profileId)}';
@@ -77,18 +82,109 @@ class BodyMeasurementStore {
   String get profilesStorageKey =>
       'body_measurement_profiles.v1.${Uri.encodeComponent(profileId)}';
 
+  SupabaseClient? _activeSupabaseClient() {
+    final trimmed = profileId.trim();
+    if (trimmed.isEmpty || trimmed == 'guest') return null;
+    try {
+      final client = Supabase.instance.client;
+      final currentUser = client.auth.currentUser;
+      if (currentUser == null || currentUser.id != trimmed) return null;
+      return client;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<BodyProfileCollection?> _fetchRemoteProfiles() async {
+    final client = _activeSupabaseClient();
+    if (client == null) return null;
+    try {
+      final row = await client
+          .from(_remoteTable)
+          .select('active_profile_id, profiles')
+          .eq('user_id', profileId)
+          .maybeSingle();
+      if (row == null) return null;
+      final rawProfiles = row['profiles'];
+      if (rawProfiles is! List) return BodyProfileCollection.empty;
+      final parsed = <SavedBodyProfile>[];
+      for (final item in rawProfiles) {
+        if (item is Map) {
+          final profile = SavedBodyProfile.fromJson(
+            Map<String, dynamic>.from(item),
+          );
+          if (profile != null) parsed.add(profile);
+        }
+      }
+      if (parsed.isEmpty) return BodyProfileCollection.empty;
+      final rawActive = row['active_profile_id']?.toString();
+      final resolvedActive = parsed.any((p) => p.id == rawActive)
+          ? rawActive
+          : parsed.first.id;
+      return BodyProfileCollection(
+        profiles: List.unmodifiable(parsed),
+        activeId: resolvedActive,
+      );
+    } catch (_) {
+      // Offline or migration 036 not yet applied — fall back to local cache.
+      return null;
+    }
+  }
+
+  Future<void> _pushRemoteProfiles(
+    List<SavedBodyProfile> profiles,
+    String? activeId,
+  ) async {
+    final client = _activeSupabaseClient();
+    if (client == null) return;
+    try {
+      await client.from(_remoteTable).upsert({
+        'user_id': profileId,
+        'active_profile_id': activeId,
+        'profiles': profiles.map((p) => p.toJson()).toList(),
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'user_id');
+    } catch (_) {
+      // Keep local save resilient if temporarily offline.
+    }
+  }
+
+  Future<void> _clearRemoteProfiles() async {
+    final client = _activeSupabaseClient();
+    if (client == null) return;
+    try {
+      await client.from(_remoteTable).delete().eq('user_id', profileId);
+    } catch (_) {
+      // Keep local clear resilient if temporarily offline.
+    }
+  }
+
   Future<BodyMeasurements?> load() async {
     final prefs = await SharedPreferences.getInstance();
     final value = prefs.getString(storageKey);
-    if (value == null) return null;
-    try {
-      final json = jsonDecode(value);
-      return json is Map<String, dynamic>
-          ? BodyMeasurements.fromJson(json)?.customerOnly
-          : null;
-    } on FormatException {
-      return null;
+    if (value != null) {
+      try {
+        final json = jsonDecode(value);
+        if (json is Map<String, dynamic>) {
+          final parsed = BodyMeasurements.fromJson(json)?.customerOnly;
+          if (parsed != null) return parsed;
+        }
+      } on FormatException {
+        return null;
+      }
     }
+    final remote = await _fetchRemoteProfiles();
+    final active = remote?.activeProfile;
+    if (remote != null && active != null) {
+      await _persistLocalAll(
+        prefs,
+        remote.profiles,
+        active.id,
+        active.measurements,
+      );
+      return active.measurements;
+    }
+    return null;
   }
 
   Future<void> save(BodyMeasurements value) async {
@@ -100,7 +196,7 @@ class BodyMeasurementStore {
     }
 
     // Keep multi-profile collection in sync with direct save() calls.
-    final current = await loadProfiles();
+    final current = await _loadLocalProfiles(prefs);
     final list = List<SavedBodyProfile>.from(current.profiles);
     final active = current.activeProfile;
     final nextActiveId = active?.id ?? 'default';
@@ -109,10 +205,15 @@ class BodyMeasurementStore {
       if (idx >= 0) list[idx] = active.copyWith(measurements: clean);
     } else {
       list.add(
-        SavedBodyProfile(id: nextActiveId, label: 'قياساتي', measurements: clean),
+        SavedBodyProfile(
+          id: nextActiveId,
+          label: 'قياساتي',
+          measurements: clean,
+        ),
       );
     }
     await _writeProfiles(prefs, list, nextActiveId);
+    await _pushRemoteProfiles(list, nextActiveId);
   }
 
   Future<void> clear() async {
@@ -121,10 +222,12 @@ class BodyMeasurementStore {
       throw StateError('Could not clear measurements');
     }
     await prefs.remove(profilesStorageKey);
+    await _clearRemoteProfiles();
   }
 
-  Future<BodyProfileCollection> loadProfiles() async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<BodyProfileCollection> _loadLocalProfiles(
+    SharedPreferences prefs,
+  ) async {
     final raw = prefs.getString(profilesStorageKey);
     if (raw != null) {
       try {
@@ -154,14 +257,46 @@ class BodyMeasurementStore {
       }
     }
 
-    final legacy = await load();
-    if (legacy == null) return BodyProfileCollection.empty;
-    final migrated = SavedBodyProfile(
-      id: 'default',
-      label: 'قياساتي',
-      measurements: legacy,
-    );
-    return BodyProfileCollection(profiles: [migrated], activeId: migrated.id);
+    final legacyValue = prefs.getString(storageKey);
+    if (legacyValue == null) return BodyProfileCollection.empty;
+    try {
+      final decoded = jsonDecode(legacyValue);
+      final legacy = decoded is Map<String, dynamic>
+          ? BodyMeasurements.fromJson(decoded)?.customerOnly
+          : null;
+      if (legacy == null) return BodyProfileCollection.empty;
+      final migrated = SavedBodyProfile(
+        id: 'default',
+        label: 'قياساتي',
+        measurements: legacy,
+      );
+      return BodyProfileCollection(profiles: [migrated], activeId: migrated.id);
+    } on FormatException {
+      return BodyProfileCollection.empty;
+    }
+  }
+
+  Future<BodyProfileCollection> loadProfiles() async {
+    final prefs = await SharedPreferences.getInstance();
+    final local = await _loadLocalProfiles(prefs);
+    final remote = await _fetchRemoteProfiles();
+
+    if (remote != null && remote.profiles.isNotEmpty) {
+      final active = remote.activeProfile!;
+      await _persistLocalAll(
+        prefs,
+        remote.profiles,
+        active.id,
+        active.measurements,
+      );
+      return remote;
+    }
+
+    // Backfill existing local profiles up to Supabase on first sync.
+    if (local.profiles.isNotEmpty && remote == null) {
+      await _pushRemoteProfiles(local.profiles, local.activeId);
+    }
+    return local;
   }
 
   Future<BodyProfileCollection> upsertProfile({
@@ -174,7 +309,7 @@ class BodyMeasurementStore {
     }
     final clean = measurements.customerOnly;
     final prefs = await SharedPreferences.getInstance();
-    final current = await loadProfiles();
+    final current = await _loadLocalProfiles(prefs);
     final list = List<SavedBodyProfile>.from(current.profiles);
 
     final trimmedLabel = label.trim();
@@ -188,9 +323,7 @@ class BodyMeasurementStore {
       targetId = list[existingIdx].id;
       list[existingIdx] = SavedBodyProfile(
         id: targetId,
-        label: trimmedLabel.isNotEmpty
-            ? trimmedLabel
-            : list[existingIdx].label,
+        label: trimmedLabel.isNotEmpty ? trimmedLabel : list[existingIdx].label,
         measurements: clean,
       );
     } else {
@@ -214,7 +347,7 @@ class BodyMeasurementStore {
 
   Future<BodyProfileCollection> selectProfile(String id) async {
     final prefs = await SharedPreferences.getInstance();
-    final current = await loadProfiles();
+    final current = await _loadLocalProfiles(prefs);
     final target = current.profiles.where((p) => p.id == id).firstOrNull;
     if (target == null) return current;
     await _persistAll(prefs, current.profiles, target.id, target.measurements);
@@ -226,7 +359,7 @@ class BodyMeasurementStore {
 
   Future<BodyProfileCollection> deleteProfile(String id) async {
     final prefs = await SharedPreferences.getInstance();
-    final current = await loadProfiles();
+    final current = await _loadLocalProfiles(prefs);
     final remaining = current.profiles.where((p) => p.id != id).toList();
     if (remaining.isEmpty) {
       await clear();
@@ -243,7 +376,7 @@ class BodyMeasurementStore {
     );
   }
 
-  Future<void> _persistAll(
+  Future<void> _persistLocalAll(
     SharedPreferences prefs,
     List<SavedBodyProfile> profiles,
     String activeId,
@@ -256,6 +389,16 @@ class BodyMeasurementStore {
       throw StateError('Could not save measurements');
     }
     await _writeProfiles(prefs, profiles, activeId);
+  }
+
+  Future<void> _persistAll(
+    SharedPreferences prefs,
+    List<SavedBodyProfile> profiles,
+    String activeId,
+    BodyMeasurements activeMeasurements,
+  ) async {
+    await _persistLocalAll(prefs, profiles, activeId, activeMeasurements);
+    await _pushRemoteProfiles(profiles, activeId);
   }
 
   Future<void> _writeProfiles(

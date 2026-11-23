@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 
 import '../../config/supabase_config.dart';
 import '../network/network_guard.dart';
+import '../network/tryon_bandwidth_guard.dart';
 
 /// Real-time network connectivity monitor with active Supabase reachability probe.
 /// Distinguishes between mere Wi-Fi association and actual internet connectivity
@@ -49,7 +50,10 @@ class NetworkMonitorService {
     // is detected promptly even if the OS interface state didn't change.
     _periodicCheckTimer = Timer.periodic(
       const Duration(seconds: 12),
-      (_) => unawaited(checkNow()),
+      (_) {
+        if (TryonNetworkFocus.instance.isActive) return;
+        unawaited(checkNow());
+      },
     );
   }
 

@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../config/supabase_config.dart';
+import '../../core/network/tryon_bandwidth_guard.dart';
 import '../../core/utils/map_utils.dart';
 import '../../features/admin/domain/models/catalog_models.dart';
 import '../../features/auth/domain/models/app_user.dart';
@@ -43,7 +44,7 @@ class BackgroundPreloaderService {
     AppUser? currentUser,
     bool force = false,
   }) async {
-    if (_isRunning) return;
+    if (_isRunning || TryonNetworkFocus.instance.isActive) return;
     if (!NetworkMonitorService.instance.isOnline) return;
 
     if (!force &&

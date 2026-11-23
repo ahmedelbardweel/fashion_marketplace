@@ -284,8 +284,8 @@ class _MeasurementEditorState extends State<MeasurementEditor> {
                       const SizedBox(height: 16),
                       Text(
                         _t(
-                          'تُحفظ القياسات لهذا الحساب على هذا الجهاز. اقتراح المقاس يعتمد على جدول المنتج؛ الشكل المعروض تقديري.',
-                          'Measurements are saved for this account on this device. Size suggestions use the product chart; the figure is an estimate.',
+                          'تُحفظ قياساتك بشكل خاص على حسابك لتبقى متاحة حتى عند تغيير الجهاز. اقتراح المقاس يعتمد على جدول المنتج؛ الشكل المعروض تقديري.',
+                          'Your measurements are saved privately to your account so they stay available across devices. Size suggestions use the product chart; the figure is an estimate.',
                         ),
                         style: TextStyle(
                           color: AppColors.textSecondary,

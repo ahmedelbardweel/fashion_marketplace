@@ -763,22 +763,200 @@ Future<void> showAdminOrderStatusSheet(
                       value: AppFormat.price(order.total),
                       bold: true,
                     ),
+                    if (order.isGroupedPayment) ...[
+                      const SizedBox(height: 6),
+                      _OrderMetaRow(
+                        label: AppLang.isEn
+                            ? 'Combined Transfer (${order.groupShopsCount} shops)'
+                            : 'إجمالي الحوالة المجمّعة (${order.groupShopsCount} متاجر)',
+                        value: AppFormat.price(order.effectiveGroupTotal),
+                        bold: true,
+                      ),
+                    ],
                   ],
                 ),
               ),
+              if (order.isGroupedPayment) ...[
+                const SizedBox(height: AppSpacing.sm),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(AppRadii.sm),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Text(
+                    AppLang.isEn
+                        ? 'This order is part of a combined transfer for ${order.groupShopsCount} shops (${AppFormat.price(order.effectiveGroupTotal)} total). Verifying here confirms all linked shop orders at once.'
+                        : 'هذا الطلب جزء من حوالة واحدة مجمّعة لـ ${order.groupShopsCount} متاجر بإجمالي ${AppFormat.price(order.effectiveGroupTotal)} — تأكيد الحوالة هنا يعتمد جميع الطلبات المرتبطة دفعة واحدة.',
+                    style: Theme.of(sheetCtx).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
               if (order.hasReceipt) ...[
                 const SizedBox(height: AppSpacing.md),
                 ReceiptThumbnailCard(
                   imageUrl: order.paymentReceiptUrl!,
-                  subtitle: '${'إشعار حوالة طلب'.tr} #$shortId',
+                  subtitle: order.isGroupedPayment
+                      ? '${'إشعار حوالة مجمّعة'.tr} — ${AppFormat.price(order.effectiveGroupTotal)}'
+                      : '${'إشعار حوالة طلب'.tr} #$shortId — ${AppFormat.price(order.total)}',
                   height: 150,
+                ),
+              ],
+              if (order.requiresPaymentVerification &&
+                  order.status != 'cancelled') ...[
+                const SizedBox(height: AppSpacing.sm),
+                AppButton(
+                  label: order.isGroupedPayment
+                      ? (AppLang.isEn
+                            ? 'Verify Transfer for All (${order.groupShopsCount} Shops)'
+                            : 'تأكيد الحوالة للكل (${order.groupShopsCount} متاجر)')
+                      : 'تأكيد استلام الحوالة'.tr,
+                  isLoading: saving,
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          setSheetState(() => saving = true);
+                          final actions = ref.read(
+                            adminActionProvider.notifier,
+                          );
+                          final count = await actions.verifyOrderPayment(
+                            orderId: order.id,
+                            approved: true,
+                            applyToGroup: true,
+                          );
+                          if (!context.mounted) return;
+                          if (count == null) {
+                            if (sheetCtx.mounted) {
+                              setSheetState(() => saving = false);
+                            }
+                            final err = ref.read(adminActionProvider).error;
+                            showAppSnackBar(
+                              context,
+                              err == null
+                                  ? 'تعذر تأكيد الحوالة'.tr
+                                  : actions.errorMessage(err),
+                              isError: true,
+                            );
+                            return;
+                          }
+                          if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
+                          showAppSnackBar(
+                            context,
+                            count > 1
+                                ? (AppLang.isEn
+                                      ? 'Transfer verified for $count linked orders'
+                                      : 'تم تأكيد الحوالة لجميع الطلبات المرتبطة ($count طلبات)')
+                                : 'تم تأكيد استلام الحوالة بنجاح'.tr,
+                          );
+                        },
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: AppColors.warningSoft,
+                    foregroundColor: AppColors.warning,
+                    side: BorderSide(
+                      color: AppColors.warning.withValues(alpha: 0.35),
+                    ),
+                    minimumSize: const Size(
+                      double.infinity,
+                      ButtonDesign.height,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(ButtonDesign.radius),
+                    ),
+                  ),
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          final noteCtrl = TextEditingController();
+                          final confirmed = await AppBottomSheet.show<bool>(
+                            context: sheetCtx,
+                            isScrollControlled: true,
+                            child: Builder(
+                              builder: (noteCtx) => AppBottomSheetScaffold(
+                                title: 'الإبلاغ عن مشكلة في الحوالة'.tr,
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    TextField(
+                                      controller: noteCtrl,
+                                      maxLines: 3,
+                                      decoration: InputDecoration(
+                                        hintText:
+                                            'مثال: المبلغ المحوّل ناقص أو صورة الإشعار غير واضحة'
+                                                .tr,
+                                      ),
+                                    ),
+                                    const SizedBox(height: AppSpacing.md),
+                                    AppButton(
+                                      label: 'إرسال الملاحظة للعميل'.tr,
+                                      onPressed: () {
+                                        if (noteCtrl.text.trim().isEmpty) {
+                                          return;
+                                        }
+                                        Navigator.of(noteCtx).pop(true);
+                                      },
+                                    ),
+                                    const SizedBox(height: AppSpacing.xs),
+                                    AppButton(
+                                      label: 'إلغاء'.tr,
+                                      variant: AppButtonVariant.secondary,
+                                      onPressed: () =>
+                                          Navigator.of(noteCtx).pop(false),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                          final noteText = noteCtrl.text.trim();
+                          noteCtrl.dispose();
+                          if (confirmed != true || noteText.isEmpty) return;
+                          if (!sheetCtx.mounted) return;
+                          setSheetState(() => saving = true);
+                          final actions = ref.read(
+                            adminActionProvider.notifier,
+                          );
+                          final count = await actions.verifyOrderPayment(
+                            orderId: order.id,
+                            approved: false,
+                            issueNote: noteText,
+                            applyToGroup: true,
+                          );
+                          if (!context.mounted) return;
+                          if (count == null) {
+                            if (sheetCtx.mounted) {
+                              setSheetState(() => saving = false);
+                            }
+                            final err = ref.read(adminActionProvider).error;
+                            showAppSnackBar(
+                              context,
+                              err == null
+                                  ? 'تعذر إرسال الملاحظة'.tr
+                                  : actions.errorMessage(err),
+                              isError: true,
+                            );
+                            return;
+                          }
+                          if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
+                          showAppSnackBar(
+                            context,
+                            'تم إشعار العميل بالمشكلة لإعادة رفع الإشعار'.tr,
+                          );
+                        },
+                  child: Text('الإبلاغ عن مشكلة في الإشعار'.tr),
                 ),
               ],
               const SizedBox(height: AppSpacing.md),
               Text(
                 'تحديث حالة الطلب'.tr,
                 style: Theme.of(
-                  context,
+                  sheetCtx,
                 ).textTheme.titleSmall?.copyWith(fontWeight: AppFont.bold),
               ),
               const SizedBox(height: AppSpacing.xs),
