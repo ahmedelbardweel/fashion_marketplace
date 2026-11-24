@@ -1,3 +1,6 @@
+import 'package:fashion_marketplace/core/filtering/filter_models.dart';
+import 'package:fashion_marketplace/core/notifications/notification_list_components.dart';
+import 'package:fashion_marketplace/core/notifications/notification_models.dart';
 import 'package:fashion_marketplace/core/notifications/push_notification_provider.dart';
 import 'package:fashion_marketplace/core/notifications/push_notification_service.dart';
 import 'package:fashion_marketplace/core/notifications/push_notification_settings_card.dart';
@@ -19,6 +22,7 @@ class _FakePushController extends PushNotificationController {
 
   bool requested = false;
   bool? lastToggledEnabled;
+  NotificationPreferences? lastSavedPrefs;
 
   @override
   Future<PushPermissionStatus> requestPermissionAndEnable() async {
@@ -34,6 +38,12 @@ class _FakePushController extends PushNotificationController {
   Future<void> setNotificationsEnabled(bool enabled) async {
     lastToggledEnabled = enabled;
     state = state.copyWith(notificationsEnabled: enabled);
+  }
+
+  @override
+  Future<void> updatePreferences(NotificationPreferences next) async {
+    lastSavedPrefs = next;
+    state = state.copyWith(preferences: next);
   }
 }
 
@@ -198,6 +208,67 @@ void main() {
       expect(actionController.lastTitle, 'عرض جديد');
       expect(actionController.lastBody, 'تخفيض على المعاطف الشتوية');
       expect(actionController.lastScope, 'all_customers');
+    },
+  );
+
+  test(
+    'AdminNotification parses metadata deep links, category, image, and filters',
+    () {
+      final orderNotif = AdminNotification.fromMap({
+        'id': 'n-ord-1',
+        'title': 'تم شحن طلبك',
+        'body': 'طلبك في الطريق إليك',
+        'audience': 'customer',
+        'sender_role': 'shop',
+        'created_at': '2026-11-24T10:00:00Z',
+        'metadata': {
+          'event_type': 'order_status_changed',
+          'route': '/customer/orders/ord-123',
+          'order_id': 'ord-123',
+        },
+      });
+      expect(orderNotif.category, NotificationCategory.orders);
+      expect(orderNotif.hasDeepLink, isTrue);
+      expect(orderNotif.route, '/customer/orders/ord-123');
+      expect(orderNotif.orderId, 'ord-123');
+
+      final offerNotif = AdminNotification.fromMap({
+        'id': 'n-off-1',
+        'title': 'عرض وخصم جديد',
+        'body': 'خصم 25%',
+        'audience': 'customer',
+        'sender_role': 'shop',
+        'created_at': '2026-11-23T10:00:00Z',
+        'metadata': {
+          'event_type': 'product_offer',
+          'category': 'offers',
+          'image_url': 'https://example.com/dress.jpg',
+          'route': '/customer/products/p-1',
+        },
+      });
+      expect(offerNotif.category, NotificationCategory.offers);
+      expect(offerNotif.imageUrl, 'https://example.com/dress.jpg');
+
+      final onlyOffers = filterNotifications(
+        [orderNotif, offerNotif],
+        const NotificationFilterState(category: NotificationCategory.offers),
+      );
+      expect(onlyOffers.map((e) => e.id), ['n-off-1']);
+
+      final sections = buildNotificationSections(
+        [orderNotif, offerNotif],
+        now: DateTime(2026, 11, 24, 15, 0),
+      );
+      expect(sections.where((s) => s.header != null).length, 2);
+
+      final prefs = NotificationPreferences.fromMap({
+        'orders_enabled': true,
+        'offers_enabled': false,
+        'catalog_enabled': true,
+        'system_enabled': true,
+      });
+      expect(prefs.isCategoryEnabled(NotificationCategory.orders), isTrue);
+      expect(prefs.isCategoryEnabled(NotificationCategory.offers), isFalse);
     },
   );
 }

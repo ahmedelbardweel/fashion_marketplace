@@ -51,6 +51,7 @@ import '../features/shop/presentation/screens/shop_complete_profile_screen.dart'
 import '../features/shop/presentation/screens/shop_dashboard_screen.dart';
 import '../features/shop/presentation/screens/shop_notifications_screen.dart';
 import '../features/shop/presentation/screens/shop_offers_screen.dart';
+import '../features/shop/presentation/screens/shop_order_details_screen.dart';
 import '../features/shop/presentation/screens/shop_orders_screen.dart';
 import '../features/shop/presentation/screens/shop_product_form_screen.dart';
 import '../features/shop/presentation/screens/shop_products_screen.dart';
@@ -344,6 +345,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.shopOrders,
         builder: (context, state) => const ShopOrdersScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.shopOrderDetails,
+        builder: (context, state) => ShopOrderDetailsScreen(
+          orderId: state.pathParameters['orderId'] ?? '',
+        ),
       ),
       GoRoute(
         path: AppRoutes.shopSales,

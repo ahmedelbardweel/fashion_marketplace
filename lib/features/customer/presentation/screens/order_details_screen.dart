@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/app_haptics.dart';
+import '../../../../core/utils/contact_launcher.dart';
 import '../../../../core/utils/media_picker.dart';
 import '../../../../core/utils/snackbar_utils.dart';
+import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
+import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/receipt_image_viewer.dart';
+import '../../../../router/routes.dart';
 import '../../../admin/presentation/providers/admin_providers.dart';
 import '../../domain/models/customer_order.dart';
 import '../providers/customer_providers.dart';
@@ -32,11 +36,47 @@ class OrderDetailsScreen extends ConsumerStatefulWidget {
 class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
   bool _resubmitting = false;
 
+  BadgeTone _statusTone(String status) {
+    switch (status) {
+      case 'delivered':
+        return BadgeTone.success;
+      case 'cancelled':
+        return BadgeTone.error;
+      case 'pending':
+        return BadgeTone.warning;
+      default:
+        return BadgeTone.primary;
+    }
+  }
+
   BadgeTone _paymentTone(CustomerOrder order) {
     if (order.isPaymentVerified) return BadgeTone.success;
     if (order.hasPaymentIssue) return BadgeTone.error;
     if (order.isPaymentPending) return BadgeTone.warning;
     return BadgeTone.neutral;
+  }
+
+  String _currentStageHeadline(CustomerOrder order) {
+    if (order.isCancelled) return 'تم إلغاء هذا الطلب'.tr;
+    if (order.hasPaymentIssue) return 'يلزم تحديث إشعار الحوالة'.tr;
+    switch (order.status) {
+      case 'pending':
+        return order.isPaymentPending
+            ? 'بانتظار مراجعة الحوالة وتأكيد المحل'.tr
+            : 'تم إرسال طلبك للمحل وبانتظار التأكيد'.tr;
+      case 'confirmed':
+        return 'أكد المحل طلبك وسيبدأ التجهيز قريباً'.tr;
+      case 'processing':
+        return 'المحل يجهّز ويغلّف طلبك حالياً'.tr;
+      case 'shipped':
+        return order.isCustomerPickup
+            ? 'طلبك جاهز للاستلام من المحل'.tr
+            : 'طلبك في الطريق إليك الآن'.tr;
+      case 'delivered':
+        return 'تم تسليم طلبك بنجاح'.tr;
+      default:
+        return order.statusLabel.tr;
+    }
   }
 
   Future<void> _resubmitReceipt({
@@ -57,10 +97,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
         fileName: picked.fileName,
         contentType: picked.contentType,
       );
-      await repo.resubmitPaymentReceipt(
-        orderId: order.id,
-        receiptUrl: url,
-      );
+      await repo.resubmitPaymentReceipt(orderId: order.id, receiptUrl: url);
       ref.invalidate(customerOrderDetailsProvider(widget.orderId));
       ref.invalidate(customerOrdersProvider);
       if (!mounted) return;
@@ -81,8 +118,132 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
     }
   }
 
+  Future<void> _openInquirySheet(CustomerOrder order, String shortId) async {
+    const topics = [
+      'تأخر في تأكيد الطلب',
+      'تأخر في التوصيل',
+      'استفسار عن موعد التسليم',
+      'مشكلة أو استفسار آخر',
+    ];
+    var selectedTopic = topics.first;
+    var escalateAdmin = false;
+    var sending = false;
+    final msgCtrl = TextEditingController();
+
+    await AppBottomSheet.show<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      child: StatefulBuilder(
+        builder: (sheetCtx, setSheetState) {
+          return AppBottomSheetScaffold(
+            title: 'استفسار أو متابعة الطلب'.tr,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'اختر السبب وسيصل تنبيه مباشر للمحل لمتابعة طلبك #$shortId'
+                      .tr,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final topic in topics)
+                      ChoiceChip(
+                        label: Text(topic.tr),
+                        selected: selectedTopic == topic,
+                        onSelected: sending
+                            ? null
+                            : (_) =>
+                                  setSheetState(() => selectedTopic = topic),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppTextField(
+                  controller: msgCtrl,
+                  label: 'تفاصيل إضافية (اختياري)'.tr,
+                  hint: 'اكتب رسالتك للمحل باختصار...'.tr,
+                  maxLines: 3,
+                  enabled: !sending,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: escalateAdmin,
+                  onChanged: sending
+                      ? null
+                      : (v) => setSheetState(() => escalateAdmin = v),
+                  title: Text(
+                    'إرسال نسخة لإدارة التطبيق'.tr,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: AppFont.semiBold,
+                      color: AppColors.text,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'في حال تأخر رد المحل أو وجود مشكلة لم تُحل'.tr,
+                    style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                AppButton(
+                  label: 'إرسال المتابعة'.tr,
+                  isLoading: sending,
+                  onPressed: () async {
+                    setSheetState(() => sending = true);
+                    try {
+                      await ref
+                          .read(customerRepositoryProvider)
+                          .sendOrderInquiry(
+                            orderId: order.id,
+                            topic: selectedTopic,
+                            message: msgCtrl.text,
+                            escalateAdmin: escalateAdmin,
+                          );
+                      if (!mounted) return;
+                      if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
+                      AppHaptics.success();
+                      showAppSnackBar(
+                        context,
+                        escalateAdmin
+                            ? 'تم إرسال رسالتك للمحل وللإدارة للمتابعة'.tr
+                            : 'تم إرسال استفسارك للمحل بنجاح'.tr,
+                      );
+                    } catch (err) {
+                      if (sheetCtx.mounted) {
+                        setSheetState(() => sending = false);
+                      }
+                      if (mounted) {
+                        showAppSnackBar(
+                          context,
+                          ref.read(customerRepositoryProvider).mapError(err),
+                          isError: true,
+                        );
+                      }
+                    }
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    msgCtrl.dispose();
+  }
+
   Widget _buildTimelineStep({
-    required BuildContext context,
     required String title,
     required String subtitle,
     required bool isCompleted,
@@ -96,8 +257,8 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
         Column(
           children: [
             Container(
-              width: 24,
-              height: 24,
+              width: 20,
+              height: 20,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: active
@@ -107,21 +268,19 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                   color: active
                       ? OrderDetailsDesign.timelineActive
                       : OrderDetailsDesign.timelineInactive,
-                  width: 2,
+                  width: 1.8,
                 ),
               ),
               child: isCompleted
-                  ? Icon(AppIcons.check, size: 14, color: AppColors.white)
+                  ? Icon(AppIcons.check, size: 12, color: AppColors.white)
                   : (isCurrent
                         ? Center(
-                            child: SizedBox(
-                              width: 8,
-                              height: 8,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: AppColors.white,
-                                ),
+                            child: Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppColors.white,
                               ),
                             ),
                           )
@@ -129,33 +288,41 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
             ),
             if (!isLast)
               Container(
-                width: 2,
-                height: 36,
+                width: 1.8,
+                height: 28,
                 color: isCompleted
                     ? OrderDetailsDesign.timelineActive
                     : OrderDetailsDesign.timelineInactive,
               ),
           ],
         ),
-        const SizedBox(width: AppSpacing.md),
+        const SizedBox(width: 10),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: active ? AppFont.bold : AppFont.medium,
-                  color: active ? AppColors.text : AppColors.textMuted,
+          child: Padding(
+            padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: active ? AppFont.bold : AppFont.medium,
+                    color: active ? AppColors.text : AppColors.textMuted,
+                    height: 1.25,
+                  ),
                 ),
-              ),
-              Text(
-                subtitle,
-                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-              ),
-              const SizedBox(height: AppSpacing.md),
-            ],
+                const SizedBox(height: 1),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.textMuted,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -181,92 +348,86 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
           );
         }
 
-        final currentStep = order.statusStep;
-        final dateStr = DateFormat('yyyy/MM/dd – hh:mm a').format(
+        final step = order.statusStep;
+        final dateStr = DateFormat('yyyy/MM/dd · hh:mm a').format(
           order.createdAt,
         );
         final shortId = order.id.length > 8
             ? order.id.substring(0, 8).toUpperCase()
             : order.id.toUpperCase();
+        final scheduleSummary = formatDeliveryScheduleSummary(
+          scheduledAt: order.scheduledDeliveryAt,
+          timeWindow: order.deliveryTimeWindow,
+        );
+        final shopLocation = [
+          if (order.shopCity?.trim().isNotEmpty ?? false)
+            order.shopCity!.trim(),
+          if (order.shopAddress?.trim().isNotEmpty ?? false)
+            order.shopAddress!.trim(),
+        ].join(' · ');
 
         return CustomerScaffold(
           title: 'طلب #$shortId'.tr,
+          showBottomNav: false,
           body: AppRefreshIndicator(
             onRefresh: () => ref.refresh(
               customerOrderDetailsProvider(widget.orderId).future,
             ),
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(AppSpacing.md),
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.md,
+                AppSpacing.sm,
+                AppSpacing.md,
+                AppSpacing.lg,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Payment Issue Alert + Quick Re-upload
-                  if (order.hasPaymentIssue &&
-                      order.status != 'cancelled' &&
-                      order.status != 'delivered') ...[
+                  // ── 1) تنبيه مشكلة الحوالة (إن وجدت) ───────────────────────
+                  if (order.hasPaymentIssue && order.isActive) ...[
                     AppCard(
+                      padding: const EdgeInsets.all(AppSpacing.sm),
                       backgroundColor: AppColors.errorSoft,
                       borderColor: AppColors.error.withValues(alpha: 0.4),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                IconsaxPlusLinear.warning_2,
-                                color: AppColors.error,
-                                size: 22,
-                              ),
-                              const SizedBox(width: AppSpacing.xs),
-                              Expanded(
-                                child: Text(
-                                  'توجد مشكلة في إشعار الحوالة'.tr,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: AppFont.bold,
-                                    color: AppColors.error,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          Text(
+                            'توجد مشكلة في إشعار الحوالة'.tr,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: AppFont.bold,
+                              color: AppColors.error,
+                            ),
                           ),
-                          const SizedBox(height: AppSpacing.xs),
+                          const SizedBox(height: 4),
                           Text(
                             (order.paymentIssueNote?.trim().isNotEmpty ?? false)
                                 ? order.paymentIssueNote!.trim()
                                 : 'يرجى مراجعة المبلغ المحوّل ورفع صورة واضحة لإشعار الحوالة.'
                                       .tr,
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 12.5,
                               color: AppColors.text,
-                              height: 1.45,
+                              height: 1.4,
                             ),
                           ),
                           if (order.paymentAccountNumber != null &&
                               order.paymentAccountNumber!
                                   .trim()
                                   .isNotEmpty) ...[
-                            const SizedBox(height: AppSpacing.sm),
+                            const SizedBox(height: 8),
                             InkWell(
-                              onTap: () async {
-                                await Clipboard.setData(
-                                  ClipboardData(
-                                    text: order.paymentAccountNumber!.trim(),
-                                  ),
-                                );
-                                AppHaptics.selection();
-                                if (context.mounted) {
-                                  showAppSnackBar(
-                                    context,
-                                    'تم نسخ رقم الحساب / المحفظة'.tr,
-                                  );
-                                }
-                              },
+                              onTap: () => copyTextWithFeedback(
+                                context,
+                                text: order.paymentAccountNumber!,
+                                label: 'رقم الحساب'.tr,
+                              ),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.sm,
-                                  vertical: 6,
+                                  horizontal: 10,
+                                  vertical: 7,
                                 ),
                                 decoration: BoxDecoration(
                                   color: AppColors.surface,
@@ -286,22 +447,25 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                                         ),
                                       ),
                                     ),
-                                    Icon(
-                                      Icons.copy_rounded,
-                                      size: 16,
-                                      color: AppColors.primary,
+                                    Text(
+                                      'نسخ'.tr,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: AppFont.bold,
+                                        color: AppColors.primary,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
                             ),
                           ],
-                          const SizedBox(height: AppSpacing.md),
+                          const SizedBox(height: 10),
                           Row(
                             children: [
                               Expanded(
                                 child: AppButton(
-                                  label: 'رفع إشعار من المعرض'.tr,
+                                  label: 'رفع من المعرض'.tr,
                                   isLoading: _resubmitting,
                                   onPressed: () => _resubmitReceipt(
                                     order: order,
@@ -325,19 +489,17 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                             ],
                           ),
                           if (activeMethods.isNotEmpty) ...[
-                            const SizedBox(height: AppSpacing.xs),
+                            const SizedBox(height: 6),
                             Text(
                               order.isGroupedPayment
                                   ? (AppLang.isEn
-                                        ? 'Combined transfer (${order.groupShopsCount} shops): ${AppFormat.price(order.effectiveGroupTotal)} · Updating receipt syncs all linked orders.'
-                                        : 'إجمالي الحوالة المجمّعة (${order.groupShopsCount} متاجر): ${AppFormat.price(order.effectiveGroupTotal)} · إعادة رفع الإشعار تحدّث جميع طلبات الحوالة تلقائياً.')
-                                  : 'المبلغ الإجمالي المطلوب: ${AppFormat.price(order.total)}'
-                                        .tr,
+                                        ? 'Combined transfer (${order.groupShopsCount} shops): ${AppFormat.price(order.effectiveGroupTotal)}'
+                                        : 'الحوالة المجمّعة (${order.groupShopsCount} متاجر): ${AppFormat.price(order.effectiveGroupTotal)}')
+                                  : '${'المبلغ المطلوب'.tr}: ${AppFormat.price(order.total)}',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 11.5,
                                 color: AppColors.textSecondary,
-                                fontWeight: AppFont.semiBold,
                               ),
                             ),
                           ],
@@ -347,86 +509,203 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                     const SizedBox(height: AppSpacing.md),
                   ],
 
-                  // Header Card
+                  // ── 2) حالة الطلب ومراحل التنفيذ ────────────────────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'حالة الطلب'.tr,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: AppFont.bold,
+                            color: AppColors.text,
+                          ),
+                        ),
+                      ),
+                      AppStatusBadge(
+                        label: order.statusLabel,
+                        tone: _statusTone(order.status),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
                   AppCard(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 9,
+                          ),
+                          decoration: BoxDecoration(
+                            color: order.isCancelled
+                                ? AppColors.errorSoft
+                                : AppColors.surfaceAlt,
+                            borderRadius: BorderRadius.circular(AppRadii.sm),
+                            border: Border.all(
+                              color: order.isCancelled
+                                  ? AppColors.error.withValues(alpha: 0.3)
+                                  : AppColors.border,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _currentStageHeadline(order),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: AppFont.bold,
+                                  color: order.isCancelled
+                                      ? AppColors.error
+                                      : AppColors.text,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$dateStr · ${order.deliveryModeLabel.tr}',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (!order.isCancelled) ...[
+                          const SizedBox(height: 12),
+                          _buildTimelineStep(
+                            title: 'استلام الطلب'.tr,
+                            subtitle: order.isPaymentPending
+                                ? 'بانتظار مراجعة الحوالة من المحل'.tr
+                                : 'تم تسجيل طلبك لدى ${order.shopName}'.tr,
+                            isCompleted: step > 1 || order.isPaymentVerified,
+                            isCurrent: step == 1 && !order.isPaymentVerified,
+                            isLast: false,
+                          ),
+                          _buildTimelineStep(
+                            title: 'تأكيد المحل'.tr,
+                            subtitle: 'مراجعة توفر القطع وتحديد موعد التسليم'.tr,
+                            isCompleted: step > 2,
+                            isCurrent:
+                                step == 2 ||
+                                (step == 1 && order.isPaymentVerified),
+                            isLast: false,
+                          ),
+                          _buildTimelineStep(
+                            title: 'تجهيز الطلب'.tr,
+                            subtitle: 'تجهيز وتغليف المقاسات المطلوبة'.tr,
+                            isCompleted: step > 3,
+                            isCurrent: step == 3,
+                            isLast: false,
+                          ),
+                          _buildTimelineStep(
+                            title: order.isCustomerPickup
+                                ? 'جاهز للاستلام'.tr
+                                : 'في الطريق إليك'.tr,
+                            subtitle: order.isCustomerPickup
+                                ? 'يمكنك الاستلام من المحل'.tr
+                                : 'الطلب مع مندوب التوصيل'.tr,
+                            isCompleted: step > 4,
+                            isCurrent: step == 4,
+                            isLast: false,
+                          ),
+                          _buildTimelineStep(
+                            title: 'تم التسليم'.tr,
+                            subtitle: 'اكتمل الطلب بنجاح'.tr,
+                            isCompleted: step >= 5,
+                            isCurrent: false,
+                            isLast: true,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.md),
+
+                  // ── 3) موعد التسليم (يحدده المحل) ──────────────────────────
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'موعد التسليم'.tr,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: AppFont.bold,
+                            color: AppColors.text,
+                          ),
+                        ),
+                      ),
+                      AppStatusBadge(
+                        label: order.hasDeliverySchedule
+                            ? 'محدد من المحل'
+                            : 'بانتظار التحديد',
+                        tone: order.hasDeliverySchedule
+                            ? BadgeTone.success
+                            : BadgeTone.neutral,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  AppCard(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    borderColor: order.hasDeliverySchedule
+                        ? AppColors.success.withValues(alpha: 0.35)
+                        : null,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
+                            Icon(
+                              Icons.schedule_rounded,
+                              size: 17,
+                              color: order.hasDeliverySchedule
+                                  ? AppColors.success
+                                  : AppColors.textMuted,
+                            ),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                '${'المتجر'.tr}: ${order.shopName}',
+                                order.hasDeliverySchedule
+                                    ? scheduleSummary
+                                    : 'سيحدد المحل موعد التسليم فور تأكيد طلبك وسيصلك إشعار مباشرة.'
+                                          .tr,
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: AppFont.bold,
-                                  color: AppColors.text,
+                                  fontSize: order.hasDeliverySchedule
+                                      ? 13.5
+                                      : 12,
+                                  fontWeight: order.hasDeliverySchedule
+                                      ? AppFont.bold
+                                      : AppFont.regular,
+                                  color: order.hasDeliverySchedule
+                                      ? AppColors.text
+                                      : AppColors.textMuted,
                                 ),
                               ),
                             ),
-                            AppStatusBadge(
-                              label: order.statusLabel,
-                              tone: BadgeTone.primary,
-                            ),
                           ],
                         ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Wrap(
-                          spacing: AppSpacing.xs,
-                          runSpacing: AppSpacing.xs,
-                          children: [
-                            AppStatusBadge(
-                              label: order.deliveryModeLabel,
-                              tone: order.isCustomerPickup
-                                  ? BadgeTone.neutral
-                                  : BadgeTone.primary,
-                            ),
-                            if (order.paymentStatus != 'not_required')
-                              AppStatusBadge(
-                                label: order.paymentStatusLabel,
-                                tone: _paymentTone(order),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${'تاريخ الإنشاء'.tr}: $dateStr',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                        if (order.deliveryAddress != null &&
-                            order.deliveryAddress!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 6),
+                        if (order.hasShopNote) ...[
+                          const Divider(height: 16),
                           Text(
-                            '${'عنوان التوصيل'.tr}: ${order.deliveryAddress}',
+                            'ملاحظة من المحل'.tr,
                             style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
+                              fontSize: 11.5,
+                              fontWeight: AppFont.bold,
+                              color: AppColors.textMuted,
                             ),
                           ),
-                        ],
-                        if (order.phone != null &&
-                            order.phone!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
-                            '${'رقم الهاتف'.tr}: ${order.phone}',
+                            order.shopOrderNote!.trim(),
                             style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                        if (order.notes != null &&
-                            order.notes!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            '${'ملاحظات'.tr}: ${order.notes}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
+                              fontSize: 12.5,
+                              color: AppColors.text,
+                              height: 1.4,
                             ),
                           ),
                         ],
@@ -434,33 +713,179 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                     ),
                   ),
 
-                  // Transfer Receipt Card
-                  if (order.hasReceipt ||
-                      (order.paymentMethodName?.trim().isNotEmpty ??
-                          false)) ...[
-                    const SizedBox(height: AppSpacing.lg),
-                    Text(
-                      'الحوالة المالية وإشعار الدفع'.tr,
-                      style: TextStyle(
-                        fontSize: SectionDesign.titleSize,
-                        fontWeight: SectionDesign.titleWeight,
-                        color: AppColors.text,
-                      ),
+                  const SizedBox(height: AppSpacing.md),
+
+                  // ── 4) المحل والتواصل لحل أي مشكلة أو تأخير ─────────────────
+                  Text(
+                    'المحل والتواصل'.tr,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: AppFont.bold,
+                      color: AppColors.text,
                     ),
-                    const SizedBox(height: AppSpacing.sm),
-                    AppCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
+                  ),
+                  const SizedBox(height: 6),
+                  AppCard(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(AppRadii.sm),
+                          onTap: order.shopId.isEmpty
+                              ? null
+                              : () => context.push(
+                                  AppRoutes.customerShopProfilePath(
+                                    order.shopId,
+                                  ),
+                                ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceAlt,
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadii.sm,
+                                  ),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Icon(
+                                  Icons.storefront_outlined,
+                                  size: 17,
+                                  color: AppColors.text,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      order.shopName,
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: AppFont.bold,
+                                        color: AppColors.text,
+                                      ),
+                                    ),
+                                    if (shopLocation.isNotEmpty)
+                                      Text(
+                                        shopLocation,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          color: AppColors.textMuted,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                AppIcons.forward,
+                                size: 15,
+                                color: AppColors.textMuted,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            if (order.hasShopPhone) ...[
+                              Expanded(
+                                child: _CompactActionTile(
+                                  label: 'واتساب'.tr,
+                                  icon: Icons.chat_bubble_outline_rounded,
+                                  accent: const Color(0xFF16A34A),
+                                  onTap: () => launchWhatsAppChat(
+                                    context,
+                                    phone: order.shopPhone!,
+                                    message:
+                                        'مرحباً ${order.shopName}، أستفسر بخصوص الطلب رقم #$shortId',
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: _CompactActionTile(
+                                  label: 'اتصال'.tr,
+                                  icon: AppIcons.phone,
+                                  onTap: () => launchPhoneCall(
+                                    context,
+                                    order.shopPhone!,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                            ],
+                            Expanded(
+                              child: _CompactActionTile(
+                                label: 'تأخر / مشكلة؟'.tr,
+                                icon: Icons.help_outline_rounded,
+                                onTap: () => _openInquirySheet(order, shortId),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: AppSpacing.md),
+
+                  // ── 5) بيانات التوصيل والحوالة ──────────────────────────────
+                  Text(
+                    'التوصيل والدفع'.tr,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: AppFont.bold,
+                      color: AppColors.text,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  AppCard(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (order.deliveryAddress != null &&
+                            order.deliveryAddress!.trim().isNotEmpty)
+                          _SummaryRow(
+                            label: 'العنوان'.tr,
+                            value: order.deliveryAddress!.trim(),
+                          ),
+                        if (order.phone != null &&
+                            order.phone!.trim().isNotEmpty) ...[
+                          if (order.deliveryAddress != null &&
+                              order.deliveryAddress!.trim().isNotEmpty)
+                            const SizedBox(height: 6),
+                          _SummaryRow(
+                            label: 'الهاتف'.tr,
+                            value: order.phone!.trim(),
+                          ),
+                        ],
+                        if (order.notes != null &&
+                            order.notes!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          _SummaryRow(
+                            label: 'ملاحظاتك'.tr,
+                            value: order.notes!.trim(),
+                          ),
+                        ],
+                        if (order.paymentStatus != 'not_required' ||
+                            order.hasReceipt) ...[
+                          const Divider(height: 16),
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Expanded(
                                 child: Text(
                                   order.paymentMethodName ??
                                       'حوالة بنكية / محفظة'.tr,
                                   style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 12.5,
                                     fontWeight: AppFont.bold,
                                     color: AppColors.text,
                                   ),
@@ -472,216 +897,70 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                               ),
                             ],
                           ),
-                          if (order.paymentAccountNumber != null &&
-                              order.paymentAccountNumber!
-                                  .trim()
-                                  .isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              '${'رقم الحساب / المحفظة'.tr}: ${order.paymentAccountNumber}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textMuted,
-                              ),
-                            ),
-                          ],
                           if (order.hasReceipt) ...[
-                            const SizedBox(height: AppSpacing.sm),
+                            const SizedBox(height: 8),
                             ReceiptThumbnailCard(
                               imageUrl: order.paymentReceiptUrl!,
                               subtitle: '${'إشعار حوالة طلب'.tr} #$shortId',
-                              height: 156,
+                              height: 136,
                             ),
                           ],
                         ],
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // Status Timeline Card
-                  Text(
-                    order.isCustomerPickup
-                        ? 'مراحل تجهيز واستلام الطلب'.tr
-                        : 'مراحل توصيل الشحنة'.tr,
-                    style: TextStyle(
-                      fontSize: SectionDesign.titleSize,
-                      fontWeight: SectionDesign.titleWeight,
-                      color: AppColors.text,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  AppCard(
-                    child: Column(
-                      children: [
-                        _buildTimelineStep(
-                          context: context,
-                          title: order.isPaymentPending
-                              ? 'بانتظار تأكيد إشعار الحوالة'.tr
-                              : order.hasPaymentIssue
-                              ? 'بانتظار تحديث إشعار الحوالة'.tr
-                              : 'تم تأكيد الحوالة والطلب'.tr,
-                          subtitle: order.isPaymentPending
-                              ? 'يراجع المتجر إشعار الحوالة المالية الآن'.tr
-                              : order.hasPaymentIssue
-                              ? 'يرجى رفع إشعار حوالة واضح لإكمال الطلب'.tr
-                              : 'تم تأكيد طلبك وحوالتك بنجاح'.tr,
-                          isCompleted:
-                              currentStep > 1 || order.isPaymentVerified,
-                          isCurrent:
-                              currentStep == 1 && !order.isPaymentVerified,
-                          isLast: false,
-                        ),
-                        _buildTimelineStep(
-                          context: context,
-                          title: 'جاري تجهيز الملابس'.tr,
-                          subtitle:
-                              'المتجر يقوم بتجهيز وتغليف المقاسات والألوان المطلوبة'
-                                  .tr,
-                          isCompleted: currentStep > 2,
-                          isCurrent: currentStep == 2,
-                          isLast: false,
-                        ),
-                        _buildTimelineStep(
-                          context: context,
-                          title: order.isCustomerPickup
-                              ? 'جاهز للاستلام من المتجر'.tr
-                              : 'تم الشحن مع مندوب التوصيل'.tr,
-                          subtitle: order.isCustomerPickup
-                              ? 'الطلب جاهز ويمكن لمندوبك استلامه من المتجر'.tr
-                              : 'الشحنة في طريقها إلى عنوانك المحدد'.tr,
-                          isCompleted: currentStep > 3,
-                          isCurrent: currentStep == 3,
-                          isLast: false,
-                        ),
-                        _buildTimelineStep(
-                          context: context,
-                          title: 'تم الاستلام والتسليم'.tr,
-                          subtitle: 'تم تسليم الملابس بنجاح'.tr,
-                          isCompleted: currentStep >= 4,
-                          isCurrent: currentStep == 4,
-                          isLast: true,
-                        ),
                       ],
                     ),
                   ),
 
-                  const SizedBox(height: AppSpacing.lg),
+                  const SizedBox(height: AppSpacing.md),
 
-                  // Items List + Price Breakdown
+                  // ── 6) القطع والملخص المالي ─────────────────────────────────
                   Text(
-                    '${'القطع المشتراة'.tr} (${order.items.length})',
+                    '${'القطع المطلوبة'.tr} (${order.items.length})',
                     style: TextStyle(
-                      fontSize: SectionDesign.titleSize,
-                      fontWeight: SectionDesign.titleWeight,
+                      fontSize: 13,
+                      fontWeight: AppFont.bold,
                       color: AppColors.text,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.sm),
+                  const SizedBox(height: 6),
                   AppCard(
+                    padding: const EdgeInsets.all(AppSpacing.sm),
                     child: Column(
                       children: [
-                        ...order.items.map((item) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.productName,
-                                        style: TextStyle(
-                                          fontWeight: AppFont.bold,
-                                          color: AppColors.text,
-                                        ),
-                                      ),
-                                      if (item.variantInfo != null)
-                                        Text(
-                                          '${'المواصفات'.tr}: ${item.variantInfo}',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: AppColors.textMuted,
-                                          ),
-                                        ),
-                                      Text(
-                                        '${'الكمية'.tr}: ${item.quantity}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Text(
-                                  AppFormat.price(item.totalPrice),
-                                  style: TextStyle(
-                                    fontWeight: AppFont.bold,
-                                    color: AppColors.text,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                        const Divider(height: AppSpacing.lg),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'قيمة المنتجات'.tr,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                            Text(
-                              AppFormat.price(order.effectiveSubtotal),
-                              style: TextStyle(
-                                fontWeight: AppFont.semiBold,
-                                color: AppColors.text,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (order.isShopDelivery) ...[
-                          const SizedBox(height: 6),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'التوصيل (من المحل)'.tr,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                              Text(
-                                order.deliveryFee > 0
-                                    ? AppFormat.price(order.deliveryFee)
-                                    : 'مجاناً'.tr,
-                                style: TextStyle(
-                                  fontWeight: AppFont.bold,
-                                  color: order.deliveryFee > 0
-                                      ? AppColors.text
-                                      : AppColors.success,
-                                ),
-                              ),
-                            ],
+                        for (var i = 0; i < order.items.length; i++) ...[
+                          if (i > 0) const Divider(height: 14),
+                          _OrderItemRow(
+                            name: order.items[i].productName,
+                            variantInfo: order.items[i].variantInfo,
+                            quantity: order.items[i].quantity,
+                            totalPrice: order.items[i].totalPrice,
+                            imageUrl: order.items[i].imagePath,
                           ),
                         ],
-                        const Divider(height: AppSpacing.lg),
+                        const Divider(height: 18),
+                        _SummaryRow(
+                          label: 'قيمة المنتجات'.tr,
+                          value: AppFormat.price(order.effectiveSubtotal),
+                        ),
+                        if (order.isShopDelivery) ...[
+                          const SizedBox(height: 5),
+                          _SummaryRow(
+                            label: 'التوصيل'.tr,
+                            value: order.deliveryFee > 0
+                                ? AppFormat.price(order.deliveryFee)
+                                : 'مجاناً'.tr,
+                            valueColor: order.deliveryFee > 0
+                                ? AppColors.text
+                                : AppColors.success,
+                          ),
+                        ],
+                        const Divider(height: 16),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
                               'الإجمالي'.tr,
                               style: TextStyle(
+                                fontSize: 14,
                                 fontWeight: AppFont.bold,
                                 color: AppColors.text,
                               ),
@@ -689,7 +968,7 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
                             Text(
                               AppFormat.price(order.total),
                               style: TextStyle(
-                                fontSize: 18,
+                                fontSize: 16.5,
                                 fontWeight: AppFont.extraBold,
                                 color: AppColors.text,
                               ),
@@ -715,6 +994,172 @@ class _OrderDetailsScreenState extends ConsumerState<OrderDetailsScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _CompactActionTile extends StatelessWidget {
+  const _CompactActionTile({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.accent,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = accent ?? AppColors.text;
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadii.sm),
+      onTap: AppHaptics.action(onTap),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(AppRadii.sm),
+          border: Border.all(
+            color: accent != null
+                ? accent!.withValues(alpha: 0.32)
+                : AppColors.border,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: fg),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: AppFont.bold,
+                  color: fg,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow({
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.end,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: AppFont.semiBold,
+              color: valueColor ?? AppColors.text,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OrderItemRow extends StatelessWidget {
+  const _OrderItemRow({
+    required this.name,
+    required this.quantity,
+    required this.totalPrice,
+    this.variantInfo,
+    this.imageUrl,
+  });
+
+  final String name;
+  final String? variantInfo;
+  final int quantity;
+  final double totalPrice;
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = imageUrl != null && imageUrl!.trim().isNotEmpty;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (hasImage) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              imageUrl!.trim(),
+              width: 44,
+              height: 44,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+            ),
+          ),
+          const SizedBox(width: 10),
+        ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: AppFont.bold,
+                  color: AppColors.text,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                [
+                  if (variantInfo != null && variantInfo!.trim().isNotEmpty)
+                    variantInfo!.trim(),
+                  '${'الكمية'.tr}: $quantity',
+                ].join(' · '),
+                style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          AppFormat.price(totalPrice),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: AppFont.bold,
+            color: AppColors.text,
+          ),
+        ),
+      ],
     );
   }
 }

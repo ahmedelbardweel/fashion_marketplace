@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/admin/presentation/providers/admin_providers.dart';
@@ -11,6 +12,7 @@ import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/customer/presentation/providers/customer_providers.dart';
 import '../../features/shop/presentation/providers/shop_catalog_providers.dart';
 import '../theme/app_theme.dart';
+import 'notification_models.dart';
 import 'push_notification_service.dart';
 
 class PushNotificationState {
@@ -20,6 +22,7 @@ class PushNotificationState {
     this.isRequesting = false,
     this.fcmReady = false,
     this.hasToken = false,
+    this.preferences = const NotificationPreferences(),
   });
 
   final PushPermissionStatus permissionStatus;
@@ -27,6 +30,7 @@ class PushNotificationState {
   final bool isRequesting;
   final bool fcmReady;
   final bool hasToken;
+  final NotificationPreferences preferences;
 
   bool get isEffectivelyActive =>
       permissionStatus.isGranted && notificationsEnabled;
@@ -37,6 +41,7 @@ class PushNotificationState {
     bool? isRequesting,
     bool? fcmReady,
     bool? hasToken,
+    NotificationPreferences? preferences,
   }) {
     return PushNotificationState(
       permissionStatus: permissionStatus ?? this.permissionStatus,
@@ -44,6 +49,7 @@ class PushNotificationState {
       isRequesting: isRequesting ?? this.isRequesting,
       fcmReady: fcmReady ?? this.fcmReady,
       hasToken: hasToken ?? this.hasToken,
+      preferences: preferences ?? this.preferences,
     );
   }
 }
@@ -59,6 +65,7 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
     : super(
         PushNotificationState(
           notificationsEnabled: AppPreferences.getNotificationsEnabled(),
+          preferences: PushNotificationService.instance.currentPreferences,
         ),
       ) {
     WidgetsBinding.instance.addObserver(this);
@@ -83,6 +90,8 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
     final client = _client;
     final user = _ref.read(authControllerProvider).user;
     if (client == null || user == null) return;
+
+    unawaited(_ref.read(readNotificationIdsProvider.notifier).syncWithServer());
 
     final showBanner =
         state.permissionStatus.isGranted && state.notificationsEnabled;
@@ -127,8 +136,8 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
     );
   }
 
-  /// Syncs notification permission, FCM/APNs token registration, Realtime
-  /// alerts, and Android fallback background sync whenever auth state changes.
+  /// Syncs notification permission, preferences, read IDs, FCM/APNs token
+  /// registration, Realtime alerts, and Android fallback background sync.
   Future<void> handleAuthUser(AppUser? user) async {
     final client = _client;
     if (user == null) {
@@ -137,7 +146,10 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
       }
       _activeUserId = null;
       if (mounted) {
-        state = state.copyWith(hasToken: false);
+        state = state.copyWith(
+          hasToken: false,
+          preferences: const NotificationPreferences(),
+        );
       }
       return;
     }
@@ -148,6 +160,16 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
 
     try {
       await PushNotificationService.instance.initialize();
+      final loadedPrefs = await PushNotificationService.instance
+          .loadNotificationPreferences(client, userId: user.id);
+      if (mounted) {
+        state = state.copyWith(preferences: loadedPrefs);
+      }
+
+      unawaited(
+        _ref.read(readNotificationIdsProvider.notifier).syncWithServer(),
+      );
+
       var status = await PushNotificationService.instance
           .checkPermissionStatus();
 
@@ -252,6 +274,15 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
     }
   }
 
+  /// Opens the device's OS notification settings screen directly.
+  Future<bool> openDeviceNotificationSettings() async {
+    try {
+      return await ph.openAppSettings();
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Toggles notifications delivery preference for the current device/user.
   Future<void> setNotificationsEnabled(bool enabled) async {
     if (enabled && !state.permissionStatus.isGranted) {
@@ -284,6 +315,20 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
     }
   }
 
+  /// Updates per-category notification preferences and syncs with Supabase.
+  Future<void> updatePreferences(NotificationPreferences next) async {
+    if (mounted) {
+      state = state.copyWith(preferences: next);
+    }
+    final user = _ref.read(authControllerProvider).user;
+    if (user == null) return;
+    await PushNotificationService.instance.saveNotificationPreferences(
+      _client,
+      userId: user.id,
+      preferences: next,
+    );
+  }
+
   /// Sends a real FCM/APNs test push notification (5s server-side delay) so
   /// the user can close the app and verify OS delivery & tap-to-open.
   Future<PushTestResult> sendTestClosedAppNotification({
@@ -301,10 +346,13 @@ class PushNotificationController extends StateNotifier<PushNotificationState>
     switch (user.role) {
       case UserRole.customer:
         _ref.invalidate(customerNotificationsProvider);
+        _ref.invalidate(customerOrdersProvider);
       case UserRole.shop:
         _ref.invalidate(shopNotificationsProvider);
+        _ref.invalidate(shopOrdersProvider);
       case UserRole.admin:
         _ref.invalidate(adminNotificationsProvider);
+        _ref.invalidate(adminOrdersProvider);
     }
   }
 }

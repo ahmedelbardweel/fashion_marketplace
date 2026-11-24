@@ -191,10 +191,10 @@ class _ShopOrdersScreenState extends ConsumerState<ShopOrdersScreen> {
                                     order: order,
                                     onTap: busy
                                         ? null
-                                        : () => showShopOrderStatusSheet(
-                                            context,
-                                            ref,
-                                            order,
+                                        : () => context.push(
+                                            AppRoutes.shopOrderDetailsPath(
+                                              order.id,
+                                            ),
                                           ),
                                   );
                                 },

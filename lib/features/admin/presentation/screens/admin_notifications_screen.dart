@@ -2,17 +2,24 @@ import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/filtering/filter_models.dart';
+import '../../../../core/notifications/notification_list_components.dart';
+import '../../../../core/notifications/notification_models.dart';
+import '../../../../core/notifications/push_notification_settings_card.dart';
+import '../../../../core/notifications/read_notifications_provider.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_filter_bar.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/widgets/gaza_region_picker_sheet.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
+import '../../../auth/domain/models/user_role.dart';
 import '../../domain/models/gaza_region.dart';
 import '../providers/admin_providers.dart';
 import '../widgets/admin_app_bar.dart';
@@ -28,6 +35,9 @@ class AdminNotificationsScreen extends ConsumerStatefulWidget {
 
 class _AdminNotificationsScreenState
     extends ConsumerState<AdminNotificationsScreen> {
+  NotificationFilterState _filter = NotificationFilterState.empty;
+  final Set<String> _sessionUnreadIds = {};
+
   Future<void> _openComposer() async {
     final titleCtrl = TextEditingController();
     final bodyCtrl = TextEditingController();
@@ -205,20 +215,25 @@ class _AdminNotificationsScreenState
     bodyCtrl.dispose();
   }
 
-  String _formatDate(DateTime dt) {
-    final l = dt.toLocal();
-    return '${l.day.toString().padLeft(2, '0')}/${l.month.toString().padLeft(2, '0')}/${l.year} • ${l.hour.toString().padLeft(2, '0')}:${l.minute.toString().padLeft(2, '0')}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final notifsAsync = ref.watch(adminNotificationsProvider);
+    final readIds = ref.watch(readNotificationIdsProvider);
     final busy = ref.watch(adminActionProvider).isLoading;
 
     return AdminScaffold(
       title: 'الإشعارات الجماعية والموجهة'.tr,
       showBack: true,
       showBottomNav: false,
+      actions: [
+        IconButton(
+          tooltip: 'تخصيص أنواع الإشعارات'.tr,
+          icon: Icon(Icons.tune_rounded, color: AppColors.text, size: 21),
+          onPressed: AppHaptics.action(
+            () => showNotificationPreferencesSheet(context, ref),
+          ),
+        ),
+      ],
       bottom: AppButton(
         label: 'إرسال إشعار جديد'.tr,
         isLoading: busy,
@@ -248,62 +263,150 @@ class _AdminNotificationsScreenState
             );
           }
 
-          return AppRefreshIndicator(
-            onRefresh: () => ref.refresh(adminNotificationsProvider.future),
-            child: ListView.separated(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: AppSpacing.page,
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-              itemBuilder: (context, index) {
-                final n = items[index];
-                return Container(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: SellerDesign.statCardBackground,
-                    borderRadius: BorderRadius.circular(CardDesign.radius),
-                    border: Border.all(color: SellerDesign.statCardBorder),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              n.title,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: AppFont.bold),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          AppStatusBadge(
-                            label: n.audienceLabel,
-                            tone: n.targetRegion != null
-                                ? BadgeTone.primary
-                                : BadgeTone.neutral,
-                          ),
-                        ],
+          markVisibleNotificationsRead(
+            ref: ref,
+            notifications: items,
+            readIds: readIds,
+            sessionUnreadIds: _sessionUnreadIds,
+            isMounted: () => mounted,
+          );
+          final filtered = filterNotifications(
+            items,
+            _filter,
+            readIds: readIds,
+          );
+          final sections = buildNotificationSections(filtered);
+
+          return Column(
+            children: [
+              AppFilterToolbar(
+                searchValue: _filter.search,
+                searchHint: 'ابحث في الإشعارات...',
+                onSearchChanged: (val) =>
+                    setState(() => _filter = _filter.copyWith(search: val)),
+                sortLabel: _filter.oldestFirst ? 'الأقدم' : 'الأحدث',
+                isDefaultSort: !_filter.oldestFirst,
+                onOpenSort: () async {
+                  final selected = await showAppSortSheet<bool>(
+                    context: context,
+                    current: _filter.oldestFirst,
+                    options: const [
+                      AppSortChoice(
+                        value: false,
+                        label: 'الأحدث',
+                        icon: AppIcons.arrowDown,
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        n.body,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _formatDate(n.createdAt),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textMuted,
-                        ),
+                      AppSortChoice(
+                        value: true,
+                        label: 'الأقدم',
+                        icon: AppIcons.arrowUp,
                       ),
                     ],
+                  );
+                  if (selected != null && mounted) {
+                    setState(
+                      () => _filter = _filter.copyWith(oldestFirst: selected),
+                    );
+                  }
+                },
+                quickOptions: [
+                  AppQuickFilterOption(
+                    id: 'admin_notif_all',
+                    label: 'الكل',
+                    selected: _filter.category == null,
+                    onTap: () => setState(
+                      () => _filter = _filter.copyWith(clearCategory: true),
+                    ),
                   ),
-                );
-              },
-            ),
+                  for (final cat in NotificationCategory.values)
+                    AppQuickFilterOption(
+                      id: 'admin_notif_cat_${cat.key}',
+                      label: cat.shortLabel,
+                      selected: _filter.category == cat,
+                      onTap: () => setState(() {
+                        final same = _filter.category == cat;
+                        _filter = same
+                            ? _filter.copyWith(clearCategory: true)
+                            : _filter.copyWith(category: cat);
+                      }),
+                    ),
+                  for (final preset in DateRangePreset.values)
+                    if (preset != DateRangePreset.all)
+                      AppQuickFilterOption(
+                        id: 'admin_notif_${preset.name}',
+                        label: preset.labelAr,
+                        selected: _filter.datePreset == preset,
+                        onTap: () => setState(() {
+                          final same = _filter.datePreset == preset;
+                          _filter = _filter.copyWith(
+                            datePreset: same ? DateRangePreset.all : preset,
+                          );
+                        }),
+                      ),
+                ],
+                totalCount: items.length,
+                filteredCount: filtered.length,
+                hasActiveCustomization: _filter.hasActiveFilters,
+                onClearAll: () =>
+                    setState(() => _filter = NotificationFilterState.empty),
+                showCountWhenUnfiltered: true,
+              ),
+              Expanded(
+                child: AppRefreshIndicator(
+                  onRefresh: () =>
+                      ref.refresh(adminNotificationsProvider.future),
+                  child: filtered.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: AppSpacing.page,
+                          children: [
+                            AppFilterEmptyState(
+                              onReset: () => setState(
+                                () => _filter = NotificationFilterState.empty,
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: AppSpacing.page,
+                          itemCount: sections.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: AppSpacing.sm),
+                          itemBuilder: (context, index) {
+                            final entry = sections[index];
+                            if (entry.header != null) {
+                              return NotificationSectionHeader(
+                                title: entry.header!,
+                              );
+                            }
+                            final n = entry.item!;
+                            final isUnread = _sessionUnreadIds.contains(n.id);
+                            return NotificationItemCard(
+                              notification: n,
+                              isUnread: isUnread,
+                              onTap: n.hasDeepLink
+                                  ? () => navigateToNotificationTarget(
+                                      context: context,
+                                      ref: ref,
+                                      notification: n,
+                                      role: UserRole.admin,
+                                    )
+                                  : null,
+                              extraBadges: [
+                                AppStatusBadge(
+                                  label: n.audienceLabel,
+                                  tone: n.targetRegion != null
+                                      ? BadgeTone.primary
+                                      : BadgeTone.neutral,
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                ),
+              ),
+            ],
           );
         },
       ),

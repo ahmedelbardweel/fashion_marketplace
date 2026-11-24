@@ -1427,7 +1427,7 @@ class CustomerRepository {
             .from('orders')
             .select('''
           *,
-          shops:shop_id(name),
+          shops:shop_id(name, phone, city, address),
           items:order_items(*)
         ''')
             .eq('id', orderId)
@@ -1436,6 +1436,9 @@ class CustomerRepository {
         final map = asStringMap(row);
         final shopMap = row['shops'] is Map ? asStringMap(row['shops']) : null;
         map['shop_name'] = shopMap?['name'] ?? 'متجر';
+        map['shop_phone'] = shopMap?['phone'];
+        map['shop_city'] = shopMap?['city'];
+        map['shop_address'] = shopMap?['address'];
 
         final itemsList = (row['items'] as List? ?? [])
             .map((item) => CustomerOrderItem.fromMap(asStringMap(item)))
@@ -1452,6 +1455,24 @@ class CustomerRepository {
     }
 
     return _localDb.getCustomerOrderById(orderId);
+  }
+
+  Future<void> sendOrderInquiry({
+    required String orderId,
+    required String topic,
+    String? message,
+    bool escalateAdmin = false,
+  }) async {
+    await NetworkGuard.ensureOnline();
+    await _client.rpc(
+      'customer_send_order_inquiry',
+      params: {
+        'p_order_id': orderId,
+        'p_topic': topic.trim(),
+        'p_message': (message?.trim().isEmpty ?? true) ? null : message!.trim(),
+        'p_escalate_admin': escalateAdmin,
+      },
+    );
   }
 
   // Notifications

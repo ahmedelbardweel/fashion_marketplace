@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/network/network_guard.dart';
+import '../../../../core/notifications/notification_list_components.dart';
+import '../../../../core/notifications/notification_models.dart';
+import '../../../../core/notifications/push_notification_settings_card.dart';
 import '../../../../core/theme/app_design.dart';
-import '../../../../core/widgets/app_card.dart';
+import '../../../../core/utils/app_haptics.dart';
 import '../../../../core/widgets/app_empty.dart';
+import '../../../../core/widgets/app_filter_bar.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
+import '../../../auth/domain/models/user_role.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
-
-import '../../../../core/widgets/app_filter_bar.dart';
 
 class CustomerNotificationsScreen extends ConsumerStatefulWidget {
   const CustomerNotificationsScreen({super.key});
@@ -34,6 +36,15 @@ class _CustomerNotificationsScreenState
 
     return CustomerScaffold(
       title: 'الإشعارات'.tr,
+      actions: [
+        IconButton(
+          tooltip: 'تخصيص أنواع الإشعارات'.tr,
+          icon: Icon(Icons.tune_rounded, color: AppColors.text, size: 21),
+          onPressed: AppHaptics.action(
+            () => showNotificationPreferencesSheet(context, ref),
+          ),
+        ),
+      ],
       body: AppRefreshIndicator(
         onRefresh: () => ref.refresh(customerNotificationsProvider.future),
         child: notificationsAsync.skeletonWhen(
@@ -62,7 +73,12 @@ class _CustomerNotificationsScreenState
               sessionUnreadIds: _sessionUnreadIds,
               isMounted: () => mounted,
             );
-            final filtered = filterNotifications(notifications, _filter);
+            final filtered = filterNotifications(
+              notifications,
+              _filter,
+              readIds: readIds,
+            );
+            final sections = buildNotificationSections(filtered);
 
             return Column(
               children: [
@@ -97,15 +113,39 @@ class _CustomerNotificationsScreenState
                     }
                   },
                   quickOptions: [
-                    for (final preset in DateRangePreset.values)
-                      AppQuickFilterOption(
-                        id: 'notif_${preset.name}',
-                        label: preset.labelAr,
-                        selected: _filter.datePreset == preset,
-                        onTap: () => setState(
-                          () => _filter = _filter.copyWith(datePreset: preset),
-                        ),
+                    AppQuickFilterOption(
+                      id: 'cust_cat_all',
+                      label: 'الكل',
+                      selected: _filter.category == null,
+                      onTap: () => setState(
+                        () => _filter = _filter.copyWith(clearCategory: true),
                       ),
+                    ),
+                    for (final cat in NotificationCategory.values)
+                      AppQuickFilterOption(
+                        id: 'cust_cat_${cat.key}',
+                        label: cat.shortLabel,
+                        selected: _filter.category == cat,
+                        onTap: () => setState(() {
+                          final same = _filter.category == cat;
+                          _filter = same
+                              ? _filter.copyWith(clearCategory: true)
+                              : _filter.copyWith(category: cat);
+                        }),
+                      ),
+                    for (final preset in DateRangePreset.values)
+                      if (preset != DateRangePreset.all)
+                        AppQuickFilterOption(
+                          id: 'notif_${preset.name}',
+                          label: preset.labelAr,
+                          selected: _filter.datePreset == preset,
+                          onTap: () => setState(() {
+                            final same = _filter.datePreset == preset;
+                            _filter = _filter.copyWith(
+                              datePreset: same ? DateRangePreset.all : preset,
+                            );
+                          }),
+                        ),
                   ],
                   totalCount: notifications.length,
                   filteredCount: filtered.length,
@@ -131,119 +171,54 @@ class _CustomerNotificationsScreenState
                       : ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.all(AppSpacing.md),
-                          itemCount: filtered.length,
+                          itemCount: sections.length,
                           separatorBuilder: (_, _) =>
                               const SizedBox(height: AppSpacing.sm),
                           itemBuilder: (context, index) {
-                            final notif = filtered[index];
+                            final entry = sections[index];
+                            if (entry.header != null) {
+                              return NotificationSectionHeader(
+                                title: entry.header!,
+                              );
+                            }
+                            final notif = entry.item!;
                             final isUnreadHighlight =
                                 _sessionUnreadIds.contains(notif.id);
-                            final dateStr = DateFormat(
-                              'yyyy/MM/dd – hh:mm a',
-                            ).format(notif.createdAt);
 
-                            return AppCard(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
+                            return NotificationItemCard(
+                              notification: notif,
+                              isUnread: isUnreadHighlight,
+                              onTap: notif.hasDeepLink
+                                  ? () => navigateToNotificationTarget(
+                                      context: context,
+                                      ref: ref,
+                                      notification: notif,
+                                      role: UserRole.customer,
+                                    )
+                                  : null,
+                              extraBadges: [
+                                if (notif.isSentByShop)
                                   Container(
-                                    width: NotificationsDesign.iconBoxSize,
-                                    height: NotificationsDesign.iconBoxSize,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color:
-                                          NotificationsDesign.iconBackground,
-                                      shape: BoxShape.circle,
+                                      color: AppColors.primarySoft,
+                                      borderRadius: BorderRadius.circular(
+                                        AppRadii.pill,
+                                      ),
                                     ),
-                                    child: Icon(
-                                      AppIcons.bellActive,
-                                      color: NotificationsDesign.icon,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  const SizedBox(width: AppSpacing.md),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                notif.title,
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: AppFont.bold,
-                                                  color: AppColors.text,
-                                                ),
-                                              ),
-                                            ),
-                                            if (isUnreadHighlight) ...[
-                                              const SizedBox(
-                                                width: AppSpacing.xs,
-                                              ),
-                                              Container(
-                                                width: 8,
-                                                height: 8,
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.primary,
-                                                  shape: BoxShape.circle,
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          notif.body,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: AppColors.textSecondary,
-                                            height: 1.5,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          children: [
-                                            Text(
-                                              dateStr,
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                color: AppColors.textMuted,
-                                              ),
-                                            ),
-                                            if (notif.isSentByShop) ...[
-                                              const SizedBox(width: 8),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                  horizontal: 6,
-                                                  vertical: 2,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: AppColors.primarySoft,
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                    AppRadii.pill,
-                                                  ),
-                                                ),
-                                                child: Text(
-                                                  'من المتجر'.tr,
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: AppFont.bold,
-                                                    color: AppColors.primaryDark,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ],
+                                    child: Text(
+                                      'من المتجر'.tr,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: AppFont.bold,
+                                        color: AppColors.primaryDark,
+                                      ),
                                     ),
                                   ),
-                                ],
-                              ),
+                              ],
                             );
                           },
                         ),
@@ -251,12 +226,21 @@ class _CustomerNotificationsScreenState
               ],
             );
           },
-          error: (err, _) => AppEmpty(
-            icon: AppIcons.error,
-            message: AppErrorMapper.message(
-              err,
-              fallback: 'تعذر تحميل الإشعارات حالياً. حاول مرة أخرى.',
-            ),
+          error: (error, _) => ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              SizedBox(
+                height: MediaQuery.of(context).size.height * 0.65,
+                child: AppEmpty(
+                  icon: AppIcons.error,
+                  title: 'تعذر تحميل الإشعارات'.tr,
+                  message: AppErrorMapper.message(
+                    error,
+                    fallback: 'تعذر تحميل الإشعارات حالياً. حاول مرة أخرى.',
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

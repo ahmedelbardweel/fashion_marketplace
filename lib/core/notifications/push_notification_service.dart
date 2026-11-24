@@ -19,6 +19,7 @@ import '../../features/admin/domain/models/catalog_models.dart';
 import '../offline/local_database.dart';
 import '../offline/network_monitor_service.dart';
 import '../offline/offline_sync_engine.dart';
+import 'notification_models.dart';
 
 enum PushPermissionStatus {
   unknown,
@@ -50,6 +51,7 @@ const String _bgSyncUniqueName = 'shopy_notifications_bg_sync';
 const String _bgSyncTaskName = 'shopyNotificationsSync';
 const String _lastSyncIsoKey = 'app_notifications_last_sync_iso';
 const String _shownNotifIdsKey = 'app_notifications_shown_ids';
+const String _notifPrefsKey = 'app_notifications_category_prefs_v1';
 
 /// Top-level background handler required by firebase_messaging when the app is
 /// terminated or in the background.
@@ -157,6 +159,7 @@ class PushNotificationService {
   String? _currentToken;
   String? _lastSyncedUserId;
   bool _lastSyncedEnabled = true;
+  NotificationPreferences _preferences = const NotificationPreferences();
 
   final Set<String> _recentlyDisplayedIds = <String>{};
 
@@ -169,10 +172,15 @@ class PushNotificationService {
       StreamController<Map<String, dynamic>>.broadcast();
   final StreamController<void> _incomingRefreshController =
       StreamController<void>.broadcast();
+  final StreamController<InAppNotificationAlert> _inAppAlertController =
+      StreamController<InAppNotificationAlert>.broadcast();
   Map<String, dynamic>? _pendingLaunchTap;
 
   Stream<Map<String, dynamic>> get onNotificationTap => _tapController.stream;
   Stream<void> get onIncomingNotification => _incomingRefreshController.stream;
+  Stream<InAppNotificationAlert> get onInAppAlert =>
+      _inAppAlertController.stream;
+  NotificationPreferences get currentPreferences => _preferences;
 
   /// Consumes any notification tap that cold-launched the app from a
   /// terminated state before the router/auth session finished initializing.
@@ -360,6 +368,20 @@ class PushNotificationService {
             enableVibration: true,
           ),
         );
+        for (final category in NotificationCategory.values) {
+          await androidPlugin?.createNotificationChannel(
+            AndroidNotificationChannel(
+              category.androidChannelId,
+              category.channelName,
+              description: category.channelDescription,
+              importance: category == NotificationCategory.orders
+                  ? Importance.max
+                  : Importance.high,
+              playSound: true,
+              enableVibration: true,
+            ),
+          );
+        }
       }
 
       final launchDetails = await _localNotifications
@@ -436,6 +458,38 @@ class PushNotificationService {
             (message.data['notification_id'] as String?) ??
             message.messageId ??
             '${title}_${body}_${DateTime.now().millisecondsSinceEpoch}';
+        final data = Map<String, dynamic>.from(message.data);
+        final category = NotificationCategory.resolve(
+          explicitCategory: data['category']?.toString(),
+          eventType: data['event_type']?.toString(),
+          senderRole: data['sender_role']?.toString(),
+          audience: data['audience']?.toString(),
+          title: title,
+        );
+
+        final isTestPush = data['event_type']?.toString() == 'test_push';
+        if (!isTestPush && !_preferences.isCategoryEnabled(category)) {
+          _rememberDisplayedId(notifId);
+          return;
+        }
+
+        if (_recentlyDisplayedIds.contains(notifId)) return;
+        _rememberDisplayedId(notifId);
+        unawaited(_persistShownId(notifId));
+
+        if (!_inAppAlertController.isClosed &&
+            (title.trim().isNotEmpty || body.trim().isNotEmpty)) {
+          _inAppAlertController.add(
+            InAppNotificationAlert(
+              id: notifId,
+              title: title,
+              body: body,
+              category: category,
+              data: data,
+              imageUrl: (data['image_url'] as String?)?.trim(),
+            ),
+          );
+        }
 
         if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
           unawaited(
@@ -443,11 +497,11 @@ class PushNotificationService {
               id: notifId,
               title: title,
               body: body,
-              data: message.data,
+              data: data,
+              category: category,
+              skipDedupeCheck: true,
             ),
           );
-        } else {
-          _rememberDisplayedId(notifId);
         }
       });
 
@@ -665,32 +719,59 @@ class PushNotificationService {
     required String title,
     required String body,
     Map<String, dynamic>? data,
+    NotificationCategory? category,
+    bool skipDedupeCheck = false,
   }) async {
     if (kIsWeb) return;
     if (title.trim().isEmpty && body.trim().isEmpty) return;
-    if (id.isNotEmpty && _recentlyDisplayedIds.contains(id)) return;
+    if (!skipDedupeCheck &&
+        id.isNotEmpty &&
+        _recentlyDisplayedIds.contains(id)) {
+      return;
+    }
     _rememberDisplayedId(id);
+    unawaited(_persistShownId(id));
 
     await initialize(registerBackgroundWorker: false);
 
-    const androidDetails = AndroidNotificationDetails(
-      androidChannelId,
-      androidChannelName,
-      channelDescription: androidChannelDescription,
-      importance: Importance.max,
-      priority: Priority.high,
+    final resolvedCategory =
+        category ??
+        NotificationCategory.resolve(
+          explicitCategory: data?['category']?.toString(),
+          eventType: data?['event_type']?.toString(),
+          senderRole: data?['sender_role']?.toString(),
+          audience: data?['audience']?.toString(),
+          title: title,
+        );
+
+    final androidDetails = AndroidNotificationDetails(
+      resolvedCategory.androidChannelId,
+      resolvedCategory.channelName,
+      channelDescription: resolvedCategory.channelDescription,
+      importance: resolvedCategory == NotificationCategory.orders
+          ? Importance.max
+          : Importance.high,
+      priority: resolvedCategory == NotificationCategory.orders
+          ? Priority.max
+          : Priority.high,
       playSound: true,
       enableVibration: true,
       icon: '@mipmap/ic_launcher',
+      styleInformation: BigTextStyleInformation(
+        body,
+        contentTitle: title,
+        summaryText: resolvedCategory.shortLabel,
+      ),
     );
-    const darwinDetails = DarwinNotificationDetails(
+    final darwinDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBanner: true,
       presentList: true,
       presentBadge: true,
       presentSound: true,
+      threadIdentifier: resolvedCategory.key,
     );
-    const details = NotificationDetails(
+    final details = NotificationDetails(
       android: androidDetails,
       iOS: darwinDetails,
       macOS: darwinDetails,
@@ -709,6 +790,92 @@ class PushNotificationService {
         payload: data == null ? null : jsonEncode(data),
       );
     } catch (_) {}
+  }
+
+  Future<void> _persistShownId(String id) async {
+    final userId = _lastSyncedUserId;
+    if (userId == null || id.isEmpty) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final key = '${_shownNotifIdsKey}_$userId';
+      final list = prefs.getStringList(key) ?? <String>[];
+      if (list.contains(id)) return;
+      list.add(id);
+      if (list.length > 120) {
+        list.removeRange(0, list.length - 120);
+      }
+      await prefs.setStringList(key, list);
+    } catch (_) {}
+  }
+
+  /// Loads per-category notification preferences from local cache & Supabase.
+  Future<NotificationPreferences> loadNotificationPreferences(
+    SupabaseClient? client, {
+    required String userId,
+  }) async {
+    NotificationPreferences resolved = _preferences;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('${_notifPrefsKey}_$userId');
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          resolved = NotificationPreferences.fromMap(
+            Map<String, dynamic>.from(decoded),
+          );
+          _preferences = resolved;
+        }
+      }
+    } catch (_) {}
+
+    if (client != null && NetworkMonitorService.instance.isOnline) {
+      try {
+        final data = await client
+            .rpc('get_my_notification_preferences')
+            .timeout(const Duration(seconds: 6));
+        if (data is Map) {
+          resolved = NotificationPreferences.fromMap(
+            Map<String, dynamic>.from(data),
+          );
+          _preferences = resolved;
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(
+            '${_notifPrefsKey}_$userId',
+            jsonEncode(resolved.toJson()),
+          );
+        }
+      } catch (_) {
+        // Graceful fallback before migration 038 is deployed.
+      }
+    }
+    return resolved;
+  }
+
+  /// Persists per-category notification preferences locally and syncs to Supabase.
+  Future<void> saveNotificationPreferences(
+    SupabaseClient? client, {
+    required String userId,
+    required NotificationPreferences preferences,
+  }) async {
+    _preferences = preferences;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        '${_notifPrefsKey}_$userId',
+        jsonEncode(preferences.toJson()),
+      );
+    } catch (_) {}
+
+    if (client != null && NetworkMonitorService.instance.isOnline) {
+      try {
+        await client
+            .rpc(
+              'update_my_notification_preferences',
+              params: preferences.toRpcParams(),
+            )
+            .timeout(const Duration(seconds: 6));
+      } catch (_) {}
+    }
   }
 
   /// Fetches the FCM token (or native iOS APNs token if FCM is not configured)
@@ -918,7 +1085,15 @@ class PushNotificationService {
         final map = Map<String, dynamic>.from(raw as Map);
         final notif = AdminNotification.fromMap(map);
         final createdBy = map['created_by'] as String?;
-        if (createdBy == userId || shownIds.contains(notif.id)) continue;
+        if (createdBy == userId ||
+            shownIds.contains(notif.id) ||
+            _recentlyDisplayedIds.contains(notif.id)) {
+          continue;
+        }
+        if (!_preferences.isCategoryEnabled(notif.category)) {
+          shownIds.add(notif.id);
+          continue;
+        }
 
         shownIds.add(notif.id);
         final meta = map['metadata'] is Map
@@ -928,9 +1103,11 @@ class PushNotificationService {
           id: notif.id,
           title: notif.title,
           body: notif.body,
+          category: notif.category,
           data: <String, dynamic>{
             'notification_id': notif.id,
             'audience': notif.audience,
+            'category': notif.category.key,
             'sender_role': notif.senderRole,
             if (meta['route'] != null) 'route': meta['route'].toString(),
             if (meta['event_type'] != null)
@@ -940,6 +1117,8 @@ class PushNotificationService {
             if (meta['product_id'] != null)
               'product_id': meta['product_id'].toString(),
             if (meta['shop_id'] != null) 'shop_id': meta['shop_id'].toString(),
+            if (meta['image_url'] != null)
+              'image_url': meta['image_url'].toString(),
           },
         );
       }
@@ -997,30 +1176,53 @@ class PushNotificationService {
 
               _incomingRefreshController.add(null);
 
-              if (showForegroundBanner) {
+              if (showForegroundBanner &&
+                  _preferences.isCategoryEnabled(notif.category) &&
+                  !_recentlyDisplayedIds.contains(notif.id)) {
                 final meta = row['metadata'] is Map
                     ? Map<String, dynamic>.from(row['metadata'] as Map)
                     : const <String, dynamic>{};
+                final payloadData = <String, dynamic>{
+                  'notification_id': notif.id,
+                  'audience': notif.audience,
+                  'category': notif.category.key,
+                  'sender_role': notif.senderRole,
+                  if (meta['route'] != null) 'route': meta['route'].toString(),
+                  if (meta['event_type'] != null)
+                    'event_type': meta['event_type'].toString(),
+                  if (meta['order_id'] != null)
+                    'order_id': meta['order_id'].toString(),
+                  if (meta['product_id'] != null)
+                    'product_id': meta['product_id'].toString(),
+                  if (meta['shop_id'] != null)
+                    'shop_id': meta['shop_id'].toString(),
+                  if (meta['image_url'] != null)
+                    'image_url': meta['image_url'].toString(),
+                };
+                _rememberDisplayedId(notif.id);
+                unawaited(_persistShownId(notif.id));
+
+                if (!_inAppAlertController.isClosed) {
+                  _inAppAlertController.add(
+                    InAppNotificationAlert(
+                      id: notif.id,
+                      title: notif.title,
+                      body: notif.body,
+                      category: notif.category,
+                      data: payloadData,
+                      imageUrl: notif.imageUrl,
+                    ),
+                  );
+                }
+
                 unawaited(
                   showLocalNotification(
                     id: notif.id,
                     title: notif.title,
                     body: notif.body,
-                    data: <String, dynamic>{
-                      'notification_id': notif.id,
-                      'audience': notif.audience,
-                      'sender_role': notif.senderRole,
-                      if (meta['route'] != null)
-                        'route': meta['route'].toString(),
-                      if (meta['event_type'] != null)
-                        'event_type': meta['event_type'].toString(),
-                      if (meta['order_id'] != null)
-                        'order_id': meta['order_id'].toString(),
-                      if (meta['product_id'] != null)
-                        'product_id': meta['product_id'].toString(),
-                      if (meta['shop_id'] != null)
-                        'shop_id': meta['shop_id'].toString(),
-                    },
+                    category: notif.category,
+                    data: payloadData,
+                    skipDedupeCheck: true,
                   ),
                 );
               }

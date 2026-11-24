@@ -177,6 +177,14 @@ final shopOrdersProvider = FutureProvider.autoDispose<List<ShopOrder>>((
   return ref.watch(shopCatalogRepositoryProvider).fetchOrders();
 });
 
+final shopOrderDetailsProvider = FutureProvider.autoDispose
+    .family<ShopOrder?, String>((ref, orderId) async {
+      if (!_isShop(ref)) return null;
+      return ref
+          .watch(shopCatalogRepositoryProvider)
+          .fetchOrderDetails(orderId);
+    });
+
 final shopNotificationsProvider =
     FutureProvider.autoDispose<List<AdminNotification>>((ref) async {
       if (!_isShop(ref)) return const [];
@@ -362,7 +370,26 @@ class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
     return _run(() async {
       await _repo.updateOrderStatus(orderId: orderId, status: status);
       _ref.invalidate(shopOrdersProvider);
+      _ref.invalidate(shopOrderDetailsProvider(orderId));
       _ref.invalidate(shopStatsProvider);
+    });
+  }
+
+  Future<bool> setOrderDeliverySchedule({
+    required String orderId,
+    DateTime? scheduledAt,
+    String? timeWindow,
+    String? shopNote,
+  }) {
+    return _run(() async {
+      await _repo.setOrderDeliverySchedule(
+        orderId: orderId,
+        scheduledAt: scheduledAt,
+        timeWindow: timeWindow,
+        shopNote: shopNote,
+      );
+      _ref.invalidate(shopOrdersProvider);
+      _ref.invalidate(shopOrderDetailsProvider(orderId));
     });
   }
 
@@ -378,6 +405,7 @@ class ShopCatalogActionController extends StateNotifier<AsyncValue<void>> {
         issueNote: issueNote,
       );
       _ref.invalidate(shopOrdersProvider);
+      _ref.invalidate(shopOrderDetailsProvider(orderId));
       _ref.invalidate(shopStatsProvider);
     });
   }

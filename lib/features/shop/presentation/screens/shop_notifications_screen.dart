@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/filtering/filter_models.dart';
+import '../../../../core/notifications/notification_list_components.dart';
+import '../../../../core/notifications/notification_models.dart';
+import '../../../../core/notifications/push_notification_settings_card.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/app_haptics.dart';
 import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_empty.dart';
 import '../../../../core/widgets/app_filter_bar.dart';
 import '../../../../core/widgets/app_refresh_indicator.dart';
@@ -16,6 +18,7 @@ import '../../../../core/widgets/app_skeleton.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../admin/domain/models/catalog_models.dart';
+import '../../../auth/domain/models/user_role.dart';
 import '../../domain/models/shop.dart';
 import '../providers/shop_catalog_providers.dart';
 import '../providers/shop_providers.dart';
@@ -74,6 +77,15 @@ class _ShopNotificationsScreenState
       title: 'الإشعارات'.tr,
       showBottomNav: false,
       showNotifications: false,
+      actions: [
+        IconButton(
+          tooltip: 'تخصيص أنواع الإشعارات'.tr,
+          icon: Icon(Icons.tune_rounded, color: AppColors.text, size: 21),
+          onPressed: AppHaptics.action(
+            () => showNotificationPreferencesSheet(context, ref),
+          ),
+        ),
+      ],
       body: notifications.skeletonWhen(
         placeholder: LoadingFixtures.notifications,
         error: (error, _) => ListView(
@@ -106,7 +118,12 @@ class _ShopNotificationsScreenState
             sessionUnreadIds: _sessionUnreadIds,
             isMounted: () => mounted,
           );
-          final filtered = filterNotifications(items, _filter);
+          final filtered = filterNotifications(
+            items,
+            _filter,
+            readIds: readIds,
+          );
+          final sections = buildNotificationSections(filtered);
 
           return Column(
             children: [
@@ -144,11 +161,27 @@ class _ShopNotificationsScreenState
                   AppQuickFilterOption(
                     id: 'shop_notif_aud_all',
                     label: 'الكل',
-                    selected: _filter.audience == null,
+                    selected:
+                        _filter.audience == null && _filter.category == null,
                     onTap: () => setState(
-                      () => _filter = _filter.copyWith(clearAudience: true),
+                      () => _filter = _filter.copyWith(
+                        clearAudience: true,
+                        clearCategory: true,
+                      ),
                     ),
                   ),
+                  for (final cat in NotificationCategory.values)
+                    AppQuickFilterOption(
+                      id: 'shop_notif_cat_${cat.key}',
+                      label: cat.shortLabel,
+                      selected: _filter.category == cat,
+                      onTap: () => setState(() {
+                        final same = _filter.category == cat;
+                        _filter = same
+                            ? _filter.copyWith(clearCategory: true)
+                            : _filter.copyWith(category: cat);
+                      }),
+                    ),
                   AppQuickFilterOption(
                     id: 'shop_notif_aud_shop',
                     label: 'أصحاب المتاجر',
@@ -197,6 +230,13 @@ class _ShopNotificationsScreenState
                       ),
                 ],
                 activeTags: [
+                  if (_filter.category != null)
+                    AppActiveFilterTag(
+                      label: _filter.category!.shortLabel.tr,
+                      onRemove: () => setState(
+                        () => _filter = _filter.copyWith(clearCategory: true),
+                      ),
+                    ),
                   if (_filter.audience != null)
                     AppActiveFilterTag(
                       label: _filter.audience == 'shop'
@@ -244,84 +284,42 @@ class _ShopNotificationsScreenState
                       : ListView.separated(
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: AppSpacing.page,
-                          itemCount: filtered.length,
+                          itemCount: sections.length,
                           separatorBuilder: (_, _) =>
                               const SizedBox(height: AppSpacing.sm),
                           itemBuilder: (context, index) {
-                            final AdminNotification item = filtered[index];
+                            final entry = sections[index];
+                            if (entry.header != null) {
+                              return NotificationSectionHeader(
+                                title: entry.header!,
+                              );
+                            }
+                            final AdminNotification item = entry.item!;
                             final isUnread = _sessionUnreadIds.contains(
                               item.id,
                             );
-                            return AppCard(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          item.title,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontWeight: AppFont.bold,
-                                              ),
-                                        ),
-                                      ),
-                                      if (isUnread) ...[
-                                        const SizedBox(width: AppSpacing.xs),
-                                        Container(
-                                          width: 8,
-                                          height: 8,
-                                          decoration: BoxDecoration(
-                                            color: AppColors.primary,
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                      ],
-                                    ],
+                            return NotificationItemCard(
+                              notification: item,
+                              isUnread: isUnread,
+                              onTap: item.hasDeepLink
+                                  ? () => navigateToNotificationTarget(
+                                      context: context,
+                                      ref: ref,
+                                      notification: item,
+                                      role: UserRole.shop,
+                                    )
+                                  : null,
+                              extraBadges: [
+                                if (item.isSentByShop)
+                                  const AppStatusBadge(
+                                    label: 'مرسل من محلك',
+                                    tone: BadgeTone.primary,
                                   ),
-                                  const SizedBox(height: AppSpacing.xs),
-                                  Wrap(
-                                    spacing: AppSpacing.xs,
-                                    runSpacing: AppSpacing.xs,
-                                    crossAxisAlignment:
-                                        WrapCrossAlignment.center,
-                                    children: [
-                                      if (item.isSentByShop)
-                                        AppStatusBadge(
-                                          label: 'مرسل من محلك',
-                                          tone: BadgeTone.primary,
-                                        ),
-                                      AppStatusBadge(
-                                        label: item.audienceLabel,
-                                        tone: BadgeTone.neutral,
-                                      ),
-                                      Text(
-                                        formatShopDateTime(item.createdAt),
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: AppColors.textMuted,
-                                              fontSize: AppFont.tiny,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: AppSpacing.sm),
-                                  Text(
-                                    item.body,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: AppColors.textSecondary,
-                                        ),
-                                  ),
-                                ],
-                              ),
+                                AppStatusBadge(
+                                  label: item.audienceLabel,
+                                  tone: BadgeTone.neutral,
+                                ),
+                              ],
                             );
                           },
                         ),

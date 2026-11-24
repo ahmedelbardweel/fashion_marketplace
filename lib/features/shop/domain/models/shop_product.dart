@@ -287,6 +287,41 @@ class ShopStats {
   }
 }
 
+class ShopOrderItem {
+  const ShopOrderItem({
+    required this.id,
+    required this.productId,
+    required this.productName,
+    required this.unitPrice,
+    required this.quantity,
+    required this.totalPrice,
+    this.variantInfo,
+    this.imagePath,
+  });
+
+  final String id;
+  final String productId;
+  final String productName;
+  final String? variantInfo;
+  final double unitPrice;
+  final int quantity;
+  final double totalPrice;
+  final String? imagePath;
+
+  factory ShopOrderItem.fromMap(Map<String, dynamic> map) {
+    return ShopOrderItem(
+      id: map['id']?.toString() ?? '',
+      productId: map['product_id']?.toString() ?? '',
+      productName: map['product_name']?.toString() ?? 'منتج',
+      variantInfo: map['variant_info']?.toString(),
+      unitPrice: (map['unit_price'] as num?)?.toDouble() ?? 0,
+      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
+      totalPrice: (map['total_price'] as num?)?.toDouble() ?? 0,
+      imagePath: map['image_path']?.toString(),
+    );
+  }
+}
+
 class ShopOrder {
   const ShopOrder({
     required this.id,
@@ -312,6 +347,10 @@ class ShopOrder {
     this.checkoutGroupId,
     this.groupTotal,
     this.groupShopsCount = 1,
+    this.scheduledDeliveryAt,
+    this.deliveryTimeWindow,
+    this.shopOrderNote,
+    this.items = const [],
   });
 
   final String id;
@@ -337,6 +376,36 @@ class ShopOrder {
   final String? checkoutGroupId;
   final double? groupTotal;
   final int groupShopsCount;
+  final DateTime? scheduledDeliveryAt;
+  final String? deliveryTimeWindow;
+  final String? shopOrderNote;
+  final List<ShopOrderItem> items;
+
+  bool get hasDeliverySchedule =>
+      scheduledDeliveryAt != null ||
+      (deliveryTimeWindow != null && deliveryTimeWindow!.trim().isNotEmpty);
+  bool get hasShopNote =>
+      shopOrderNote != null && shopOrderNote!.trim().isNotEmpty;
+  bool get isCancelled => status == 'cancelled';
+  bool get isDelivered => status == 'delivered';
+  bool get isActive => !isCancelled && !isDelivered;
+
+  int get statusStep {
+    switch (status) {
+      case 'pending':
+        return 1;
+      case 'confirmed':
+        return 2;
+      case 'processing':
+        return 3;
+      case 'shipped':
+        return 4;
+      case 'delivered':
+        return 5;
+      default:
+        return 0;
+    }
+  }
 
   double get effectiveSubtotal =>
       subtotal ?? (total - deliveryFee).clamp(0.0, total);
@@ -433,6 +502,17 @@ class ShopOrder {
       checkoutGroupId: map['checkout_group_id']?.toString(),
       groupTotal: (map['group_total'] as num?)?.toDouble(),
       groupShopsCount: (map['group_shops_count'] as num?)?.toInt() ?? 1,
+      scheduledDeliveryAt: map['scheduled_delivery_at'] == null
+          ? null
+          : DateTime.tryParse(
+              map['scheduled_delivery_at'].toString(),
+            )?.toLocal(),
+      deliveryTimeWindow: map['delivery_time_window']?.toString(),
+      shopOrderNote: map['shop_order_note']?.toString(),
+      items: (map['items'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => ShopOrderItem.fromMap(Map<String, dynamic>.from(e)))
+          .toList(),
     );
   }
 }

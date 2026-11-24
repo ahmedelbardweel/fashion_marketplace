@@ -4,19 +4,171 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/app_design.dart';
 import '../utils/app_haptics.dart';
 import '../utils/snackbar_utils.dart';
+import '../widgets/app_bottom_sheet.dart';
 import '../widgets/app_card.dart';
+import 'notification_models.dart';
 import 'push_notification_provider.dart';
 import 'push_notification_service.dart';
 
-/// Shared notification permission & toggle row used across Customer, Shop,
-/// and Admin profile/settings screens.
+/// Opens a sleek bottom sheet letting the user customize which notification
+/// categories they want to receive (synced to Supabase).
+Future<void> showNotificationPreferencesSheet(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  await AppBottomSheet.show<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    child: const _NotificationPreferencesSheet(),
+  );
+}
+
+class _NotificationPreferencesSheet extends ConsumerWidget {
+  const _NotificationPreferencesSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pushState = ref.watch(pushNotificationControllerProvider);
+    final prefs = pushState.preferences;
+    final notifier = ref.read(pushNotificationControllerProvider.notifier);
+
+    return AppBottomSheetScaffold(
+      title: 'تخصيص أنواع الإشعارات'.tr,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'اختر أنواع التنبيهات التي تود استلامها على جهازك في أي وقت.'.tr,
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textSecondary,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _CategoryPrefTile(
+            category: NotificationCategory.orders,
+            value: prefs.ordersEnabled,
+            onChanged: (v) =>
+                notifier.updatePreferences(prefs.copyWith(ordersEnabled: v)),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          _CategoryPrefTile(
+            category: NotificationCategory.offers,
+            value: prefs.offersEnabled,
+            onChanged: (v) =>
+                notifier.updatePreferences(prefs.copyWith(offersEnabled: v)),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          _CategoryPrefTile(
+            category: NotificationCategory.catalog,
+            value: prefs.catalogEnabled,
+            onChanged: (v) =>
+                notifier.updatePreferences(prefs.copyWith(catalogEnabled: v)),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          _CategoryPrefTile(
+            category: NotificationCategory.system,
+            value: prefs.systemEnabled,
+            onChanged: (v) =>
+                notifier.updatePreferences(prefs.copyWith(systemEnabled: v)),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryPrefTile extends StatelessWidget {
+  const _CategoryPrefTile({
+    required this.category,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final NotificationCategory category;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = category.accentColor;
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        border: Border.all(
+          color: value
+              ? accent.withValues(alpha: 0.3)
+              : AppColors.border.withValues(alpha: 0.7),
+        ),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+        leading: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: value ? 0.14 : 0.06),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            category.icon,
+            size: 20,
+            color: value ? accent : AppColors.textMuted,
+          ),
+        ),
+        title: Text(
+          category.channelName.tr,
+          style: TextStyle(
+            fontSize: 13.5,
+            fontWeight: AppFont.bold,
+            color: AppColors.text,
+          ),
+        ),
+        subtitle: Text(
+          category.channelDescription.tr,
+          style: TextStyle(
+            fontSize: 11.5,
+            color: AppColors.textMuted,
+            height: 1.35,
+          ),
+        ),
+        trailing: Switch.adaptive(
+          value: value,
+          onChanged: (next) {
+            AppHaptics.selection();
+            onChanged(next);
+          },
+        ),
+        onTap: () {
+          AppHaptics.selection();
+          onChanged(!value);
+        },
+      ),
+    );
+  }
+}
+
+/// Shared notification permission, master toggle, and category preferences row
+/// used across Customer, Shop, and Admin profile/settings screens.
 class PushNotificationSettingsRow extends ConsumerWidget {
   const PushNotificationSettingsRow({super.key});
 
   Future<void> _onEnablePressed(BuildContext context, WidgetRef ref) async {
-    final result = await ref
-        .read(pushNotificationControllerProvider.notifier)
-        .requestPermissionAndEnable();
+    final notifier = ref.read(pushNotificationControllerProvider.notifier);
+    final currentStatus =
+        ref.read(pushNotificationControllerProvider).permissionStatus;
+
+    if (currentStatus == PushPermissionStatus.permanentlyDenied) {
+      await notifier.openDeviceNotificationSettings();
+      return;
+    }
+
+    final result = await notifier.requestPermissionAndEnable();
     if (!context.mounted) return;
     if (result.isGranted) {
       showAppSnackBar(context, 'تم تفعيل الإشعارات بنجاح'.tr);
@@ -25,6 +177,8 @@ class PushNotificationSettingsRow extends ConsumerWidget {
         context,
         'يرجى السماح بالإشعارات من إعدادات الجهاز لتصلك التنبيهات'.tr,
         isError: true,
+        actionLabel: 'الإعدادات',
+        onAction: () => notifier.openDeviceNotificationSettings(),
       );
     }
   }
@@ -34,16 +188,19 @@ class PushNotificationSettingsRow extends ConsumerWidget {
     final pushState = ref.watch(pushNotificationControllerProvider);
     final granted = pushState.permissionStatus.isGranted;
     final active = pushState.isEffectivelyActive;
+    final permanentlyDenied =
+        pushState.permissionStatus == PushPermissionStatus.permanentlyDenied;
 
     final String subtitle;
     if (active && pushState.fcmReady && pushState.hasToken) {
-      subtitle = 'FCM متصل — تصلك الإشعارات حتى عند إغلاق التطبيق'.tr;
+      subtitle = 'مفعّلة — اضغط لتخصيص أنواع الإشعارات'.tr;
     } else if (active) {
-      subtitle = 'مفعّلة — بانتظار ربط Firebase (FCM) للإشعارات خارج التطبيق'.tr;
+      subtitle = 'مفعّلة — اضغط لتخصيص أنواع الإشعارات'.tr;
     } else if (granted && !pushState.notificationsEnabled) {
       subtitle = 'متوقفة مؤقتاً من التطبيق'.tr;
-    } else if (pushState.permissionStatus == PushPermissionStatus.denied ||
-        pushState.permissionStatus == PushPermissionStatus.permanentlyDenied) {
+    } else if (permanentlyDenied) {
+      subtitle = 'مرفوضة من النظام — اضغط لفتح إعدادات الجهاز'.tr;
+    } else if (pushState.permissionStatus == PushPermissionStatus.denied) {
       subtitle = 'غير مسموحة — اضغط لتفعيل صلاحية الإشعارات'.tr;
     } else {
       subtitle = 'فعّل الإشعارات لاستلام العروض وتحديثات الطلبات'.tr;
@@ -55,10 +212,12 @@ class PushNotificationSettingsRow extends ConsumerWidget {
           : AppHaptics.action(() {
               if (!granted) {
                 _onEnablePressed(context, ref);
+              } else if (active) {
+                showNotificationPreferencesSheet(context, ref);
               } else {
                 ref
                     .read(pushNotificationControllerProvider.notifier)
-                    .setNotificationsEnabled(!pushState.notificationsEnabled);
+                    .setNotificationsEnabled(true);
               }
             }),
       leading: Container(
@@ -108,7 +267,7 @@ class PushNotificationSettingsRow extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(AppRadii.pill),
               ),
               child: Text(
-                'تفعيل'.tr,
+                (permanentlyDenied ? 'الإعدادات' : 'تفعيل').tr,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: AppFont.bold,
@@ -158,6 +317,43 @@ class _PushNotificationSettingsCardState
         children: [
           const PushNotificationSettingsRow(),
           if (active) ...[
+            Divider(height: 1, color: AppColors.divider),
+            InkWell(
+              onTap: AppHaptics.action(
+                () => showNotificationPreferencesSheet(context, ref),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: 11,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.tune_rounded,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    Expanded(
+                      child: Text(
+                        'تخصيص أنواع الإشعارات'.tr,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: AppFont.semiBold,
+                          color: AppColors.text,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      AppIcons.forward,
+                      size: 15,
+                      color: AppColors.textMuted,
+                    ),
+                  ],
+                ),
+              ),
+            ),
             Divider(height: 1, color: AppColors.divider),
             InkWell(
               onTap: _sendingTest

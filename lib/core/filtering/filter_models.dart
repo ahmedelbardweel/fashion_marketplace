@@ -8,6 +8,7 @@ import '../../features/customer/domain/models/customer_product.dart';
 import '../../features/customer/domain/models/customer_shop.dart';
 import '../../features/shop/domain/models/shop.dart';
 import '../../features/shop/domain/models/shop_product.dart';
+import '../notifications/notification_models.dart';
 import '../search/smart_search_sheets.dart';
 import '../search/text_search_engine.dart';
 import '../search/visual_search_service.dart';
@@ -1448,6 +1449,8 @@ class NotificationFilterState {
   const NotificationFilterState({
     this.search = '',
     this.audience,
+    this.category,
+    this.unreadOnly = false,
     this.datePreset = DateRangePreset.all,
     this.oldestFirst = false,
   });
@@ -1456,19 +1459,26 @@ class NotificationFilterState {
 
   final String search;
   final String? audience;
+  final NotificationCategory? category;
+  final bool unreadOnly;
   final DateRangePreset datePreset;
   final bool oldestFirst;
 
   NotificationFilterState copyWith({
     String? search,
     String? audience,
+    NotificationCategory? category,
+    bool? unreadOnly,
     DateRangePreset? datePreset,
     bool? oldestFirst,
     bool clearAudience = false,
+    bool clearCategory = false,
   }) {
     return NotificationFilterState(
       search: search ?? this.search,
       audience: clearAudience ? null : (audience ?? this.audience),
+      category: clearCategory ? null : (category ?? this.category),
+      unreadOnly: unreadOnly ?? this.unreadOnly,
       datePreset: datePreset ?? this.datePreset,
       oldestFirst: oldestFirst ?? this.oldestFirst,
     );
@@ -1477,6 +1487,8 @@ class NotificationFilterState {
   int get activeFacetCount {
     var count = 0;
     if (audience != null && audience!.isNotEmpty) count++;
+    if (category != null) count++;
+    if (unreadOnly) count++;
     if (datePreset != DateRangePreset.all) count++;
     return count;
   }
@@ -1489,6 +1501,7 @@ List<AdminNotification> filterNotifications(
   List<AdminNotification> notifications,
   NotificationFilterState filter, {
   DateTime? now,
+  Set<String>? readIds,
 }) {
   final filtered = notifications.where((item) {
     if (filter.audience != null &&
@@ -1496,11 +1509,18 @@ List<AdminNotification> filterNotifications(
         item.audience != filter.audience) {
       return false;
     }
+    if (filter.category != null && item.category != filter.category) {
+      return false;
+    }
+    if (filter.unreadOnly && readIds != null && readIds.contains(item.id)) {
+      return false;
+    }
     if (!filter.datePreset.matches(item.createdAt, now: now)) return false;
     return matchesSearchTokens(filter.search, [
       item.title,
       item.body,
       item.audienceLabel,
+      item.category.shortLabel,
     ]);
   }).toList();
 

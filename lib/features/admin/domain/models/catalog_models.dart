@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import '../../../../core/notifications/notification_models.dart';
+
 class CatalogCategory {
   const CatalogCategory({
     required this.id,
@@ -378,6 +382,7 @@ class AdminNotification {
     this.senderRole = 'system',
     this.targetScope = 'audience',
     this.targetRegion,
+    this.metadata = const <String, dynamic>{},
   });
 
   final String id;
@@ -389,8 +394,44 @@ class AdminNotification {
   final String senderRole;
   final String targetScope;
   final String? targetRegion;
+  final Map<String, dynamic> metadata;
 
   bool get isSentByShop => senderRole == 'shop';
+
+  String? get route {
+    final raw = metadata['route']?.toString().trim();
+    return (raw == null || raw.isEmpty) ? null : raw;
+  }
+
+  String? get eventType {
+    final raw = metadata['event_type']?.toString().trim();
+    return (raw == null || raw.isEmpty) ? null : raw;
+  }
+
+  String? get imageUrl {
+    final raw = metadata['image_url']?.toString().trim();
+    return (raw == null || raw.isEmpty) ? null : raw;
+  }
+
+  String? get orderId {
+    final raw = metadata['order_id']?.toString().trim();
+    return (raw == null || raw.isEmpty) ? null : raw;
+  }
+
+  String? get productId {
+    final raw = metadata['product_id']?.toString().trim();
+    return (raw == null || raw.isEmpty) ? null : raw;
+  }
+
+  bool get hasDeepLink => route != null;
+
+  NotificationCategory get category => NotificationCategory.resolve(
+    explicitCategory: metadata['category']?.toString(),
+    eventType: eventType,
+    senderRole: senderRole,
+    audience: audience,
+    title: title,
+  );
 
   String get audienceLabel {
     if (targetRegion != null && targetRegion!.trim().isNotEmpty) {
@@ -412,6 +453,19 @@ class AdminNotification {
     }
   }
 
+  static Map<String, dynamic> _parseMetadata(dynamic raw) {
+    if (raw is Map) {
+      return Map<String, dynamic>.from(raw);
+    }
+    if (raw is String && raw.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+    }
+    return const <String, dynamic>{};
+  }
+
   factory AdminNotification.fromMap(Map<String, dynamic> map) {
     return AdminNotification(
       id: map['id'] as String,
@@ -425,6 +479,7 @@ class AdminNotification {
       senderRole: map['sender_role'] as String? ?? 'system',
       targetScope: map['target_scope'] as String? ?? 'audience',
       targetRegion: map['target_region'] as String?,
+      metadata: _parseMetadata(map['metadata']),
     );
   }
 }

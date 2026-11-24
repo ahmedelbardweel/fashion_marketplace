@@ -48,6 +48,9 @@ class CustomerOrder {
     required this.status,
     required this.total,
     required this.createdAt,
+    this.shopPhone,
+    this.shopCity,
+    this.shopAddress,
     this.subtotal,
     this.deliveryFee = 0,
     this.deliveryMode = 'shop_delivery',
@@ -64,6 +67,9 @@ class CustomerOrder {
     this.checkoutGroupId,
     this.groupTotal,
     this.groupShopsCount = 1,
+    this.scheduledDeliveryAt,
+    this.deliveryTimeWindow,
+    this.shopOrderNote,
     this.items = const [],
   });
 
@@ -82,6 +88,9 @@ class CustomerOrder {
       customerId: map['customer_id']?.toString() ?? '',
       shopId: map['shop_id']?.toString() ?? '',
       shopName: map['shop_name']?.toString() ?? 'متجر',
+      shopPhone: map['shop_phone']?.toString(),
+      shopCity: map['shop_city']?.toString(),
+      shopAddress: map['shop_address']?.toString(),
       status: map['status']?.toString() ?? 'pending',
       total: total,
       subtotal: subtotal,
@@ -107,6 +116,13 @@ class CustomerOrder {
       checkoutGroupId: map['checkout_group_id']?.toString(),
       groupTotal: (map['group_total'] as num?)?.toDouble(),
       groupShopsCount: (map['group_shops_count'] as num?)?.toInt() ?? 1,
+      scheduledDeliveryAt: map['scheduled_delivery_at'] == null
+          ? null
+          : DateTime.tryParse(
+              map['scheduled_delivery_at'].toString(),
+            )?.toLocal(),
+      deliveryTimeWindow: map['delivery_time_window']?.toString(),
+      shopOrderNote: map['shop_order_note']?.toString(),
       items: items ?? const [],
     );
   }
@@ -115,6 +131,9 @@ class CustomerOrder {
   final String customerId;
   final String shopId;
   final String shopName;
+  final String? shopPhone;
+  final String? shopCity;
+  final String? shopAddress;
   final String status;
   final double total;
   final double? subtotal;
@@ -134,6 +153,9 @@ class CustomerOrder {
   final String? checkoutGroupId;
   final double? groupTotal;
   final int groupShopsCount;
+  final DateTime? scheduledDeliveryAt;
+  final String? deliveryTimeWindow;
+  final String? shopOrderNote;
   final List<CustomerOrderItem> items;
 
   double get effectiveSubtotal =>
@@ -153,6 +175,15 @@ class CustomerOrder {
   bool get hasPaymentIssue => paymentStatus == 'issue_reported';
   bool get hasReceipt =>
       paymentReceiptUrl != null && paymentReceiptUrl!.trim().isNotEmpty;
+  bool get hasShopPhone => shopPhone != null && shopPhone!.trim().isNotEmpty;
+  bool get hasDeliverySchedule =>
+      scheduledDeliveryAt != null ||
+      (deliveryTimeWindow != null && deliveryTimeWindow!.trim().isNotEmpty);
+  bool get hasShopNote =>
+      shopOrderNote != null && shopOrderNote!.trim().isNotEmpty;
+  bool get isCancelled => status == 'cancelled';
+  bool get isDelivered => status == 'delivered';
+  bool get isActive => !isCancelled && !isDelivered;
 
   String get deliveryModeLabel =>
       isCustomerPickup ? 'توصيل من الزبون' : 'توصيل من المحل';
@@ -189,17 +220,20 @@ class CustomerOrder {
     }
   }
 
+  /// 5 clear progression steps:
+  /// 1 = pending, 2 = confirmed, 3 = processing, 4 = shipped, 5 = delivered, 0 = cancelled
   int get statusStep {
     switch (status) {
       case 'pending':
-      case 'confirmed':
         return 1;
-      case 'processing':
+      case 'confirmed':
         return 2;
-      case 'shipped':
+      case 'processing':
         return 3;
-      case 'delivered':
+      case 'shipped':
         return 4;
+      case 'delivered':
+        return 5;
       default:
         return 0;
     }

@@ -45,6 +45,7 @@ class AppRoutes {
   static const shopProductForm = '/shop/product/new';
   static const shopProductEdit = '/shop/product/:productId';
   static const shopOrders = '/shop/orders';
+  static const shopOrderDetails = '/shop/orders/:orderId';
   static const shopSales = '/shop/sales';
   static const shopNotifications = '/shop/notifications';
   static const shopProfile = '/shop/profile';
@@ -71,6 +72,7 @@ class AppRoutes {
   static String adminShopReviewPath(String shopId) => '/admin/shops/$shopId';
   static String shopProductEditPath(String productId) =>
       '/shop/product/$productId';
+  static String shopOrderDetailsPath(String orderId) => '/shop/orders/$orderId';
   static String customerShopProfilePath(String shopId) =>
       '/customer/shops/$shopId';
   static String customerProductDetailsPath(String productId) =>

@@ -2,16 +2,23 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../theme/app_theme.dart';
 import '../../features/admin/domain/models/catalog_models.dart';
+import '../offline/network_monitor_service.dart';
+import '../theme/app_theme.dart';
 
-/// Persists locally read notification IDs so app-bar and dashboard badges
-/// accurately reflect only unread notifications across sessions.
+/// Persists locally read notification IDs and syncs them with Supabase
+/// (`public.notification_reads`) so unread badges stay consistent across
+/// sessions and devices.
 class ReadNotificationsNotifier extends StateNotifier<Set<String>> {
   ReadNotificationsNotifier() : super(AppPreferences.getReadNotificationIds()) {
     unawaited(_syncFromDisk());
   }
+
+  static final RegExp _uuidRe = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
 
   Future<void> _syncFromDisk() async {
     await AppPreferences.init();
@@ -22,19 +29,71 @@ class ReadNotificationsNotifier extends StateNotifier<Set<String>> {
     }
   }
 
+  SupabaseClient? get _client {
+    try {
+      return Supabase.instance.client;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Pulls read notification IDs from Supabase and merges them with local state.
+  Future<void> syncWithServer() async {
+    final client = _client;
+    if (client == null || client.auth.currentUser == null) return;
+    if (!NetworkMonitorService.instance.isOnline) return;
+    try {
+      final raw = await client
+          .rpc('get_my_read_notification_ids')
+          .timeout(const Duration(seconds: 6));
+      if (!mounted || raw is! List) return;
+      final serverIds = raw
+          .map((e) => e?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      if (serverIds.isEmpty) return;
+      final merged = {...state, ...serverIds};
+      if (merged.length != state.length) {
+        state = merged;
+        unawaited(AppPreferences.setReadNotificationIds(merged));
+      }
+    } catch (_) {
+      // Graceful fallback when offline or before migration 038 is applied.
+    }
+  }
+
+  Future<void> _pushReadIdsToServer(Iterable<String> ids) async {
+    final client = _client;
+    if (client == null || client.auth.currentUser == null) return;
+    if (!NetworkMonitorService.instance.isOnline) return;
+    final validUuids = ids.where((id) => _uuidRe.hasMatch(id)).toList();
+    if (validUuids.isEmpty) return;
+    try {
+      await client
+          .rpc('mark_notifications_read', params: {'p_ids': validUuids})
+          .timeout(const Duration(seconds: 6));
+    } catch (_) {
+      // Best-effort server sync; local state already persisted.
+    }
+  }
+
   void markRead(String id) {
     if (id.isEmpty || state.contains(id)) return;
     final next = {...state, id};
     state = next;
     unawaited(AppPreferences.setReadNotificationIds(next));
+    unawaited(_pushReadIdsToServer([id]));
   }
 
   void markAllRead(Iterable<String> ids) {
-    final additions = ids.where((id) => id.isNotEmpty && !state.contains(id));
+    final additions = ids
+        .where((id) => id.isNotEmpty && !state.contains(id))
+        .toList();
     if (additions.isEmpty) return;
     final next = {...state, ...additions};
     state = next;
     unawaited(AppPreferences.setReadNotificationIds(next));
+    unawaited(_pushReadIdsToServer(additions));
   }
 }
 

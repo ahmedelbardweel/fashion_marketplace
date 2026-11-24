@@ -210,10 +210,10 @@ class ShopDashboardScreen extends ConsumerWidget {
                                   order: order,
                                   onTap: busy
                                       ? null
-                                      : () => showShopOrderStatusSheet(
-                                          context,
-                                          ref,
-                                          order,
+                                      : () => context.push(
+                                          AppRoutes.shopOrderDetailsPath(
+                                            order.id,
+                                          ),
                                         ),
                                 ),
                               ),

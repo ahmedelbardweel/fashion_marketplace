@@ -6,16 +6,12 @@
 //   - FCM HTTP v1 (Android + iOS): FIREBASE_SERVICE_ACCOUNT_JSON
 //   - Direct Apple APNs HTTP/2 (iOS): APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID
 //
-// Supported invocation modes:
-//   1) Supabase Database Webhook (INSERT on public.notifications):
-//      Headers: x-webhook-secret: <PUSH_WEBHOOK_SECRET> (or service_role Bearer)
-//      Body: { type: "INSERT", table: "notifications", record: { id, ... } }
-//   2) Authenticated client call for a specific notification:
-//      Headers: Authorization: Bearer <user_jwt>
-//      Body: { notification_id: "<uuid>" }
-//   3) Authenticated client self-test push:
-//      Headers: Authorization: Bearer <user_jwt>
-//      Body: { action: "test", title?: "...", body?: "..." }
+// Professional Features:
+//   - Gaza region targeting (filters recipients by target_region on profiles/shops)
+//   - Category-specific Android channels (orders / offers / catalog / system)
+//   - Per-user category preference enforcement (user_notification_preferences)
+//   - Rich image push notifications (product & banner image_url)
+//   - Concurrency-limited batching + stale token cleanup
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -40,6 +36,8 @@ interface ServiceAccount {
   private_key: string;
 }
 
+type NotificationCategory = 'orders' | 'offers' | 'catalog' | 'system';
+
 interface NotificationRow {
   id: string;
   title: string;
@@ -50,6 +48,7 @@ interface NotificationRow {
   shop_id: string | null;
   sender_role: string | null;
   target_scope: string | null;
+  target_region?: string | null;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -58,6 +57,14 @@ interface PushTokenRow {
   token: string;
   platform: string;
   user_id: string;
+}
+
+interface UserPreferenceRow {
+  user_id: string;
+  orders_enabled: boolean;
+  offers_enabled: boolean;
+  catalog_enabled: boolean;
+  system_enabled: boolean;
 }
 
 function base64UrlEncode(input: Uint8Array | string): string {
@@ -164,6 +171,66 @@ function isRawHexApnsToken(token: string): boolean {
   return /^[0-9a-fA-F]{64,}$/.test(token);
 }
 
+function resolveNotificationCategory(
+  notif: NotificationRow,
+): NotificationCategory {
+  const meta =
+    notif.metadata && typeof notif.metadata === 'object' ? notif.metadata : {};
+  const explicit = String(meta.category ?? '').trim().toLowerCase();
+  if (
+    explicit === 'orders' ||
+    explicit === 'offers' ||
+    explicit === 'catalog' ||
+    explicit === 'system'
+  ) {
+    return explicit;
+  }
+
+  const eventType = String(meta.event_type ?? '').trim().toLowerCase();
+  if (
+    eventType.includes('order') ||
+    eventType.includes('receipt') ||
+    eventType.includes('payment') ||
+    eventType.includes('settlement') ||
+    eventType.includes('payout') ||
+    eventType.includes('delivery')
+  ) {
+    return 'orders';
+  }
+  if (
+    eventType.includes('offer') ||
+    eventType.includes('banner') ||
+    eventType.includes('discount') ||
+    eventType.includes('promo')
+  ) {
+    return 'offers';
+  }
+  if (
+    eventType.includes('product') ||
+    eventType.includes('review') ||
+    eventType.includes('catalog')
+  ) {
+    return 'catalog';
+  }
+  if (notif.sender_role === 'shop' && notif.audience === 'customer') {
+    return 'offers';
+  }
+  return 'system';
+}
+
+function androidChannelForCategory(category: NotificationCategory): string {
+  switch (category) {
+    case 'orders':
+      return 'wasla_orders';
+    case 'offers':
+      return 'wasla_offers';
+    case 'catalog':
+      return 'wasla_catalog';
+    case 'system':
+      return 'wasla_system';
+  }
+}
+
 async function supabaseGet<T>(
   baseUrl: string,
   serviceKey: string,
@@ -193,6 +260,7 @@ async function resolveTargetUserIds(
   }
 
   const scope = notif.target_scope ?? 'audience';
+  const targetRegion = (notif.target_region ?? '').trim();
   let ids: string[] = [];
 
   if (scope === 'shop_customers' && notif.shop_id) {
@@ -213,27 +281,103 @@ async function resolveTargetUserIds(
     } else if (notif.audience === 'admin') {
       profileFilter += '&role=eq.admin';
     }
+
+    if (targetRegion.length > 0) {
+      const safeRegion = targetRegion.replace(/[(),*]/g, '');
+      if (safeRegion.length > 0) {
+        const pattern = encodeURIComponent(`*${safeRegion}*`);
+        profileFilter += `&or=(city.ilike.${pattern},address.ilike.${pattern})`;
+      }
+    }
+
     const profiles = await supabaseGet<Array<{ id: string }>>(
       baseUrl,
       serviceKey,
       `profiles?${profileFilter}`,
     );
-    ids = profiles.map((p) => p.id).filter(Boolean);
+    const idSet = new Set(profiles.map((p) => p.id).filter(Boolean));
+
+    // When targeting a Gaza region for shops/all, also match shops whose city/address matches.
+    if (
+      targetRegion.length > 0 &&
+      (notif.audience === 'shop' || notif.audience === 'all')
+    ) {
+      const safeRegion = targetRegion.replace(/[(),*]/g, '');
+      if (safeRegion.length > 0) {
+        const pattern = encodeURIComponent(`*${safeRegion}*`);
+        const matchedShops = await supabaseGet<Array<{ owner_id: string }>>(
+          baseUrl,
+          serviceKey,
+          `shops?select=owner_id&or=(city.ilike.${pattern},address.ilike.${pattern})`,
+        ).catch(() => []);
+        for (const s of matchedShops) {
+          if (s.owner_id) idSet.add(s.owner_id);
+        }
+      }
+    }
+
+    ids = Array.from(idSet);
   }
 
   const excluded = excludeUserId ?? notif.created_by;
   return excluded ? ids.filter((id) => id !== excluded) : ids;
 }
 
-function buildFlatDataPayload(notif: NotificationRow): Record<string, string> {
+async function filterByUserPreferences(
+  baseUrl: string,
+  serviceKey: string,
+  userIds: string[],
+  category: NotificationCategory,
+): Promise<string[]> {
+  if (userIds.length === 0) return [];
+  const disabledUsers = new Set<string>();
+  const chunkSize = 50;
+
+  try {
+    for (let i = 0; i < userIds.length; i += chunkSize) {
+      const chunk = userIds.slice(i, i + chunkSize).join(',');
+      const prefs = await supabaseGet<UserPreferenceRow[]>(
+        baseUrl,
+        serviceKey,
+        `user_notification_preferences?select=user_id,orders_enabled,offers_enabled,catalog_enabled,system_enabled&user_id=in.(${chunk})`,
+      );
+      for (const p of prefs) {
+        const allowed =
+          category === 'orders'
+            ? p.orders_enabled
+            : category === 'offers'
+            ? p.offers_enabled
+            : category === 'catalog'
+            ? p.catalog_enabled
+            : p.system_enabled;
+        if (allowed === false) {
+          disabledUsers.add(p.user_id);
+        }
+      }
+    }
+  } catch {
+    // Graceful fallback if migration 038 is not deployed yet: deliver to all.
+    return userIds;
+  }
+
+  if (disabledUsers.size === 0) return userIds;
+  return userIds.filter((id) => !disabledUsers.has(id));
+}
+
+function buildFlatDataPayload(
+  notif: NotificationRow,
+  category: NotificationCategory,
+): Record<string, string> {
   const meta =
     notif.metadata && typeof notif.metadata === 'object' ? notif.metadata : {};
+  const imageUrl = String(meta.image_url ?? '').trim();
   const data: Record<string, string> = {
     click_action: 'FLUTTER_NOTIFICATION_CLICK',
     notification_id: notif.id,
     title: notif.title,
     body: notif.body,
     audience: notif.audience,
+    category,
     sender_role: notif.sender_role ?? 'system',
     target_scope: notif.target_scope ?? 'audience',
     shop_id: notif.shop_id ?? String(meta.shop_id ?? ''),
@@ -241,6 +385,7 @@ function buildFlatDataPayload(notif: NotificationRow): Record<string, string> {
     event_type: String(meta.event_type ?? ''),
     order_id: String(meta.order_id ?? ''),
     product_id: String(meta.product_id ?? ''),
+    ...(imageUrl ? { image_url: imageUrl } : {}),
   };
   return data;
 }
@@ -250,7 +395,14 @@ async function dispatchToUsers(
   serviceKey: string,
   notif: NotificationRow,
   targetUserIds: string[],
-): Promise<{ sent: number; totalTokens: number; cleanedTokens: number; skipped?: boolean; reason?: string }> {
+  options: { bypassPreferences?: boolean } = {},
+): Promise<{
+  sent: number;
+  totalTokens: number;
+  cleanedTokens: number;
+  skipped?: boolean;
+  reason?: string;
+}> {
   const serviceAccountRaw = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON');
   const apnsKeyP8 = Deno.env.get('APNS_KEY_P8');
   const apnsKeyId = Deno.env.get('APNS_KEY_ID');
@@ -279,10 +431,19 @@ async function dispatchToUsers(
     return { sent: 0, totalTokens: 0, cleanedTokens: 0 };
   }
 
+  const category = resolveNotificationCategory(notif);
+  const eligibleUserIds = options.bypassPreferences
+    ? targetUserIds
+    : await filterByUserPreferences(url, serviceKey, targetUserIds, category);
+
+  if (eligibleUserIds.length === 0) {
+    return { sent: 0, totalTokens: 0, cleanedTokens: 0 };
+  }
+
   const tokens: PushTokenRow[] = [];
   const chunkSize = 50;
-  for (let i = 0; i < targetUserIds.length; i += chunkSize) {
-    const chunk = targetUserIds.slice(i, i + chunkSize).join(',');
+  for (let i = 0; i < eligibleUserIds.length; i += chunkSize) {
+    const chunk = eligibleUserIds.slice(i, i + chunkSize).join(',');
     const batch = await supabaseGet<PushTokenRow[]>(
       url,
       serviceKey,
@@ -297,7 +458,9 @@ async function dispatchToUsers(
 
   let sent = 0;
   const staleTokenIds: string[] = [];
-  const flatData = buildFlatDataPayload(notif);
+  const flatData = buildFlatDataPayload(notif, category);
+  const channelId = androidChannelForCategory(category);
+  const imageUrl = flatData.image_url?.trim() || undefined;
 
   const serviceAccount = hasFcm
     ? (JSON.parse(serviceAccountRaw!) as ServiceAccount)
@@ -309,101 +472,119 @@ async function dispatchToUsers(
     ? await createApnsJwt(apnsKeyP8!, apnsKeyId!, apnsTeamId!)
     : null;
 
-  await Promise.all(
-    tokens.map(async (entry) => {
-      if (
-        entry.platform === 'ios' &&
-        isRawHexApnsToken(entry.token) &&
-        apnsJwt
-      ) {
-        const res = await fetch(`${apnsHost}/3/device/${entry.token}`, {
-          method: 'POST',
-          headers: {
-            authorization: `bearer ${apnsJwt}`,
-            'apns-topic': apnsBundleId,
-            'apns-push-type': 'alert',
-            'apns-priority': '10',
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({
-            aps: {
-              alert: { title: notif.title, body: notif.body },
-              sound: 'default',
-              badge: 1,
-              'mutable-content': 1,
+  // Send in bounded concurrent batches of 20 to avoid Edge Function socket exhaustion.
+  const batchConcurrency = 20;
+  for (let i = 0; i < tokens.length; i += batchConcurrency) {
+    const slice = tokens.slice(i, i + batchConcurrency);
+    await Promise.all(
+      slice.map(async (entry) => {
+        if (
+          entry.platform === 'ios' &&
+          isRawHexApnsToken(entry.token) &&
+          apnsJwt
+        ) {
+          const res = await fetch(`${apnsHost}/3/device/${entry.token}`, {
+            method: 'POST',
+            headers: {
+              authorization: `bearer ${apnsJwt}`,
+              'apns-topic': apnsBundleId,
+              'apns-push-type': 'alert',
+              'apns-priority': '10',
+              'content-type': 'application/json',
             },
-            ...flatData,
-          }),
-          signal: AbortSignal.timeout(10000),
-        });
-        if (res.ok) {
-          sent++;
+            body: JSON.stringify({
+              aps: {
+                alert: { title: notif.title, body: notif.body },
+                sound: 'default',
+                badge: 1,
+                'mutable-content': 1,
+                'thread-id': category,
+              },
+              ...flatData,
+            }),
+            signal: AbortSignal.timeout(10000),
+          }).catch(() => null);
+          if (!res) return;
+          if (res.ok) {
+            sent++;
+            return;
+          }
+          if (res.status === 410 || res.status === 400) {
+            const text = await res.text().catch(() => '');
+            if (
+              text.includes('Unregistered') ||
+              text.includes('BadDeviceToken')
+            ) {
+              staleTokenIds.push(entry.id);
+            }
+          }
           return;
         }
-        if (res.status === 410 || res.status === 400) {
-          const text = await res.text().catch(() => '');
+
+        if (
+          serviceAccount &&
+          fcmAccessToken &&
+          !isRawHexApnsToken(entry.token)
+        ) {
+          const fcmEndpoint = `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`;
+          const res = await fetch(fcmEndpoint, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${fcmAccessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              message: {
+                token: entry.token,
+                notification: {
+                  title: notif.title,
+                  body: notif.body,
+                  ...(imageUrl ? { image: imageUrl } : {}),
+                },
+                data: flatData,
+                android: {
+                  priority: 'HIGH',
+                  notification: {
+                    channel_id: channelId,
+                    sound: 'default',
+                    click_action: 'FLUTTER_NOTIFICATION_CLICK',
+                    default_vibrate_timings: true,
+                    ...(imageUrl ? { image: imageUrl } : {}),
+                  },
+                },
+                apns: {
+                  headers: { 'apns-priority': '10' },
+                  payload: {
+                    aps: {
+                      alert: { title: notif.title, body: notif.body },
+                      sound: 'default',
+                      badge: 1,
+                      'mutable-content': 1,
+                      'thread-id': category,
+                    },
+                  },
+                  ...(imageUrl ? { fcm_options: { image: imageUrl } } : {}),
+                },
+              },
+            }),
+            signal: AbortSignal.timeout(10000),
+          }).catch(() => null);
+          if (!res) return;
+          if (res.ok) {
+            sent++;
+            return;
+          }
+          const errText = await res.text().catch(() => '');
           if (
-            text.includes('Unregistered') ||
-            text.includes('BadDeviceToken')
+            errText.includes('UNREGISTERED') ||
+            errText.includes('NOT_FOUND')
           ) {
             staleTokenIds.push(entry.id);
           }
         }
-        return;
-      }
-
-      if (
-        serviceAccount &&
-        fcmAccessToken &&
-        !isRawHexApnsToken(entry.token)
-      ) {
-        const fcmEndpoint = `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`;
-        const res = await fetch(fcmEndpoint, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${fcmAccessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: {
-              token: entry.token,
-              notification: { title: notif.title, body: notif.body },
-              data: flatData,
-              android: {
-                priority: 'HIGH',
-                notification: {
-                  channel_id: 'shopy_notifications',
-                  sound: 'default',
-                  click_action: 'FLUTTER_NOTIFICATION_CLICK',
-                  default_vibrate_timings: true,
-                },
-              },
-              apns: {
-                headers: { 'apns-priority': '10' },
-                payload: {
-                  aps: {
-                    alert: { title: notif.title, body: notif.body },
-                    sound: 'default',
-                    badge: 1,
-                    'mutable-content': 1,
-                  },
-                },
-              },
-            },
-          }),
-          signal: AbortSignal.timeout(10000),
-        });
-        if (res.ok) {
-          sent++;
-          return;
-        }
-        const errText = await res.text().catch(() => '');
-        if (errText.includes('UNREGISTERED') || errText.includes('NOT_FOUND')) {
-          staleTokenIds.push(entry.id);
-        }
-      }
-    }),
-  );
+      }),
+    );
+  }
 
   if (staleTokenIds.length > 0) {
     await fetch(
@@ -474,12 +655,13 @@ Deno.serve(async (request: Request) => {
         id: String(rec.id ?? ''),
         title: String(rec.title ?? ''),
         body: String(rec.body ?? ''),
-        audience: (String(rec.audience ?? 'all') as NotificationRow['audience']),
+        audience: String(rec.audience ?? 'all') as NotificationRow['audience'],
         created_by: rec.created_by ? String(rec.created_by) : null,
         target_user_id: rec.target_user_id ? String(rec.target_user_id) : null,
         shop_id: rec.shop_id ? String(rec.shop_id) : null,
         sender_role: rec.sender_role ? String(rec.sender_role) : 'system',
         target_scope: rec.target_scope ? String(rec.target_scope) : 'audience',
+        target_region: rec.target_region ? String(rec.target_region) : null,
         metadata:
           rec.metadata && typeof rec.metadata === 'object'
             ? (rec.metadata as Record<string, unknown>)
@@ -494,7 +676,12 @@ Deno.serve(async (request: Request) => {
         notif,
         null,
       );
-      const result = await dispatchToUsers(url, serviceKey, notif, targetUserIds);
+      const result = await dispatchToUsers(
+        url,
+        serviceKey,
+        notif,
+        targetUserIds,
+      );
       return respond({ ok: true, mode: 'webhook', ...result });
     }
 
@@ -567,18 +754,18 @@ Deno.serve(async (request: Request) => {
         shop_id: null,
         sender_role: 'system',
         target_scope: 'user',
-        metadata: { event_type: 'test_push', route: '' },
+        metadata: { event_type: 'test_push', category: 'system', route: '' },
       };
 
       const runSend = async () => {
         if (delaySecs > 0) {
           await new Promise((r) => setTimeout(r, delaySecs * 1000));
         }
-        await dispatchToUsers(url, serviceKey, testNotif, [String(caller.id)]);
+        await dispatchToUsers(url, serviceKey, testNotif, [String(caller.id)], {
+          bypassPreferences: true,
+        });
       };
 
-      // Use EdgeRuntime.waitUntil so the HTTP response returns immediately and
-      // the FCM push STILL fires after delaySecs even if the user closes the app!
       const edgeRuntime = (
         globalThis as unknown as {
           EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void };
@@ -596,9 +783,13 @@ Deno.serve(async (request: Request) => {
         });
       }
 
-      const result = await dispatchToUsers(url, serviceKey, testNotif, [
-        String(caller.id),
-      ]);
+      const result = await dispatchToUsers(
+        url,
+        serviceKey,
+        testNotif,
+        [String(caller.id)],
+        { bypassPreferences: true },
+      );
       return respond({ ok: true, mode: 'test', ...result });
     }
 
@@ -614,7 +805,7 @@ Deno.serve(async (request: Request) => {
     const rows = await supabaseGet<NotificationRow[]>(
       url,
       serviceKey,
-      `notifications?select=id,title,body,audience,created_by,target_user_id,shop_id,sender_role,target_scope,metadata&id=eq.${encodeURIComponent(notificationId)}&limit=1`,
+      `notifications?select=id,title,body,audience,created_by,target_user_id,shop_id,sender_role,target_scope,target_region,metadata&id=eq.${encodeURIComponent(notificationId)}&limit=1`,
     );
     const notif = rows[0];
     if (!notif) {

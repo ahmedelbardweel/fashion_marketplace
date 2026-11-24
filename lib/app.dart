@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/notifications/in_app_notification_overlay.dart';
 import 'core/notifications/push_notification_provider.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'core/offline/background_preloader_service.dart';
@@ -12,9 +13,12 @@ import 'core/offline/offline_providers.dart';
 import 'core/offline/offline_sync_engine.dart';
 import 'core/theme/app_design.dart';
 import 'core/theme/app_theme.dart';
+import 'features/admin/presentation/providers/admin_providers.dart';
 import 'features/auth/domain/models/user_role.dart';
 import 'features/auth/presentation/providers/auth_provider.dart';
+import 'features/auth/presentation/screens/splash_screen.dart';
 import 'features/customer/presentation/providers/customer_providers.dart';
+import 'features/shop/presentation/providers/shop_catalog_providers.dart';
 import 'router/app_router.dart';
 import 'router/routes.dart';
 
@@ -69,14 +73,35 @@ class _FashionMarketplaceAppState extends ConsumerState<FashionMarketplaceApp> {
   void _handleNotificationTap(Map<String, dynamic> data) {
     if (!mounted) return;
     final auth = ref.read(authControllerProvider);
+    final splashDone = ref.read(splashCompletedProvider);
     final user = auth.user;
-    if (!auth.isAuthenticated || user == null) {
+    if (!auth.isAuthenticated || user == null || !splashDone) {
       // App was cold-launched from a terminated state via notification tap;
-      // defer navigation until session restore finishes.
+      // defer navigation until both session restore and Splash finish so
+      // GoRouter never redirects the deep-link back to /splash.
       _deferredTapData = data;
       return;
     }
     _deferredTapData = null;
+
+    final notifId = (data['notification_id'] as String?)?.trim() ?? '';
+    if (notifId.isNotEmpty) {
+      ref.read(readNotificationIdsProvider.notifier).markRead(notifId);
+    }
+
+    // Refresh relevant screens so the user sees fresh order/notification data.
+    switch (user.role) {
+      case UserRole.customer:
+        ref.invalidate(customerNotificationsProvider);
+        ref.invalidate(customerOrdersProvider);
+      case UserRole.shop:
+        ref.invalidate(shopNotificationsProvider);
+        ref.invalidate(shopOrdersProvider);
+      case UserRole.admin:
+        ref.invalidate(adminNotificationsProvider);
+        ref.invalidate(adminOrdersProvider);
+    }
+
     final router = ref.read(goRouterProvider);
 
     final rawRoute = (data['route'] as String?)?.trim() ?? '';
@@ -101,6 +126,23 @@ class _FashionMarketplaceAppState extends ConsumerState<FashionMarketplaceApp> {
     }
   }
 
+  void _flushDeferredTapIfReady() {
+    final deferred =
+        _deferredTapData ??
+        PushNotificationService.instance.consumePendingLaunchTap();
+    if (deferred == null) return;
+    final auth = ref.read(authControllerProvider);
+    final splashDone = ref.read(splashCompletedProvider);
+    if (!auth.isAuthenticated || auth.user == null || !splashDone) {
+      _deferredTapData = deferred;
+      return;
+    }
+    _deferredTapData = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _handleNotificationTap(deferred);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<AuthSessionState>(authControllerProvider, (previous, next) {
@@ -123,18 +165,15 @@ class _FashionMarketplaceAppState extends ConsumerState<FashionMarketplaceApp> {
           );
           unawaited(OfflineSyncEngine.instance.syncPendingActions());
 
-          // Complete deferred deep-link navigation if app was launched from a
-          // terminated-state notification tap.
-          final deferred =
-              _deferredTapData ??
-              PushNotificationService.instance.consumePendingLaunchTap();
-          if (deferred != null) {
-            _deferredTapData = null;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) _handleNotificationTap(deferred);
-            });
-          }
+          // Complete deferred deep-link navigation once both Auth & Splash finish.
+          _flushDeferredTapIfReady();
         }
+      }
+    });
+
+    ref.listen<bool>(splashCompletedProvider, (previous, next) {
+      if (next && previous != true) {
+        _flushDeferredTapIfReady();
       }
     });
 
@@ -206,7 +245,10 @@ class _FashionMarketplaceAppState extends ConsumerState<FashionMarketplaceApp> {
                 : TextDirection.rtl,
             child: KeyedSubtree(
               key: ValueKey('${themeMode.name}_${locale.languageCode}'),
-              child: child ?? const SizedBox.shrink(),
+              child: InAppNotificationOverlay(
+                onNotificationTap: _handleNotificationTap,
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           ),
         );

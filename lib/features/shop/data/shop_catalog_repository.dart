@@ -778,6 +778,63 @@ class ShopCatalogRepository {
     return _localDb.getShopDocuments(shopId);
   }
 
+  Future<ShopOrder?> fetchOrderDetails(String orderId) async {
+    final shopId = await _resolveCurrentShopId();
+    if (shopId == null) return null;
+
+    if (NetworkMonitorService.instance.isOnline) {
+      try {
+        final row = await _client
+            .from('orders')
+            .select(
+              '*, customer:profiles!customer_id(full_name, email, phone), items:order_items(*)',
+            )
+            .eq('id', orderId)
+            .eq('shop_id', shopId)
+            .maybeSingle();
+        if (row != null) {
+          return ShopOrder.fromMap(Map<String, dynamic>.from(row));
+        }
+        return null;
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          NetworkMonitorService.instance.reportNetworkFailure();
+        } else {
+          rethrow;
+        }
+      }
+    }
+
+    final cached = await _localDb.getShopOrders(shopId);
+    for (final order in cached) {
+      if (order.id == orderId) return order;
+    }
+    return null;
+  }
+
+  Future<ShopOrder> setOrderDeliverySchedule({
+    required String orderId,
+    DateTime? scheduledAt,
+    String? timeWindow,
+    String? shopNote,
+  }) async {
+    await NetworkGuard.ensureOnline();
+    final data = await _client.rpc(
+      'shop_set_order_delivery_schedule',
+      params: {
+        'p_order_id': orderId,
+        'p_scheduled_at': scheduledAt?.toUtc().toIso8601String(),
+        'p_time_window': (timeWindow?.trim().isEmpty ?? true)
+            ? null
+            : timeWindow!.trim(),
+        'p_shop_note': (shopNote?.trim().isEmpty ?? true)
+            ? null
+            : shopNote!.trim(),
+      },
+    );
+    return ShopOrder.fromMap(asStringMap(data));
+  }
+
   Future<ShopOrder> verifyOrderPayment({
     required String orderId,
     required bool approved,
