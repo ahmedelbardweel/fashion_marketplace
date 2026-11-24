@@ -1,19 +1,93 @@
+enum TryonBlockReason {
+  disabledByAdmin,
+  tokensDepleted,
+  dailyLimitReached,
+}
+
 class TryonQuota {
   const TryonQuota({
     this.enabled = true,
+    this.tokensAvailable = true,
     this.sessionDurationSeconds = 30,
     this.dailyLimit = 3,
     this.usedToday = 0,
     this.remainingToday = 3,
+    this.blockReasonOverride,
   });
 
   final bool enabled;
+  final bool tokensAvailable;
   final int sessionDurationSeconds;
   final int dailyLimit;
   final int usedToday;
   final int remainingToday;
+  final TryonBlockReason? blockReasonOverride;
 
-  bool get hasRemaining => enabled && remainingToday > 0;
+  TryonBlockReason? get blockReason {
+    if (blockReasonOverride != null) return blockReasonOverride;
+    if (!enabled) return TryonBlockReason.disabledByAdmin;
+    if (!tokensAvailable) return TryonBlockReason.tokensDepleted;
+    if (remainingToday <= 0) return TryonBlockReason.dailyLimitReached;
+    return null;
+  }
+
+  bool get isBlocked => blockReason != null;
+
+  bool get hasRemaining => !isBlocked;
+
+  String? get friendlyBlockedTitle {
+    return switch (blockReason) {
+      TryonBlockReason.dailyLimitReached => 'انتهت محاولاتك اليومية',
+      TryonBlockReason.tokensDepleted => 'التجربة متوقفة مؤقتاً',
+      TryonBlockReason.disabledByAdmin => 'التجربة متوقفة مؤقتاً',
+      null => null,
+    };
+  }
+
+  String? get friendlyBlockedMessage {
+    return switch (blockReason) {
+      TryonBlockReason.dailyLimitReached =>
+        'استهلكت جميع محاولاتك اليومية لتجربة الملابس ($dailyLimit محاولات). ستعود محاولاتك تلقائياً غداً!',
+      TryonBlockReason.tokensDepleted =>
+        'خدمة تجربة الملابس الافتراضية متوقفة مؤقتاً لنفاد رصيد التجربة في التطبيق، وسيتم تفعيلها مجدداً فور تجديده من قبل الإدارة.',
+      TryonBlockReason.disabledByAdmin =>
+        'ميزة تجربة الملابس الافتراضية متوقفة مؤقتاً من قبل الإدارة. يرجى المحاولة لاحقاً.',
+      null => null,
+    };
+  }
+
+  String? get blockedBadgeLabel {
+    return switch (blockReason) {
+      TryonBlockReason.dailyLimitReached => 'انتهت المحاولات',
+      TryonBlockReason.tokensDepleted => 'متوقف مؤقتاً',
+      TryonBlockReason.disabledByAdmin => 'متوقف مؤقتاً',
+      null => null,
+    };
+  }
+
+  TryonQuota copyWith({
+    bool? enabled,
+    bool? tokensAvailable,
+    int? sessionDurationSeconds,
+    int? dailyLimit,
+    int? usedToday,
+    int? remainingToday,
+    TryonBlockReason? blockReasonOverride,
+    bool clearBlockReasonOverride = false,
+  }) {
+    return TryonQuota(
+      enabled: enabled ?? this.enabled,
+      tokensAvailable: tokensAvailable ?? this.tokensAvailable,
+      sessionDurationSeconds:
+          sessionDurationSeconds ?? this.sessionDurationSeconds,
+      dailyLimit: dailyLimit ?? this.dailyLimit,
+      usedToday: usedToday ?? this.usedToday,
+      remainingToday: remainingToday ?? this.remainingToday,
+      blockReasonOverride: clearBlockReasonOverride
+          ? null
+          : (blockReasonOverride ?? this.blockReasonOverride),
+    );
+  }
 
   factory TryonQuota.fromMap(Map<String, dynamic> map) {
     final limit = (map['daily_limit'] as num?)?.toInt() ?? 3;
@@ -26,12 +100,21 @@ class TryonQuota {
           10,
           300,
         );
+    final rawReason = map['block_reason']?.toString();
+    final parsedReason = switch (rawReason) {
+      'disabled' => TryonBlockReason.disabledByAdmin,
+      'tokens_depleted' => TryonBlockReason.tokensDepleted,
+      'daily_limit_reached' => TryonBlockReason.dailyLimitReached,
+      _ => null,
+    };
     return TryonQuota(
       enabled: map['enabled'] != false,
+      tokensAvailable: map['tokens_available'] != false,
       sessionDurationSeconds: duration,
       dailyLimit: limit.clamp(1, 100),
       usedToday: used.clamp(0, 1000),
       remainingToday: remaining.clamp(0, 100),
+      blockReasonOverride: parsedReason,
     );
   }
 }

@@ -17,6 +17,7 @@ import '../../../virtual_tryon/data/tryon_onboarding_store.dart';
 import '../../../virtual_tryon/domain/tryon_quota.dart';
 import '../../../virtual_tryon/presentation/tryon_guidelines_view.dart';
 import '../../../virtual_tryon/presentation/tryon_preparation.dart';
+import '../../../virtual_tryon/presentation/tryon_quota_provider.dart';
 import '../../domain/models/customer_product.dart';
 import '../providers/decart_tryon_provider.dart';
 
@@ -149,6 +150,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       final data = await SupabaseConfig.client.rpc('get_my_tryon_quota');
       if (!mounted || data is! Map) return;
       final loaded = TryonQuota.fromMap(Map<String, dynamic>.from(data));
+      ref.read(tryonQuotaProvider.notifier).updateFromQuota(loaded);
       setState(() {
         _quota = loaded;
         if (_countdownTimer == null && !_started) {
@@ -1611,12 +1613,11 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   }
 
   Widget _buildQuotaBanner() {
-    final blocked = !_quota.enabled || !_quota.hasRemaining;
+    final blocked = _quota.isBlocked;
     final color = blocked ? AppColors.error : AppColors.primary;
-    final text = !_quota.enabled
-        ? 'تم إيقاف خدمة التجربة الافتراضية مؤقتاً من قبل الإدارة.'.tr
-        : !_quota.hasRemaining
-        ? 'استنفدت محاولاتك اليومية للتجربة (${_quota.dailyLimit} محاولات). يمكنك التجربة مجدداً غداً.'
+    final text = blocked
+        ? (_quota.friendlyBlockedMessage ??
+                  'ميزة تجربة الملابس الافتراضية متوقفة مؤقتاً من قبل الإدارة. يرجى المحاولة لاحقاً.')
               .tr
         : 'متبقي ${_quota.remainingToday} من ${_quota.dailyLimit} محاولات اليوم · ${_quota.sessionDurationSeconds} ثانية'
               .tr;

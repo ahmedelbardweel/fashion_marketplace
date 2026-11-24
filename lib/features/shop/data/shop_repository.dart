@@ -34,6 +34,13 @@ class ShopRepository {
     final userId = await _resolveUserId();
     if (userId == null) return null;
 
+    final hasInterface =
+        await NetworkMonitorService.instance.hasNetworkInterface();
+    if (!hasInterface) {
+      NetworkMonitorService.instance.reportNetworkFailure();
+      return _localDb.getShopByOwnerId(userId);
+    }
+
     if (NetworkMonitorService.instance.isOnline) {
       try {
         // Right after registration, the DB trigger creating the draft shop
@@ -43,7 +50,8 @@ class ShopRepository {
               .from('shops')
               .select('*, owner:profiles!owner_id(full_name, email, phone)')
               .eq('owner_id', userId)
-              .maybeSingle();
+              .maybeSingle()
+              .timeout(const Duration(seconds: 5));
 
           if (data != null) {
             final shop = Shop.fromMap(

@@ -9,8 +9,10 @@ import '../../../../core/l10n/app_translations.dart';
 import '../../../../core/services/decart_vton_sdk_service.dart';
 import '../../../virtual_tryon/data/decart_session_config.dart';
 import '../../../virtual_tryon/data/tryon_errors.dart';
+import '../../../virtual_tryon/domain/tryon_quota.dart';
 import '../../../virtual_tryon/domain/tryon_session.dart';
 import '../../../virtual_tryon/data/automatic_tryon_recovery.dart';
+import '../../../virtual_tryon/presentation/tryon_quota_provider.dart';
 import '../../domain/models/customer_product.dart';
 import 'customer_providers.dart';
 
@@ -105,6 +107,7 @@ class DecartTryonState {
 
 final decartVtonSdkServiceProvider = Provider.autoDispose
     .family<DecartVtonSdkService, String>((ref, productId) {
+      final quotaNotifier = ref.read(tryonQuotaProvider.notifier);
       final service = DecartVtonSdkService(
         loadConfig: () async {
           try {
@@ -112,12 +115,31 @@ final decartVtonSdkServiceProvider = Provider.autoDispose
               () => SupabaseConfig.client.functions.invoke('decart-session'),
               timeout: AppTimeouts.edgeFunction,
             );
-            return DecartSessionConfig.fromJson(
+            final config = DecartSessionConfig.fromJson(
               Map<String, dynamic>.from(response.data as Map),
             );
+            quotaNotifier.updateFromSessionConfig(config);
+            return config;
           } on AppNetworkException catch (error) {
             throw TryonFailure(error.userMessage);
           } on FunctionException catch (error) {
+            final details = error.details;
+            if (details is Map) {
+              final code = details['code']?.toString();
+              if (code == 'all_keys_depleted') {
+                quotaNotifier.markBlocked(TryonBlockReason.tokensDepleted);
+              } else if (code == 'tryon_disabled') {
+                quotaNotifier.markBlocked(TryonBlockReason.disabledByAdmin);
+              } else if (code == 'daily_limit_reached') {
+                quotaNotifier.markBlocked(
+                  TryonBlockReason.dailyLimitReached,
+                  dailyLimit: (details['dailyLimit'] as num?)?.toInt(),
+                );
+              } else if (error.status == 503 &&
+                  details['error']?.toString() == 'Service not configured') {
+                quotaNotifier.markBlocked(TryonBlockReason.tokensDepleted);
+              }
+            }
             throw sessionFunctionFailure(error.status, error.details);
           } on TryonFailure {
             rethrow;

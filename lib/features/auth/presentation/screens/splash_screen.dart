@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/offline/network_monitor_service.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../providers/auth_provider.dart';
@@ -59,12 +60,28 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       _markSplashDone,
     );
 
-    // Begin session restoration immediately in parallel with the entrance.
-    Future.microtask(() {
-      if (mounted) {
-        ref.read(authControllerProvider.notifier).restoreSession();
-      }
-    });
+    // Check internet immediately and restore session in parallel with the
+    // short entrance animation so both offline & online launches enter right away.
+    unawaited(_bootstrapFromSplash());
+  }
+
+  Future<void> _bootstrapFromSplash() async {
+    final hasInterface =
+        await NetworkMonitorService.instance.hasNetworkInterface();
+    if (!hasInterface) {
+      NetworkMonitorService.instance.reportNetworkFailure();
+    } else {
+      // Non-blocking reachability probe so dead Wi-Fi is detected quickly
+      // without ever delaying entry past the splash animation.
+      unawaited(
+        NetworkMonitorService.instance
+            .checkNow(force: true)
+            .timeout(const Duration(seconds: 2), onTimeout: () => false),
+      );
+    }
+
+    if (!mounted) return;
+    await ref.read(authControllerProvider.notifier).restoreSession();
   }
 
   void _markSplashDone() {

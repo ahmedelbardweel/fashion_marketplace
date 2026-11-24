@@ -67,6 +67,13 @@ class AppLang {
     ),
     _PatternRule(
       RegExp(
+        r'^استهلكت جميع محاولاتك اليومية لتجربة الملابس \((\d+) محاولات\)\. ستعود محاولاتك تلقائياً غداً!$',
+      ),
+      (m) =>
+          'You\'ve used all ${m[1]} try-on attempts for today. Your attempts will refresh automatically tomorrow!',
+    ),
+    _PatternRule(
+      RegExp(
         r'^انتهت مدة التجربة المحددة \((\d+) ثانية\)\. تم إغلاق الكاميرا تلقائياً\.$',
       ),
       (m) =>
@@ -3094,6 +3101,17 @@ class AppLang {
         'Please allow camera access and try again.',
     'تعذر إكمال البث حالياً، تحقق من الإنترنت وجرّب مجدداً.':
         'Unable to continue the preview right now. Please check your connection and try again.',
+    'انتهت محاولاتك اليومية': 'Daily Attempts Finished',
+    'التجربة متوقفة مؤقتاً': 'Try-On Temporarily Paused',
+    'انتهت المحاولات': 'No Tries Left',
+    'خدمة تجربة الملابس الافتراضية متوقفة مؤقتاً لنفاد رصيد التجربة في التطبيق، وسيتم تفعيلها مجدداً فور تجديده من قبل الإدارة.':
+        'Virtual try-on is temporarily paused because the app\'s try-on credits have run out. It will be back as soon as the admin refills them.',
+    'ميزة تجربة الملابس الافتراضية متوقفة مؤقتاً من قبل الإدارة. يرجى المحاولة لاحقاً.':
+        'Virtual try-on is temporarily paused by the administration. Please try again later.',
+    'لا يوجد اتصال بالإنترنت': 'No Internet Connection',
+    'بدون إنترنت': 'Offline',
+    'ميزة تجربة الملابس الافتراضية تحتاج إلى اتصال نشط بالإنترنت. يرجى الاتصال بالإنترنت ثم المحاولة مجدداً.':
+        'Virtual try-on requires an active internet connection. Please connect to the internet and try again.',
   };
 }
 

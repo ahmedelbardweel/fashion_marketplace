@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/network/network_guard.dart';
+import '../../../../core/offline/network_monitor_service.dart';
 import '../../../../core/theme/app_design.dart';
 import '../../../../core/utils/fashion_color_palette.dart';
 import '../../../../core/utils/snackbar_utils.dart';
@@ -17,6 +20,8 @@ import '../../../../core/widgets/loading_fixtures.dart';
 import '../../../../core/widgets/product_grid_card.dart';
 import '../../../../core/widgets/product_grid_skeleton.dart';
 import '../../../../router/routes.dart';
+import '../../../virtual_tryon/domain/tryon_quota.dart';
+import '../../../virtual_tryon/presentation/tryon_quota_provider.dart';
 import '../../domain/models/customer_product.dart';
 import '../providers/customer_providers.dart';
 import '../widgets/customer_shell.dart';
@@ -49,6 +54,9 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   String? _selectedSize;
   int _quantity = 1;
   bool _togglingFavorite = false;
+  bool _checkingTryon = false;
+  bool _isOnline = NetworkMonitorService.instance.isOnline;
+  StreamSubscription<bool>? _networkSub;
   bool _isHeroCollapsed = false;
   bool _isAutoSnapping = false;
   bool _dragStartedCollapsed = false;
@@ -59,10 +67,24 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _networkSub = NetworkMonitorService.instance.onStatusChange.listen((online) {
+      if (!mounted || _isOnline == online) return;
+      setState(() => _isOnline = online);
+      if (online) {
+        unawaited(ref.read(tryonQuotaProvider.notifier).refresh(force: false));
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_isOnline) {
+        unawaited(ref.read(tryonQuotaProvider.notifier).refresh(force: false));
+      }
+    });
   }
 
   @override
   void dispose() {
+    _networkSub?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _galleryController.dispose();
@@ -758,6 +780,160 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     );
   }
 
+  void _showTryonNoticeSnackBar(
+    BuildContext context, {
+    required IconData icon,
+    required Color accentColor,
+    required String title,
+    required String message,
+  }) {
+    AppHaptics.error();
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: SnackBarDesign.background,
+          elevation: 6,
+          duration: const Duration(seconds: 5),
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: accentColor.withValues(alpha: 0.35)),
+          ),
+          content: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: accentColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title.tr,
+                      style: const TextStyle(
+                        color: SnackBarDesign.text,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      message.tr,
+                      style: TextStyle(
+                        color: SnackBarDesign.text.withValues(alpha: 0.88),
+                        fontSize: 12.2,
+                        height: 1.38,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+  }
+
+  void _showTryonOfflineSnackBar(BuildContext context) {
+    _showTryonNoticeSnackBar(
+      context,
+      icon: Icons.wifi_off_rounded,
+      accentColor: const Color(0xFFF59E0B),
+      title: 'لا يوجد اتصال بالإنترنت',
+      message:
+          'ميزة تجربة الملابس الافتراضية تحتاج إلى اتصال نشط بالإنترنت. يرجى الاتصال بالإنترنت ثم المحاولة مجدداً.',
+    );
+  }
+
+  void _showTryonBlockedSnackBar(BuildContext context, TryonQuota quota) {
+    final reason = quota.blockReason;
+    if (reason == null) return;
+    final isDailyLimit = reason == TryonBlockReason.dailyLimitReached;
+    _showTryonNoticeSnackBar(
+      context,
+      icon: isDailyLimit
+          ? Icons.schedule_rounded
+          : Icons.pause_circle_outline_rounded,
+      accentColor: isDailyLimit
+          ? const Color(0xFFF59E0B)
+          : const Color(0xFFFB7185),
+      title: quota.friendlyBlockedTitle ?? 'التجربة متوقفة مؤقتاً',
+      message:
+          quota.friendlyBlockedMessage ??
+          'ميزة تجربة الملابس الافتراضية متوقفة مؤقتاً من قبل الإدارة. يرجى المحاولة لاحقاً.',
+    );
+  }
+
+  Future<void> _handleTryOnTap(CustomerProduct product) async {
+    if (_checkingTryon) return;
+
+    // 1) Instant OS interface check first so offline tap responds immediately.
+    final hasInterface =
+        await NetworkMonitorService.instance.hasNetworkInterface();
+    if (!hasInterface) {
+      NetworkMonitorService.instance.reportNetworkFailure();
+      if (mounted) {
+        if (_isOnline) setState(() => _isOnline = false);
+        _showTryonOfflineSnackBar(context);
+      }
+      return;
+    }
+
+    final notifier = ref.read(tryonQuotaProvider.notifier);
+    final cached = ref.read(tryonQuotaProvider).valueOrNull;
+
+    setState(() => _checkingTryon = true);
+    bool online = false;
+    TryonQuota quota = cached ?? const TryonQuota();
+    try {
+      // 2) Active reachability verification so Wi-Fi with no internet also blocks navigation.
+      online = await NetworkMonitorService.instance.checkNow(force: true);
+      if (online) {
+        if (cached != null && cached.isBlocked && notifier.isFresh) {
+          quota = cached;
+        } else {
+          quota = await notifier.refresh();
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _checkingTryon = false;
+          _isOnline = online;
+        });
+      }
+    }
+
+    if (!mounted) return;
+    if (!online) {
+      _showTryonOfflineSnackBar(context);
+      return;
+    }
+
+    if (quota.isBlocked) {
+      _showTryonBlockedSnackBar(context, quota);
+      return;
+    }
+
+    await context.push(AppRoutes.customerRealtimeTryonPath(product.id));
+    if (mounted) {
+      unawaited(ref.read(tryonQuotaProvider.notifier).refresh());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final productAsync = ref.watch(
@@ -766,6 +942,8 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
     final reviewsAsync = ref.watch(productReviewsProvider(widget.productId));
     final compareList = ref.watch(productComparisonProvider);
     final cartCount = ref.watch(cartProvider.notifier).totalItemCount;
+    final tryonQuota =
+        ref.watch(tryonQuotaProvider).valueOrNull ?? const TryonQuota();
 
     return productAsync.skeletonWhen(
       placeholder: LoadingFixtures.product,
@@ -874,6 +1052,7 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                     customerProductDetailsProvider(widget.productId).future,
                   ),
                   ref.refresh(productReviewsProvider(widget.productId).future),
+                  ref.read(tryonQuotaProvider.notifier).refresh(),
                 ]),
                 child: NotificationListener<ScrollNotification>(
                   onNotification: _handleHeroSnapNotification,
@@ -1779,30 +1958,101 @@ class _ProductDetailsScreenState extends ConsumerState<ProductDetailsScreen> {
                     // Subtle Light-Gray Try-On Button above Add to Cart
                     SizedBox(
                       height: 44,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.surfaceAlt,
-                          foregroundColor: AppColors.text,
-                          elevation: 0,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              AppRadii.button,
+                      child: Builder(
+                        builder: (context) {
+                          final isOffline = !_isOnline;
+                          final isBlocked = isOffline || tryonQuota.isBlocked;
+                          final badgeLabel = isOffline
+                              ? 'بدون إنترنت'
+                              : tryonQuota.blockedBadgeLabel;
+                          return ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isBlocked
+                                  ? AppColors.surfaceSubtle
+                                  : AppColors.surfaceAlt,
+                              foregroundColor: isBlocked
+                                  ? AppColors.textMuted
+                                  : AppColors.text,
+                              elevation: 0,
+                              shadowColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppRadii.button,
+                                ),
+                                side: BorderSide(
+                                  color: isBlocked
+                                      ? AppColors.border.withValues(alpha: 0.6)
+                                      : AppColors.border,
+                                ),
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: AppFont.bold,
+                              ),
                             ),
-                            side: BorderSide(color: AppColors.border),
-                          ),
-                          textStyle: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: AppFont.bold,
-                          ),
-                        ),
-                        icon: const Icon(AppIcons.tryOn, size: 19),
-                        label: Text('جرب الملابس'.tr),
-                        onPressed: AppHaptics.action(
-                          () => context.push(
-                            AppRoutes.customerRealtimeTryonPath(product.id),
-                          ),
-                        ),
+                            onPressed: AppHaptics.action(
+                              () => unawaited(_handleTryOnTap(product)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_checkingTryon)
+                                  SizedBox(
+                                    width: 17,
+                                    height: 17,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: isBlocked
+                                          ? AppColors.textMuted
+                                          : AppColors.text,
+                                    ),
+                                  )
+                                else
+                                  Icon(
+                                    isOffline
+                                        ? Icons.wifi_off_rounded
+                                        : isBlocked
+                                        ? Icons.pause_circle_outline_rounded
+                                        : AppIcons.tryOn,
+                                    size: 19,
+                                    color: isBlocked
+                                        ? AppColors.textMuted.withValues(
+                                            alpha: 0.8,
+                                          )
+                                        : AppColors.text,
+                                  ),
+                                const SizedBox(width: 8),
+                                Text('جرب الملابس'.tr),
+                                if (isBlocked && badgeLabel != null) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.border.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                      borderRadius: BorderRadius.circular(
+                                        AppRadii.pill,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      badgeLabel.tr,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: AppFont.semiBold,
+                                        color: AppColors.textMuted,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: AppSpacing.xs),

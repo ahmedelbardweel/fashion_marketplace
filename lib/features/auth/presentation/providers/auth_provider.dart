@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -142,9 +144,18 @@ class AuthController extends StateNotifier<AuthSessionState> {
 
   Future<void> _doRestoreSession() async {
     try {
+      // Fast OS interface check (~20ms) so offline cold-start never waits
+      // on a network timeout before letting the user into the app.
+      final hasInterface =
+          await NetworkMonitorService.instance.hasNetworkInterface();
+      if (!hasInterface) {
+        NetworkMonitorService.instance.reportNetworkFailure();
+      }
+      final isOnline = hasInterface && NetworkMonitorService.instance.isOnline;
+
       final session = _repository.currentSession;
       if (session == null) {
-        if (!NetworkMonitorService.instance.isOnline) {
+        if (!isOnline) {
           final offlineProfile = await LocalDatabase.instance
               .getActiveSessionProfile();
           if (offlineProfile != null && offlineProfile.isActive) {
@@ -159,17 +170,57 @@ class AuthController extends StateNotifier<AuthSessionState> {
         return;
       }
 
-      final profile = await _repository.fetchCurrentProfile();
+      // Check local cached profile first for instant entry both offline & online.
+      final cachedProfile =
+          await LocalDatabase.instance.getUserProfile(session.user.id) ??
+          await LocalDatabase.instance.getActiveSessionProfile();
+
+      if (!isOnline) {
+        if (cachedProfile != null && cachedProfile.isActive) {
+          state = AuthSessionState(
+            status: AuthStatus.authenticated,
+            user: cachedProfile,
+          );
+          return;
+        }
+        state = const AuthSessionState(status: AuthStatus.unauthenticated);
+        return;
+      }
+
+      if (cachedProfile != null &&
+          cachedProfile.id == session.user.id &&
+          cachedProfile.isActive) {
+        final currentUser = state.user;
+        final resolvedCached =
+            (currentUser != null &&
+                currentUser.id == cachedProfile.id &&
+                currentUser.profileCompleted &&
+                !cachedProfile.profileCompleted)
+            ? currentUser
+            : cachedProfile;
+        state = AuthSessionState(
+          status: AuthStatus.authenticated,
+          user: resolvedCached,
+        );
+        // Sync latest profile silently in background without blocking Splash.
+        unawaited(_refreshProfileSilently(session.user.id));
+        return;
+      }
+
+      final profile = await _repository.fetchCurrentProfile().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          NetworkMonitorService.instance.reportNetworkFailure();
+          return cachedProfile;
+        },
+      );
       if (_manualAuthInProgress) return;
 
       if (profile == null) {
-        final offlineProfile =
-            await LocalDatabase.instance.getUserProfile(session.user.id) ??
-            await LocalDatabase.instance.getActiveSessionProfile();
-        if (offlineProfile != null && offlineProfile.isActive) {
+        if (cachedProfile != null && cachedProfile.isActive) {
           state = AuthSessionState(
             status: AuthStatus.authenticated,
-            user: offlineProfile,
+            user: cachedProfile,
           );
           return;
         }
@@ -212,6 +263,37 @@ class AuthController extends StateNotifier<AuthSessionState> {
         return;
       }
       state = const AuthSessionState(status: AuthStatus.unauthenticated);
+    }
+  }
+
+  Future<void> _refreshProfileSilently(String userId) async {
+    try {
+      final profile = await _repository.fetchCurrentProfile();
+      if (_manualAuthInProgress || !mounted) return;
+      if (profile == null || profile.id != userId) return;
+      if (!profile.isActive) {
+        await _repository.signOut();
+        if (mounted) {
+          state = const AuthSessionState(status: AuthStatus.unauthenticated);
+        }
+        return;
+      }
+      final currentUser = state.user;
+      final resolvedProfile =
+          (currentUser != null &&
+              currentUser.id == profile.id &&
+              currentUser.profileCompleted &&
+              !profile.profileCompleted)
+          ? currentUser
+          : profile;
+      if (mounted) {
+        state = AuthSessionState(
+          status: AuthStatus.authenticated,
+          user: resolvedProfile,
+        );
+      }
+    } catch (_) {
+      // Keep cached session active if background refresh fails.
     }
   }
 

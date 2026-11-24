@@ -48,7 +48,19 @@ Future<void> main() async {
     if (!dotenv.isInitialized) {
       await dotenv.load(fileName: '.env');
     }
-    await SupabaseConfig.initialize();
+    // Fail fast on cold start if network interfaces are OFF so Supabase auth
+    // initialization never stalls before SplashScreen renders.
+    final hasInterface =
+        await NetworkMonitorService.instance.hasNetworkInterface();
+    if (!hasInterface) {
+      NetworkMonitorService.instance.reportNetworkFailure();
+    }
+    AppHttpClient.startupMode = true;
+    try {
+      await SupabaseConfig.initialize();
+    } finally {
+      AppHttpClient.startupMode = false;
+    }
   } catch (error) {
     runApp(
       ConfigErrorScreen(

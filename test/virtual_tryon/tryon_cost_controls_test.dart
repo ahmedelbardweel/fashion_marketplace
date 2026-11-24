@@ -145,6 +145,66 @@ void main() {
     expect(enDisabled.message, contains('temporarily paused'));
   });
 
+  test(
+    'TryonQuota detects daily limit, depleted tokens, and admin disable in AR & EN',
+    () {
+      addTearDown(() => AppLang.isEn = false);
+
+      final dailyOut = TryonQuota.fromMap({
+        'enabled': true,
+        'tokens_available': true,
+        'daily_limit': 3,
+        'used_today': 3,
+        'remaining_today': 0,
+        'block_reason': 'daily_limit_reached',
+      });
+      expect(dailyOut.isBlocked, isTrue);
+      expect(dailyOut.hasRemaining, isFalse);
+      expect(dailyOut.blockReason, TryonBlockReason.dailyLimitReached);
+      expect(dailyOut.friendlyBlockedMessage, contains('3 محاولات'));
+      expect(dailyOut.blockedBadgeLabel, 'انتهت المحاولات');
+
+      final tokensOut = TryonQuota.fromMap({
+        'enabled': true,
+        'tokens_available': false,
+        'daily_limit': 3,
+        'used_today': 0,
+        'remaining_today': 3,
+        'block_reason': 'tokens_depleted',
+      });
+      expect(tokensOut.isBlocked, isTrue);
+      expect(tokensOut.hasRemaining, isFalse);
+      expect(tokensOut.blockReason, TryonBlockReason.tokensDepleted);
+      expect(tokensOut.friendlyBlockedMessage, contains('رصيد التجربة'));
+      expect(tokensOut.blockedBadgeLabel, 'متوقف مؤقتاً');
+
+      final disabled = TryonQuota.fromMap({
+        'enabled': false,
+        'tokens_available': true,
+        'daily_limit': 3,
+        'used_today': 0,
+        'remaining_today': 3,
+      });
+      expect(disabled.isBlocked, isTrue);
+      expect(disabled.blockReason, TryonBlockReason.disabledByAdmin);
+      expect(disabled.friendlyBlockedMessage, contains('من قبل الإدارة'));
+
+      AppLang.isEn = true;
+      expect(
+        dailyOut.friendlyBlockedMessage!.tr,
+        contains('all 3 try-on attempts'),
+      );
+      expect(
+        tokensOut.friendlyBlockedMessage!.tr,
+        contains('credits have run out'),
+      );
+      expect(
+        disabled.friendlyBlockedMessage!.tr,
+        contains('temporarily paused by the administration'),
+      );
+    },
+  );
+
   testWidgets('TryonCostControlsCard validates and saves admin cost settings', (
     tester,
   ) async {

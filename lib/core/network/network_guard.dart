@@ -107,6 +107,10 @@ class AppNetworkException implements Exception {
 class AppHttpClient extends http.BaseClient {
   AppHttpClient({http.Client? inner}) : _inner = inner ?? http.Client();
 
+  /// When true (during cold-start Supabase initialization), auth token refresh
+  /// uses a tight 3-second timeout so dead Wi-Fi never stalls the launch screen.
+  static bool startupMode = false;
+
   final http.Client _inner;
 
   Duration _timeoutForRequest(http.BaseRequest request) {
@@ -119,7 +123,7 @@ class AppHttpClient extends http.BaseClient {
       return AppTimeouts.edgeFunction;
     }
     if (path.contains('/auth/v1/')) {
-      return AppTimeouts.auth;
+      return startupMode ? const Duration(seconds: 3) : AppTimeouts.auth;
     }
     if (path.contains('/rest/v1/rpc/') ||
         (method != 'GET' && method != 'HEAD')) {
