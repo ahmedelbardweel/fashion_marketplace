@@ -70,19 +70,26 @@ class _ShopPublicProfileScreenState
         return CustomerScaffold(
           title: shop.name,
           body: AppRefreshIndicator(
-            onRefresh: () => Future.wait([
-              ref.refresh(customerShopDetailsProvider(shopId).future),
-              ref.read(shopPublicProductsProvider(shopId).notifier).refresh(),
-            ]),
+            onRefresh: () async {
+              ref.read(customerRepositoryProvider).invalidateCatalogCache(
+                    includeStatic: true,
+                  );
+              await Future.wait([
+                ref.refresh(customerShopDetailsProvider(shopId).future),
+                ref.read(shopPublicProductsProvider(shopId).notifier).refresh(),
+              ]);
+            },
             child: AppPaginationScrollListener(
               hasMore: productsState.hasMore,
               isLoadingMore: productsState.isLoadingMore,
               onLoadMore: ref
                   .read(shopPublicProductsProvider(shopId).notifier)
                   .loadMore,
-              child: SingleChildScrollView(
+              child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                child: Column(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Cover + Overlapping Avatar Header
@@ -210,13 +217,13 @@ class _ShopPublicProfileScreenState
                 AppSectionHeader(title: 'تشكيلة المتجر'.tr),
                 const SizedBox(height: AppSpacing.sm),
 
-                // Products Grid
+                // Products Filter Toolbar
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.md,
                     0,
                     AppSpacing.md,
-                    AppSpacing.xl,
+                    0,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -355,127 +362,21 @@ class _ShopPublicProfileScreenState
                                   ).notifier)
                                   .state = ProductFilter.empty,
                         ),
-                      productsState.skeletonWhen(
-                        placeholder: LoadingFixtures.products,
-                        data: (items) {
-                          if (items.isEmpty &&
-                              !productsState.isInitialLoading) {
-                            if (filter.hasActiveFilters) {
-                              return Column(
-                                children: [
-                                  AppFilterEmptyState(
-                                    onReset: () =>
-                                        ref
-                                            .read(
-                                              shopPublicProductFilterProvider(
-                                                shopId,
-                                              ).notifier,
-                                            )
-                                            .state = ProductFilter.empty,
-                                  ),
-                                  if (productsState.hasMore)
-                                    AppLoadMoreFooter(
-                                      isLoadingMore:
-                                          productsState.isLoadingMore,
-                                      hasMore: productsState.hasMore,
-                                      itemsCount: items.length,
-                                      loadMoreError:
-                                          productsState.loadMoreError,
-                                      onLoadMore: ref
-                                          .read(
-                                            shopPublicProductsProvider(
-                                              shopId,
-                                            ).notifier,
-                                          )
-                                          .loadMore,
-                                      useProductGridSkeleton: true,
-                                    ),
-                                ],
-                              );
-                            }
-                            return AppEmpty(
-                              icon: AppIcons.garment,
-                              message:
-                                  'لا توجد منتجات منشورة لهذا المتجر حالياً'.tr,
-                            );
-                          }
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              GridView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: items.length,
-                                gridDelegate: ProductGridDelegate(
-                                  textScale:
-                                      MediaQuery.textScalerOf(
-                                        context,
-                                      ).scale(14) /
-                                      14,
-                                ),
-                                itemBuilder: (context, index) {
-                                  final p = items[index];
-                                  return ProductGridCard(
-                                    imageUrl: p.coverImage,
-                                    meta: AppFormat.price(p.price),
-                                    originalMeta: p.hasOffer
-                                        ? AppFormat.price(p.originalPrice!)
-                                        : null,
-                                    discountPercent: p.hasOffer
-                                        ? p.discountPercent
-                                        : null,
-                                    inStock: p.totalStock > 0,
-                                    isFavorite: p.isFavorite,
-                                    onToggleFavorite: () => _toggleFavorite(p),
-                                    onAddToCart: () =>
-                                        showProductCartSheet(context, p.id),
-                                    onTap: () => context.push(
-                                      AppRoutes.customerProductDetailsPath(
-                                        p.id,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                              if (!productsState.isInitialLoading)
-                                AppLoadMoreFooter(
-                                  isLoadingMore: productsState.isLoadingMore,
-                                  hasMore: productsState.hasMore,
-                                  itemsCount: items.length,
-                                  loadMoreError: productsState.loadMoreError,
-                                  onLoadMore: ref
-                                      .read(
-                                        shopPublicProductsProvider(
-                                          shopId,
-                                        ).notifier,
-                                      )
-                                      .loadMore,
-                                  useProductGridSkeleton: true,
-                                ),
-                            ],
-                          );
-                        },
-                        error: (err) => AppEmpty(
-                          icon: AppIcons.error,
-                          message: AppErrorMapper.message(
-                            err,
-                            fallback:
-                                'تعذر تحميل المنتجات حالياً. حاول مرة أخرى.',
-                          ),
-                          actionLabel: 'إعادة المحاولة'.tr,
-                          onAction: ref
-                              .read(
-                                shopPublicProductsProvider(shopId).notifier,
-                              )
-                              .refresh,
-                        ),
-                      ),
                     ],
                   ),
                 ),
               ],
             ),
           ),
+          ..._buildShopProductsSlivers(
+            context: context,
+            shopId: shopId,
+            productsState: productsState,
+            filter: filter,
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.xl)),
+        ],
+      ),
         ),
       ),
     );
@@ -491,5 +392,160 @@ class _ShopPublicProfileScreenState
         ),
       ),
     );
+  }
+
+  List<Widget> _buildShopProductsSlivers({
+    required BuildContext context,
+    required String shopId,
+    required PaginatedListState<CustomerProduct> productsState,
+    required ProductFilter filter,
+  }) {
+    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+
+    if (productsState.isInitialLoading && productsState.items.isEmpty) {
+      final placeholder = LoadingFixtures.products;
+      return [
+        SliverToBoxAdapter(
+          child: AppSkeleton(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: placeholder.length,
+                gridDelegate: ProductGridDelegate(textScale: textScale),
+                itemBuilder: (context, index) {
+                  final p = placeholder[index];
+                  return ProductGridCard(
+                    imageUrl: p.coverImage,
+                    meta: AppFormat.price(p.price),
+                    originalMeta: p.hasOffer
+                        ? AppFormat.price(p.originalPrice!)
+                        : null,
+                    discountPercent: p.hasOffer ? p.discountPercent : null,
+                    inStock: p.totalStock > 0,
+                    isFavorite: p.isFavorite,
+                    onToggleFavorite: () => _toggleFavorite(p),
+                    onAddToCart: () => showProductCartSheet(context, p.id),
+                    onTap: () => context.push(
+                      AppRoutes.customerProductDetailsPath(p.id),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+
+    if (productsState.initialError != null && productsState.items.isEmpty) {
+      return [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: AppEmpty(
+              icon: AppIcons.error,
+              message: AppErrorMapper.message(
+                productsState.initialError!,
+                fallback: 'تعذر تحميل المنتجات حالياً. حاول مرة أخرى.',
+              ),
+              actionLabel: 'إعادة المحاولة'.tr,
+              onAction: ref
+                  .read(shopPublicProductsProvider(shopId).notifier)
+                  .refresh,
+            ),
+          ),
+        ),
+      ];
+    }
+
+    final items = productsState.items;
+    if (items.isEmpty && !productsState.isInitialLoading) {
+      if (filter.hasActiveFilters) {
+        return [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: Column(
+                children: [
+                  AppFilterEmptyState(
+                    onReset: () =>
+                        ref
+                            .read(
+                              shopPublicProductFilterProvider(shopId).notifier,
+                            )
+                            .state = ProductFilter.empty,
+                  ),
+                  if (productsState.hasMore)
+                    AppLoadMoreFooter(
+                      isLoadingMore: productsState.isLoadingMore,
+                      hasMore: productsState.hasMore,
+                      itemsCount: items.length,
+                      loadMoreError: productsState.loadMoreError,
+                      onLoadMore: ref
+                          .read(shopPublicProductsProvider(shopId).notifier)
+                          .loadMore,
+                      useProductGridSkeleton: true,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ];
+      }
+      return [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: AppEmpty(
+              icon: AppIcons.garment,
+              message: 'لا توجد منتجات منشورة لهذا المتجر حالياً'.tr,
+            ),
+          ),
+        ),
+      ];
+    }
+
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        sliver: SliverGrid(
+          gridDelegate: ProductGridDelegate(textScale: textScale),
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final p = items[index];
+            return ProductGridCard(
+              imageUrl: p.coverImage,
+              meta: AppFormat.price(p.price),
+              originalMeta: p.hasOffer ? AppFormat.price(p.originalPrice!) : null,
+              discountPercent: p.hasOffer ? p.discountPercent : null,
+              inStock: p.totalStock > 0,
+              isFavorite: p.isFavorite,
+              onToggleFavorite: () => _toggleFavorite(p),
+              onAddToCart: () => showProductCartSheet(context, p.id),
+              onTap: () => context.push(
+                AppRoutes.customerProductDetailsPath(p.id),
+              ),
+            );
+          }, childCount: items.length),
+        ),
+      ),
+      if (!productsState.isInitialLoading)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+            child: AppLoadMoreFooter(
+              isLoadingMore: productsState.isLoadingMore,
+              hasMore: productsState.hasMore,
+              itemsCount: items.length,
+              loadMoreError: productsState.loadMoreError,
+              onLoadMore: ref
+                  .read(shopPublicProductsProvider(shopId).notifier)
+                  .loadMore,
+              useProductGridSkeleton: true,
+            ),
+          ),
+        ),
+    ];
   }
 }

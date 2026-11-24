@@ -46,12 +46,19 @@ class NetworkMonitorService {
       }
     });
 
-    // Periodic silent verification so captive portal / restored ISP routing
-    // is detected promptly even if the OS interface state didn't change.
+    // Low-frequency fallback verification (every 75s) so captive portal /
+    // restored ISP routing is detected without spamming Supabase with HEAD
+    // probes while normal traffic is already confirming reachability.
     _periodicCheckTimer = Timer.periodic(
-      const Duration(seconds: 12),
+      const Duration(seconds: 75),
       (_) {
         if (TryonNetworkFocus.instance.isActive) return;
+        if (_isOnline &&
+            _lastVerifiedAt != null &&
+            DateTime.now().difference(_lastVerifiedAt!) <
+                const Duration(seconds: 60)) {
+          return;
+        }
         unawaited(checkNow());
       },
     );
@@ -80,12 +87,12 @@ class NetworkMonitorService {
       throw AppNetworkException.noInternet();
     }
 
-    // If recently verified online within the last 4 seconds and not forced, avoid extra latency.
+    // If recently verified online within the last 10 seconds and not forced, avoid extra latency.
     if (!forceProbe &&
         _isOnline &&
         _lastVerifiedAt != null &&
         DateTime.now().difference(_lastVerifiedAt!) <
-            const Duration(seconds: 4)) {
+            const Duration(seconds: 10)) {
       return;
     }
 
@@ -102,7 +109,7 @@ class NetworkMonitorService {
     if (!force &&
         _lastVerifiedAt != null &&
         DateTime.now().difference(_lastVerifiedAt!) <
-            const Duration(seconds: 4)) {
+            const Duration(seconds: 10)) {
       return _isOnline;
     }
 

@@ -55,23 +55,29 @@ class CustomerHomeScreen extends ConsumerWidget {
       showBack: false,
       showProfile: true,
       body: AppRefreshIndicator(
-        onRefresh: () => Future.wait([
-          ref.refresh(customerBannersProvider.future),
-          ref.refresh(customerCategoriesProvider.future),
-          ref.refresh(customerShopsProvider.future),
-          ref.refresh(customerNotificationsProvider.future),
-          ref.read(homeProductsProvider.notifier).refresh(),
-        ]),
+        onRefresh: () async {
+          final repo = ref.read(customerRepositoryProvider);
+          repo.invalidateCatalogCache(includeStatic: true);
+          await repo.warmHomeBootstrap(forceRefresh: true);
+          await Future.wait([
+            ref.refresh(customerBannersProvider.future),
+            ref.refresh(customerCategoriesProvider.future),
+            ref.refresh(customerShopsProvider.future),
+            ref.refresh(customerNotificationsProvider.future),
+            ref.read(homeProductsProvider.notifier).refresh(),
+          ]);
+        },
         child: AppPaginationScrollListener(
           hasMore: productsState.hasMore,
           isLoadingMore: productsState.isLoadingMore,
           onLoadMore: ref.read(homeProductsProvider.notifier).loadMore,
-          child: SingleChildScrollView(
+          child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+            slivers: [
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                 // 1) Promotional Hero Banners
                 bannersAsync.skeletonWhen(
                   placeholder: LoadingFixtures.banners,
@@ -272,116 +278,167 @@ class CustomerHomeScreen extends ConsumerWidget {
                       ref.read(homeProductFilterProvider.notifier).state =
                           ProductFilter.empty,
                 ),
-                const SizedBox(height: AppSpacing.xs),
-
-                productsState.skeletonWhen(
-                  placeholder: LoadingFixtures.products,
-                  data: (products) {
-                    if (products.isEmpty && !productsState.isInitialLoading) {
-                      if (homeFilter.hasActiveFilters) {
-                        return Padding(
-                          padding: AppSpacing.pageHorizontal,
-                          child: Column(
-                            children: [
-                              AppFilterEmptyState(
-                                onReset: () =>
-                                    ref
-                                        .read(
-                                          homeProductFilterProvider.notifier,
-                                        )
-                                        .state = ProductFilter
-                                        .empty,
-                              ),
-                              if (productsState.hasMore)
-                                AppLoadMoreFooter(
-                                  isLoadingMore: productsState.isLoadingMore,
-                                  hasMore: productsState.hasMore,
-                                  itemsCount: products.length,
-                                  loadMoreError: productsState.loadMoreError,
-                                  onLoadMore: ref
-                                      .read(homeProductsProvider.notifier)
-                                      .loadMore,
-                                  useProductGridSkeleton: true,
-                                ),
-                            ],
-                          ),
-                        );
-                      }
-                      return AppEmpty(
-                        icon: AppIcons.garment,
-                        message: 'لا توجد منتجات منشورة حالياً'.tr,
-                      );
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: AppSpacing.pageHorizontal,
-                          child: GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: products.length,
-                            gridDelegate: ProductGridDelegate(
-                              textScale:
-                                  MediaQuery.textScalerOf(context).scale(14) /
-                                  14,
-                            ),
-                            itemBuilder: (context, index) {
-                              final product = products[index];
-                              return ProductGridCard(
-                                imageUrl: product.coverImage,
-                                meta: AppFormat.price(product.price),
-                                originalMeta: product.hasOffer
-                                    ? AppFormat.price(product.originalPrice!)
-                                    : null,
-                                discountPercent: product.hasOffer
-                                    ? product.discountPercent
-                                    : null,
-                                inStock: product.totalStock > 0,
-                                isFavorite: product.isFavorite,
-                                onToggleFavorite: () =>
-                                    _toggleFavorite(ref, product),
-                                onAddToCart: () =>
-                                    showProductCartSheet(context, product.id),
-                                onTap: () => context.push(
-                                  AppRoutes.customerProductDetailsPath(
-                                    product.id,
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        if (!productsState.isInitialLoading)
-                          AppLoadMoreFooter(
-                            isLoadingMore: productsState.isLoadingMore,
-                            hasMore: productsState.hasMore,
-                            itemsCount: products.length,
-                            loadMoreError: productsState.loadMoreError,
-                            onLoadMore: ref
-                                .read(homeProductsProvider.notifier)
-                                .loadMore,
-                            useProductGridSkeleton: true,
-                          ),
-                      ],
-                    );
-                  },
-                  error: (err) => AppEmpty(
-                    icon: AppIcons.error,
-                    message: AppErrorMapper.message(
-                      err,
-                      fallback: 'تعذر تحميل المنتجات حالياً. حاول مرة أخرى.',
-                    ),
-                    actionLabel: 'إعادة المحاولة'.tr,
-                    onAction: ref.read(homeProductsProvider.notifier).refresh,
-                  ),
+                    const SizedBox(height: AppSpacing.xs),
+                  ],
                 ),
-              ],
-            ),
+              ),
+              ..._buildHomeProductsSlivers(
+                context: context,
+                ref: ref,
+                productsState: productsState,
+                homeFilter: homeFilter,
+              ),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: AppSpacing.xs),
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  List<Widget> _buildHomeProductsSlivers({
+    required BuildContext context,
+    required WidgetRef ref,
+    required PaginatedListState<CustomerProduct> productsState,
+    required ProductFilter homeFilter,
+  }) {
+    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+
+    if (productsState.isInitialLoading && productsState.items.isEmpty) {
+      final placeholder = LoadingFixtures.products;
+      return [
+        SliverToBoxAdapter(
+          child: AppSkeleton(
+            child: Padding(
+              padding: AppSpacing.pageHorizontal,
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: placeholder.length,
+                gridDelegate: ProductGridDelegate(textScale: textScale),
+                itemBuilder: (context, index) {
+                  final product = placeholder[index];
+                  return ProductGridCard(
+                    imageUrl: product.coverImage,
+                    meta: AppFormat.price(product.price),
+                    originalMeta: product.hasOffer
+                        ? AppFormat.price(product.originalPrice!)
+                        : null,
+                    discountPercent: product.hasOffer
+                        ? product.discountPercent
+                        : null,
+                    inStock: product.totalStock > 0,
+                    isFavorite: product.isFavorite,
+                    onToggleFavorite: () => _toggleFavorite(ref, product),
+                    onAddToCart: () => showProductCartSheet(context, product.id),
+                    onTap: () => context.push(
+                      AppRoutes.customerProductDetailsPath(product.id),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+
+    if (productsState.initialError != null && productsState.items.isEmpty) {
+      return [
+        SliverToBoxAdapter(
+          child: AppEmpty(
+            icon: AppIcons.error,
+            message: AppErrorMapper.message(
+              productsState.initialError!,
+              fallback: 'تعذر تحميل المنتجات حالياً. حاول مرة أخرى.',
+            ),
+            actionLabel: 'إعادة المحاولة'.tr,
+            onAction: ref.read(homeProductsProvider.notifier).refresh,
+          ),
+        ),
+      ];
+    }
+
+    final products = productsState.items;
+    if (products.isEmpty && !productsState.isInitialLoading) {
+      if (homeFilter.hasActiveFilters) {
+        return [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: AppSpacing.pageHorizontal,
+              child: Column(
+                children: [
+                  AppFilterEmptyState(
+                    onReset: () =>
+                        ref.read(homeProductFilterProvider.notifier).state =
+                            ProductFilter.empty,
+                  ),
+                  if (productsState.hasMore)
+                    AppLoadMoreFooter(
+                      isLoadingMore: productsState.isLoadingMore,
+                      hasMore: productsState.hasMore,
+                      itemsCount: products.length,
+                      loadMoreError: productsState.loadMoreError,
+                      onLoadMore: ref
+                          .read(homeProductsProvider.notifier)
+                          .loadMore,
+                      useProductGridSkeleton: true,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ];
+      }
+      return [
+        SliverToBoxAdapter(
+          child: AppEmpty(
+            icon: AppIcons.garment,
+            message: 'لا توجد منتجات منشورة حالياً'.tr,
+          ),
+        ),
+      ];
+    }
+
+    return [
+      SliverPadding(
+        padding: AppSpacing.pageHorizontal,
+        sliver: SliverGrid(
+          gridDelegate: ProductGridDelegate(textScale: textScale),
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final product = products[index];
+            return ProductGridCard(
+              imageUrl: product.coverImage,
+              meta: AppFormat.price(product.price),
+              originalMeta: product.hasOffer
+                  ? AppFormat.price(product.originalPrice!)
+                  : null,
+              discountPercent: product.hasOffer ? product.discountPercent : null,
+              inStock: product.totalStock > 0,
+              isFavorite: product.isFavorite,
+              onToggleFavorite: () => _toggleFavorite(ref, product),
+              onAddToCart: () => showProductCartSheet(context, product.id),
+              onTap: () => context.push(
+                AppRoutes.customerProductDetailsPath(product.id),
+              ),
+            );
+          }, childCount: products.length),
+        ),
+      ),
+      if (!productsState.isInitialLoading)
+        SliverToBoxAdapter(
+          child: AppLoadMoreFooter(
+            isLoadingMore: productsState.isLoadingMore,
+            hasMore: productsState.hasMore,
+            itemsCount: products.length,
+            loadMoreError: productsState.loadMoreError,
+            onLoadMore: ref.read(homeProductsProvider.notifier).loadMore,
+            useProductGridSkeleton: true,
+          ),
+        ),
+    ];
   }
 }
 

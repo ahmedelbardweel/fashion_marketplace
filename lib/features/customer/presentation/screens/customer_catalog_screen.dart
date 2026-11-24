@@ -216,11 +216,16 @@ class _CustomerCatalogScreenState extends ConsumerState<CustomerCatalogScreen> {
             child: productsState.skeletonWhen(
               placeholder: LoadingFixtures.products,
               data: (products) {
-                Future<void> handleRefresh() => Future.wait([
-                  ref.refresh(customerCategoriesProvider.future),
-                  ref.refresh(customerShopsProvider.future),
-                  ref.read(catalogProductsProvider.notifier).refresh(),
-                ]);
+                Future<void> handleRefresh() async {
+                  ref
+                      .read(customerRepositoryProvider)
+                      .invalidateCatalogCache(includeStatic: true);
+                  await Future.wait([
+                    ref.refresh(customerCategoriesProvider.future),
+                    ref.refresh(customerShopsProvider.future),
+                    ref.read(catalogProductsProvider.notifier).refresh(),
+                  ]);
+                }
 
                 if (products.isEmpty && !productsState.isInitialLoading) {
                   if (filter.hasActiveFilters) {

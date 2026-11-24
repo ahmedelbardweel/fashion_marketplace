@@ -119,284 +119,287 @@ class _ProductGridCardState extends State<ProductGridCard> {
     final canAddToCart = widget.inStock && widget.onAddToCart != null;
     final isSkeleton = AppSkeleton.isActive(context);
 
-    return Container(
-      padding: ProductCardDesign.cardPadding,
-      decoration: BoxDecoration(
-        color: ProductCardDesign.cardBackground,
-        borderRadius: BorderRadius.circular(ProductCardDesign.cardRadius),
-        boxShadow: ProductCardDesign.cardShadow,
-        border: ProductCardDesign.cardBorderWidth > 0
-            ? Border.all(
-                color: ProductCardDesign.cardBorderColor,
-                width: ProductCardDesign.cardBorderWidth,
-              )
-            : null,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 1) Image + Favorite Corner Button + Out-of-stock Badge
-          Expanded(
-            child: GestureDetector(
-              onTap: AppHaptics.action(widget.onTap),
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isSkeleton
-                      ? SkeletonDesign.base
-                      : ProductCardDesign.imageBackground,
-                  gradient: isSkeleton
-                      ? null
-                      : ProductDetailsDesign.studioGradient,
-                  borderRadius: imageRadius,
-                  border: Border.all(
+    return RepaintBoundary(
+      child: Container(
+        padding: ProductCardDesign.cardPadding,
+        decoration: BoxDecoration(
+          color: ProductCardDesign.cardBackground,
+          borderRadius: BorderRadius.circular(ProductCardDesign.cardRadius),
+          boxShadow: ProductCardDesign.cardShadow,
+          border: ProductCardDesign.cardBorderWidth > 0
+              ? Border.all(
+                  color: ProductCardDesign.cardBorderColor,
+                  width: ProductCardDesign.cardBorderWidth,
+                )
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 1) Image + Favorite Corner Button + Out-of-stock Badge
+            Expanded(
+              child: GestureDetector(
+                onTap: AppHaptics.action(widget.onTap),
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  decoration: BoxDecoration(
                     color: isSkeleton
-                        ? AppColors.border
-                        : ProductCardDesign.imageBorderColor,
-                    width: ProductCardDesign.imageBorderWidth,
+                        ? SkeletonDesign.base
+                        : ProductCardDesign.imageBackground,
+                    gradient: isSkeleton
+                        ? null
+                        : ProductDetailsDesign.studioGradient,
+                    borderRadius: imageRadius,
+                    border: Border.all(
+                      color: isSkeleton
+                          ? AppColors.border
+                          : ProductCardDesign.imageBorderColor,
+                      width: ProductCardDesign.imageBorderWidth,
+                    ),
                   ),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: isSkeleton
-                    ? Bone(
-                        width: double.infinity,
-                        height: double.infinity,
-                        borderRadius: imageRadius,
-                      )
-                    : Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Opacity(
-                            opacity: widget.inStock
-                                ? 1
-                                : ProductCardDesign.outOfStockImageOpacity,
-                            child: widget.imageUrl == null ||
-                                    widget.imageUrl!.isEmpty
-                                ? Center(
-                                    child: Icon(
-                                      AppIcons.garment,
-                                      size: 32,
-                                      color: ProductCardDesign.placeholderIcon,
-                                    ),
-                                  )
-                                : AppNetworkImage(
-                                    widget.imageUrl!,
-                                    fit: ProductCardDesign.imageFit,
-                                    alignment: Alignment.center,
-                                    contentPadding:
-                                        ProductCardDesign.imageInnerPadding,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    errorBuilder: (_, _, _) => Center(
+                  clipBehavior: Clip.antiAlias,
+                  child: isSkeleton
+                      ? Bone(
+                          width: double.infinity,
+                          height: double.infinity,
+                          borderRadius: imageRadius,
+                        )
+                      : Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Opacity(
+                              opacity: widget.inStock
+                                  ? 1
+                                  : ProductCardDesign.outOfStockImageOpacity,
+                              child: widget.imageUrl == null ||
+                                      widget.imageUrl!.isEmpty
+                                  ? Center(
                                       child: Icon(
-                                        AppIcons.imageBroken,
-                                        size: 28,
-                                        color:
-                                            ProductCardDesign.placeholderIcon,
+                                        AppIcons.garment,
+                                        size: 32,
+                                        color: ProductCardDesign.placeholderIcon,
+                                      ),
+                                    )
+                                  : AppNetworkImage(
+                                      widget.imageUrl!,
+                                      fit: ProductCardDesign.imageFit,
+                                      alignment: Alignment.center,
+                                      contentPadding:
+                                          ProductCardDesign.imageInnerPadding,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      cacheWidth: 420,
+                                      errorBuilder: (_, _, _) => Center(
+                                        child: Icon(
+                                          AppIcons.imageBroken,
+                                          size: 28,
+                                          color:
+                                              ProductCardDesign.placeholderIcon,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                          ),
+                            ),
 
-                          // Out of stock pill
-                          if (!widget.inStock)
-                            PositionedDirectional(
-                              bottom: ProductCardDesign.favoriteInset,
-                              start: ProductCardDesign.favoriteInset,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: ProductCardDesign
-                                      .outOfStockBadgeBackground,
-                                  borderRadius: BorderRadius.circular(
-                                    AppRadii.pill,
+                            // Out of stock pill
+                            if (!widget.inStock)
+                              PositionedDirectional(
+                                bottom: ProductCardDesign.favoriteInset,
+                                start: ProductCardDesign.favoriteInset,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
                                   ),
-                                ),
-                                child: Text(
-                                  ProductCardDesign.outOfStockLabel,
-                                  style: const TextStyle(
-                                    color:
-                                        ProductCardDesign.outOfStockBadgeText,
-                                    fontSize: 10,
-                                    fontWeight: AppFont.bold,
+                                  decoration: BoxDecoration(
+                                    color: ProductCardDesign
+                                        .outOfStockBadgeBackground,
+                                    borderRadius: BorderRadius.circular(
+                                      AppRadii.pill,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    ProductCardDesign.outOfStockLabel,
+                                    style: const TextStyle(
+                                      color:
+                                          ProductCardDesign.outOfStockBadgeText,
+                                      fontSize: 10,
+                                      fontWeight: AppFont.bold,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
 
-                          // Favorite button & discount badge directly below it
-                          if ((widget.showFavorite &&
-                                  widget.onToggleFavorite != null) ||
-                              (widget.discountPercent != null &&
-                                  widget.discountPercent! > 0))
-                            Align(
-                              alignment: ProductCardDesign.favoriteAlignment,
-                              child: Padding(
-                                padding: const EdgeInsets.all(
-                                  ProductCardDesign.favoriteInset,
-                                ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    if (widget.showFavorite &&
-                                        widget.onToggleFavorite != null)
-                                      Material(
-                                        color: Colors.transparent,
-                                        child: InkWell(
-                                          onTap: AppHaptics.action(
-                                            _handleFavoriteTap,
-                                          ),
-                                          customBorder: const CircleBorder(),
-                                          child: Container(
-                                            width:
-                                                ProductCardDesign.favoriteSize,
-                                            height:
-                                                ProductCardDesign.favoriteSize,
-                                            decoration: BoxDecoration(
-                                              color: ProductCardDesign
-                                                  .favoriteBackground,
-                                              shape: BoxShape.circle,
-                                              boxShadow: ProductCardDesign
-                                                  .favoriteShadow,
-                                            ),
-                                            alignment: Alignment.center,
-                                            child: Icon(
-                                              _isFavorite
-                                                  ? AppIcons.heartFilled
-                                                  : AppIcons.heart,
-                                              size: ProductCardDesign
-                                                  .favoriteIconSize,
-                                              color: _isFavorite
-                                                  ? ProductCardDesign
-                                                        .favoriteActiveIcon
-                                                  : ProductCardDesign
-                                                        .favoriteIcon,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    if (widget.discountPercent != null &&
-                                        widget.discountPercent! > 0) ...[
+                            // Favorite button & discount badge directly below it
+                            if ((widget.showFavorite &&
+                                    widget.onToggleFavorite != null) ||
+                                (widget.discountPercent != null &&
+                                    widget.discountPercent! > 0))
+                              Align(
+                                alignment: ProductCardDesign.favoriteAlignment,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(
+                                    ProductCardDesign.favoriteInset,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
                                       if (widget.showFavorite &&
                                           widget.onToggleFavorite != null)
-                                        const SizedBox(height: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 7,
-                                          vertical: 3,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.error,
-                                          borderRadius: BorderRadius.circular(
-                                            AppRadii.pill,
+                                        Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            onTap: AppHaptics.action(
+                                              _handleFavoriteTap,
+                                            ),
+                                            customBorder: const CircleBorder(),
+                                            child: Container(
+                                              width:
+                                                  ProductCardDesign.favoriteSize,
+                                              height:
+                                                  ProductCardDesign.favoriteSize,
+                                              decoration: BoxDecoration(
+                                                color: ProductCardDesign
+                                                    .favoriteBackground,
+                                                shape: BoxShape.circle,
+                                                boxShadow: ProductCardDesign
+                                                    .favoriteShadow,
+                                              ),
+                                              alignment: Alignment.center,
+                                              child: Icon(
+                                                _isFavorite
+                                                    ? AppIcons.heartFilled
+                                                    : AppIcons.heart,
+                                                size: ProductCardDesign
+                                                    .favoriteIconSize,
+                                                color: _isFavorite
+                                                    ? ProductCardDesign
+                                                          .favoriteActiveIcon
+                                                    : ProductCardDesign
+                                                          .favoriteIcon,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                        child: Text(
-                                          '-${widget.discountPercent}%',
-                                          style: const TextStyle(
-                                            color: AppPalette.white,
-                                            fontSize: 10.5,
-                                            fontWeight: AppFont.bold,
-                                            height: 1.1,
+                                      if (widget.discountPercent != null &&
+                                          widget.discountPercent! > 0) ...[
+                                        if (widget.showFavorite &&
+                                            widget.onToggleFavorite != null)
+                                          const SizedBox(height: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 7,
+                                            vertical: 3,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.error,
+                                            borderRadius: BorderRadius.circular(
+                                              AppRadii.pill,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '-${widget.discountPercent}%',
+                                            style: const TextStyle(
+                                              color: AppPalette.white,
+                                              fontSize: 10.5,
+                                              fontWeight: AppFont.bold,
+                                              height: 1.1,
+                                            ),
                                           ),
                                         ),
-                                      ),
+                                      ],
                                     ],
-                                  ],
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
-                      ),
+                          ],
+                        ),
+                ),
               ),
             ),
-          ),
 
-          const SizedBox(height: ProductCardDesign.infoTopSpacing),
+            const SizedBox(height: ProductCardDesign.infoTopSpacing),
 
-          // 2) New Price + Old Price (strikethrough) + Add to Cart Button
-          SizedBox(
-            height: ProductCardDesign.cartButtonSize,
-            child: Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: AppHaptics.action(widget.onTap),
-                    behavior: HitTestBehavior.opaque,
-                    child: Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            AppLang.tr(widget.meta),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: ProductCardDesign.priceSize,
-                              fontWeight: ProductCardDesign.priceWeight,
-                              color: ProductCardDesign.priceColor,
-                            ),
-                          ),
-                        ),
-                        if (widget.originalMeta != null &&
-                            widget.originalMeta!.isNotEmpty) ...[
-                          const SizedBox(width: 5),
+            // 2) New Price + Old Price (strikethrough) + Add to Cart Button
+            SizedBox(
+              height: ProductCardDesign.cartButtonSize,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: AppHaptics.action(widget.onTap),
+                      behavior: HitTestBehavior.opaque,
+                      child: Row(
+                        children: [
                           Flexible(
                             child: Text(
-                              AppLang.tr(widget.originalMeta!),
+                              AppLang.tr(widget.meta),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: ProductCardDesign.priceSize - 3.5,
-                                fontWeight: AppFont.medium,
-                                color: AppColors.textMuted,
-                                decoration: TextDecoration.lineThrough,
-                                decorationColor: AppColors.textMuted,
+                                fontSize: ProductCardDesign.priceSize,
+                                fontWeight: ProductCardDesign.priceWeight,
+                                color: ProductCardDesign.priceColor,
                               ),
                             ),
                           ),
+                          if (widget.originalMeta != null &&
+                              widget.originalMeta!.isNotEmpty) ...[
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                AppLang.tr(widget.originalMeta!),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: ProductCardDesign.priceSize - 3.5,
+                                  fontWeight: AppFont.medium,
+                                  color: AppColors.textMuted,
+                                  decoration: TextDecoration.lineThrough,
+                                  decorationColor: AppColors.textMuted,
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
-                if (widget.onAddToCart != null) ...[
-                  const SizedBox(width: AppSpacing.xs),
-                  Material(
-                    color: canAddToCart
-                        ? ProductCardDesign.cartButtonBackground
-                        : ProductCardDesign.cartButtonDisabledBackground,
-                    borderRadius: BorderRadius.circular(
-                      ProductCardDesign.cartButtonRadius,
-                    ),
-                    child: InkWell(
-                      onTap: AppHaptics.action(
-                        canAddToCart ? widget.onAddToCart : null,
-                      ),
+                  if (widget.onAddToCart != null) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    Material(
+                      color: canAddToCart
+                          ? ProductCardDesign.cartButtonBackground
+                          : ProductCardDesign.cartButtonDisabledBackground,
                       borderRadius: BorderRadius.circular(
                         ProductCardDesign.cartButtonRadius,
                       ),
-                      child: SizedBox(
-                        width: ProductCardDesign.cartButtonSize,
-                        height: ProductCardDesign.cartButtonSize,
-                        child: Icon(
-                          AppIcons.addToCart,
-                          size: ProductCardDesign.cartIconSize,
-                          color: canAddToCart
-                              ? ProductCardDesign.cartButtonIcon
-                              : ProductCardDesign.cartButtonDisabledIcon,
+                      child: InkWell(
+                        onTap: AppHaptics.action(
+                          canAddToCart ? widget.onAddToCart : null,
+                        ),
+                        borderRadius: BorderRadius.circular(
+                          ProductCardDesign.cartButtonRadius,
+                        ),
+                        child: SizedBox(
+                          width: ProductCardDesign.cartButtonSize,
+                          height: ProductCardDesign.cartButtonSize,
+                          child: Icon(
+                            AppIcons.addToCart,
+                            size: ProductCardDesign.cartIconSize,
+                            color: canAddToCart
+                                ? ProductCardDesign.cartButtonIcon
+                                : ProductCardDesign.cartButtonDisabledIcon,
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

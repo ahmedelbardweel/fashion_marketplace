@@ -1267,8 +1267,9 @@ class LocalDatabase {
   }
 
   Future<void> saveCustomerProducts(
-    List<customer_models.CustomerProduct> products,
-  ) async {
+    List<customer_models.CustomerProduct> products, {
+    bool isLiteSummary = false,
+  }) async {
     final db = await database;
     if (db == null || products.isEmpty) return;
 
@@ -1278,11 +1279,63 @@ class LocalDatabase {
 
     var evicted = false;
     await _writeLock.synchronized(() async {
+      final existingMetaById = <String, Map<String, Object?>>{};
+      final existingVariantProductIds = <String>{};
+      final existingImageProductIds = <String>{};
+
+      if (isLiteSummary) {
+        final ids = capped.map((p) => p.id).where((id) => id.isNotEmpty).toList();
+        if (ids.isNotEmpty) {
+          final ph = List.filled(ids.length, '?').join(',');
+          final existingRows = await db.query(
+            'products',
+            columns: ['id', 'description', 'details_json'],
+            where: 'id IN ($ph)',
+            whereArgs: ids,
+          );
+          for (final r in existingRows) {
+            final id = r['id']?.toString() ?? '';
+            if (id.isNotEmpty) existingMetaById[id] = r;
+          }
+          final vRows = await db.rawQuery(
+            'SELECT DISTINCT product_id FROM product_variants WHERE product_id IN ($ph)',
+            ids,
+          );
+          for (final r in vRows) {
+            final id = r['product_id']?.toString() ?? '';
+            if (id.isNotEmpty) existingVariantProductIds.add(id);
+          }
+          final iRows = await db.rawQuery(
+            'SELECT DISTINCT product_id FROM product_images WHERE product_id IN ($ph)',
+            ids,
+          );
+          for (final r in iRows) {
+            final id = r['product_id']?.toString() ?? '';
+            if (id.isNotEmpty) existingImageProductIds.add(id);
+          }
+        }
+      }
+
       final batch = db.batch();
       final nowIso = DateTime.now().toIso8601String();
 
       for (final pItem in capped) {
-        final mergedDetails = Map<String, dynamic>.from(pItem.details);
+        final isLite = isLiteSummary || pItem.isSummaryOnly;
+        final prevRow = isLite ? existingMetaById[pItem.id] : null;
+        final mergedDetails = <String, dynamic>{};
+
+        if (prevRow != null) {
+          final prevJson = prevRow['details_json'] as String?;
+          if (prevJson != null && prevJson.isNotEmpty) {
+            try {
+              mergedDetails.addAll(
+                Map<String, dynamic>.from(jsonDecode(prevJson) as Map),
+              );
+            } catch (_) {}
+          }
+        }
+        mergedDetails.addAll(pItem.details);
+
         if (pItem.originalPrice != null && pItem.originalPrice! > 0) {
           mergedDetails['original_price'] = pItem.originalPrice;
         }
@@ -1303,6 +1356,21 @@ class LocalDatabase {
           mergedDetails['offer_ends_at'] =
               pItem.offerEndsAt!.toUtc().toIso8601String();
         }
+        if (isLite) {
+          mergedDetails['_lite_total_stock'] = pItem.totalStock;
+          if (pItem.availableColors.isNotEmpty) {
+            mergedDetails['_lite_colors'] = pItem.availableColors.toList();
+          }
+          if (pItem.availableSizes.isNotEmpty) {
+            mergedDetails['_lite_sizes'] = pItem.availableSizes.toList();
+          }
+        }
+
+        final resolvedDescription =
+            (pItem.description != null && pItem.description!.isNotEmpty)
+            ? pItem.description
+            : prevRow?['description']?.toString();
+
         batch.insert(
           'products',
           {
@@ -1312,7 +1380,7 @@ class LocalDatabase {
             'category_id': pItem.categoryId,
             'category_name': pItem.categoryName,
             'name': pItem.name,
-            'description': pItem.description,
+            'description': resolvedDescription,
             'details_json': jsonEncode(mergedDetails),
             'price': pItem.price,
             'status': pItem.status,
@@ -1324,46 +1392,54 @@ class LocalDatabase {
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
 
-        batch.delete(
-          'product_variants',
-          where: 'product_id = ?',
-          whereArgs: [pItem.id],
-        );
-        for (final v in pItem.variants) {
-          batch.insert(
+        final preserveExistingVariants =
+            isLite && pItem.variants.isEmpty && existingVariantProductIds.contains(pItem.id);
+        if (!preserveExistingVariants && (!isLite || pItem.variants.isNotEmpty)) {
+          batch.delete(
             'product_variants',
-            {
-              'id': v.id.isNotEmpty
-                  ? v.id
-                  : '${pItem.id}_${v.color}_${v.size}',
-              'product_id': pItem.id,
-              'color': v.color,
-              'size': v.size,
-              'stock': v.stock,
-              'is_active': v.isActive ? 1 : 0,
-            },
-            conflictAlgorithm: ConflictAlgorithm.replace,
+            where: 'product_id = ?',
+            whereArgs: [pItem.id],
           );
+          for (final v in pItem.variants) {
+            batch.insert(
+              'product_variants',
+              {
+                'id': v.id.isNotEmpty
+                    ? v.id
+                    : '${pItem.id}_${v.color}_${v.size}',
+                'product_id': pItem.id,
+                'color': v.color,
+                'size': v.size,
+                'stock': v.stock,
+                'is_active': v.isActive ? 1 : 0,
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
         }
 
-        batch.delete(
-          'product_images',
-          where: 'product_id = ?',
-          whereArgs: [pItem.id],
-        );
-        for (var i = 0; i < pItem.images.length; i++) {
-          final img = pItem.images[i];
-          batch.insert(
+        final preserveExistingImages =
+            isLite && existingImageProductIds.contains(pItem.id);
+        if (!preserveExistingImages && pItem.images.isNotEmpty) {
+          batch.delete(
             'product_images',
-            {
-              'id': img.id.isNotEmpty ? img.id : '${pItem.id}_img_$i',
-              'product_id': pItem.id,
-              'file_path': img.filePath,
-              'kind': img.kind,
-              'sort_order': img.sortOrder,
-            },
-            conflictAlgorithm: ConflictAlgorithm.replace,
+            where: 'product_id = ?',
+            whereArgs: [pItem.id],
           );
+          for (var i = 0; i < pItem.images.length; i++) {
+            final img = pItem.images[i];
+            batch.insert(
+              'product_images',
+              {
+                'id': img.id.isNotEmpty ? img.id : '${pItem.id}_img_$i',
+                'product_id': pItem.id,
+                'file_path': img.filePath,
+                'kind': img.kind,
+                'sort_order': img.sortOrder,
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
         }
       }
 
@@ -1374,7 +1450,11 @@ class LocalDatabase {
       unawaited(pruneStaleCachedImages());
     }
     OfflineImageCacheService.instance.prefetchUrlsSilently(
-      capped.expand((p) => p.images.map((img) => img.filePath)),
+      capped
+          .take(8)
+          .map((p) => p.coverImage)
+          .whereType<String>()
+          .where((url) => url.isNotEmpty),
     );
   }
 
@@ -1733,20 +1813,20 @@ class LocalDatabase {
       }
 
       results.add(
-        customer_models.CustomerProduct(
-          id: pid,
-          shopId: row['shop_id']?.toString() ?? '',
-          shopName: row['shop_name']?.toString() ?? 'متجر',
-          categoryId: row['category_id']?.toString(),
-          categoryName: row['category_name']?.toString(),
-          name: row['name']?.toString() ?? '',
-          description: row['description']?.toString(),
-          details: details,
-          price: (row['price'] as num?)?.toDouble() ?? 0.0,
-          status: row['status']?.toString() ?? 'published',
-          variants: (variantsByProduct[pid] ?? const [])
-              .where((v) => v.isActive)
-              .toList(),
+        customer_models.CustomerProduct.fromMap(
+          {
+            'id': pid,
+            'shop_id': row['shop_id']?.toString() ?? '',
+            'shop_name': row['shop_name']?.toString() ?? 'متجر',
+            'category_id': row['category_id']?.toString(),
+            'category_name': row['category_name']?.toString(),
+            'name': row['name']?.toString() ?? '',
+            'description': row['description']?.toString(),
+            'details': details,
+            'price': (row['price'] as num?)?.toDouble() ?? 0.0,
+            'status': row['status']?.toString() ?? 'published',
+          },
+          variants: variantsByProduct[pid] ?? const [],
           images: imagesByProduct[pid] ?? const [],
           ratingAvg: (row['rating_avg'] as num?)?.toDouble() ?? 5.0,
           ratingCount: (row['rating_count'] as num?)?.toInt() ?? 0,
@@ -3426,6 +3506,56 @@ class LocalDatabase {
 
     try {
       final urls = await _collectReferencedImageUrls(db);
+      OfflineImageCacheService.instance.prefetchUrlsSilently(urls);
+    } catch (_) {}
+  }
+
+  /// Lightweight image prefetcher queuing only active banners, shop logos,
+  /// and the first 16 product cover images instead of every gallery/AR asset.
+  Future<void> prefetchCoverImageUrls() async {
+    final db = await database;
+    if (db == null) return;
+
+    try {
+      final urls = <String>{};
+      final banners = await db.query(
+        'banners',
+        columns: ['image_path'],
+        where: 'is_active = 1',
+      );
+      for (final b in banners) {
+        final u = b['image_path']?.toString().trim();
+        if (u != null && u.startsWith('http')) urls.add(u);
+      }
+
+      final shops = await db.query(
+        'shops',
+        columns: ['logo_url'],
+        where: "status = 'approved'",
+        limit: 20,
+      );
+      for (final s in shops) {
+        final u = s['logo_url']?.toString().trim();
+        if (u != null && u.startsWith('http')) urls.add(u);
+      }
+
+      final covers = await db.rawQuery('''
+        SELECT pi.file_path
+        FROM product_images pi
+        INNER JOIN (
+          SELECT id FROM products
+          WHERE status = 'published'
+          ORDER BY created_at DESC
+          LIMIT 16
+        ) p ON p.id = pi.product_id
+        WHERE pi.kind = 'gallery'
+        GROUP BY pi.product_id
+      ''');
+      for (final c in covers) {
+        final u = c['file_path']?.toString().trim();
+        if (u != null && u.startsWith('http')) urls.add(u);
+      }
+
       OfflineImageCacheService.instance.prefetchUrlsSilently(urls);
     } catch (_) {}
   }

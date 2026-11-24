@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../config/supabase_config.dart';
+import '../../../core/cache/app_memory_cache.dart';
 import '../../../core/filtering/filter_models.dart';
 import '../../../core/network/network_guard.dart';
 import '../../../core/offline/local_database.dart';
@@ -29,8 +30,194 @@ class CustomerRepository {
 
   final SupabaseClient _client;
   final LocalDatabase _localDb = LocalDatabase.instance;
+  final AppMemoryCache _cache = AppMemoryCache.instance;
+
+  static bool _feedLiteRpcAvailable = true;
+  static bool _homeBootstrapRpcAvailable = true;
+
+  static const Duration _bannersTtl = Duration(minutes: 5);
+  static const Duration _categoriesTtl = Duration(minutes: 10);
+  static const Duration _shopsTtl = Duration(minutes: 5);
+  static const Duration _feedTtl = Duration(minutes: 3);
+  static const Duration _favoritesTtl = Duration(minutes: 3);
+  static const Duration _detailsTtl = Duration(minutes: 2);
+
+  static const String _kBannersKey = 'customer:banners';
+  static const String _kCategoriesKey = 'customer:categories';
+  static const String _kShopsKey = 'customer:shops';
+  static const String _kHomeBootstrapKey = 'customer:home_bootstrap';
 
   String? get currentUserId => _client.auth.currentUser?.id;
+
+  bool _isMissingRpcError(Object error) {
+    final msg = error.toString().toLowerCase();
+    return msg.contains('pgrst202') ||
+        msg.contains('42883') ||
+        msg.contains('could not find the function') ||
+        msg.contains('does not exist');
+  }
+
+  String _sortKeyForRpc(ProductSortOption sort) {
+    return switch (sort) {
+      ProductSortOption.priceAsc => 'price_asc',
+      ProductSortOption.priceDesc => 'price_desc',
+      ProductSortOption.nameAsc => 'name_asc',
+      ProductSortOption.topRated => 'rating_desc',
+      _ => 'newest',
+    };
+  }
+
+  String _feedCacheKey({
+    required String? userId,
+    required String? categoryId,
+    required String? shopId,
+    required double? minPrice,
+    required double? maxPrice,
+    required String? color,
+    required String? size,
+    required bool inStockOnly,
+    required double? minRating,
+    required ProductSortOption sort,
+    required int limit,
+    required int offset,
+    required String? excludeProductId,
+  }) {
+    return 'customer:feed:${userId ?? 'anon'}|c:${categoryId ?? ''}|s:${shopId ?? ''}|min:${minPrice ?? ''}|max:${maxPrice ?? ''}|col:${color ?? ''}|sz:${size ?? ''}|st:$inStockOnly|r:${minRating ?? ''}|o:${sort.name}|ex:${excludeProductId ?? ''}|l:$limit|off:$offset';
+  }
+
+  /// Clears in-memory customer caches (e.g. on pull-to-refresh or account switch).
+  void invalidateCatalogCache({bool includeStatic = false}) {
+    _cache.invalidatePrefix('customer:feed:');
+    _cache.invalidate(_kHomeBootstrapKey);
+    if (includeStatic) {
+      _cache.invalidate(_kBannersKey);
+      _cache.invalidate(_kCategoriesKey);
+      _cache.invalidate(_kShopsKey);
+      _cache.invalidatePrefix('customer:shop:');
+    }
+  }
+
+  /// Fetches banners + categories + approved shops + first page of lite products
+  /// + user favorites in ONE single Supabase RPC round-trip (when migration 040
+  /// is installed), hydrating both memory cache and SQLite simultaneously.
+  Future<bool> warmHomeBootstrap({
+    int productsLimit = kProductPageSize,
+    bool forceRefresh = false,
+  }) async {
+    if (!_homeBootstrapRpcAvailable || !NetworkMonitorService.instance.isOnline) {
+      return false;
+    }
+
+    if (!forceRefresh &&
+        _cache.hasFresh(_kBannersKey) &&
+        _cache.hasFresh(_kCategoriesKey) &&
+        _cache.hasFresh(_kShopsKey)) {
+      return true;
+    }
+
+    final userId = await _resolveUserId();
+    try {
+      return await _cache.fetchCached<bool>(
+        _kHomeBootstrapKey,
+        ttl: _feedTtl,
+        forceRefresh: forceRefresh,
+        loader: () async {
+          final raw = await _client.rpc(
+            'get_home_bootstrap',
+            params: {'p_products_limit': productsLimit},
+          );
+          if (raw is! Map) return false;
+          final payload = asStringMap(raw);
+
+          final banners = (payload['banners'] as List? ?? const [])
+              .map((row) => AdminBanner.fromMap(asStringMap(row)))
+              .toList();
+          final categories = (payload['categories'] as List? ?? const [])
+              .map((row) => CatalogCategory.fromMap(asStringMap(row)))
+              .toList();
+          final shops = (payload['shops'] as List? ?? const []).map((row) {
+            final map = asStringMap(row);
+            final count = (map['products_count'] as num?)?.toInt() ?? 0;
+            return CustomerShop.fromMap(map, productsCount: count);
+          }).toList();
+          final products = (payload['products'] as List? ?? const [])
+              .map((row) => CustomerProduct.fromLiteFeedMap(asStringMap(row)))
+              .toList();
+          final favIds = (payload['favorite_ids'] as List? ?? const [])
+              .map((e) => e.toString())
+              .where((e) => e.isNotEmpty)
+              .toSet();
+
+          _cache.set<List<AdminBanner>>(
+            _kBannersKey,
+            banners,
+            ttl: _bannersTtl,
+          );
+          _cache.set<List<CatalogCategory>>(
+            _kCategoriesKey,
+            categories,
+            ttl: _categoriesTtl,
+          );
+          _cache.set<List<CustomerShop>>(_kShopsKey, shops, ttl: _shopsTtl);
+          if (userId != null) {
+            _cache.set<Set<String>>(
+              'customer:favorites:$userId',
+              favIds,
+              ttl: _favoritesTtl,
+            );
+          }
+
+          final defaultFeedKey = _feedCacheKey(
+            userId: userId,
+            categoryId: null,
+            shopId: null,
+            minPrice: null,
+            maxPrice: null,
+            color: null,
+            size: null,
+            inStockOnly: false,
+            minRating: null,
+            sort: ProductSortOption.newest,
+            limit: productsLimit,
+            offset: 0,
+            excludeProductId: null,
+          );
+          _cache.set<PaginatedPage<CustomerProduct>>(
+            defaultFeedKey,
+            PaginatedPage<CustomerProduct>(
+              items: products,
+              rawCount: products.length,
+            ),
+            ttl: _feedTtl,
+          );
+
+          NetworkMonitorService.instance.reportNetworkSuccess();
+
+          // Persist to SQLite asynchronously so offline & cold-start SWR stay hot
+          unawaited(_localDb.saveBanners(banners));
+          unawaited(_localDb.saveCategories(categories));
+          unawaited(_localDb.saveCustomerShops(shops));
+          if (userId != null) {
+            unawaited(_localDb.saveFavoriteIds(userId, favIds));
+          }
+          if (products.isNotEmpty) {
+            unawaited(
+              _localDb.saveCustomerProducts(products, isLiteSummary: true),
+            );
+          }
+          return true;
+        },
+      );
+    } catch (e) {
+      _cache.invalidate(_kHomeBootstrapKey);
+      if (_isMissingRpcError(e)) {
+        _homeBootstrapRpcAvailable = false;
+      } else if (_isNetworkError(e)) {
+        NetworkMonitorService.instance.reportNetworkFailure();
+      }
+      return false;
+    }
+  }
 
   Future<String?> _resolveUserId() async {
     final uid = currentUserId;
@@ -151,46 +338,77 @@ class CustomerRepository {
     await _localDb.clearActiveSession();
   }
 
-  // Fetch Banners
-  Future<List<AdminBanner>> getBanners() async {
+  // Fetch Banners (Memory TTL + In-flight deduplication + SQLite fallback)
+  Future<List<AdminBanner>> getBanners({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final cached = _cache.getFresh<List<AdminBanner>>(_kBannersKey);
+      if (cached != null) return cached;
+    }
+
     if (NetworkMonitorService.instance.isOnline) {
       try {
-        final rows = await _client
-            .from('banners')
-            .select()
-            .eq('is_active', true)
-            .order('sort_order', ascending: true)
-            .order('updated_at', ascending: false);
-        final banners = (rows as List)
-            .map((row) => AdminBanner.fromMap(asStringMap(row)))
-            .toList();
-        unawaited(_localDb.saveBanners(banners));
-        return banners;
+        return await _cache.fetchCached<List<AdminBanner>>(
+          _kBannersKey,
+          ttl: _bannersTtl,
+          forceRefresh: forceRefresh,
+          loader: () async {
+            final rows = await _client
+                .from('banners')
+                .select()
+                .eq('is_active', true)
+                .order('sort_order', ascending: true)
+                .order('updated_at', ascending: false);
+            final banners = (rows as List)
+                .map((row) => AdminBanner.fromMap(asStringMap(row)))
+                .toList();
+            NetworkMonitorService.instance.reportNetworkSuccess();
+            unawaited(_localDb.saveBanners(banners));
+            return banners;
+          },
+        );
       } catch (e) {
         if (_isNetworkError(e)) {
           NetworkMonitorService.instance.reportNetworkFailure();
         }
       }
     }
-    return _localDb.getBanners(activeOnly: true);
+    final local = await _localDb.getBanners(activeOnly: true);
+    if (local.isNotEmpty) {
+      _cache.set<List<AdminBanner>>(_kBannersKey, local, ttl: _bannersTtl);
+    }
+    return local;
   }
 
-  // Fetch Categories
+  // Fetch Categories (Memory TTL + In-flight deduplication + SQLite fallback)
   Future<List<CatalogCategory>> getCategories({
     bool throwOnError = false,
+    bool forceRefresh = false,
   }) async {
+    if (!forceRefresh) {
+      final cached = _cache.getFresh<List<CatalogCategory>>(_kCategoriesKey);
+      if (cached != null) return cached;
+    }
+
     if (NetworkMonitorService.instance.isOnline) {
       try {
-        final rows = await _client
-            .from('categories')
-            .select()
-            .eq('is_active', true)
-            .order('sort_order', ascending: true);
-        final categories = (rows as List)
-            .map((row) => CatalogCategory.fromMap(asStringMap(row)))
-            .toList();
-        unawaited(_localDb.saveCategories(categories));
-        return categories;
+        return await _cache.fetchCached<List<CatalogCategory>>(
+          _kCategoriesKey,
+          ttl: _categoriesTtl,
+          forceRefresh: forceRefresh,
+          loader: () async {
+            final rows = await _client
+                .from('categories')
+                .select()
+                .eq('is_active', true)
+                .order('sort_order', ascending: true);
+            final categories = (rows as List)
+                .map((row) => CatalogCategory.fromMap(asStringMap(row)))
+                .toList();
+            NetworkMonitorService.instance.reportNetworkSuccess();
+            unawaited(_localDb.saveCategories(categories));
+            return categories;
+          },
+        );
       } catch (e) {
         if (_isNetworkError(e)) {
           NetworkMonitorService.instance.reportNetworkFailure();
@@ -201,52 +419,99 @@ class CustomerRepository {
     }
 
     final localCategories = await _localDb.getCategories(activeOnly: true);
+    if (localCategories.isNotEmpty) {
+      _cache.set<List<CatalogCategory>>(
+        _kCategoriesKey,
+        localCategories,
+        ttl: _categoriesTtl,
+      );
+    }
     return localCategories;
   }
 
-  // Fetch Approved Shops
-  Future<List<CustomerShop>> getShops() async {
+  // Fetch Approved Shops (Memory TTL + In-flight deduplication + SQLite fallback)
+  Future<List<CustomerShop>> getShops({bool forceRefresh = false}) async {
+    if (!forceRefresh) {
+      final cached = _cache.getFresh<List<CustomerShop>>(_kShopsKey);
+      if (cached != null) return cached;
+    }
+
     if (NetworkMonitorService.instance.isOnline) {
       try {
-        final rows = await _client
-            .from('shops')
-            .select('*, products:products(count)')
-            .eq('status', 'approved')
-            .order('name', ascending: true);
+        return await _cache.fetchCached<List<CustomerShop>>(
+          _kShopsKey,
+          ttl: _shopsTtl,
+          forceRefresh: forceRefresh,
+          loader: () async {
+            final rows = await _client
+                .from('shops')
+                .select('*, products:products(count)')
+                .eq('status', 'approved')
+                .order('name', ascending: true);
 
-        final shops = (rows as List).map((row) {
-          final map = asStringMap(row);
-          final productsData = row['products'];
-          int count = 0;
-          if (productsData is List && productsData.isNotEmpty) {
-            count = (productsData.first['count'] as num?)?.toInt() ?? 0;
-          }
-          return CustomerShop.fromMap(map, productsCount: count);
-        }).toList();
+            final shops = (rows as List).map((row) {
+              final map = asStringMap(row);
+              final productsData = row['products'];
+              int count = 0;
+              if (productsData is List && productsData.isNotEmpty) {
+                count = (productsData.first['count'] as num?)?.toInt() ?? 0;
+              }
+              return CustomerShop.fromMap(map, productsCount: count);
+            }).toList();
 
-        unawaited(_localDb.saveCustomerShops(shops));
-        return shops;
+            NetworkMonitorService.instance.reportNetworkSuccess();
+            unawaited(_localDb.saveCustomerShops(shops));
+            return shops;
+          },
+        );
       } catch (e) {
         if (_isNetworkError(e)) {
           NetworkMonitorService.instance.reportNetworkFailure();
         }
       }
     }
-    return _localDb.getCustomerShops();
+    final local = await _localDb.getCustomerShops();
+    if (local.isNotEmpty) {
+      _cache.set<List<CustomerShop>>(_kShopsKey, local, ttl: _shopsTtl);
+    }
+    return local;
   }
 
-  // Fetch Single Shop Details
-  Future<CustomerShop?> getShopDetails(String shopId) async {
+  // Fetch Single Shop Details (Memory TTL + SQLite fallback)
+  Future<CustomerShop?> getShopDetails(
+    String shopId, {
+    bool forceRefresh = false,
+  }) async {
+    final cacheKey = 'customer:shop:$shopId';
+    if (!forceRefresh) {
+      final cached = _cache.getFresh<CustomerShop?>(cacheKey);
+      if (cached != null) return cached;
+      final allShops = _cache.getFresh<List<CustomerShop>>(_kShopsKey);
+      final match = allShops?.where((s) => s.id == shopId).firstOrNull;
+      if (match != null) {
+        _cache.set<CustomerShop?>(cacheKey, match, ttl: _shopsTtl);
+        return match;
+      }
+    }
+
     if (NetworkMonitorService.instance.isOnline) {
       try {
-        final row = await _client
-            .from('shops')
-            .select()
-            .eq('id', shopId)
-            .single();
-        final shop = CustomerShop.fromMap(asStringMap(row));
-        unawaited(_localDb.saveCustomerShops([shop]));
-        return shop;
+        return await _cache.fetchCached<CustomerShop?>(
+          cacheKey,
+          ttl: _shopsTtl,
+          forceRefresh: forceRefresh,
+          loader: () async {
+            final row = await _client
+                .from('shops')
+                .select()
+                .eq('id', shopId)
+                .single();
+            final shop = CustomerShop.fromMap(asStringMap(row));
+            NetworkMonitorService.instance.reportNetworkSuccess();
+            unawaited(_localDb.saveCustomerShops([shop]));
+            return shop;
+          },
+        );
       } catch (e) {
         if (_isNetworkError(e)) {
           NetworkMonitorService.instance.reportNetworkFailure();
@@ -256,7 +521,70 @@ class CustomerRepository {
     return _localDb.getCustomerShopById(shopId);
   }
 
-  // Fetch Paginated Products (strictly [limit] per request, default 6)
+  /// Instant local hydration for Stale-While-Revalidate (checks memory first,
+  /// then encrypted SQLite in < 30ms so product grids render immediately).
+  Future<PaginatedPage<CustomerProduct>?> getCachedProductsPage({
+    String? categoryId,
+    String? shopId,
+    String? search,
+    double? minPrice,
+    double? maxPrice,
+    String? color,
+    String? size,
+    bool inStockOnly = false,
+    double? minRating,
+    ProductSortOption sort = ProductSortOption.newest,
+    int limit = kProductPageSize,
+    int offset = 0,
+    String? excludeProductId,
+  }) async {
+    final hasSearchQuery =
+        (search != null && search.trim().isNotEmpty) ||
+        ActiveVisualSearchStore.instance.currentQuery.value != null;
+    if (hasSearchQuery) return null;
+
+    final userId = await _resolveUserId();
+    final cacheKey = _feedCacheKey(
+      userId: userId,
+      categoryId: categoryId,
+      shopId: shopId,
+      minPrice: minPrice,
+      maxPrice: maxPrice,
+      color: color,
+      size: size,
+      inStockOnly: inStockOnly,
+      minRating: minRating,
+      sort: sort,
+      limit: limit,
+      offset: offset,
+      excludeProductId: excludeProductId,
+    );
+
+    final memHit = _cache.getAny<PaginatedPage<CustomerProduct>>(cacheKey);
+    if (memHit != null && memHit.items.isNotEmpty) {
+      return memHit;
+    }
+
+    final localPage = await _localDb.getCustomerProductsPage(
+      customerId: userId,
+      categoryId: categoryId,
+      shopId: shopId,
+      search: search,
+      minPrice: minPrice,
+      maxPrice: maxPrice,
+      color: color,
+      size: size,
+      inStockOnly: inStockOnly,
+      minRating: minRating,
+      sort: sort,
+      limit: limit,
+      offset: offset,
+      excludeProductId: excludeProductId,
+    );
+    return localPage.items.isNotEmpty ? localPage : null;
+  }
+
+  // Fetch Paginated Products (ultra-light RPC when available, automatic fallback)
   Future<PaginatedPage<CustomerProduct>> getProductsPage({
     String? categoryId,
     String? shopId,
@@ -271,6 +599,7 @@ class CustomerRepository {
     int limit = kProductPageSize,
     int offset = 0,
     String? excludeProductId,
+    bool forceRefresh = false,
   }) async {
     final userId = await _resolveUserId();
     final hasSearchQuery =
@@ -286,17 +615,166 @@ class CustomerRepository {
         inStockOnly ||
         minRating != null;
 
+    final cacheKey = !hasSearchQuery
+        ? _feedCacheKey(
+            userId: userId,
+            categoryId: categoryId,
+            shopId: shopId,
+            minPrice: minPrice,
+            maxPrice: maxPrice,
+            color: color,
+            size: size,
+            inStockOnly: inStockOnly,
+            minRating: minRating,
+            sort: sort,
+            limit: limit,
+            offset: offset,
+            excludeProductId: excludeProductId,
+          )
+        : null;
+
+    if (cacheKey != null && !forceRefresh) {
+      final cached = _cache.getFresh<PaginatedPage<CustomerProduct>>(cacheKey);
+      if (cached != null) return cached;
+    }
+
     if (NetworkMonitorService.instance.isOnline) {
       try {
+        // Fast path: ultra-lightweight PostgreSQL RPC (1 tiny round-trip, ~80% smaller payload)
+        if (!hasSearchQuery && _feedLiteRpcAvailable && cacheKey != null) {
+          try {
+            return await _cache.fetchCached<PaginatedPage<CustomerProduct>>(
+              cacheKey,
+              ttl: _feedTtl,
+              forceRefresh: forceRefresh,
+              loader: () async {
+                List<String>? categoryIdsParam;
+                if (categoryId != null && categoryId.isNotEmpty) {
+                  final allCategories = await getCategories(throwOnError: true);
+                  final branchIds = categoryBranchIds(allCategories, categoryId);
+                  categoryIdsParam = branchIds.isEmpty
+                      ? [categoryId]
+                      : branchIds.toList();
+                }
+
+                final raw = await _client.rpc(
+                  'get_products_feed_lite',
+                  params: {
+                    'p_category_ids': categoryIdsParam,
+                    'p_shop_id': (shopId != null && shopId.isNotEmpty)
+                        ? shopId
+                        : null,
+                    'p_min_price': minPrice,
+                    'p_max_price': maxPrice,
+                    'p_color': (color != null && color.trim().isNotEmpty)
+                        ? color.trim()
+                        : null,
+                    'p_size': (size != null && size.trim().isNotEmpty)
+                        ? size.trim()
+                        : null,
+                    'p_in_stock_only': inStockOnly,
+                    'p_min_rating': minRating,
+                    'p_sort': _sortKeyForRpc(sort),
+                    'p_exclude_product_id':
+                        (excludeProductId != null &&
+                            excludeProductId.isNotEmpty)
+                        ? excludeProductId
+                        : null,
+                    'p_limit': limit,
+                    'p_offset': offset < 0 ? 0 : offset,
+                  },
+                );
+
+                final rows = raw is List ? raw : const <dynamic>[];
+                final items = rows
+                    .map(
+                      (row) =>
+                          CustomerProduct.fromLiteFeedMap(asStringMap(row)),
+                    )
+                    .toList();
+
+                NetworkMonitorService.instance.reportNetworkSuccess();
+
+                if (items.isNotEmpty) {
+                  unawaited(
+                    _localDb.saveCustomerProducts(items, isLiteSummary: true),
+                  );
+                }
+
+                if (items.isEmpty && offset == 0 && hasAnyFilter) {
+                  final activeFilter = ProductFilter(
+                    categoryId: categoryId,
+                    shopId: shopId,
+                    search: search,
+                    minPrice: minPrice,
+                    maxPrice: maxPrice,
+                    color: color,
+                    size: size,
+                    inStockOnly: inStockOnly,
+                    minRating: minRating,
+                    sort: sort,
+                  );
+                  final fallbackRaw = await _client.rpc(
+                    'get_products_feed_lite',
+                    params: {'p_limit': 60, 'p_offset': 0},
+                  );
+                  final fallbackPool = (fallbackRaw is List
+                          ? fallbackRaw
+                          : const <dynamic>[])
+                      .map(
+                        (row) =>
+                            CustomerProduct.fromLiteFeedMap(asStringMap(row)),
+                      )
+                      .toList();
+                  final similar = computeSimilarCustomerProducts(
+                    fallbackPool,
+                    activeFilter,
+                    maxResults: limit,
+                  );
+                  if (similar.isNotEmpty) {
+                    return PaginatedPage<CustomerProduct>(
+                      items: similar,
+                      rawCount: 0,
+                      isSimilarFallback: true,
+                    );
+                  }
+                }
+
+                return PaginatedPage<CustomerProduct>(
+                  items: items,
+                  rawCount: rows.length,
+                );
+              },
+            );
+          } catch (rpcError) {
+            if (_isMissingRpcError(rpcError)) {
+              _feedLiteRpcAvailable = false;
+            } else {
+              rethrow;
+            }
+          }
+        }
+
+        // Fallback path (also used for rich text/voice/visual search)
         var query = _client
             .from('products')
-            .select('''
+            .select(
+              hasSearchQuery
+                  ? '''
           id, shop_id, category_id, name, description, details, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
           shops:shop_id(name),
           categories:category_id(name),
           variants:product_variants(*),
           images:product_images(*)
-        ''')
+        '''
+                  : '''
+          id, shop_id, category_id, name, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
+          shops:shop_id(name),
+          categories:category_id(name),
+          variants:product_variants(id, product_id, color, size, stock, is_active),
+          images:product_images(id, product_id, file_path, kind, sort_order)
+        ''',
+            )
             .eq('status', 'published');
 
         if (excludeProductId != null && excludeProductId.isNotEmpty) {
@@ -348,11 +826,18 @@ class CustomerRepository {
         final effectiveLimit = hasSearchQuery ? kSearchPoolSize : limit;
         final from = offset < 0 ? 0 : offset;
         final to = from + effectiveLimit - 1;
-        final rawRows = await orderedQuery.range(from, to) as List;
-        final favoriteIds = await _getUserFavoriteIds();
+        final results = await Future.wait<dynamic>([
+          orderedQuery.range(from, to),
+          _getUserFavoriteIds(),
+        ]);
+        final rawRows = results[0] as List;
+        final favoriteIds = results[1] as Set<String>;
+        NetworkMonitorService.instance.reportNetworkSuccess();
 
         final mapped = _mapProductRows(rawRows, favoriteIds);
-        unawaited(_localDb.saveCustomerProducts(mapped));
+        unawaited(
+          _localDb.saveCustomerProducts(mapped, isLiteSummary: !hasSearchQuery),
+        );
 
         if (hasSearchQuery) {
           final isVisual =
@@ -361,15 +846,16 @@ class CustomerRepository {
             [
               for (final p in mapped) ...[
                 p.coverImage,
-                if (isVisual) ...p.images.where((i) => i.kind != '3d_model').map((i) => i.filePath),
+                if (isVisual)
+                  ...p.images
+                      .where((i) => i.kind != '3d_model')
+                      .map((i) => i.filePath),
               ],
             ],
             downloadIfMissing: isVisual,
             maxImages: isVisual ? 250 : 60,
             concurrency: 8,
           );
-          // Image search needs descriptors before ranking; text search only
-          // uses them as a bonus, so it never waits for image analysis.
           if (isVisual) {
             await warm;
           } else {
@@ -412,17 +898,19 @@ class CustomerRepository {
             final fallbackRows = await _client
                 .from('products')
                 .select('''
-              id, shop_id, category_id, name, description, details, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
+              id, shop_id, category_id, name, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
               shops:shop_id(name),
               categories:category_id(name),
-              variants:product_variants(*),
-              images:product_images(*)
+              variants:product_variants(id, product_id, color, size, stock, is_active),
+              images:product_images(id, product_id, file_path, kind, sort_order)
             ''')
                 .eq('status', 'published')
                 .order('created_at', ascending: false)
-                .limit(120) as List;
+                .limit(60) as List;
             fallbackPool = _mapProductRows(fallbackRows, favoriteIds);
-            unawaited(_localDb.saveCustomerProducts(fallbackPool));
+            unawaited(
+              _localDb.saveCustomerProducts(fallbackPool, isLiteSummary: true),
+            );
           }
           final similar = computeSimilarCustomerProducts(
             fallbackPool,
@@ -438,10 +926,18 @@ class CustomerRepository {
           }
         }
 
-        return PaginatedPage<CustomerProduct>(
+        final pageResult = PaginatedPage<CustomerProduct>(
           items: refined,
           rawCount: hasSearchQuery ? 0 : rawRows.length,
         );
+        if (cacheKey != null) {
+          _cache.set<PaginatedPage<CustomerProduct>>(
+            cacheKey,
+            pageResult,
+            ttl: _feedTtl,
+          );
+        }
+        return pageResult;
       } catch (e) {
         if (_isNetworkError(e)) {
           NetworkMonitorService.instance.reportNetworkFailure();
@@ -533,61 +1029,92 @@ class CustomerRepository {
     }).toList();
   }
 
-  // Fetch Product Details
-  Future<CustomerProduct?> getProductDetails(String productId) async {
+  // Fetch Product Details (parallelized + memory TTL + deduplicated reviews/favorites)
+  Future<CustomerProduct?> getProductDetails(
+    String productId, {
+    bool forceRefresh = false,
+  }) async {
     final userId = await _resolveUserId();
+    final cacheKey = 'customer:product:$productId';
+
+    if (!forceRefresh) {
+      final cached = _cache.getFresh<CustomerProduct?>(cacheKey);
+      if (cached != null && !cached.isSummaryOnly) {
+        if (userId != null) {
+          final favs = _cache.getFresh<Set<String>>('customer:favorites:$userId');
+          if (favs != null) {
+            return cached.copyWith(isFavorite: favs.contains(productId));
+          }
+        }
+        return cached;
+      }
+    }
 
     if (NetworkMonitorService.instance.isOnline) {
       try {
-        final row = await _client
-            .from('products')
-            .select('''
-          id, shop_id, category_id, name, description, details, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
-          shops:shop_id(name),
-          categories:category_id(name),
-          variants:product_variants(*),
-          images:product_images(*)
-        ''')
-            .eq('id', productId)
-            .single();
+        return await _cache.fetchCached<CustomerProduct?>(
+          cacheKey,
+          ttl: _detailsTtl,
+          forceRefresh: forceRefresh,
+          loader: () async {
+            final results = await Future.wait<dynamic>([
+              _client
+                  .from('products')
+                  .select('''
+                id, shop_id, category_id, name, description, details, price, original_price, discount_amount, discount_percent, offer_title, offer_starts_at, offer_ends_at, status,
+                shops:shop_id(name),
+                categories:category_id(name),
+                variants:product_variants(*),
+                images:product_images(*)
+              ''')
+                  .eq('id', productId)
+                  .single(),
+              _getUserFavoriteIds(),
+              getProductReviews(productId),
+            ]);
 
-        final map = asStringMap(row);
-        final shopMap = row['shops'] is Map ? asStringMap(row['shops']) : null;
-        final catMap = row['categories'] is Map
-            ? asStringMap(row['categories'])
-            : null;
+            final row = results[0] as Map<String, dynamic>;
+            final favoriteIds = results[1] as Set<String>;
+            final reviews = results[2] as List<ProductReview>;
+            NetworkMonitorService.instance.reportNetworkSuccess();
 
-        map['shop_name'] = shopMap?['name'] ?? 'متجر';
-        map['category_name'] = catMap?['name'];
+            final map = asStringMap(row);
+            final shopMap = row['shops'] is Map
+                ? asStringMap(row['shops'])
+                : null;
+            final catMap = row['categories'] is Map
+                ? asStringMap(row['categories'])
+                : null;
 
-        final variantsList = (row['variants'] as List? ?? [])
-            .map((v) => ProductVariant.fromMap(asStringMap(v)))
-            .toList();
+            map['shop_name'] = shopMap?['name'] ?? 'متجر';
+            map['category_name'] = catMap?['name'];
 
-        final imagesList = (row['images'] as List? ?? [])
-            .map((img) => ProductImage.fromMap(asStringMap(img)))
-            .toList();
+            final variantsList = (row['variants'] as List? ?? [])
+                .map((v) => ProductVariant.fromMap(asStringMap(v)))
+                .toList();
 
-        final favoriteIds = await _getUserFavoriteIds();
+            final imagesList = (row['images'] as List? ?? [])
+                .map((img) => ProductImage.fromMap(asStringMap(img)))
+                .toList();
 
-        // Fetch reviews stats
-        final reviews = await getProductReviews(productId);
-        double ratingAvg = 5.0;
-        if (reviews.isNotEmpty) {
-          final sum = reviews.fold(0, (s, r) => s + r.rating);
-          ratingAvg = sum / reviews.length;
-        }
+            double ratingAvg = 5.0;
+            if (reviews.isNotEmpty) {
+              final sum = reviews.fold(0, (s, r) => s + r.rating);
+              ratingAvg = sum / reviews.length;
+            }
 
-        final product = CustomerProduct.fromMap(
-          map,
-          variants: variantsList,
-          images: imagesList,
-          isFavorite: favoriteIds.contains(productId),
-          ratingAvg: ratingAvg,
-          ratingCount: reviews.length,
+            final product = CustomerProduct.fromMap(
+              map,
+              variants: variantsList,
+              images: imagesList,
+              isFavorite: favoriteIds.contains(productId),
+              ratingAvg: ratingAvg,
+              ratingCount: reviews.length,
+            );
+            unawaited(_localDb.saveCustomerProducts([product]));
+            return product;
+          },
         );
-        unawaited(_localDb.saveCustomerProducts([product]));
-        return product;
       } catch (e) {
         if (_isNetworkError(e)) {
           NetworkMonitorService.instance.reportNetworkFailure();
@@ -598,22 +1125,36 @@ class CustomerRepository {
     return _localDb.getCustomerProductById(productId, customerId: userId);
   }
 
-  // Favorites helpers
-  Future<Set<String>> _getUserFavoriteIds() async {
+  // Favorites helpers (Memory TTL + in-flight deduplication)
+  Future<Set<String>> _getUserFavoriteIds({bool forceRefresh = false}) async {
     final userId = await _resolveUserId();
     if (userId == null) return const {};
+    final cacheKey = 'customer:favorites:$userId';
+
+    if (!forceRefresh) {
+      final cached = _cache.getFresh<Set<String>>(cacheKey);
+      if (cached != null) return cached;
+    }
 
     if (NetworkMonitorService.instance.isOnline) {
       try {
-        final rows = await _client
-            .from('favorites')
-            .select('product_id')
-            .eq('customer_id', userId);
-        final ids = (rows as List)
-            .map((r) => r['product_id'].toString())
-            .toSet();
-        unawaited(_localDb.saveFavoriteIds(userId, ids));
-        return ids;
+        return await _cache.fetchCached<Set<String>>(
+          cacheKey,
+          ttl: _favoritesTtl,
+          forceRefresh: forceRefresh,
+          loader: () async {
+            final rows = await _client
+                .from('favorites')
+                .select('product_id')
+                .eq('customer_id', userId);
+            final ids = (rows as List)
+                .map((r) => r['product_id'].toString())
+                .toSet();
+            NetworkMonitorService.instance.reportNetworkSuccess();
+            unawaited(_localDb.saveFavoriteIds(userId, ids));
+            return ids;
+          },
+        );
       } catch (e) {
         if (_isNetworkError(e)) {
           NetworkMonitorService.instance.reportNetworkFailure();
@@ -623,15 +1164,36 @@ class CustomerRepository {
     return _localDb.getFavoriteProductIds(userId);
   }
 
+  void _updateCachedFavoriteState(
+    String userId,
+    String productId,
+    bool isFavorite,
+  ) {
+    final favKey = 'customer:favorites:$userId';
+    final existing = _cache.getAny<Set<String>>(favKey);
+    if (existing != null) {
+      final next = Set<String>.from(existing);
+      if (isFavorite) {
+        next.add(productId);
+      } else {
+        next.remove(productId);
+      }
+      _cache.set<Set<String>>(favKey, next, ttl: _favoritesTtl);
+    }
+    _cache.invalidate('customer:product:$productId');
+    _cache.invalidatePrefix('customer:feed:');
+  }
+
   Future<bool> toggleFavorite(String productId) async {
     final userId = await _resolveUserId();
     if (userId == null) throw StateError('يجب تسجيل الدخول');
 
-    // Always update local state immediately
+    // Always update local state & memory cache immediately
     final nextLocalFavorite = await _localDb.toggleFavoriteLocal(
       customerId: userId,
       productId: productId,
     );
+    _updateCachedFavoriteState(userId, productId, nextLocalFavorite);
 
     if (NetworkMonitorService.instance.isOnline) {
       try {
@@ -648,12 +1210,14 @@ class CustomerRepository {
               .delete()
               .eq('customer_id', userId)
               .eq('product_id', productId);
+          _updateCachedFavoriteState(userId, productId, false);
           return false;
         } else {
           await _client.from('favorites').insert({
             'customer_id': userId,
             'product_id': productId,
           });
+          _updateCachedFavoriteState(userId, productId, true);
           return true;
         }
       } catch (e) {
@@ -774,30 +1338,47 @@ class CustomerRepository {
     return list;
   }
 
-  // Reviews
-  Future<List<ProductReview>> getProductReviews(String productId) async {
+  // Reviews (Memory TTL + in-flight deduplication so Details & Reviews share 1 call)
+  Future<List<ProductReview>> getProductReviews(
+    String productId, {
+    bool forceRefresh = false,
+  }) async {
+    final cacheKey = 'customer:reviews:$productId';
+    if (!forceRefresh) {
+      final cached = _cache.getFresh<List<ProductReview>>(cacheKey);
+      if (cached != null) return cached;
+    }
+
     if (NetworkMonitorService.instance.isOnline) {
       try {
-        final rows = await _client
-            .from('product_reviews')
-            .select('''
-          id, product_id, customer_id, rating, comment, created_at,
-          profiles:customer_id(full_name)
-        ''')
-            .eq('product_id', productId)
-            .order('created_at', ascending: false);
+        return await _cache.fetchCached<List<ProductReview>>(
+          cacheKey,
+          ttl: _detailsTtl,
+          forceRefresh: forceRefresh,
+          loader: () async {
+            final rows = await _client
+                .from('product_reviews')
+                .select('''
+              id, product_id, customer_id, rating, comment, created_at,
+              profiles:customer_id(full_name)
+            ''')
+                .eq('product_id', productId)
+                .order('created_at', ascending: false);
 
-        final reviews = (rows as List).map((row) {
-          final map = asStringMap(row);
-          final profile = row['profiles'] is Map
-              ? asStringMap(row['profiles'])
-              : null;
-          map['customer_name'] = profile?['full_name'] ?? 'عميل';
-          return ProductReview.fromMap(map);
-        }).toList();
+            final reviews = (rows as List).map((row) {
+              final map = asStringMap(row);
+              final profile = row['profiles'] is Map
+                  ? asStringMap(row['profiles'])
+                  : null;
+              map['customer_name'] = profile?['full_name'] ?? 'عميل';
+              return ProductReview.fromMap(map);
+            }).toList();
 
-        unawaited(_localDb.saveProductReviews(productId, reviews));
-        return reviews;
+            NetworkMonitorService.instance.reportNetworkSuccess();
+            unawaited(_localDb.saveProductReviews(productId, reviews));
+            return reviews;
+          },
+        );
       } catch (e) {
         if (_isNetworkError(e)) {
           NetworkMonitorService.instance.reportNetworkFailure();
@@ -837,6 +1418,8 @@ class CustomerRepository {
           'comment': cleanComment,
           'created_at': nowIso,
         }, onConflict: 'customer_id,product_id');
+        _cache.invalidate('customer:reviews:$productId');
+        _cache.invalidate('customer:product:$productId');
         return;
       } catch (e) {
         if (!_isNetworkError(e)) rethrow;

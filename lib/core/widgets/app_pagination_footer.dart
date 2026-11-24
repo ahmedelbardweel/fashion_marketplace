@@ -7,7 +7,7 @@ import 'app_skeleton.dart';
 import 'product_grid_skeleton.dart';
 
 /// Returns true when the scroll position is within [threshold] pixels of the end.
-bool shouldLoadNextPage(ScrollMetrics metrics, {double threshold = 280}) {
+bool shouldLoadNextPage(ScrollMetrics metrics, {double threshold = 650}) {
   if (metrics.maxScrollExtent <= 0) return false;
   return metrics.pixels >= metrics.maxScrollExtent - threshold;
 }
@@ -20,7 +20,7 @@ class AppPaginationScrollListener extends StatelessWidget {
     required this.child,
     this.hasMore = true,
     this.isLoadingMore = false,
-    this.threshold = 280,
+    this.threshold = 650,
   });
 
   final VoidCallback onLoadMore;

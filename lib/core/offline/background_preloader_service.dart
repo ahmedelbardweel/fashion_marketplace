@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../config/supabase_config.dart';
+import '../../core/cache/app_memory_cache.dart';
 import '../../core/network/tryon_bandwidth_guard.dart';
 import '../../core/utils/map_utils.dart';
 import '../../features/admin/domain/models/catalog_models.dart';
@@ -50,26 +51,47 @@ class BackgroundPreloaderService {
     if (!force &&
         _lastFullPreloadAt != null &&
         DateTime.now().difference(_lastFullPreloadAt!) <
-            const Duration(minutes: 2)) {
+            const Duration(minutes: 30)) {
       return;
     }
 
     _isRunning = true;
     try {
+      // Stagger initial background sync slightly so Home's critical first paint
+      // and visible cover images get full network & DB priority.
+      if (!force && _lastFullPreloadAt == null) {
+        await Future<void>.delayed(const Duration(seconds: 3));
+        if (TryonNetworkFocus.instance.isActive ||
+            !NetworkMonitorService.instance.isOnline) {
+          return;
+        }
+      }
+
       await _db.initialize();
 
-      // 1. Preload public catalog tables in parallel batches
-      await Future.wait([
-        _preloadBanners(),
-        _preloadCategories(),
-        _preloadApprovedShops(),
-      ]);
+      // 1. Preload public catalog tables only when not already freshly cached
+      final cache = AppMemoryCache.instance;
+      final publicTasks = <Future<void>>[
+        if (force || !cache.hasFresh('customer:banners')) _preloadBanners(),
+        if (force || !cache.hasFresh('customer:categories'))
+          _preloadCategories(),
+        if (force || !cache.hasFresh('customer:shops')) _preloadApprovedShops(),
+      ];
+      if (publicTasks.isNotEmpty) {
+        await Future.wait(publicTasks);
+      }
 
       // Yield briefly to keep UI frame rate at 60/120fps
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
       // 2. Preload at most 100 published products, rotating daily (wiping old 100)
-      final favoriteIds = await _preloadUserFavorites(currentUser?.id);
+      final uid = currentUser?.id ?? _client.auth.currentUser?.id;
+      final cachedFavs = uid != null
+          ? cache.getFresh<Set<String>>('customer:favorites:')
+          : null;
+      final favoriteIds = (!force && cachedFavs != null)
+          ? cachedFavs
+          : await _preloadUserFavorites(currentUser?.id);
       await _syncDailyPublishedProducts(favoriteIds);
 
       // 3. Preload role-specific tables if authenticated
@@ -93,7 +115,7 @@ class BackgroundPreloaderService {
       }
 
       _lastFullPreloadAt = DateTime.now();
-      unawaited(_db.prefetchAllCachedImageUrls());
+      unawaited(_db.prefetchCoverImageUrls());
       debugPrint(
         '[BackgroundPreloaderService] Silent full database preload completed.',
       );

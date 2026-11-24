@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/cache/app_memory_cache.dart';
 import '../../../../core/offline/local_database.dart';
 import '../../../../core/offline/network_monitor_service.dart';
 import '../../data/auth_repository.dart';
@@ -557,6 +558,7 @@ class AuthController extends StateNotifier<AuthSessionState> {
     _manualAuthInProgress = true;
     state = state.copyWith(isBusy: true, clearError: true);
     try {
+      AppMemoryCache.instance.clear();
       await _repository.signOut();
     } finally {
       _manualAuthInProgress = false;

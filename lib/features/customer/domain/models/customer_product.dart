@@ -110,7 +110,98 @@ class CustomerProduct {
     this.ratingCount = 0,
     this.isFavorite = false,
     this.details = const {},
+    this.stockOverride,
+    this.colorsOverride,
+    this.sizesOverride,
+    this.isSummaryOnly = false,
   });
+
+  /// Parses an ultra-lightweight catalog feed row returned by
+  /// `public.get_products_feed_lite` / `public.get_home_bootstrap`.
+  factory CustomerProduct.fromLiteFeedMap(Map<String, dynamic> map) {
+    final pid = map['id']?.toString() ?? '';
+    final cover = map['cover_image']?.toString().trim();
+    final imagesList = (cover != null && cover.isNotEmpty)
+        ? <ProductImage>[
+            ProductImage(
+              id: '${pid}_cover',
+              productId: pid,
+              filePath: cover,
+              kind: 'gallery',
+              sortOrder: 0,
+            ),
+          ]
+        : const <ProductImage>[];
+
+    final rawColors = map['available_colors'];
+    final colors = rawColors is List
+        ? rawColors
+            .map((e) => e?.toString().trim() ?? '')
+            .where((e) => e.isNotEmpty)
+            .toSet()
+        : const <String>{};
+
+    final rawSizes = map['available_sizes'];
+    final sizes = rawSizes is List
+        ? rawSizes
+            .map((e) => e?.toString().trim() ?? '')
+            .where((e) => e.isNotEmpty)
+            .toSet()
+        : const <String>{};
+
+    final parsedPrice = (map['price'] as num?)?.toDouble() ?? 0.0;
+    final parsedOriginal = (map['original_price'] as num?)?.toDouble();
+    final colDiscountAmount = (map['discount_amount'] as num?)?.toDouble();
+    final parsedDiscountAmount =
+        (colDiscountAmount != null && colDiscountAmount > 0)
+        ? colDiscountAmount
+        : (parsedOriginal != null && parsedOriginal > parsedPrice
+              ? parsedOriginal - parsedPrice
+              : 0.0);
+
+    final colDiscountPercent = (map['discount_percent'] as num?)?.toInt();
+    final parsedDiscountPercent =
+        (colDiscountPercent != null && colDiscountPercent > 0)
+        ? colDiscountPercent
+        : (parsedOriginal != null &&
+                  parsedOriginal > parsedPrice &&
+                  parsedOriginal > 0
+              ? ((parsedOriginal - parsedPrice) / parsedOriginal * 100).round()
+              : 0);
+    final parsedOfferTitle = (map['offer_title'] as String?)?.trim();
+    final parsedOfferStartsAt = DateTime.tryParse(
+      map['offer_starts_at']?.toString() ?? '',
+    )?.toLocal();
+    final parsedOfferEndsAt = DateTime.tryParse(
+      map['offer_ends_at']?.toString() ?? '',
+    )?.toLocal();
+
+    return CustomerProduct(
+      id: pid,
+      shopId: map['shop_id']?.toString() ?? '',
+      shopName: map['shop_name']?.toString() ?? 'متجر أزياء',
+      categoryId: map['category_id']?.toString(),
+      categoryName: map['category_name']?.toString(),
+      name: map['name']?.toString() ?? '',
+      price: parsedPrice,
+      originalPrice: parsedOriginal,
+      discountAmount: parsedDiscountAmount,
+      discountPercent: parsedDiscountPercent,
+      offerTitle: parsedOfferTitle?.isEmpty ?? true ? null : parsedOfferTitle,
+      offerStartsAt: parsedOfferStartsAt,
+      offerEndsAt: parsedOfferEndsAt,
+      status: map['status']?.toString() ?? 'published',
+      variants: const <ProductVariant>[],
+      images: imagesList,
+      ratingAvg: (map['rating_avg'] as num?)?.toDouble() ?? 5.0,
+      ratingCount: (map['rating_count'] as num?)?.toInt() ?? 0,
+      isFavorite: map['is_favorite'] == true,
+      stockOverride: (map['total_stock'] as num?)?.toInt() ?? 0,
+      colorsOverride: colors,
+      sizesOverride: sizes,
+      isSummaryOnly: true,
+    );
+  }
 
   factory CustomerProduct.fromMap(
     Map<String, dynamic> map, {
@@ -161,6 +252,23 @@ class CustomerProduct {
       (map['offer_ends_at'] ?? detailsMap['offer_ends_at'])?.toString() ?? '',
     )?.toLocal();
 
+    final activeVariants = (variants ?? const <ProductVariant>[])
+        .where((v) => v.isActive)
+        .toList();
+    final liteStock = (detailsMap['_lite_total_stock'] as num?)?.toInt();
+    final liteColors = detailsMap['_lite_colors'] is List
+        ? (detailsMap['_lite_colors'] as List)
+            .map((e) => e?.toString().trim() ?? '')
+            .where((e) => e.isNotEmpty)
+            .toSet()
+        : null;
+    final liteSizes = detailsMap['_lite_sizes'] is List
+        ? (detailsMap['_lite_sizes'] as List)
+            .map((e) => e?.toString().trim() ?? '')
+            .where((e) => e.isNotEmpty)
+            .toSet()
+        : null;
+
     return CustomerProduct(
       id: map['id']?.toString() ?? '',
       shopId: map['shop_id']?.toString() ?? '',
@@ -178,14 +286,16 @@ class CustomerProduct {
       offerStartsAt: parsedOfferStartsAt,
       offerEndsAt: parsedOfferEndsAt,
       status: map['status']?.toString() ?? 'published',
-      variants: (variants ?? const <ProductVariant>[])
-          .where((v) => v.isActive)
-          .toList(),
+      variants: activeVariants,
       images: List<ProductImage>.from(images ?? const [])
         ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)),
       ratingAvg: ratingAvg,
       ratingCount: ratingCount,
       isFavorite: isFavorite,
+      stockOverride: activeVariants.isEmpty ? liteStock : null,
+      colorsOverride: activeVariants.isEmpty ? liteColors : null,
+      sizesOverride: activeVariants.isEmpty ? liteSizes : null,
+      isSummaryOnly: activeVariants.isEmpty && liteStock != null,
     );
   }
 
@@ -210,6 +320,10 @@ class CustomerProduct {
   final int ratingCount;
   final bool isFavorite;
   final Map<String, dynamic> details;
+  final int? stockOverride;
+  final Set<String>? colorsOverride;
+  final Set<String>? sizesOverride;
+  final bool isSummaryOnly;
 
   bool get isOfferExpired =>
       discountPercent > 0 &&
@@ -314,13 +428,17 @@ class CustomerProduct {
 
   bool get has3dModel => model3dUrl != null && model3dUrl!.isNotEmpty;
 
-  int get totalStock => variants.fold(0, (sum, v) => sum + v.stock);
+  int get totalStock => variants.isNotEmpty
+      ? variants.fold(0, (sum, v) => sum + v.stock)
+      : (stockOverride ?? 0);
 
-  Set<String> get availableColors =>
-      variants.where((v) => v.stock > 0).map((v) => v.color).toSet();
+  Set<String> get availableColors => variants.isNotEmpty
+      ? variants.where((v) => v.stock > 0).map((v) => v.color).toSet()
+      : (colorsOverride ?? const <String>{});
 
-  Set<String> get availableSizes =>
-      variants.where((v) => v.stock > 0).map((v) => v.size).toSet();
+  Set<String> get availableSizes => variants.isNotEmpty
+      ? variants.where((v) => v.stock > 0).map((v) => v.size).toSet()
+      : (sizesOverride ?? const <String>{});
 
   CustomerProduct copyWith({
     bool? isFavorite,
@@ -349,6 +467,10 @@ class CustomerProduct {
       ratingAvg: ratingAvg ?? this.ratingAvg,
       ratingCount: ratingCount ?? this.ratingCount,
       isFavorite: isFavorite ?? this.isFavorite,
+      stockOverride: stockOverride,
+      colorsOverride: colorsOverride,
+      sizesOverride: sizesOverride,
+      isSummaryOnly: isSummaryOnly,
     );
   }
 }

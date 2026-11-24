@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Standard batch size requested per product fetch across all roles.
-const int kProductPageSize = 6;
+const int kProductPageSize = 16;
 
 /// Result returned by a single paginated repository request.
 class PaginatedPage<T> {
@@ -92,13 +92,17 @@ class PaginatedListState<T> {
 }
 
 /// Race-condition-safe controller that fetches [pageSize] items per request.
+/// Supports optional [initialCacheLoader] for instant Stale-While-Revalidate
+/// rendering before the network round-trip resolves.
 class PaginatedListNotifier<T> extends StateNotifier<PaginatedListState<T>> {
   PaginatedListNotifier({
     required PageFetcher<T> fetcher,
+    Future<PaginatedPage<T>?> Function(int limit)? initialCacheLoader,
     this.itemId,
     this.pageSize = kProductPageSize,
     bool autoLoad = true,
   }) : _fetcher = fetcher,
+       _initialCacheLoader = initialCacheLoader,
        super(const PaginatedListState()) {
     if (autoLoad) {
       Future.microtask(loadInitial);
@@ -106,6 +110,7 @@ class PaginatedListNotifier<T> extends StateNotifier<PaginatedListState<T>> {
   }
 
   PageFetcher<T> _fetcher;
+  Future<PaginatedPage<T>?> Function(int limit)? _initialCacheLoader;
   final String Function(T item)? itemId;
   final int pageSize;
 
@@ -114,28 +119,65 @@ class PaginatedListNotifier<T> extends StateNotifier<PaginatedListState<T>> {
   /// Replaces the fetcher (e.g. when server-side filter/sort changes) and reloads page 0.
   Future<void> resetWithFetcher(
     PageFetcher<T> nextFetcher, {
+    Future<PaginatedPage<T>?> Function(int limit)? nextCacheLoader,
     bool preserveItemsWhileLoading = false,
   }) {
     _fetcher = nextFetcher;
+    _initialCacheLoader = nextCacheLoader;
     return loadInitial(preserveItemsWhileLoading: preserveItemsWhileLoading);
   }
 
   /// Fetches the first batch (`offset = 0`, `limit = pageSize`).
-  Future<void> loadInitial({bool preserveItemsWhileLoading = false}) async {
+  Future<void> loadInitial({
+    bool preserveItemsWhileLoading = false,
+    bool skipCacheHydration = false,
+  }) async {
     final requestGen = ++_generation;
-    final keepExisting = preserveItemsWhileLoading && state.items.isNotEmpty;
+    var keepExisting = preserveItemsWhileLoading && state.items.isNotEmpty;
 
-    state = state.copyWith(
-      items: keepExisting ? state.items : const [],
-      isInitialLoading: !keepExisting,
-      isLoadingMore: keepExisting,
-      hasMore: true,
-      fetchedCount: keepExisting ? state.fetchedCount : 0,
-      isSimilarFallback: false,
-      clearInitialError: true,
-      clearLoadMoreError: true,
-      clearTotalCount: !keepExisting,
-    );
+    if (!keepExisting && !skipCacheHydration && _initialCacheLoader != null) {
+      try {
+        final cached = await _initialCacheLoader!(pageSize);
+        if (!mounted || requestGen != _generation) return;
+        if (cached != null && cached.items.isNotEmpty) {
+          final dedupedCached = _dedupeList(cached.items);
+          final cachedRawCount = cached.effectiveRawCount;
+          state = PaginatedListState<T>(
+            items: dedupedCached,
+            isInitialLoading: false,
+            isLoadingMore: false,
+            hasMore: !cached.isSimilarFallback && cachedRawCount >= pageSize,
+            fetchedCount: cachedRawCount,
+            totalCount: cached.totalCount,
+            isSimilarFallback: cached.isSimilarFallback,
+          );
+          keepExisting = true;
+        }
+      } catch (_) {
+        // Ignore cache hydration failures and continue to live fetcher.
+      }
+    }
+
+    if (!keepExisting) {
+      state = state.copyWith(
+        items: const [],
+        isInitialLoading: true,
+        isLoadingMore: false,
+        hasMore: true,
+        fetchedCount: 0,
+        isSimilarFallback: false,
+        clearInitialError: true,
+        clearLoadMoreError: true,
+        clearTotalCount: true,
+      );
+    } else if (preserveItemsWhileLoading) {
+      state = state.copyWith(
+        isInitialLoading: false,
+        isLoadingMore: true,
+        clearInitialError: true,
+        clearLoadMoreError: true,
+      );
+    }
 
     try {
       final page = await _fetcher(0, pageSize);
@@ -159,7 +201,7 @@ class PaginatedListNotifier<T> extends StateNotifier<PaginatedListState<T>> {
         state = state.copyWith(
           isInitialLoading: false,
           isLoadingMore: false,
-          loadMoreError: error,
+          loadMoreError: preserveItemsWhileLoading ? error : null,
         );
       } else {
         state = state.copyWith(
@@ -173,7 +215,8 @@ class PaginatedListNotifier<T> extends StateNotifier<PaginatedListState<T>> {
   }
 
   /// Pull-to-refresh helper keeping current cards visible until page 0 resolves.
-  Future<void> refresh() => loadInitial(preserveItemsWhileLoading: true);
+  Future<void> refresh() =>
+      loadInitial(preserveItemsWhileLoading: true, skipCacheHydration: true);
 
   /// Fetches the next batch (`offset = state.fetchedCount`, `limit = pageSize`).
   Future<void> loadMore() async {

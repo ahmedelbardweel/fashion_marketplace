@@ -64,24 +64,59 @@ class CompleteCustomerProfileController extends StateNotifier<AsyncValue<void>> 
   }
 }
 
-// Banners Provider
+extension _AutoDisposeCacheFor on Ref<dynamic> {
+  /// Keeps an autoDispose provider alive in memory for [duration] after the
+  /// last listener unmounts so switching tabs never triggers redundant fetches.
+  void cacheFor(Duration duration) {
+    final link = keepAlive();
+    Timer? timer;
+    onCancel(() {
+      timer?.cancel();
+      timer = Timer(duration, link.close);
+    });
+    onResume(() {
+      timer?.cancel();
+    });
+    onDispose(() {
+      timer?.cancel();
+    });
+  }
+}
+
+// Single-request Home Bootstrap Provider (coalesced in AppMemoryCache)
+final homeBootstrapProvider = FutureProvider.autoDispose<bool>((ref) async {
+  ref.cacheFor(const Duration(minutes: 3));
+  return ref.watch(customerRepositoryProvider).warmHomeBootstrap();
+});
+
+// Banners Provider (kept warm across tab switches)
 final customerBannersProvider = FutureProvider.autoDispose<List<AdminBanner>>((ref) async {
-  return ref.watch(customerRepositoryProvider).getBanners();
+  ref.cacheFor(const Duration(minutes: 5));
+  final repo = ref.watch(customerRepositoryProvider);
+  await repo.warmHomeBootstrap();
+  return repo.getBanners();
 });
 
-// Categories Provider
+// Categories Provider (kept warm across tab switches)
 final customerCategoriesProvider = FutureProvider.autoDispose<List<CatalogCategory>>((ref) async {
-  return ref.watch(customerRepositoryProvider).getCategories();
+  ref.cacheFor(const Duration(minutes: 10));
+  final repo = ref.watch(customerRepositoryProvider);
+  await repo.warmHomeBootstrap();
+  return repo.getCategories();
 });
 
-// Shops Provider
+// Shops Provider (kept warm across tab switches)
 final customerShopsProvider = FutureProvider.autoDispose<List<CustomerShop>>((ref) async {
-  return ref.watch(customerRepositoryProvider).getShops();
+  ref.cacheFor(const Duration(minutes: 5));
+  final repo = ref.watch(customerRepositoryProvider);
+  await repo.warmHomeBootstrap();
+  return repo.getShops();
 });
 
-// Single Shop Details Provider
+// Single Shop Details Provider (kept warm across navigation)
 final customerShopDetailsProvider =
     FutureProvider.autoDispose.family<CustomerShop?, String>((ref, shopId) async {
+  ref.cacheFor(const Duration(minutes: 5));
   return ref.watch(customerRepositoryProvider).getShopDetails(shopId);
 });
 
@@ -101,14 +136,16 @@ final shopPublicProductFilterProvider =
       return const ProductFilter();
     });
 
-/// Paginated product controller fetching [kProductPageSize] (6) items per
-/// request with generation-safe filter resets and 350ms search debouncing.
+/// Paginated product controller fetching [kProductPageSize] items per
+/// request with Stale-While-Revalidate cache hydration, generation-safe
+/// filter resets, and 350ms search debouncing.
 class PaginatedCustomerProductsNotifier
     extends PaginatedListNotifier<CustomerProduct> {
   PaginatedCustomerProductsNotifier({
     required CustomerRepository repository,
     ProductFilter initialFilter = const ProductFilter(),
     this.shopId,
+    this.useHomeBootstrap = false,
   }) : _repository = repository,
        _filter = initialFilter,
        super(
@@ -118,6 +155,13 @@ class PaginatedCustomerProductsNotifier
            filter: initialFilter,
            offset: offset,
            limit: limit,
+           useHomeBootstrap: useHomeBootstrap,
+         ),
+         initialCacheLoader: (limit) => _loadCachedFirstPage(
+           repository: repository,
+           shopId: shopId,
+           filter: initialFilter,
+           limit: limit,
          ),
          itemId: (item) => item.id,
        ) {
@@ -125,6 +169,8 @@ class PaginatedCustomerProductsNotifier
       _onVisualSearchChanged,
     );
   }
+
+  final bool useHomeBootstrap;
 
   final CustomerRepository _repository;
   final String? shopId;
@@ -145,13 +191,47 @@ class PaginatedCustomerProductsNotifier
     });
   }
 
+  static Future<PaginatedPage<CustomerProduct>?> _loadCachedFirstPage({
+    required CustomerRepository repository,
+    required String? shopId,
+    required ProductFilter filter,
+    required int limit,
+  }) {
+    return repository.getCachedProductsPage(
+      categoryId: filter.categoryId,
+      shopId: shopId ?? filter.shopId,
+      search: filter.search,
+      minPrice: filter.minPrice,
+      maxPrice: filter.maxPrice,
+      color: filter.color,
+      size: filter.size,
+      inStockOnly: filter.inStockOnly,
+      minRating: filter.minRating,
+      sort: filter.sort,
+      limit: limit,
+      offset: 0,
+    );
+  }
+
   static Future<PaginatedPage<CustomerProduct>> _fetchFilterPage({
     required CustomerRepository repository,
     required String? shopId,
     required ProductFilter filter,
     required int offset,
     required int limit,
-  }) {
+    bool useHomeBootstrap = false,
+    bool forceRefresh = false,
+  }) async {
+    if (useHomeBootstrap &&
+        offset == 0 &&
+        shopId == null &&
+        !filter.hasActiveFilters &&
+        filter.sort == ProductSortOption.newest) {
+      await repository.warmHomeBootstrap(
+        productsLimit: limit,
+        forceRefresh: forceRefresh,
+      );
+    }
     return repository.getProductsPage(
       categoryId: filter.categoryId,
       shopId: shopId ?? filter.shopId,
@@ -165,6 +245,7 @@ class PaginatedCustomerProductsNotifier
       sort: filter.sort,
       limit: limit,
       offset: offset,
+      forceRefresh: forceRefresh,
     );
   }
 
@@ -200,7 +281,33 @@ class PaginatedCustomerProductsNotifier
         filter: activeFilter,
         offset: offset,
         limit: limit,
+        useHomeBootstrap: useHomeBootstrap,
       ),
+      nextCacheLoader: (limit) => _loadCachedFirstPage(
+        repository: _repository,
+        shopId: shopId,
+        filter: activeFilter,
+        limit: limit,
+      ),
+    );
+  }
+
+  @override
+  Future<void> refresh() {
+    final activeFilter = _filter;
+    _repository.invalidateCatalogCache();
+    return resetWithFetcher(
+      (offset, limit) => _fetchFilterPage(
+        repository: _repository,
+        shopId: shopId,
+        filter: activeFilter,
+        offset: offset,
+        limit: limit,
+        useHomeBootstrap: useHomeBootstrap,
+        forceRefresh: offset == 0,
+      ),
+      nextCacheLoader: null,
+      preserveItemsWhileLoading: true,
     );
   }
 
@@ -246,11 +353,12 @@ class PaginatedCustomerFavoritesNotifier
   }
 }
 
-// Paginated Products Provider (Catalog)
+// Paginated Products Provider (Catalog — kept warm across tab switches)
 final catalogProductsProvider = StateNotifierProvider.autoDispose<
   PaginatedCustomerProductsNotifier,
   PaginatedListState<CustomerProduct>
 >((ref) {
+  ref.cacheFor(const Duration(minutes: 5));
   final repository = ref.watch(customerRepositoryProvider);
   final initialFilter = ref.read(productFilterProvider);
   final notifier = PaginatedCustomerProductsNotifier(
@@ -264,16 +372,18 @@ final catalogProductsProvider = StateNotifierProvider.autoDispose<
   return notifier;
 });
 
-// Paginated Products Provider (Home Quick Feed)
+// Paginated Products Provider (Home Quick Feed — kept warm & bootstrapped in 1 RPC)
 final homeProductsProvider = StateNotifierProvider.autoDispose<
   PaginatedCustomerProductsNotifier,
   PaginatedListState<CustomerProduct>
 >((ref) {
+  ref.cacheFor(const Duration(minutes: 5));
   final repository = ref.watch(customerRepositoryProvider);
   final initialFilter = ref.read(homeProductFilterProvider);
   final notifier = PaginatedCustomerProductsNotifier(
     repository: repository,
     initialFilter: initialFilter,
+    useHomeBootstrap: true,
   );
   ref.listen<ProductFilter>(
     homeProductFilterProvider,
@@ -282,12 +392,13 @@ final homeProductsProvider = StateNotifierProvider.autoDispose<
   return notifier;
 });
 
-// Paginated Products Provider (Shop Public Profile)
+// Paginated Products Provider (Shop Public Profile — kept warm briefly)
 final shopPublicProductsProvider = StateNotifierProvider.autoDispose.family<
   PaginatedCustomerProductsNotifier,
   PaginatedListState<CustomerProduct>,
   String
 >((ref, shopId) {
+  ref.cacheFor(const Duration(minutes: 3));
   final repository = ref.watch(customerRepositoryProvider);
   final initialFilter = ref.read(shopPublicProductFilterProvider(shopId));
   final notifier = PaginatedCustomerProductsNotifier(
@@ -302,15 +413,17 @@ final shopPublicProductsProvider = StateNotifierProvider.autoDispose.family<
   return notifier;
 });
 
-// Single Product Details Provider
+// Single Product Details Provider (kept warm for instant revisits)
 final customerProductDetailsProvider =
     FutureProvider.autoDispose.family<CustomerProduct?, String>((ref, productId) async {
+  ref.cacheFor(const Duration(minutes: 2));
   return ref.watch(customerRepositoryProvider).getProductDetails(productId);
 });
 
-// Product Reviews Provider
+// Product Reviews Provider (coalesced with getProductDetails & kept warm)
 final productReviewsProvider =
     FutureProvider.autoDispose.family<List<ProductReview>, String>((ref, productId) async {
+  ref.cacheFor(const Duration(minutes: 2));
   return ref.watch(customerRepositoryProvider).getProductReviews(productId);
 });
 
@@ -319,6 +432,7 @@ final customerFavoritesPaginatedProvider = StateNotifierProvider.autoDispose<
   PaginatedCustomerFavoritesNotifier,
   PaginatedListState<CustomerProduct>
 >((ref) {
+  ref.cacheFor(const Duration(minutes: 3));
   ref.watch(authControllerProvider.select((s) => s.user?.id));
   final repository = ref.watch(customerRepositoryProvider);
   return PaginatedCustomerFavoritesNotifier(repository: repository);
