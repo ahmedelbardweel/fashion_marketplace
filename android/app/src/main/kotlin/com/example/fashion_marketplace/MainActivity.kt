@@ -71,6 +71,31 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "fashion/screen_brightness")
+            .setMethodCallHandler { call, result ->
+                runOnUiThread {
+                    try {
+                        val attrs = window.attributes
+                        when (call.method) {
+                            "setMax" -> {
+                                attrs.screenBrightness = 1.0f
+                                window.attributes = attrs
+                                result.success(null)
+                            }
+                            "restore" -> {
+                                attrs.screenBrightness =
+                                    WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                                window.attributes = attrs
+                                result.success(null)
+                            }
+                            else -> result.notImplemented()
+                        }
+                    } catch (_: Throwable) {
+                        result.success(null)
+                    }
+                }
+            }
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
@@ -81,6 +106,8 @@ class MainActivity : FlutterActivity() {
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, "fashion/vidu_rtc/events")
             .setStreamHandler(null)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "fashion/tryon_sound")
+            .setMethodCallHandler(null)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "fashion/screen_brightness")
             .setMethodCallHandler(null)
         viduLiveRtc?.dispose()
         viduLiveRtc = null

@@ -39,6 +39,9 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   static const MethodChannel _soundChannel = MethodChannel(
     'fashion/tryon_sound',
   );
+  static const MethodChannel _brightnessChannel = MethodChannel(
+    'fashion/screen_brightness',
+  );
 
   DecartVtonSdkService? _decartService;
   ViduLiveTryonSession? _viduService;
@@ -103,6 +106,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     0.0,
   );
   bool _warmupActive = false;
+  bool _ringLightEnabled = false;
   bool _hasConnectedInSession = false;
   bool _networkFocusAcquired = false;
   bool _isPinching = false;
@@ -304,6 +308,29 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     if (!_networkFocusAcquired) return;
     _networkFocusAcquired = false;
     TryonNetworkFocus.instance.release();
+  }
+
+  void _toggleRingLight() {
+    HapticFeedback.selectionClick();
+    final next = !_ringLightEnabled;
+    setState(() => _ringLightEnabled = next);
+    unawaited(
+      _brightnessChannel
+          .invokeMethod<void>(next ? 'setMax' : 'restore')
+          .catchError((_) {}),
+    );
+  }
+
+  void _disableRingLight({bool updateUi = true}) {
+    if (!_ringLightEnabled) return;
+    if (updateUi && mounted) {
+      setState(() => _ringLightEnabled = false);
+    } else {
+      _ringLightEnabled = false;
+    }
+    unawaited(
+      _brightnessChannel.invokeMethod<void>('restore').catchError((_) {}),
+    );
   }
 
   void _stopAndExitToProduct() {
@@ -632,6 +659,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
       _foreground = false;
+      _disableRingLight();
       _stopWarmup();
       _stopCountdown();
       _releaseNetworkFocus();
@@ -655,6 +683,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   @override
   void dispose() {
+    _disableRingLight(updateUi: false);
     _warmupTimer?.cancel();
     _releaseNetworkFocus();
     WidgetsBinding.instance.removeObserver(this);
@@ -958,6 +987,18 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                 ),
               ),
 
+            // 1.4) Full-Screen Studio Border Ring Light Overlay (auto max brightness)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _ringLightEnabled ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  child: const _ScreenRingLightOverlay(),
+                ),
+              ),
+            ),
+
             // 1.5) Lightweight Frosted Blur + Giant Centered 10s Countdown
             // Mounted ONLY while warming up so zero blur/ImageReader cost remains live.
             if (_started && _warmupActive && !_sessionTimedOut && !failed)
@@ -1060,9 +1101,15 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                       const SizedBox(width: 8),
                       if (_ready)
                         _CameraFloatingCircleButton(
-                          icon: Icons.wb_sunny_outlined,
-                          tooltip: 'نصائح الإضاءة والوضعية'.tr,
-                          onTap: () =>
+                          icon: _ringLightEnabled
+                              ? Icons.wb_sunny_rounded
+                              : Icons.wb_sunny_outlined,
+                          active: _ringLightEnabled,
+                          tooltip: _ringLightEnabled
+                              ? 'إيقاف إضاءة الشاشة'.tr
+                              : 'تشغيل إضاءة الشاشة (سطوع أقصى)'.tr,
+                          onTap: _toggleRingLight,
+                          onLongPress: () =>
                               _openLightingTipsSheet(context, activeZone),
                         ),
                     ],
@@ -1155,14 +1202,29 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                                   color: Colors.white.withValues(alpha: 0.16),
                                 ),
                               ),
-                              child: Text(
-                                'جارٍ تجهيز الإطلالة…'.tr,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                              child: _isVidu
+                                  ? ValueListenableBuilder<String>(
+                                      valueListenable:
+                                          _viduService!.stageMessage,
+                                      builder: (context, stageText, _) => Text(
+                                        stageText.trim().isNotEmpty
+                                            ? stageText
+                                            : 'جارٍ تجهيز الإطلالة…'.tr,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    )
+                                  : Text(
+                                      'جارٍ تجهيز الإطلالة…'.tr,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                             ),
                     ),
                   ),
@@ -2061,12 +2123,14 @@ class _CameraFloatingCircleButton extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    this.onLongPress,
     this.active = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final bool active;
 
   @override
@@ -2075,27 +2139,85 @@ class _CameraFloatingCircleButton extends StatelessWidget {
       message: tooltip,
       child: Material(
         color: active
-            ? AppColors.primary.withValues(alpha: 0.85)
+            ? Colors.white.withValues(alpha: 0.94)
             : Colors.black.withValues(alpha: 0.48),
         shape: CircleBorder(
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.16)),
+          side: BorderSide(
+            color: active
+                ? const Color(0xFFFDE68A)
+                : Colors.white.withValues(alpha: 0.16),
+            width: active ? 1.8 : 1.0,
+          ),
         ),
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,
+          onLongPress: onLongPress,
           child: SizedBox(
             width: 40,
             height: 40,
             child: Icon(
               icon,
               size: 19,
-              color: onTap == null ? Colors.white38 : Colors.white,
+              color: onTap == null
+                  ? Colors.white38
+                  : active
+                  ? const Color(0xFFD97706)
+                  : Colors.white,
             ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Luminous border-perimeter studio fill light that surrounds the entire screen
+/// edge to illuminate the user's face and outfit in dim environments.
+class _ScreenRingLightOverlay extends StatelessWidget {
+  const _ScreenRingLightOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _ScreenRingLightPainter(),
+      child: const SizedBox.expand(),
+    );
+  }
+}
+
+class _ScreenRingLightPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    const outerRadius = Radius.circular(36);
+    const frameThickness = 22.0;
+    const innerRadius = Radius.circular(24);
+
+    // 1) Soft inward luminous bloom around the entire border perimeter.
+    final glowRect = rect.deflate(frameThickness * 0.5);
+    final glowPaint = Paint()
+      ..color = const Color(0xFFFFFDF7).withValues(alpha: 0.92)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 34
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24);
+    canvas.drawRRect(RRect.fromRectAndRadius(glowRect, innerRadius), glowPaint);
+
+    // 2) Crisp pure-white studio frame around all four edges of the screen.
+    final outer = Path()..addRect(rect);
+    final inner = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(rect.deflate(frameThickness), outerRadius),
+      );
+    final framePath = Path.combine(PathOperation.difference, outer, inner);
+    final framePaint = Paint()
+      ..color = const Color(0xFFFFFEFA).withValues(alpha: 0.96)
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(framePath, framePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// Minimal, steady app-standard SnackBar without icons or blinking animations.

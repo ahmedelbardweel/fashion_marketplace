@@ -42,6 +42,8 @@ class ViduLiveRtcHandler(private val appContext: Context) :
     private var hasRemoteFrame: Boolean = false
     private var showOriginal: Boolean = false
     private var isFrontCamera: Boolean = true
+    private var previewStarted: Boolean = false
+    private var joinedChannel: Boolean = false
 
     fun createPlatformView(context: Context): PlatformView {
         val root = FrameLayout(context).apply {
@@ -54,6 +56,11 @@ class ViduLiveRtcHandler(private val appContext: Context) :
         containerView = root
         ensureTextureViews(context)
         rebindViewsIfNeeded()
+        if (previewStarted) {
+            try {
+                engine?.startPreview()
+            } catch (_: Throwable) {}
+        }
 
         return object : PlatformView {
             override fun getView(): View = root
@@ -146,6 +153,18 @@ class ViduLiveRtcHandler(private val appContext: Context) :
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
+            "startPreview" -> {
+                val preferFront = call.argument<Boolean>("useFrontCamera") ?: true
+                mainHandler.post {
+                    try {
+                        startCameraPreview(preferFront)
+                        result.success(true)
+                    } catch (e: Throwable) {
+                        result.error("preview_failed", e.message ?: "AliRTC preview failed", null)
+                    }
+                }
+            }
+
             "join" -> {
                 val token = call.argument<String>("token")?.trim().orEmpty()
                 val channelId = call.argument<String>("channelId")?.trim().orEmpty()
@@ -241,21 +260,9 @@ class ViduLiveRtcHandler(private val appContext: Context) :
         rtc.setVideoEncoderConfiguration(cfg)
     }
 
-    private fun joinChannel(
-        token: String,
-        channelId: String,
-        userId: String,
-        renderUid: String,
-        dataSaver: Boolean,
-        preferFront: Boolean,
-    ) {
-        teardownEngine()
-        targetRenderUid = renderUid
-        boundRemoteUid = null
-        hasRemoteFrame = false
-        showOriginal = false
-        isFrontCamera = preferFront
-
+    private fun ensureEngine(): AliRtcEngine {
+        val existing = engine
+        if (existing != null) return existing
         val rtc = AliRtcEngine.getInstance(appContext)
             ?: throw IllegalStateException("AliRtcEngine unavailable")
         engine = rtc
@@ -268,7 +275,7 @@ class ViduLiveRtcHandler(private val appContext: Context) :
                 elapsed: Int,
             ) {
                 if (result == 0) {
-                    emit("joined", mapOf("channel" to (channel ?: channelId)))
+                    emit("joined", mapOf("channel" to (channel ?: "")))
                 } else {
                     emit(
                         "error",
@@ -355,7 +362,50 @@ class ViduLiveRtcHandler(private val appContext: Context) :
         rtc.setAudioOnlyMode(false)
         rtc.setDefaultSubscribeAllRemoteAudioStreams(false)
         rtc.setDefaultSubscribeAllRemoteVideoStreams(true)
+        return rtc
+    }
 
+    private fun startCameraPreview(preferFront: Boolean) {
+        if (joinedChannel) {
+            teardownEngine()
+        }
+        isFrontCamera = preferFront
+        hasRemoteFrame = false
+        showOriginal = false
+        val rtc = ensureEngine()
+        val root = containerView
+        if (root != null) {
+            ensureTextureViews(root.context)
+            rebindViewsIfNeeded()
+        }
+        rtc.startPreview()
+        previewStarted = true
+        if (!preferFront && rtc.currentCameraDirection == AliRtcEngine.AliRtcCameraDirection.CAMERA_FRONT) {
+            rtc.switchCamera()
+        } else if (preferFront && rtc.currentCameraDirection == AliRtcEngine.AliRtcCameraDirection.CAMERA_REAR) {
+            rtc.switchCamera()
+        }
+        updateLayerVisibility()
+    }
+
+    private fun joinChannel(
+        token: String,
+        channelId: String,
+        userId: String,
+        renderUid: String,
+        dataSaver: Boolean,
+        preferFront: Boolean,
+    ) {
+        if (joinedChannel) {
+            teardownEngine()
+        }
+        targetRenderUid = renderUid
+        boundRemoteUid = null
+        hasRemoteFrame = false
+        showOriginal = false
+        isFrontCamera = preferFront
+
+        val rtc = ensureEngine()
         applyVideoEncoderProfile(dataSaver)
 
         val root = containerView
@@ -364,12 +414,18 @@ class ViduLiveRtcHandler(private val appContext: Context) :
             rebindViewsIfNeeded()
         }
 
-        rtc.startPreview()
+        if (!previewStarted) {
+            rtc.startPreview()
+            previewStarted = true
+        }
         if (!preferFront && rtc.currentCameraDirection == AliRtcEngine.AliRtcCameraDirection.CAMERA_FRONT) {
+            rtc.switchCamera()
+        } else if (preferFront && rtc.currentCameraDirection == AliRtcEngine.AliRtcCameraDirection.CAMERA_REAR) {
             rtc.switchCamera()
         }
         rtc.publishLocalVideoStream(true)
         rtc.publishLocalAudioStream(false)
+        joinedChannel = true
 
         // Single-parameter Base64 V2 token from Vidu already encapsulates appId,
         // channelId, userId, timestamp, and signature; pass null for channelId/userId.
@@ -380,6 +436,7 @@ class ViduLiveRtcHandler(private val appContext: Context) :
             userId.ifEmpty { "customer" },
         )
         if (joinCode != 0) {
+            joinedChannel = false
             throw IllegalStateException("AliRTC joinChannel returned error code $joinCode")
         }
     }
@@ -398,6 +455,8 @@ class ViduLiveRtcHandler(private val appContext: Context) :
     }
 
     private fun teardownEngine() {
+        previewStarted = false
+        joinedChannel = false
         val rtc = engine ?: return
         engine = null
         boundRemoteUid = null

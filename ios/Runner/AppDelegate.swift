@@ -11,6 +11,7 @@ import MediaPipeTasksVision
   private var viduLiveRtc: ViduLiveRtcHandler?
   private var apnsChannel: FlutterMethodChannel?
   private var apnsToken: String?
+  private var savedScreenBrightness: CGFloat?
 
   override func application(
     _ application: UIApplication,
@@ -111,6 +112,33 @@ import MediaPipeTasksVision
       }
     }
 
+    if let brightnessRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "FashionScreenBrightness") {
+      let brightnessChannel = FlutterMethodChannel(
+        name: "fashion/screen_brightness",
+        binaryMessenger: brightnessRegistrar.messenger()
+      )
+      brightnessChannel.setMethodCallHandler { [weak self] call, result in
+        DispatchQueue.main.async {
+          switch call.method {
+          case "setMax":
+            if self?.savedScreenBrightness == nil {
+              self?.savedScreenBrightness = UIScreen.main.brightness
+            }
+            UIScreen.main.brightness = 1.0
+            result(nil)
+          case "restore":
+            if let prev = self?.savedScreenBrightness {
+              UIScreen.main.brightness = prev
+              self?.savedScreenBrightness = nil
+            }
+            result(nil)
+          default:
+            result(FlutterMethodNotImplemented)
+          }
+        }
+      }
+    }
+
     if let viduRegistrar = engineBridge.pluginRegistry.registrar(forPlugin: "FashionViduLiveRtc") {
       let viduHandler = ViduLiveRtcHandler()
       viduLiveRtc = viduHandler
@@ -142,11 +170,36 @@ import MediaPipeTasksVision
 
 // MARK: - Native iOS AliRTC bridge for Vidu S2-Editing Real-Time Virtual Try-On
 
+private final class ViduRtcContainerView: UIView {
+  let localView = UIView()
+  let remoteView = UIView()
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    backgroundColor = .black
+    clipsToBounds = true
+    localView.backgroundColor = .black
+    remoteView.backgroundColor = .clear
+    addSubview(localView)
+    addSubview(remoteView)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    localView.frame = bounds
+    remoteView.frame = bounds
+  }
+}
+
 private final class ViduLiveRtcHandler: NSObject, FlutterStreamHandler, AliRtcEngineDelegate {
   private var engine: AliRtcEngine?
   private var eventSink: FlutterEventSink?
 
-  private weak var containerView: UIView?
+  private weak var containerView: ViduRtcContainerView?
   private weak var localRenderView: UIView?
   private weak var remoteRenderView: UIView?
 
@@ -155,31 +208,22 @@ private final class ViduLiveRtcHandler: NSObject, FlutterStreamHandler, AliRtcEn
   private var hasRemoteFrame: Bool = false
   private var showOriginal: Bool = false
   private var isFrontCamera: Bool = true
+  private var previewStarted: Bool = false
+  private var joinedChannel: Bool = false
   private var remoteFallbackWorkItem: DispatchWorkItem?
 
   func createPlatformView(frame: CGRect) -> FlutterPlatformView {
-    let initialBounds = frame.isEmpty ? UIScreen.main.bounds : frame
-    let root = UIView(frame: initialBounds)
-    root.backgroundColor = .black
-    root.clipsToBounds = true
-    root.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-
-    let localView = UIView(frame: root.bounds)
-    localView.backgroundColor = .black
-    localView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-
-    let remoteView = UIView(frame: root.bounds)
-    remoteView.backgroundColor = .clear
-    remoteView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-    remoteView.isHidden = !(hasRemoteFrame && !showOriginal)
-
-    root.addSubview(localView)
-    root.addSubview(remoteView)
+    let initialBounds = frame.isEmpty ? CGRect(x: 0, y: 0, width: 320, height: 480) : frame
+    let root = ViduRtcContainerView(frame: initialBounds)
+    root.remoteView.isHidden = !(hasRemoteFrame && !showOriginal)
 
     containerView = root
-    localRenderView = localView
-    remoteRenderView = remoteView
+    localRenderView = root.localView
+    remoteRenderView = root.remoteView
     rebindViewsIfNeeded()
+    if previewStarted, let rtc = engine {
+      rtc.startPreview()
+    }
 
     return ViduRtcPlatformView(rootView: root, handler: self)
   }
@@ -205,6 +249,21 @@ private final class ViduLiveRtcHandler: NSObject, FlutterStreamHandler, AliRtcEn
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     let args = call.arguments as? [String: Any]
     switch call.method {
+    case "startPreview":
+      let preferFront = (args?["useFrontCamera"] as? Bool) ?? true
+      DispatchQueue.main.async { [weak self] in
+        guard let self = self else {
+          result(false)
+          return
+        }
+        do {
+          try self.startCameraPreview(preferFront: preferFront)
+          result(true)
+        } catch {
+          result(FlutterError(code: "preview_failed", message: error.localizedDescription, details: nil))
+        }
+      }
+
     case "join":
       let token = (args?["token"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
       let channelId = (args?["channelId"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -331,21 +390,10 @@ private final class ViduLiveRtcHandler: NSObject, FlutterStreamHandler, AliRtcEn
     rtc.setVideoEncoderConfiguration(cfg)
   }
 
-  private func joinChannel(
-    token: String,
-    channelId: String,
-    userId: String,
-    renderUid: String,
-    dataSaver: Bool,
-    preferFront: Bool
-  ) throws {
-    teardownEngine()
-    targetRenderUid = renderUid
-    boundRemoteUid = nil
-    hasRemoteFrame = false
-    showOriginal = false
-    isFrontCamera = preferFront
-
+  private func ensureEngine() throws -> AliRtcEngine {
+    if let existing = engine {
+      return existing
+    }
     let maybeEngine: AliRtcEngine? = AliRtcEngine.sharedInstance(self, extras: nil)
     guard let rtc = maybeEngine else {
       throw NSError(
@@ -355,22 +403,66 @@ private final class ViduLiveRtcHandler: NSObject, FlutterStreamHandler, AliRtcEn
       )
     }
     engine = rtc
-
     rtc.setChannelProfile(.interactivelive)
     rtc.setClientRole(.roleInteractive)
     rtc.setDefaultSubscribeAllRemoteAudioStreams(false)
     rtc.setDefaultSubscribeAllRemoteVideoStreams(true)
     rtc.subscribeAllRemoteVideoStreams(true)
+    return rtc
+  }
 
+  private func startCameraPreview(preferFront: Bool) throws {
+    if joinedChannel {
+      teardownEngine()
+    }
+    isFrontCamera = preferFront
+    hasRemoteFrame = false
+    showOriginal = false
+    let rtc = try ensureEngine()
+    rebindViewsIfNeeded()
+    rtc.startPreview()
+    previewStarted = true
+    if !preferFront && rtc.getCurrentCameraDirection() == .front {
+      rtc.switchCamera()
+    } else if preferFront && rtc.getCurrentCameraDirection() == .back {
+      rtc.switchCamera()
+    }
+    updateLayerVisibility()
+  }
+
+  private func joinChannel(
+    token: String,
+    channelId: String,
+    userId: String,
+    renderUid: String,
+    dataSaver: Bool,
+    preferFront: Bool
+  ) throws {
+    if joinedChannel {
+      teardownEngine()
+    }
+    targetRenderUid = renderUid
+    boundRemoteUid = nil
+    hasRemoteFrame = false
+    showOriginal = false
+    isFrontCamera = preferFront
+
+    let rtc = try ensureEngine()
     applyVideoEncoderProfile(dataSaver: dataSaver)
     rebindViewsIfNeeded()
 
-    rtc.startPreview()
+    if !previewStarted {
+      rtc.startPreview()
+      previewStarted = true
+    }
     if !preferFront && rtc.getCurrentCameraDirection() == .front {
+      rtc.switchCamera()
+    } else if preferFront && rtc.getCurrentCameraDirection() == .back {
       rtc.switchCamera()
     }
     rtc.publishLocalVideoStream(true)
     rtc.publishLocalAudioStream(false)
+    joinedChannel = true
 
     // Single-parameter Base64 V2 token from Vidu already encapsulates appId,
     // channelId, userId, timestamp, and signature; pass nil for channelId/userId.
@@ -388,6 +480,7 @@ private final class ViduLiveRtcHandler: NSObject, FlutterStreamHandler, AliRtcEn
       }
     }
     if joinCode != 0 {
+      joinedChannel = false
       throw NSError(
         domain: "ViduLiveRtc",
         code: Int(joinCode),
@@ -434,6 +527,8 @@ private final class ViduLiveRtcHandler: NSObject, FlutterStreamHandler, AliRtcEn
 
   private func teardownEngine() {
     cancelRemoteFallback()
+    previewStarted = false
+    joinedChannel = false
     guard let rtc = engine else { return }
     engine = nil
     boundRemoteUid = nil

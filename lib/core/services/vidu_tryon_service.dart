@@ -104,6 +104,7 @@ class ViduLiveService {
   StreamSubscription<dynamic>? _rtcSub;
   Completer<void>? _onLiveCompleter;
   Timer? _initDeadline;
+  Timer? _initRetryTimer;
   Timer? _switchIndicatorTimer;
 
   String? _activeLiveId;
@@ -176,7 +177,19 @@ class ViduLiveService {
     hasRemoteFrame.value = false;
     errorMessage.value = null;
     status.value = ViduLiveStatus.creatingSession;
-    stageMessage.value = 'جارٍ إنشاء جلسة البث المباشر...';
+    stageMessage.value = 'جارٍ تشغيل الكاميرا وتجهيز البث...';
+
+    // Immediately turn on the native local camera preview so the customer sees
+    // themselves right away during warmup instead of a black screen.
+    try {
+      await _rtcMethods.invokeMethod<dynamic>('startPreview', <String, dynamic>{
+        'useFrontCamera': isFrontCamera.value,
+      });
+    } catch (_) {}
+
+    if (!_isCurrent(gen)) {
+      throw const ViduTryonException('تم إلغاء الجلسة.', code: 'cancelled');
+    }
 
     late final Map<String, dynamic> created;
     try {
@@ -285,19 +298,14 @@ class ViduLiveService {
     String liveId,
     String clientSecret,
   ) async {
-    final wsUri = Uri.parse(_viduWsBase).replace(
-      queryParameters: {
-        'live_id': liveId,
-        'conn_id': _activeConnId,
-        'client_secret': clientSecret,
-      },
-    );
-
     final completer = Completer<void>();
     _onLiveCompleter = completer;
 
+    final deadlineAt = DateTime.now().add(const Duration(seconds: 75));
     _initDeadline?.cancel();
     _initDeadline = Timer(const Duration(seconds: 75), () {
+      _initRetryTimer?.cancel();
+      _initRetryTimer = null;
       if (!completer.isCompleted) {
         completer.completeError(
           const ViduTryonException(
@@ -308,18 +316,57 @@ class ViduLiveService {
       }
     });
 
-    try {
+    Future<void> openAndInit() async {
+      if (!_isCurrent(gen) || completer.isCompleted) return;
+      if (DateTime.now().isAfter(deadlineAt)) return;
+
+      await _wsSub?.cancel();
+      _wsSub = null;
+      try {
+        await _socket?.close();
+      } catch (_) {}
+      _socket = null;
+
+      _activeConnId = _generateConnId();
+      final wsUri = Uri.parse(_viduWsBase).replace(
+        queryParameters: {
+          'live_id': liveId,
+          'conn_id': _activeConnId,
+          'client_secret': clientSecret,
+        },
+      );
+
       final ws = await io.WebSocket.connect(
         wsUri.toString(),
       ).timeout(const Duration(seconds: 20));
 
-      if (!_isCurrent(gen)) {
+      if (!_isCurrent(gen) || completer.isCompleted) {
         await ws.close();
-        throw const ViduTryonException('تم إلغاء الجلسة.', code: 'cancelled');
+        return;
       }
 
       _socket = ws;
-      ws.pingInterval = const Duration(seconds: 12);
+      ws.pingInterval = const Duration(seconds: 10);
+
+      void scheduleConnInitRetry() {
+        _initRetryTimer?.cancel();
+        _initRetryTimer = Timer(const Duration(seconds: 2), () {
+          if (!_isCurrent(gen) || completer.isCompleted) return;
+          if (_socket?.readyState == io.WebSocket.open) {
+            _sendViduSignal(1, const {
+              'conn_init': {'version': 1},
+            });
+          } else if (DateTime.now().isBefore(deadlineAt)) {
+            unawaited(
+              openAndInit().catchError((Object err) {
+                if (!completer.isCompleted) {
+                  completer.completeError(err);
+                }
+              }),
+            );
+          }
+        });
+      }
 
       _wsSub = ws.listen(
         (raw) {
@@ -341,11 +388,29 @@ class ViduLiveService {
             final ack = asStringMap(payload['conn_init_ack']);
             if (ack['success'] == true) {
               _initDeadline?.cancel();
+              _initRetryTimer?.cancel();
+              _initRetryTimer = null;
               _wentLive = true;
               if (!completer.isCompleted) completer.complete();
-            } else if (ack['error_code']?.toString() == 'NOT_READY') {
+              return;
+            }
+            final errCode =
+                ack['error_code']?.toString().trim().toUpperCase() ?? '';
+            final errText =
+                ack['error_msg']?.toString().trim().toLowerCase() ?? '';
+            final isNotReady =
+                errCode == 'NOT_READY' ||
+                errCode.contains('NOT_READY') ||
+                errCode.contains('WARM') ||
+                errCode.contains('INIT') ||
+                errText.contains('not ready') ||
+                errText.contains('warming');
+            if (isNotReady) {
               stageMessage.value = 'محرك البث قيد الإحماء (ثوانٍ قليلة)...';
+              scheduleConnInitRetry();
             } else {
+              _initRetryTimer?.cancel();
+              _initRetryTimer = null;
               final errMsg =
                   ack['error_msg']?.toString().trim().isNotEmpty == true
                   ? 'تعذر تجهيز البث المباشر. حاول مجدداً.'
@@ -354,7 +419,7 @@ class ViduLiveService {
                 completer.completeError(
                   ViduTryonException(
                     errMsg,
-                    code: ack['error_code']?.toString() ?? 'conn_init_failed',
+                    code: errCode.isNotEmpty ? errCode : 'conn_init_failed',
                   ),
                 );
               }
@@ -364,6 +429,8 @@ class ViduLiveService {
 
           // type 6: server forced hangup
           if (msgType == 6) {
+            _initRetryTimer?.cancel();
+            _initRetryTimer = null;
             final hangup = payload['hangup'] is Map
                 ? asStringMap(payload['hangup'])
                 : const <String, dynamic>{};
@@ -392,7 +459,12 @@ class ViduLiveService {
           }
         },
         onError: (_) {
-          if (!completer.isCompleted) {
+          if (!completer.isCompleted &&
+              _isCurrent(gen) &&
+              DateTime.now().isBefore(deadlineAt)) {
+            stageMessage.value = 'إعادة الاتصال بمحرك البث...';
+            scheduleConnInitRetry();
+          } else if (!completer.isCompleted) {
             completer.completeError(
               const ViduTryonException(
                 'تعذر الاتصال بخادم البث المباشر.',
@@ -405,7 +477,12 @@ class ViduLiveService {
           }
         },
         onDone: () {
-          if (!completer.isCompleted) {
+          if (!completer.isCompleted &&
+              _isCurrent(gen) &&
+              DateTime.now().isBefore(deadlineAt)) {
+            stageMessage.value = 'محرك البث قيد الإحماء (ثوانٍ قليلة)...';
+            scheduleConnInitRetry();
+          } else if (!completer.isCompleted) {
             completer.completeError(
               const ViduTryonException(
                 'أُغلق اتصال البث قبل جاهزية الكاميرا. حاول مجدداً.',
@@ -423,10 +500,15 @@ class ViduLiveService {
       _sendViduSignal(1, const {
         'conn_init': {'version': 1},
       });
+    }
 
+    try {
+      await openAndInit();
       await completer.future;
     } catch (e) {
       _initDeadline?.cancel();
+      _initRetryTimer?.cancel();
+      _initRetryTimer = null;
       if (e is ViduTryonException) {
         _fail(gen, e.message);
         rethrow;
@@ -511,6 +593,8 @@ class ViduLiveService {
     ++_generation;
     _initDeadline?.cancel();
     _initDeadline = null;
+    _initRetryTimer?.cancel();
+    _initRetryTimer = null;
     _switchIndicatorTimer?.cancel();
     _switchIndicatorTimer = null;
 
@@ -698,6 +782,7 @@ class ViduLiveTryonSession implements TryonSession {
     VtonConnectionQuality.good,
   );
   final ValueNotifier<DecartSessionConfig?> sessionConfig = ValueNotifier(null);
+  ValueNotifier<String> get stageMessage => _live.stageMessage;
 
   bool _disposed = false;
   bool _connectedReported = false;
