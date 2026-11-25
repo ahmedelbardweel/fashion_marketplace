@@ -19,13 +19,16 @@ import '../../../../router/routes.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../customer/presentation/providers/customer_providers.dart';
 import '../../domain/models/catalog_models.dart';
+import '../../domain/models/decart_settings_status.dart';
 import '../../domain/models/gaza_region.dart';
 import '../providers/admin_providers.dart';
 import '../widgets/admin_app_bar.dart';
 import '../widgets/admin_components.dart';
 import '../widgets/admin_logout.dart';
+import '../widgets/decart_credits_badge.dart';
 import '../widgets/decart_settings_card.dart';
 import '../widgets/tryon_cost_controls_card.dart';
+import '../widgets/vidu_settings_card.dart';
 
 class AdminSettingsScreen extends ConsumerStatefulWidget {
   const AdminSettingsScreen({super.key});
@@ -177,9 +180,23 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+      maxHeightFactor: 0.94,
       child: AppBottomSheetScaffold(
-        title: 'تجربة الملابس — Decart'.tr,
+        title: 'تجربة الملابس — Decart API'.tr,
         child: const DecartSettingsCard(embedded: true),
+      ),
+    );
+  }
+
+  void _openViduSheet() {
+    AppBottomSheet.show(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      maxHeightFactor: 0.94,
+      child: AppBottomSheetScaffold(
+        title: 'تجربة الملابس — Vidu API'.tr,
+        child: const ViduSettingsCard(embedded: true),
       ),
     );
   }
@@ -410,6 +427,8 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
     final locale = ref.watch(appLocaleProvider);
     final decartStatus = ref.watch(adminDecartStatusProvider).asData?.value;
     final decartCredits = ref.watch(adminDecartCreditsProvider).asData?.value;
+    final viduStatus = ref.watch(adminViduStatusProvider).asData?.value;
+    final viduCredits = ref.watch(adminViduCreditsProvider).asData?.value;
     final tryonControls = ref.watch(adminTryonControlsProvider).asData?.value;
     final settingsCount =
         ref.watch(adminSettingsProvider).asData?.value.length ?? 0;
@@ -423,22 +442,36 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
         user.city!.trim(),
     ].join(' · ');
 
+    final activeProvider = tryonControls?.activeProvider ?? TryonProvider.decart;
+
     final decartSubtitle = decartCredits?.hasBalance == true
-        ? '${'المتبقي'.tr}: ${decartCredits!.formattedCredits} ${'توكن'.tr} (${decartCredits.formattedUsd})'
+        ? '${'المتبقي'.tr}: ${decartCredits!.formattedCredits} ${'توكن'.tr}${decartCredits.hasUsd ? ' (${decartCredits.formattedUsd})' : ''}'
         : (decartStatus == null
-              ? 'مفتاح ربط خدمة تجربة الملابس بالذكاء الاصطناعي'
+              ? 'مفتاح ربط خدمة تجربة الملابس المباشرة (Live)'
               : (decartStatus.configured
-                    ? 'مفتاح محفوظ ومشفّر بأمان — اضغط للاستبدال'
+                    ? 'مفتاح محفوظ ومشفّر بأمان — اضغط للإدارة'
                     : 'لم يتم إعداد مفتاح Decart بعد'));
 
     final decartBadge = decartCredits?.hasBalance == true
         ? '${decartCredits!.formattedCredits} ${'توكن'.tr}'
         : null;
 
+    final viduSubtitle = viduCredits?.hasBalance == true
+        ? '${'المتبقي'.tr}: ${viduCredits!.formattedCredits} ${'توكن'.tr} · ${'صور عالية الدقة'.tr}'
+        : (viduStatus == null
+              ? 'مفتاح ربط خدمة تجربة الملابس بالصور (Vidu AI)'
+              : (viduStatus.configured
+                    ? 'مفتاح محفوظ ومشفّر بأمان — اضغط للإدارة'
+                    : 'لم يتم إعداد مفتاح Vidu بعد'));
+
+    final viduBadge = viduCredits?.hasBalance == true
+        ? '${viduCredits!.formattedCredits} ${'توكن'.tr}'
+        : null;
+
     final tryonSubtitle = tryonControls == null
-        ? 'مدة الجلسة والحد اليومي وتفعيل الخدمة'
+        ? 'المحرك النشط، مدة الجلسة، والحد اليومي'
         : (tryonControls.enabled
-              ? '${'مفعّلة'.tr} · ${tryonControls.sessionDurationSeconds} ${'ثانية'.tr} · ${tryonControls.dailyAttemptsLimit} ${'محاولة/يوم'.tr}'
+              ? '${activeProvider.displayName} · ${tryonControls.sessionDurationSeconds} ${'ثانية'.tr} · ${tryonControls.dailyAttemptsLimit} ${'محاولة/يوم'.tr}'
               : 'الخدمة متوقفة مؤقتاً لتوفير التكلفة');
 
     return AdminScaffold(
@@ -450,6 +483,8 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
           ref.refresh(adminSettingsProvider.future),
           ref.refresh(adminDecartStatusProvider.future),
           ref.refresh(adminDecartCreditsProvider.future),
+          ref.refresh(adminViduStatusProvider.future),
+          ref.refresh(adminViduCreditsProvider.future),
           ref.refresh(adminTryonControlsProvider.future),
         ]),
         child: SingleChildScrollView(
@@ -553,6 +588,9 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
               ),
               const SizedBox(height: SectionDesign.spacingBelow),
 
+              const TryonProviderSwitcherWidget(),
+              const SizedBox(height: AppSpacing.sm),
+
               AppCard(
                 padding: EdgeInsets.zero,
                 child: Column(
@@ -563,6 +601,14 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
                       subtitle: decartSubtitle,
                       trailingBadge: decartBadge,
                       onTap: _openDecartSheet,
+                    ),
+                    const Divider(height: 1),
+                    AdminProfileMenuRow(
+                      icon: Icons.auto_awesome_rounded,
+                      title: 'تجربة الملابس — Vidu API',
+                      subtitle: viduSubtitle,
+                      trailingBadge: viduBadge,
+                      onTap: _openViduSheet,
                     ),
                     const Divider(height: 1),
                     AdminProfileMenuRow(

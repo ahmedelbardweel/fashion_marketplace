@@ -1013,6 +1013,122 @@ class AdminRepository {
     await _client.rpc('admin_delete_decart_api_key', params: {'p_id': id});
   }
 
+  Future<DecartSettingsStatus> fetchViduStatus() async {
+    try {
+      final data = await _client.rpc('admin_vidu_status');
+      return DecartSettingsStatus.fromMap(asStringMap(data));
+    } on PostgrestException catch (e) {
+      if (e.code == 'PGRST202' || e.code == '42883') {
+        return const DecartSettingsStatus(configured: false);
+      }
+      rethrow;
+    }
+  }
+
+  Future<DecartCreditsBalance> fetchViduCredits() async {
+    if (!NetworkMonitorService.instance.isOnline) {
+      return const DecartCreditsBalance(
+        configured: true,
+        provider: TryonProvider.vidu,
+        errorCode: 'offline',
+      );
+    }
+    try {
+      final response = await _client.functions.invoke(
+        'vidu-tryon',
+        method: HttpMethod.get,
+      );
+      if (response.status == 404 || response.status == 405) {
+        return const DecartCreditsBalance(
+          configured: true,
+          provider: TryonProvider.vidu,
+          needsFunctionDeploy: true,
+        );
+      }
+      final data = asStringMap(response.data);
+      return DecartCreditsBalance.fromMap(
+        data,
+        defaultProvider: TryonProvider.vidu,
+      );
+    } on FunctionException catch (e) {
+      if (e.status == 404 || e.status == 405) {
+        return const DecartCreditsBalance(
+          configured: true,
+          provider: TryonProvider.vidu,
+          needsFunctionDeploy: true,
+        );
+      }
+      return DecartCreditsBalance(
+        configured: true,
+        provider: TryonProvider.vidu,
+        errorCode: 'http_${e.status}',
+      );
+    } catch (_) {
+      return const DecartCreditsBalance(
+        configured: true,
+        provider: TryonProvider.vidu,
+        errorCode: 'unavailable',
+      );
+    }
+  }
+
+  Future<List<DecartApiKeyEntry>> fetchViduKeys() async {
+    try {
+      final data = await _client.rpc('admin_list_vidu_keys');
+      if (data is List) {
+        return data
+            .map(
+              (e) => DecartApiKeyEntry.fromMap(
+                Map<String, dynamic>.from(e as Map),
+                estimateDecartUsd: false,
+              ),
+            )
+            .toList();
+      }
+      return const [];
+    } on PostgrestException catch (e) {
+      if (e.code == 'PGRST202' || e.code == '42883') return const [];
+      rethrow;
+    }
+  }
+
+  Future<void> addViduApiKey({
+    required String apiKey,
+    String? label,
+  }) async {
+    final trimmedLabel = label?.trim();
+    await _client.rpc(
+      'admin_add_vidu_api_key',
+      params: {
+        'p_api_key': apiKey.trim(),
+        if (trimmedLabel != null && trimmedLabel.isNotEmpty)
+          'p_label': trimmedLabel,
+      },
+    );
+  }
+
+  Future<void> toggleViduApiKey({
+    required String id,
+    required bool isActive,
+  }) async {
+    await _client.rpc(
+      'admin_toggle_vidu_api_key',
+      params: {'p_id': id, 'p_is_active': isActive},
+    );
+  }
+
+  Future<void> deleteViduApiKey(String id) async {
+    await _client.rpc('admin_delete_vidu_api_key', params: {'p_id': id});
+  }
+
+  Future<TryonCostControls> setTryonProvider(TryonProvider provider) async {
+    final data = await _client.rpc(
+      'admin_set_tryon_provider',
+      params: {'p_provider': provider.apiValue},
+    );
+    return TryonCostControls.fromMap(asStringMap(data));
+  }
+
   Future<TryonCostControls> fetchTryonControls() async {
     final data = await _client.rpc('admin_get_tryon_controls');
     return TryonCostControls.fromMap(asStringMap(data));
@@ -1022,6 +1138,7 @@ class AdminRepository {
     required bool enabled,
     required int sessionDurationSeconds,
     required int dailyAttemptsLimit,
+    TryonProvider? activeProvider,
   }) async {
     final data = await _client.rpc(
       'admin_update_tryon_controls',
@@ -1029,6 +1146,7 @@ class AdminRepository {
         'p_enabled': enabled,
         'p_session_duration_seconds': sessionDurationSeconds,
         'p_daily_attempts_limit': dailyAttemptsLimit,
+        if (activeProvider != null) 'p_active_provider': activeProvider.apiValue,
       },
     );
     return TryonCostControls.fromMap(asStringMap(data));

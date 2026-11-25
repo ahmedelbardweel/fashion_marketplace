@@ -27,6 +27,7 @@ class _TryonCostControlsCardState extends ConsumerState<TryonCostControlsCard> {
   final _durationController = TextEditingController(text: '30');
   final _dailyLimitController = TextEditingController(text: '3');
   bool _enabled = true;
+  TryonProvider _activeProvider = TryonProvider.decart;
   bool _hydrated = false;
   bool _saving = false;
   String? _message;
@@ -36,6 +37,7 @@ class _TryonCostControlsCardState extends ConsumerState<TryonCostControlsCard> {
     if (_hydrated) return;
     _hydrated = true;
     _enabled = controls.enabled;
+    _activeProvider = controls.activeProvider;
     _durationController.text = controls.sessionDurationSeconds.toString();
     _dailyLimitController.text = controls.dailyAttemptsLimit.toString();
   }
@@ -62,9 +64,11 @@ class _TryonCostControlsCardState extends ConsumerState<TryonCostControlsCard> {
             enabled: _enabled,
             sessionDurationSeconds: duration,
             dailyAttemptsLimit: dailyLimit,
+            activeProvider: _activeProvider,
           );
       if (!mounted) return;
       _enabled = updated.enabled;
+      _activeProvider = updated.activeProvider;
       _durationController.text = updated.sessionDurationSeconds.toString();
       _dailyLimitController.text = updated.dailyAttemptsLimit.toString();
       ref.invalidate(adminTryonControlsProvider);
@@ -75,7 +79,7 @@ class _TryonCostControlsCardState extends ConsumerState<TryonCostControlsCard> {
     } catch (error) {
       if (!mounted) return;
       final text = error is PostgrestException && error.code == 'PGRST202'
-          ? 'يلزم تطبيق تحديث قاعدة البيانات 019 في Supabase أولاً.'.tr
+          ? 'يلزم تطبيق تحديث قاعدة البيانات 041 في Supabase أولاً.'.tr
           : AppErrorMapper.message(
               error,
               fallback: 'تعذر حفظ إعدادات التحكم في التكلفة. حاول مجدداً.',
@@ -121,7 +125,7 @@ class _TryonCostControlsCardState extends ConsumerState<TryonCostControlsCard> {
               children: [
                 Expanded(
                   child: Text(
-                    'تعذر قراءة إعدادات التكلفة من السيرفر (تأكد من تطبيق تحديث 019).'
+                    'تعذر قراءة إعدادات التكلفة من السيرفر (تأكد من تطبيق تحديث 019 و041).'
                         .tr,
                   ),
                 ),
@@ -161,15 +165,45 @@ class _TryonCostControlsCardState extends ConsumerState<TryonCostControlsCard> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'محرك الذكاء الاصطناعي النشط'.tr,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  SegmentedButton<TryonProvider>(
+                    segments: [
+                      ButtonSegment<TryonProvider>(
+                        value: TryonProvider.decart,
+                        label: Text('Decart (مباشر)'.tr),
+                        icon: const Icon(Icons.videocam_rounded, size: 18),
+                      ),
+                      ButtonSegment<TryonProvider>(
+                        value: TryonProvider.vidu,
+                        label: Text('Vidu (صور HD)'.tr),
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                      ),
+                    ],
+                    selected: {_activeProvider},
+                    onSelectionChanged: _saving
+                        ? null
+                        : (selection) {
+                            if (selection.isNotEmpty) {
+                              setState(() => _activeProvider = selection.first);
+                            }
+                          },
+                  ),
+                  const SizedBox(height: AppSpacing.md),
                   TextFormField(
                     controller: _durationController,
                     enabled: !_saving,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: InputDecoration(
-                      labelText: 'مدة جلسة التجربة (بالثواني)'.tr,
+                      labelText: 'مدة جلسة Decart المباشرة (بالثواني)'.tr,
                       helperText:
-                          'القيمة المسموحة بين 10 و300 ثانية (الافتراضي 30).'
+                          'تُطبق على جلسات Decart الحية بين 10 و300 ثانية (الافتراضي 30).'
                               .tr,
                     ),
                     validator: (value) {
@@ -189,7 +223,7 @@ class _TryonCostControlsCardState extends ConsumerState<TryonCostControlsCard> {
                     decoration: InputDecoration(
                       labelText: 'الحد اليومي للمحاولات لكل مستخدم'.tr,
                       helperText:
-                          'القيمة المسموحة بين 1 و100 محاولة يومياً (الافتراضي 3).'
+                          'يُطبق على كل من Decart وVidu بين 1 و100 محاولة يومياً (الافتراضي 3).'
                               .tr,
                     ),
                     validator: (value) {

@@ -309,6 +309,29 @@ final adminDecartKeysProvider =
       return ref.watch(adminRepositoryProvider).fetchDecartKeys();
     });
 
+final adminViduStatusProvider =
+    FutureProvider.autoDispose<DecartSettingsStatus>((ref) async {
+      if (!_isAdmin(ref)) throw StateError('Admin access required');
+      return ref.watch(adminRepositoryProvider).fetchViduStatus();
+    });
+
+final adminViduCreditsProvider =
+    FutureProvider.autoDispose<DecartCreditsBalance>((ref) async {
+      if (!_isAdmin(ref)) {
+        return const DecartCreditsBalance(
+          configured: false,
+          provider: TryonProvider.vidu,
+        );
+      }
+      return ref.watch(adminRepositoryProvider).fetchViduCredits();
+    });
+
+final adminViduKeysProvider =
+    FutureProvider.autoDispose<List<DecartApiKeyEntry>>((ref) async {
+      if (!_isAdmin(ref)) return const [];
+      return ref.watch(adminRepositoryProvider).fetchViduKeys();
+    });
+
 final adminTryonControlsProvider =
     FutureProvider.autoDispose<TryonCostControls>((ref) async {
       if (!_isAdmin(ref)) throw StateError('Admin access required');

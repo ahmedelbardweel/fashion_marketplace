@@ -1,3 +1,7 @@
+import '../../../virtual_tryon/domain/tryon_provider.dart';
+
+export '../../../virtual_tryon/domain/tryon_provider.dart';
+
 class DecartSettingsStatus {
   const DecartSettingsStatus({
     required this.configured,
@@ -25,12 +29,14 @@ class TryonCostControls {
     this.enabled = true,
     this.sessionDurationSeconds = 30,
     this.dailyAttemptsLimit = 3,
+    this.activeProvider = TryonProvider.decart,
     this.updatedAt,
   });
 
   final bool enabled;
   final int sessionDurationSeconds;
   final int dailyAttemptsLimit;
+  final TryonProvider activeProvider;
   final DateTime? updatedAt;
 
   factory TryonCostControls.fromMap(Map<String, dynamic> data) =>
@@ -46,6 +52,7 @@ class TryonCostControls {
               1,
               100,
             ),
+        activeProvider: TryonProvider.fromString(data['active_provider']),
         updatedAt: DateTime.tryParse(data['updated_at']?.toString() ?? ''),
       );
 }
@@ -75,6 +82,8 @@ class DecartApiKeyEntry {
   final String? errorCode;
   final DateTime? lastUsedAt;
 
+  bool get hasUsd => usd != null;
+
   String get formattedCredits {
     final c = credits;
     if (c == null) return '--';
@@ -85,25 +94,31 @@ class DecartApiKeyEntry {
   }
 
   String get formattedUsd {
-    final u = usd ?? (credits != null ? credits! / 100 : null);
+    final u = usd;
     if (u == null) return '--';
     return '\$${u.toStringAsFixed(2)}';
   }
 
-  factory DecartApiKeyEntry.fromMap(Map<String, dynamic> data) {
+  factory DecartApiKeyEntry.fromMap(
+    Map<String, dynamic> data, {
+    bool estimateDecartUsd = true,
+  }) {
     final rawCredits = data['credits'] ?? data['last_credits'];
     final parsedCredits = rawCredits is num
         ? rawCredits.toDouble()
         : double.tryParse(rawCredits?.toString() ?? '');
+    final hasExplicitUsd = data.containsKey('usd');
     final rawUsd = data['usd'];
     final parsedUsd = rawUsd is num
         ? rawUsd.toDouble()
-        : (parsedCredits != null ? parsedCredits / 100 : null);
+        : (!hasExplicitUsd && estimateDecartUsd && parsedCredits != null
+              ? parsedCredits / 100
+              : null);
     return DecartApiKeyEntry(
       id: data['id']?.toString(),
-      label: data['label']?.toString() ?? 'Decart Key',
+      label: data['label']?.toString() ?? 'API Key',
       keyHint:
-          data['keyHint']?.toString() ?? data['key_hint']?.toString() ?? 'dct_…',
+          data['keyHint']?.toString() ?? data['key_hint']?.toString() ?? '…',
       priority: (data['priority'] as num?)?.toInt() ?? 100,
       isActive: (data['isActive'] ?? data['is_active']) != false,
       credits: parsedCredits,
@@ -123,6 +138,7 @@ class DecartApiKeyEntry {
 class DecartCreditsBalance {
   const DecartCreditsBalance({
     required this.configured,
+    this.provider = TryonProvider.decart,
     this.credits,
     this.usd,
     this.totalKeys = 0,
@@ -136,6 +152,7 @@ class DecartCreditsBalance {
   });
 
   final bool configured;
+  final TryonProvider provider;
   final double? credits;
   final double? usd;
   final int totalKeys;
@@ -148,6 +165,7 @@ class DecartCreditsBalance {
   final List<DecartApiKeyEntry> keys;
 
   bool get hasBalance => credits != null && errorCode == null;
+  bool get hasUsd => usd != null;
   bool get isInvalidKey => errorCode == 'invalid_key';
   bool get isDepleted => hasBalance && credits! <= 0;
   bool get isLow => hasBalance && credits! > 0 && credits! < 100;
@@ -164,26 +182,42 @@ class DecartCreditsBalance {
   }
 
   String get formattedUsd {
-    final u = usd ?? (credits != null ? credits! / 100 : null);
+    final u = usd;
     if (u == null) return '--';
     return '\$${u.toStringAsFixed(2)}';
   }
 
-  factory DecartCreditsBalance.fromMap(Map<String, dynamic> data) {
+  factory DecartCreditsBalance.fromMap(
+    Map<String, dynamic> data, {
+    TryonProvider defaultProvider = TryonProvider.decart,
+  }) {
+    final provider = data['provider'] != null
+        ? TryonProvider.fromString(data['provider'])
+        : defaultProvider;
+    final estimateUsd = provider == TryonProvider.decart;
     final rawCredits = data['credits'];
     final parsedCredits = rawCredits is num
         ? rawCredits.toDouble()
         : double.tryParse(rawCredits?.toString() ?? '');
+    final hasExplicitUsd = data.containsKey('usd');
     final rawUsd = data['usd'];
     final parsedUsd = rawUsd is num
         ? rawUsd.toDouble()
-        : (parsedCredits != null ? parsedCredits / 100 : null);
+        : (!hasExplicitUsd && estimateUsd && parsedCredits != null
+              ? parsedCredits / 100
+              : null);
     final rawKeys = data['keys'] is List ? data['keys'] as List : const [];
     final parsedKeys = rawKeys
-        .map((e) => DecartApiKeyEntry.fromMap(Map<String, dynamic>.from(e as Map)))
+        .map(
+          (e) => DecartApiKeyEntry.fromMap(
+            Map<String, dynamic>.from(e as Map),
+            estimateDecartUsd: estimateUsd,
+          ),
+        )
         .toList();
     return DecartCreditsBalance(
       configured: data['configured'] == true,
+      provider: provider,
       credits: parsedCredits,
       usd: parsedUsd,
       totalKeys: (data['totalKeys'] as num?)?.toInt() ?? parsedKeys.length,

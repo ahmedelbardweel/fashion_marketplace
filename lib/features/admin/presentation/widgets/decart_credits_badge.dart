@@ -1,8 +1,11 @@
 import 'package:fashion_marketplace/core/utils/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/network/network_guard.dart';
 import '../../../../core/theme/app_design.dart';
+import '../../../../core/utils/snackbar_utils.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_empty.dart';
@@ -10,29 +13,38 @@ import '../../domain/models/decart_settings_status.dart';
 import '../providers/admin_providers.dart';
 import 'decart_settings_card.dart';
 import 'tryon_cost_controls_card.dart';
+import 'vidu_settings_card.dart';
 
-/// Compact live Decart remaining tokens pill for the top Admin AppBar.
-/// Displays the combined remaining tokens across ALL active Decart API keys.
+/// Compact live Try-On tokens pill for the top Admin AppBar.
+/// Automatically tracks the currently active Try-On provider (Decart or Vidu)
+/// and displays the combined remaining tokens across all active keys for it.
 class DecartCreditsAppBarChip extends ConsumerWidget {
   const DecartCreditsAppBarChip({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final creditsAsync = ref.watch(adminDecartCreditsProvider);
+    final controls = ref.watch(adminTryonControlsProvider).asData?.value;
+    final activeProvider = controls?.activeProvider ?? TryonProvider.decart;
+    final creditsAsync = activeProvider == TryonProvider.vidu
+        ? ref.watch(adminViduCreditsProvider)
+        : ref.watch(adminDecartCreditsProvider);
+    final shortName = activeProvider.shortLabel;
 
     return creditsAsync.when(
       loading: () => _ChipContainer(
         bg: AppColors.surfaceAlt,
         border: AppColors.border,
         fg: AppColors.textMuted,
-        label: '...',
+        label: '$shortName …',
+        tooltip: '${'إجمالي توكن'.tr} ${activeProvider.displayName}',
         onTap: () => showDecartCreditsSheet(context),
       ),
       error: (_, _) => _ChipContainer(
         bg: AppColors.surfaceAlt,
         border: AppColors.border,
         fg: AppColors.textMuted,
-        label: 'Decart',
+        label: shortName,
+        tooltip: '${'إجمالي توكن'.tr} ${activeProvider.displayName}',
         onTap: () => showDecartCreditsSheet(context),
       ),
       data: (balance) {
@@ -45,17 +57,19 @@ class DecartCreditsAppBarChip extends ConsumerWidget {
           bg = AppColors.warningSoft;
           border = AppColors.warning.withValues(alpha: 0.3);
           fg = AppColors.warning;
-          label = 'Decart !';
+          label = '$shortName !';
         } else if (!balance.configured) {
           bg = AppColors.surfaceAlt;
           border = AppColors.border;
           fg = AppColors.textMuted;
-          label = 'Decart --';
+          label = '$shortName --';
         } else if (balance.isInvalidKey || balance.isDepleted) {
           bg = AppColors.errorSoft;
           border = AppColors.error.withValues(alpha: 0.3);
           fg = AppColors.error;
-          label = balance.isInvalidKey ? 'مفتاح منتهي'.tr : '0 ${'توكن'.tr}';
+          label = balance.isInvalidKey
+              ? '$shortName · ${'منتهي'.tr}'
+              : '$shortName · 0';
         } else if (balance.hasBalance) {
           if (balance.isLow) {
             bg = AppColors.warningSoft;
@@ -66,12 +80,12 @@ class DecartCreditsAppBarChip extends ConsumerWidget {
             border = AppColors.primaryBorder;
             fg = AppColors.primaryDark;
           }
-          label = '${balance.formattedCredits} ${'توكن'.tr}';
+          label = '$shortName · ${balance.formattedCredits}';
         } else {
           bg = AppColors.surfaceAlt;
           border = AppColors.border;
           fg = AppColors.textMuted;
-          label = 'Decart --';
+          label = '$shortName --';
         }
 
         return _ChipContainer(
@@ -79,6 +93,7 @@ class DecartCreditsAppBarChip extends ConsumerWidget {
           border: border,
           fg: fg,
           label: label,
+          tooltip: '${'المحرك النشط:'.tr} ${activeProvider.displayName}',
           onTap: () => showDecartCreditsSheet(context),
         );
       },
@@ -92,6 +107,7 @@ class _ChipContainer extends StatelessWidget {
     required this.border,
     required this.fg,
     required this.label,
+    required this.tooltip,
     required this.onTap,
   });
 
@@ -99,12 +115,13 @@ class _ChipContainer extends StatelessWidget {
   final Color border;
   final Color fg;
   final String label;
+  final String tooltip;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'إجمالي توكن Decart API'.tr,
+      message: tooltip,
       child: Material(
         color: bg,
         borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -132,6 +149,223 @@ class _ChipContainer extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Interactive Admin switcher to toggle the active Virtual Try-On engine
+/// between Decart AI (real-time camera) and Vidu AI (high-res photo try-on).
+class TryonProviderSwitcherWidget extends ConsumerStatefulWidget {
+  const TryonProviderSwitcherWidget({super.key});
+
+  @override
+  ConsumerState<TryonProviderSwitcherWidget> createState() =>
+      _TryonProviderSwitcherWidgetState();
+}
+
+class _TryonProviderSwitcherWidgetState
+    extends ConsumerState<TryonProviderSwitcherWidget> {
+  bool _switching = false;
+
+  Future<void> _selectProvider(
+    TryonProvider target,
+    TryonProvider current,
+  ) async {
+    if (_switching || target == current) return;
+    setState(() => _switching = true);
+    try {
+      await ref.read(adminRepositoryProvider).setTryonProvider(target);
+      ref.invalidate(adminTryonControlsProvider);
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          '${'تم تحويل محرك التجربة الافتراضية إلى'.tr} ${target.displayName}',
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        final msg = error is PostgrestException &&
+                (error.code == 'PGRST202' || error.code == '42883')
+            ? 'يلزم تطبيق تحديث قاعدة البيانات 041 في Supabase أولاً.'.tr
+            : AppErrorMapper.message(
+                error,
+                fallback: 'تعذر تبديل محرك التجربة الافتراضية',
+              );
+        showAppSnackBar(context, msg, isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _switching = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controls = ref.watch(adminTryonControlsProvider).asData?.value;
+    final active = controls?.activeProvider ?? TryonProvider.decart;
+    final decartBalance = ref.watch(adminDecartCreditsProvider).asData?.value;
+    final viduBalance = ref.watch(adminViduCreditsProvider).asData?.value;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.sm + 4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'محرك التجربة الافتراضية النشط'.tr,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: AppFont.bold),
+                ),
+              ),
+              if (_switching)
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary,
+                  ),
+                )
+              else
+                AppStatusBadge(
+                  label: active.displayName,
+                  tone: BadgeTone.primary,
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'التبديل يدوي من الإدارة؛ يعمل التطبيق على المحرك المختار فقط.'.tr,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: _ProviderOptionTile(
+                  title: 'Decart AI',
+                  subtitle: 'كاميرا مباشرة'.tr,
+                  creditsText: decartBalance?.hasBalance == true
+                      ? '${decartBalance!.formattedCredits} ${'توكن'.tr}'
+                      : '--',
+                  selected: active == TryonProvider.decart,
+                  disabled: _switching,
+                  onTap: () => _selectProvider(TryonProvider.decart, active),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _ProviderOptionTile(
+                  title: 'Vidu AI',
+                  subtitle: 'صور عالية الدقة'.tr,
+                  creditsText: viduBalance?.hasBalance == true
+                      ? '${viduBalance!.formattedCredits} ${'توكن'.tr}'
+                      : '--',
+                  selected: active == TryonProvider.vidu,
+                  disabled: _switching,
+                  onTap: () => _selectProvider(TryonProvider.vidu, active),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderOptionTile extends StatelessWidget {
+  const _ProviderOptionTile({
+    required this.title,
+    required this.subtitle,
+    required this.creditsText,
+    required this.selected,
+    required this.disabled,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final String creditsText;
+  final bool selected;
+  final bool disabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.primarySoft : AppColors.surface,
+      borderRadius: BorderRadius.circular(AppRadii.md),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadii.md),
+        onTap: disabled ? null : AppHaptics.action(onTap),
+        child: Container(
+          padding: const EdgeInsets.all(AppSpacing.sm + 2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadii.md),
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.border,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: AppFont.extraBold,
+                        color: selected
+                            ? AppColors.primaryDark
+                            : AppColors.text,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    selected
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                    size: 18,
+                    color: selected ? AppColors.primary : AppColors.textMuted,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                creditsText,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: AppFont.bold,
+                  color: selected ? AppColors.primaryDark : AppColors.text,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -258,7 +492,7 @@ class DecartCreditsInlineBanner extends ConsumerWidget {
                           ),
                           if (balance?.hasBalance == true)
                             Text(
-                              '${'يعادل تقريباً'.tr} ${balance!.formattedUsd}${balance.totalKeys > 1 ? ' · ${'تبديل تلقائي ذكي'.tr}' : ''}${balance.checkedAt != null ? ' · ${_formatTime(balance.checkedAt!)}' : ''}',
+                              '${balance!.hasUsd ? '${'يعادل تقريباً'.tr} ${balance.formattedUsd}' : 'بث مباشر (Decart)'}${balance.totalKeys > 1 ? ' · ${'تبديل تلقائي ذكي'.tr}' : ''}${balance.checkedAt != null ? ' · ${_formatTime(balance.checkedAt!)}' : ''}',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: AppColors.textMuted),
                             )
@@ -306,35 +540,41 @@ class DecartCreditsInlineBanner extends ConsumerWidget {
   }
 }
 
-/// Bottom sheet displaying live aggregated Decart balance + per-key breakdown + quick actions.
+/// Bottom sheet displaying the Active Provider Switcher (Decart / Vidu),
+/// live aggregated balance + per-key breakdown + quick management actions.
 Future<void> showDecartCreditsSheet(BuildContext context) {
   return AppBottomSheet.show<void>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    maxHeightFactor: 0.9,
+    maxHeightFactor: 0.92,
     child: Consumer(
       builder: (sheetCtx, sheetRef, _) {
         final controls = sheetRef
             .watch(adminTryonControlsProvider)
             .asData
             ?.value;
-        final balance = sheetRef
-            .watch(adminDecartCreditsProvider)
-            .asData
-            ?.value;
-        final keys = balance?.keys ?? const <DecartApiKeyEntry>[];
+        final activeProvider = controls?.activeProvider ?? TryonProvider.decart;
+        final activeBalance = activeProvider == TryonProvider.vidu
+            ? sheetRef.watch(adminViduCreditsProvider).asData?.value
+            : sheetRef.watch(adminDecartCreditsProvider).asData?.value;
+        final keys = activeBalance?.keys ?? const <DecartApiKeyEntry>[];
 
         return AppBottomSheetScaffold(
-          title: 'رصيد Decart API والقياس الافتراضي'.tr,
+          title: 'الذكاء الاصطناعي والقياس الافتراضي'.tr,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const DecartCreditsInlineBanner(),
+              const TryonProviderSwitcherWidget(),
+              const SizedBox(height: AppSpacing.md),
+              if (activeProvider == TryonProvider.vidu)
+                const ViduCreditsInlineBanner()
+              else
+                const DecartCreditsInlineBanner(),
               if (keys.isNotEmpty) ...[
                 const SizedBox(height: AppSpacing.md),
                 Text(
-                  '${'توزيع الرصيد حسب المفاتيح'.tr} (${keys.length})',
+                  '${'توزيع الرصيد —'.tr} ${activeProvider.shortLabel} (${keys.length})',
                   style: Theme.of(
                     context,
                   ).textTheme.titleSmall?.copyWith(fontWeight: AppFont.bold),
@@ -413,7 +653,7 @@ Future<void> showDecartCreditsSheet(BuildContext context) {
                     children: [
                       Expanded(
                         child: Text(
-                          'إعدادات الجلسة الحالية'.tr,
+                          'إعدادات الجلسة والحد اليومي'.tr,
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: AppColors.textMuted),
                         ),
@@ -429,21 +669,52 @@ Future<void> showDecartCreditsSheet(BuildContext context) {
                 ),
               ],
               const SizedBox(height: AppSpacing.md),
-              AppButton(
-                label: 'إدارة وإضافة مفاتيح Decart API'.tr,
-                onPressed: () {
-                  Navigator.of(sheetCtx).pop();
-                  AppBottomSheet.show<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    maxHeightFactor: 0.94,
-                    child: AppBottomSheetScaffold(
-                      title: 'إدارة مفاتيح Decart API'.tr,
-                      child: const DecartSettingsCard(embedded: true),
+              Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      label: 'مفاتيح Decart'.tr,
+                      variant: activeProvider == TryonProvider.decart
+                          ? AppButtonVariant.filled
+                          : AppButtonVariant.secondary,
+                      onPressed: () {
+                        Navigator.of(sheetCtx).pop();
+                        AppBottomSheet.show<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          useSafeArea: true,
+                          maxHeightFactor: 0.94,
+                          child: AppBottomSheetScaffold(
+                            title: 'إدارة مفاتيح Decart API'.tr,
+                            child: const DecartSettingsCard(embedded: true),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: AppButton(
+                      label: 'مفاتيح Vidu'.tr,
+                      variant: activeProvider == TryonProvider.vidu
+                          ? AppButtonVariant.filled
+                          : AppButtonVariant.secondary,
+                      onPressed: () {
+                        Navigator.of(sheetCtx).pop();
+                        AppBottomSheet.show<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          useSafeArea: true,
+                          maxHeightFactor: 0.94,
+                          child: AppBottomSheetScaffold(
+                            title: 'إدارة مفاتيح Vidu API'.tr,
+                            child: const ViduSettingsCard(embedded: true),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: AppSpacing.sm),
               AppButton(

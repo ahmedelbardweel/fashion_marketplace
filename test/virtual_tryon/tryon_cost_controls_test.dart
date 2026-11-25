@@ -17,20 +17,24 @@ class _FakeAdminRepo extends Fake implements AdminRepository {
   bool? savedEnabled;
   int? savedDuration;
   int? savedLimit;
+  TryonProvider? savedProvider;
 
   @override
   Future<TryonCostControls> updateTryonControls({
     required bool enabled,
     required int sessionDurationSeconds,
     required int dailyAttemptsLimit,
+    TryonProvider? activeProvider,
   }) async {
     savedEnabled = enabled;
     savedDuration = sessionDurationSeconds;
     savedLimit = dailyAttemptsLimit;
+    savedProvider = activeProvider;
     return TryonCostControls(
       enabled: enabled,
       sessionDurationSeconds: sessionDurationSeconds,
       dailyAttemptsLimit: dailyAttemptsLimit,
+      activeProvider: activeProvider ?? TryonProvider.decart,
     );
   }
 }

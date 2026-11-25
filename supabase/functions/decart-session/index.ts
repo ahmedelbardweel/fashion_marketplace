@@ -294,6 +294,32 @@ Deno.serve(async (req) => {
       return await handleAdminCreditsRequest(url, serviceKey, user.id);
     }
 
+    // Enforce manual admin provider switch (if Vidu is selected, block Decart minting).
+    try {
+      const providerRes = await fetch(`${url}/rest/v1/rpc/service_get_tryon_provider`, {
+        method: 'POST',
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+        signal: AbortSignal.timeout(5000),
+      });
+      if (providerRes.ok) {
+        const activeProvider = await providerRes.json();
+        if (typeof activeProvider === 'string' && activeProvider.toLowerCase() !== 'decart') {
+          return respond({
+            error: 'Decart try-on is not the active provider',
+            code: 'provider_not_active',
+            activeProvider: activeProvider.toLowerCase(),
+          }, 409);
+        }
+      }
+    } catch {
+      // Graceful fallback if migration 041 is not yet applied.
+    }
+
     const pool = (
       await resolveDecartApiKeyPool(url, serviceKey, Deno.env.get('DECART_API_KEY'))
     ).filter((k) => k.isActive);

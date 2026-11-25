@@ -1,3 +1,7 @@
+import 'tryon_provider.dart';
+
+export 'tryon_provider.dart';
+
 enum TryonBlockReason {
   disabledByAdmin,
   tokensDepleted,
@@ -8,6 +12,7 @@ class TryonQuota {
   const TryonQuota({
     this.enabled = true,
     this.tokensAvailable = true,
+    this.activeProvider = TryonProvider.decart,
     this.sessionDurationSeconds = 30,
     this.dailyLimit = 3,
     this.usedToday = 0,
@@ -17,6 +22,7 @@ class TryonQuota {
 
   final bool enabled;
   final bool tokensAvailable;
+  final TryonProvider activeProvider;
   final int sessionDurationSeconds;
   final int dailyLimit;
   final int usedToday;
@@ -68,6 +74,7 @@ class TryonQuota {
   TryonQuota copyWith({
     bool? enabled,
     bool? tokensAvailable,
+    TryonProvider? activeProvider,
     int? sessionDurationSeconds,
     int? dailyLimit,
     int? usedToday,
@@ -78,6 +85,7 @@ class TryonQuota {
     return TryonQuota(
       enabled: enabled ?? this.enabled,
       tokensAvailable: tokensAvailable ?? this.tokensAvailable,
+      activeProvider: activeProvider ?? this.activeProvider,
       sessionDurationSeconds:
           sessionDurationSeconds ?? this.sessionDurationSeconds,
       dailyLimit: dailyLimit ?? this.dailyLimit,
@@ -110,6 +118,7 @@ class TryonQuota {
     return TryonQuota(
       enabled: map['enabled'] != false,
       tokensAvailable: map['tokens_available'] != false,
+      activeProvider: TryonProvider.fromString(map['active_provider']),
       sessionDurationSeconds: duration,
       dailyLimit: limit.clamp(1, 100),
       usedToday: used.clamp(0, 1000),

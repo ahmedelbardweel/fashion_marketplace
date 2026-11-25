@@ -41,7 +41,9 @@ class AdminDashboardScreen extends ConsumerWidget {
         ref.refresh(adminGazaRegionsProvider.future),
         ref.refresh(adminSubscriptionPayoutOverviewProvider.future),
         ref.refresh(adminShopApplicationsProvider.future),
+        ref.refresh(adminTryonControlsProvider.future),
         ref.refresh(adminDecartCreditsProvider.future),
+        ref.refresh(adminViduCreditsProvider.future),
       ]);
     }
 
