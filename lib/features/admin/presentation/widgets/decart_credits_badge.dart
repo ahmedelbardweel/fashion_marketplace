@@ -270,7 +270,7 @@ class _TryonProviderSwitcherWidgetState
               Expanded(
                 child: _ProviderOptionTile(
                   title: 'Vidu AI',
-                  subtitle: 'صور عالية الدقة'.tr,
+                  subtitle: 'بث مباشر (Stream)'.tr,
                   creditsText: viduBalance?.hasBalance == true
                       ? '${viduBalance!.formattedCredits} ${'توكن'.tr}'
                       : '--',

@@ -18,8 +18,8 @@ enum TryonProvider {
   };
 
   String get modeDescription => switch (this) {
-    TryonProvider.decart => 'بث مباشر بالكاميرا الحية (Real-Time)',
-    TryonProvider.vidu => 'توليد صور عالية الدقة (Reference-to-Image)',
+    TryonProvider.decart => 'بث مباشر بالكاميرا (Decart Live)',
+    TryonProvider.vidu => 'بث مباشر بالكاميرا (Vidu Stream Live)',
   };
 
   static TryonProvider fromString(Object? raw) {

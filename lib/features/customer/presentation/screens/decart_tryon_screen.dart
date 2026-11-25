@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io' as io;
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,9 +12,11 @@ import 'package:go_router/go_router.dart';
 import '../../../../config/supabase_config.dart';
 import '../../../../core/network/tryon_bandwidth_guard.dart';
 import '../../../../core/services/decart_vton_sdk_service.dart';
+import '../../../../core/services/vidu_tryon_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_skeleton.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../virtual_tryon/data/decart_session_config.dart';
 import '../../../virtual_tryon/data/tryon_onboarding_store.dart';
 import '../../../virtual_tryon/domain/tryon_quota.dart';
 import '../../../virtual_tryon/presentation/tryon_guidelines_view.dart';
@@ -36,8 +40,17 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     'fashion/tryon_sound',
   );
 
-  late DecartVtonSdkService _service;
+  DecartVtonSdkService? _decartService;
+  ViduLiveTryonSession? _viduService;
   late DecartTryonNotifier _controller;
+
+  bool get _isVidu => _viduService != null;
+  ValueNotifier<bool> get _isGeneratingListenable =>
+      _viduService?.isGenerating ?? _decartService!.isGenerating;
+  ValueNotifier<VtonConnectionQuality> get _qualityListenable =>
+      _viduService?.connectionQuality ?? _decartService!.connectionQuality;
+  ValueNotifier<DecartSessionConfig?> get _sessionConfigListenable =>
+      _viduService?.sessionConfig ?? _decartService!.sessionConfig;
   bool _ready = false,
       _started = false,
       _showGarments = false,
@@ -74,11 +87,19 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _service = ref.read(decartVtonSdkServiceProvider(widget.productId));
+    _viduService =
+        (ref.read(tryonQuotaProvider).valueOrNull?.activeProvider ??
+                TryonProvider.decart) ==
+            TryonProvider.vidu
+        ? ref.read(viduLiveTryonSessionProvider(widget.productId))
+        : null;
+    if (_viduService == null) {
+      _decartService = ref.read(decartVtonSdkServiceProvider(widget.productId));
+    }
     _controller = ref.read(decartTryonProvider(widget.productId).notifier);
-    _service.isGenerating.addListener(_generationChanged);
-    _service.connectionQuality.addListener(_generationChanged);
-    _service.sessionConfig.addListener(_configChanged);
+    _isGeneratingListenable.addListener(_generationChanged);
+    _qualityListenable.addListener(_generationChanged);
+    _sessionConfigListenable.addListener(_configChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
   }
 
@@ -99,7 +120,11 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
           final refUrl = ref
               .read(decartTryonProvider(widget.productId))
               .effectiveImageUrl;
-          unawaited(_service.prewarmGarmentImage(refUrl));
+          if (_isVidu) {
+            unawaited(_viduService!.prewarmGarmentImage(refUrl));
+          } else {
+            unawaited(_decartService!.prewarmGarmentImage(refUrl));
+          }
         }),
       );
       final uid = ref.read(authControllerProvider).user?.id ?? 'guest';
@@ -127,7 +152,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   void _configChanged() {
     if (!mounted) return;
-    final cfg = _service.sessionConfig.value;
+    final cfg = _sessionConfigListenable.value;
     if (cfg == null) return;
     setState(() {
       _quota = TryonQuota(
@@ -171,7 +196,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   void _startCountdown() {
     if (_countdownTimer != null || _sessionTimedOut) return;
-    final total = _service.sessionConfig.value?.sessionDurationSeconds ??
+    final total = _sessionConfigListenable.value?.sessionDurationSeconds ??
         _quota.sessionDurationSeconds;
     _remainingSecondsNotifier.value = total;
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -303,8 +328,8 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   void _generationChanged() {
     if (!mounted) return;
-    final generating = _service.isGenerating.value;
-    final quality = _service.connectionQuality.value;
+    final generating = _isGeneratingListenable.value;
+    final quality = _qualityListenable.value;
     final isPoor =
         quality == VtonConnectionQuality.poor ||
         quality == VtonConnectionQuality.unusable;
@@ -613,9 +638,9 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     _warmupTimer?.cancel();
     _releaseNetworkFocus();
     WidgetsBinding.instance.removeObserver(this);
-    _service.isGenerating.removeListener(_generationChanged);
-    _service.connectionQuality.removeListener(_generationChanged);
-    _service.sessionConfig.removeListener(_configChanged);
+    _isGeneratingListenable.removeListener(_generationChanged);
+    _qualityListenable.removeListener(_generationChanged);
+    _sessionConfigListenable.removeListener(_configChanged);
     _stopCountdown();
     _warmupSecondsNotifier.dispose();
     _remainingSecondsNotifier.dispose();
@@ -670,7 +695,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       WidgetsBinding.instance.addPostFrameCallback((_) => _stopWarmup());
     }
 
-    final quality = _service.connectionQuality.value;
+    final quality = _qualityListenable.value;
     final isPoorSignal =
         quality == VtonConnectionQuality.poor ||
         quality == VtonConnectionQuality.unusable;
@@ -858,18 +883,25 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                               fit: StackFit.expand,
                               children: [
                                 const ColoredBox(color: Colors.black),
-                                VtonLocalPreview(
-                                  fit: fit,
-                                  mirror: state.isFrontCamera,
-                                ),
-                                // Exact 1.0 / 0.0 Opacity skips offscreen saveLayer
-                                // allocation on Android Hybrid Composition PlatformViews.
-                                Opacity(
-                                  opacity: showOverlay ? 1.0 : 0.0,
-                                  child: IgnorePointer(
-                                    child: VtonRemoteView(fit: fit),
+                                if (_isVidu && !kIsWeb && io.Platform.isAndroid)
+                                  const AndroidView(
+                                    viewType: 'fashion/vidu_rtc_view',
+                                    creationParamsCodec: StandardMessageCodec(),
+                                  )
+                                else ...[
+                                  VtonLocalPreview(
+                                    fit: fit,
+                                    mirror: state.isFrontCamera,
                                   ),
-                                ),
+                                  // Exact 1.0 / 0.0 Opacity skips offscreen saveLayer
+                                  // allocation on Android Hybrid Composition PlatformViews.
+                                  Opacity(
+                                    opacity: showOverlay ? 1.0 : 0.0,
+                                    child: IgnorePointer(
+                                      child: VtonRemoteView(fit: fit),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           );
@@ -1566,7 +1598,13 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
               onTap: state.isConnected
-                  ? () => setState(() => _showOriginal = !_showOriginal)
+                  ? () {
+                      final next = !_showOriginal;
+                      setState(() => _showOriginal = next);
+                      if (_isVidu) {
+                        unawaited(_viduService!.setShowOriginal(next));
+                      }
+                    }
                   : null,
               child: Container(
                 padding: const EdgeInsets.symmetric(

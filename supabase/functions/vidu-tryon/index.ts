@@ -1,10 +1,15 @@
+import NodeWebSocket from 'npm:ws@8';
 import {
   PooledViduKey,
   resolveViduApiKeyPool,
   updateViduKeyTelemetry,
 } from './secret_resolver.ts';
 
-const VIDU_API_BASE = 'https://api.vidu.com/ent/v2';
+const VIDU_HOST = 'api.vidu.com';
+const VIDU_HTTP_ORIGIN = `https://${VIDU_HOST}`;
+const VIDU_WS_ORIGIN = `wss://${VIDU_HOST}`;
+const VIDU_ENT_BASE = `${VIDU_HTTP_ORIGIN}/ent/v2`;
+const MAX_SIGNAL_BYTES = 6 * 1024 * 1024;
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -39,6 +44,8 @@ interface StoredTask {
   key_id: string | null;
   state: string;
   refunded: boolean;
+  client_secret?: string | null;
+  session_duration_seconds?: number | null;
 }
 
 async function isActiveAdmin(
@@ -94,10 +101,6 @@ function parseNumericValue(val: unknown): number | null {
   return null;
 }
 
-/**
- * Extracts total remaining credits from Vidu `/ent/v2/credits` response:
- * `{ remains: [{ credit_remain: 1000, ... }], packages: [{ credit_remain: 1000, ... }] }`
- */
 function extractViduCredits(payload: unknown): number | null {
   if (!payload || typeof payload !== 'object') {
     return parseNumericValue(payload);
@@ -136,13 +139,11 @@ function extractViduCredits(payload: unknown): number | null {
   const fromPackages = sumBucketArray(obj.packages);
   if (fromPackages !== null) return fromPackages;
 
-  // Empty remains & empty packages array from Vidu means 0 remaining credits.
   if (Array.isArray(obj.remains) && obj.remains.length === 0) {
     return 0;
   }
 
-  const fallbackKeys = ['credit_remain', 'remain_credits', 'credits', 'balance'];
-  for (const k of fallbackKeys) {
+  for (const k of ['credit_remain', 'remain_credits', 'credits', 'balance']) {
     const parsed = parseNumericValue(obj[k]);
     if (parsed !== null) return parsed;
   }
@@ -158,7 +159,7 @@ async function probeViduKeyCredits(
   timeoutMs = 8000,
 ): Promise<KeyCreditProbe> {
   try {
-    const res = await fetch(`${VIDU_API_BASE}/credits?show_detail=true`, {
+    const res = await fetch(`${VIDU_ENT_BASE}/credits?show_detail=true`, {
       method: 'GET',
       headers: {
         Authorization: `Token ${apiKey}`,
@@ -341,13 +342,17 @@ async function refundTryonAttempt(
 async function recordViduTask(
   url: string,
   serviceKey: string,
-  taskId: string,
-  userId: string,
-  keyId: string | null,
-  state: string,
+  params: {
+    taskId: string;
+    userId: string;
+    keyId: string | null;
+    state: string;
+    clientSecret?: string | null;
+    sessionDurationSeconds?: number;
+  },
 ): Promise<void> {
   try {
-    await fetch(`${url}/rest/v1/rpc/service_record_vidu_task`, {
+    const res = await fetch(`${url}/rest/v1/rpc/service_record_vidu_task`, {
       method: 'POST',
       headers: {
         apikey: serviceKey,
@@ -355,13 +360,33 @@ async function recordViduTask(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        p_task_id: taskId,
-        p_user_id: userId,
-        p_key_id: keyId,
-        p_state: state,
+        p_task_id: params.taskId,
+        p_user_id: params.userId,
+        p_key_id: params.keyId,
+        p_state: params.state,
+        p_client_secret: params.clientSecret ?? null,
+        p_session_duration_seconds: params.sessionDurationSeconds ?? 30,
       }),
       signal: AbortSignal.timeout(5000),
     });
+    // Fallback for migration 041 without migration 042 parameters.
+    if (res.status === 404) {
+      await fetch(`${url}/rest/v1/rpc/service_record_vidu_task`, {
+        method: 'POST',
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          p_task_id: params.taskId,
+          p_user_id: params.userId,
+          p_key_id: params.keyId,
+          p_state: params.state,
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+    }
   } catch {
     // Best-effort ledger write.
   }
@@ -428,60 +453,13 @@ async function markViduTaskState(
 function isValidImageInput(value: unknown): value is string {
   if (typeof value !== 'string') return false;
   const trimmed = value.trim();
-  if (trimmed.length < 16 || trimmed.length > 8_000_000) return false;
+  if (trimmed.length < 12 || trimmed.length > 6_000_000) return false;
   return (
     trimmed.startsWith('https://') ||
     trimmed.startsWith('http://') ||
-    /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=]+$/i.test(trimmed)
+    /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=\s]+$/i.test(trimmed) ||
+    trimmed.startsWith('ssupload:?id=')
   );
-}
-
-function buildTryonPrompt(params: {
-  garmentName?: string;
-  garmentCategory?: string;
-  bodyZone?: string;
-}): string {
-  const zoneInstruction = switchZoneInstruction(params.bodyZone);
-  const itemHint = [params.garmentName, params.garmentCategory]
-    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-    .map((v) => v.trim().slice(0, 80))
-    .join(' - ');
-
-  const itemPhrase = itemHint ? ` (${itemHint})` : '';
-  return [
-    `Photorealistic fashion virtual try-on photograph.`,
-    `Dress the person from image 1 in the exact clothing item from image 2${itemPhrase}.`,
-    zoneInstruction,
-    `Strictly preserve the person's exact face, identity, hair, skin tone, body proportions, hands, pose, camera angle, lighting, and background from image 1.`,
-    `Reproduce the garment from image 2 faithfully with exact color, fabric texture, pattern, prints, buttons, neckline, sleeves, and natural realistic draping and shadows.`,
-    `High-resolution studio-sharp realistic photo, no text, no watermarks, no extra limbs or distortions.`,
-  ].join(' ');
-}
-
-function switchZoneInstruction(bodyZone?: string): string {
-  switch ((bodyZone ?? '').toLowerCase()) {
-    case 'lowerpants':
-    case 'lowerbody':
-    case 'lower_body':
-      return 'Replace only the full-length lower-body pants/trousers/jeans from waist to ankles with the garment from image 2, keeping the top and footwear unchanged.';
-    case 'lowershorts':
-      return 'Replace only the lower-body garment with the shorts from image 2 (from waist to above the knee), keeping the top, lower legs, and footwear natural and unchanged.';
-    case 'fullbody':
-    case 'full_body':
-      return 'Replace the full outfit (dress, jumpsuit, abaya, or matching set) with the garment from image 2, keeping the person and shoes natural.';
-    case 'footwear':
-      return 'Replace only the shoes/footwear on the person with the footwear from image 2, keeping all clothing unchanged.';
-    case 'headface':
-      return 'Add or replace the head/face/neck accessory (glasses, hat, scarf, hijab, or jewelry) on the person using the exact item from image 2, keeping the person face and clothing unchanged.';
-    case 'wristhand':
-      return 'Place the watch, bracelet, ring, or hand accessory from image 2 naturally on the person wrist/hand, keeping clothing and pose unchanged.';
-    case 'bags':
-      return 'Have the person naturally wear or hold the exact bag/handbag/backpack from image 2 on their shoulder or in their hand, keeping all clothing unchanged.';
-    case 'upperbody':
-    case 'upper_body':
-    default:
-      return 'Replace only the upper-body garment (shirt, jacket, hoodie, sweater, or blouse) with the garment from image 2, keeping the lower-body clothing unchanged.';
-  }
 }
 
 function looksLikeCreditError(status: number, bodyText: string): boolean {
@@ -495,7 +473,12 @@ function looksLikeCreditError(status: number, bodyText: string): boolean {
   );
 }
 
-async function handleCreateTask(
+/**
+ * Creates a real-time Vidu S2-Editing (`virtual_tryon`) live streaming session.
+ * POST https://api.vidu.com/live/s_editing/realtime
+ * Returns AliRTC join credentials + render_uid; keeps API key & client_secret on server.
+ */
+async function handleCreateLiveSession(
   url: string,
   serviceKey: string,
   userId: string,
@@ -510,10 +493,9 @@ async function handleCreateTask(
     }, 409);
   }
 
-  const personImage = body.personImage;
-  const garmentImage = body.garmentImage;
-  if (!isValidImageInput(personImage) || !isValidImageInput(garmentImage)) {
-    return respond({ error: 'Valid personImage and garmentImage are required', code: 'invalid_input' }, 400);
+  const garmentImage = body.garmentImage ?? body.image_url;
+  if (!isValidImageInput(garmentImage)) {
+    return respond({ error: 'Valid garmentImage URL or data URI is required', code: 'invalid_input' }, 400);
   }
 
   const pool = (
@@ -530,6 +512,7 @@ async function handleCreateTask(
       return respond({
         error: 'Try-on service disabled by administrator',
         code: 'tryon_disabled',
+        sessionDurationSeconds: quota.session_duration_seconds,
         dailyLimit: quota.daily_limit,
         usedToday: quota.used_today,
         remainingToday: quota.remaining_today,
@@ -538,33 +521,20 @@ async function handleCreateTask(
     return respond({
       error: 'Daily try-on attempt limit reached',
       code: 'daily_limit_reached',
+      sessionDurationSeconds: quota.session_duration_seconds,
       dailyLimit: quota.daily_limit,
       usedToday: quota.used_today,
       remainingToday: 0,
     }, 429);
   }
 
-  const prompt = buildTryonPrompt({
-    garmentName: typeof body.garmentName === 'string' ? body.garmentName : undefined,
-    garmentCategory: typeof body.garmentCategory === 'string' ? body.garmentCategory : undefined,
-    bodyZone: typeof body.bodyZone === 'string' ? body.bodyZone : undefined,
-  });
-
-  const allowedAspectRatios = new Set(['auto', '1:1', '3:4', '4:3', '9:16', '16:9', '2:3', '3:2']);
-  const aspectRatio =
-    typeof body.aspectRatio === 'string' && allowedAspectRatios.has(body.aspectRatio)
-      ? body.aspectRatio
-      : 'auto';
-
-  const allowedResolutions = new Set(['1080p', '2K']);
-  const resolution =
-    typeof body.resolution === 'string' && allowedResolutions.has(body.resolution)
-      ? body.resolution
-      : '1080p';
+  const sessionDurationSeconds = Math.min(
+    Math.max(Number(quota?.session_duration_seconds ?? 30), 10),
+    300,
+  );
 
   let sawDepleted = false;
-  let createdTaskId: string | null = null;
-  let createdState = 'created';
+  let createdData: Record<string, unknown> | null = null;
   let selectedKey: PooledViduKey | null = null;
 
   for (const candidate of pool) {
@@ -594,20 +564,18 @@ async function handleCreateTask(
     }
 
     try {
-      const response = await fetch(`${VIDU_API_BASE}/reference2image`, {
+      const response = await fetch(`${VIDU_HTTP_ORIGIN}/live/s_editing/realtime`, {
         method: 'POST',
         headers: {
           Authorization: `Token ${candidate.apiKey}`,
           'Content-Type': 'application/json',
+          Accept: 'application/json',
         },
         body: JSON.stringify({
-          model: 'viduq2',
-          prompt,
-          images: [personImage.trim(), garmentImage.trim()],
-          aspect_ratio: aspectRatio,
-          resolution,
+          image_url: garmentImage.trim(),
+          editing_type: 'virtual_tryon',
         }),
-        signal: AbortSignal.timeout(25000),
+        signal: AbortSignal.timeout(30000),
       });
 
       if (response.status === 401 || response.status === 403) {
@@ -631,21 +599,21 @@ async function handleCreateTask(
         continue;
       }
 
-      let parsed: Record<string, unknown> = {};
+      let parsed: Record<string, unknown> | null = null;
       try {
         parsed = JSON.parse(rawText) as Record<string, unknown>;
       } catch {
         continue;
       }
 
-      const taskId =
-        typeof parsed.task_id === 'string' && parsed.task_id.trim()
-          ? parsed.task_id.trim()
-          : (typeof parsed.id === 'string' && parsed.id.trim() ? parsed.id.trim() : null);
+      const live = parsed?.live as Record<string, unknown> | undefined;
+      const rtc = parsed?.rtc as Record<string, unknown> | undefined;
+      const liveId = typeof live?.id === 'string' ? live.id.trim() : '';
+      const rtcToken = typeof rtc?.token === 'string' ? rtc.token.trim() : '';
+      const renderUid = typeof parsed?.render_uid === 'string' ? parsed.render_uid.trim() : '';
 
-      if (taskId) {
-        createdTaskId = taskId;
-        createdState = typeof parsed.state === 'string' ? parsed.state : 'created';
+      if (liveId && rtcToken && renderUid) {
+        createdData = parsed;
         selectedKey = candidate;
         break;
       }
@@ -654,7 +622,7 @@ async function handleCreateTask(
     }
   }
 
-  if (!createdTaskId || !selectedKey) {
+  if (!createdData || !selectedKey) {
     if (quota?.allowed) await refundTryonAttempt(url, serviceKey, userId);
     if (sawDepleted) {
       return respond({
@@ -662,40 +630,71 @@ async function handleCreateTask(
         code: 'all_keys_depleted',
       }, 503);
     }
-    return respond({ error: 'Unable to start Vidu try-on task', code: 'upstream_failed' }, 502);
+    return respond({ error: 'Unable to start Vidu live session', code: 'upstream_failed' }, 502);
   }
+
+  const liveObj = createdData.live as Record<string, unknown>;
+  const rtcObj = createdData.rtc as Record<string, unknown>;
+  const liveId = String(liveObj.id).trim();
+  const renderUid = String(createdData.render_uid).trim();
+  const clientSecret =
+    typeof createdData.client_secret === 'string' && createdData.client_secret.trim()
+      ? createdData.client_secret.trim()
+      : null;
 
   await Promise.all([
     updateViduKeyTelemetry(url, serviceKey, {
       id: selectedKey.id,
       markUsed: true,
     }),
-    recordViduTask(url, serviceKey, createdTaskId, userId, selectedKey.id, createdState),
+    recordViduTask(url, serviceKey, {
+      taskId: liveId,
+      userId,
+      keyId: selectedKey.id,
+      state: 'waiting',
+      clientSecret,
+      sessionDurationSeconds,
+    }),
   ]);
 
   return respond({
-    taskId: createdTaskId,
-    state: createdState,
+    liveId,
+    renderUid,
+    rtc: {
+      appId: String(rtcObj.app_id ?? ''),
+      channelId: String(rtcObj.channel_id ?? ''),
+      userId: String(rtcObj.user_id ?? ''),
+      token: String(rtcObj.token ?? ''),
+      tokenExpireAt: rtcObj.token_expire_at ?? null,
+    },
+    sessionDurationSeconds,
     dailyLimit: quota?.daily_limit ?? 3,
     usedToday: quota?.used_today ?? 1,
     remainingToday: quota?.remaining_today ?? 2,
   });
 }
 
-async function handleStatusPoll(
+/**
+ * Authenticated WebSocket control bridge between Flutter client and Vidu S2-Editing WS:
+ *   wss://api.vidu.com/live/ws/live/connect?live_id=...&conn_id=...[&client_secret=...]
+ * Keeps the Vidu API key and client_secret strictly on the server, handles conn_init,
+ * live switch_prompt (mid-stream garment changes), server-side duration cap, and hangup.
+ */
+async function handleLiveControlWebSocket(
+  req: Request,
   url: string,
   serviceKey: string,
   userId: string,
-  body: Record<string, unknown>,
 ): Promise<Response> {
-  const taskId = typeof body.taskId === 'string' ? body.taskId.trim() : '';
-  if (!taskId || taskId.length > 128) {
-    return respond({ error: 'Invalid taskId', code: 'invalid_input' }, 400);
+  const reqUrl = new URL(req.url);
+  const liveId = reqUrl.searchParams.get('live_id')?.trim() ?? '';
+  if (!liveId || liveId.length > 128) {
+    return respond({ error: 'Missing live_id' }, 400);
   }
 
-  const stored = await getStoredViduTask(url, serviceKey, taskId, userId);
+  const stored = await getStoredViduTask(url, serviceKey, liveId, userId);
   if (!stored) {
-    return respond({ error: 'Task not found', code: 'task_not_found' }, 404);
+    return respond({ error: 'Live session not found' }, 404);
   }
 
   const pool = await resolveViduApiKeyPool(
@@ -709,65 +708,243 @@ async function handleStatusPoll(
     pool[0];
 
   if (!matchedKey) {
-    return respond({ error: 'Service not configured', code: 'all_keys_depleted' }, 503);
+    return respond({ error: 'Service not configured' }, 503);
   }
 
-  const res = await fetch(
-    `${VIDU_API_BASE}/tasks/${encodeURIComponent(taskId)}/creations`,
-    {
-      method: 'GET',
-      headers: {
-        Authorization: `Token ${matchedKey.apiKey}`,
-        Accept: 'application/json',
-      },
-      signal: AbortSignal.timeout(12000),
-    },
+  const maxDurationSec = Math.min(
+    Math.max(Number(stored.session_duration_seconds ?? 30), 10),
+    300,
   );
 
-  if (!res.ok) {
-    return respond({ error: 'Unable to query task status', code: `upstream_${res.status}` }, 502);
-  }
+  const { socket: client, response } = Deno.upgradeWebSocket(req);
 
-  const data = (await res.json()) as Record<string, unknown>;
-  const state = typeof data.state === 'string' ? data.state.toLowerCase() : 'processing';
-  const errCode = typeof data.err_code === 'string' && data.err_code ? data.err_code : null;
+  const connId = crypto.randomUUID();
+  let seqId = 0;
+  let closed = false;
+  let ready = false;
+  let hangupSent = false;
+  let initTimer: number | undefined;
+  let sessionTimer: number | undefined;
+  let remote: NodeWebSocket | null = null;
 
-  let imageUrl: string | null = null;
-  if (Array.isArray(data.creations) && data.creations.length > 0) {
-    const first = data.creations[0];
-    if (first && typeof first === 'object') {
-      const creation = first as Record<string, unknown>;
-      if (typeof creation.url === 'string' && creation.url.trim()) {
-        imageUrl = creation.url.trim();
-      } else if (typeof creation.cover_url === 'string' && creation.cover_url.trim()) {
-        imageUrl = creation.cover_url.trim();
+  const sendClient = (payload: Record<string, unknown>) => {
+    try {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(payload));
       }
+    } catch {
+      // Ignore send errors on closing socket.
     }
-  }
+  };
 
-  let refunded = false;
-  if (state === 'failed') {
-    refunded = await markViduTaskState(url, serviceKey, taskId, userId, 'failed', true);
-  } else if (state === 'success') {
-    await markViduTaskState(url, serviceKey, taskId, userId, 'success', false);
-    // Refresh this key's remaining credits in background best-effort.
-    const refreshed = await probeViduKeyCredits(matchedKey.apiKey, 5000);
-    if (refreshed.credits !== null) {
-      await updateViduKeyTelemetry(url, serviceKey, {
-        id: matchedKey.id,
-        credits: refreshed.credits,
-        status: refreshed.status,
+  const sendSignal = (type: number, payload: Record<string, unknown>) => {
+    try {
+      if (remote && remote.readyState === NodeWebSocket.OPEN) {
+        remote.send(
+          JSON.stringify({
+            type,
+            live_id: liveId,
+            conn_id: connId,
+            seq_id: ++seqId,
+            payload,
+          }),
+        );
+      }
+    } catch {
+      // Ignore write failures on closing socket.
+    }
+  };
+
+  const shutdown = (closeClient: boolean, sendHangup: boolean, reason = 'user_end') => {
+    if (closed) return;
+    if (sendHangup && !hangupSent) {
+      sendSignal(5, { hangup: { hangup_reason: reason } });
+      hangupSent = true;
+    }
+    closed = true;
+    if (initTimer !== undefined) clearTimeout(initTimer);
+    if (sessionTimer !== undefined) clearTimeout(sessionTimer);
+
+    try {
+      if (remote && remote.readyState < NodeWebSocket.CLOSING) {
+        remote.close(1000, 'session ended');
+      }
+    } catch {}
+    try {
+      if (closeClient && client.readyState < WebSocket.CLOSING) {
+        client.close(1000, 'session ended');
+      }
+    } catch {}
+
+    // Best-effort credit telemetry refresh & refund if session never went live.
+    (async () => {
+      try {
+        if (!ready) {
+          await markViduTaskState(url, serviceKey, liveId, userId, 'failed', true);
+        } else {
+          await markViduTaskState(url, serviceKey, liveId, userId, 'ended', false);
+          const refreshed = await probeViduKeyCredits(matchedKey.apiKey, 5000);
+          if (refreshed.credits !== null) {
+            await updateViduKeyTelemetry(url, serviceKey, {
+              id: matchedKey.id,
+              credits: refreshed.credits,
+              status: refreshed.status,
+            });
+          }
+        }
+      } catch {}
+    })();
+  };
+
+  const fail = (message: string, code = 'session_failed') => {
+    if (closed) return;
+    sendClient({ event: 'fatal', code, message });
+    shutdown(true, true);
+  };
+
+  client.onopen = () => {
+    const query = new URLSearchParams({ live_id: liveId, conn_id: connId });
+    if (stored.client_secret) {
+      query.set('client_secret', stored.client_secret);
+    }
+
+    initTimer = setTimeout(() => {
+      fail('انتهت مهلة تجهيز البث المباشر. يرجى المحاولة مجدداً.', 'init_timeout');
+    }, 90000);
+
+    try {
+      remote = new NodeWebSocket(`${VIDU_WS_ORIGIN}/live/ws/live/connect?${query}`, {
+        headers: { Authorization: `Token ${matchedKey.apiKey}` },
+        handshakeTimeout: 15000,
+        maxPayload: MAX_SIGNAL_BYTES,
       });
+    } catch {
+      fail('تعذر الاتصال بخادم البث المباشر.', 'ws_connect_failed');
+      return;
     }
-  }
 
-  return respond({
-    taskId,
-    state,
-    imageUrl,
-    errCode,
-    refunded,
-  });
+    remote.on('open', () => {
+      if (closed) return;
+      sendClient({ event: 'remote_open' });
+      sendSignal(1, { conn_init: { version: 1 } });
+    });
+
+    remote.on('message', (rawData: unknown) => {
+      if (closed) return;
+      const text = typeof rawData === 'string'
+        ? rawData
+        : (rawData instanceof Uint8Array
+          ? new TextDecoder().decode(rawData)
+          : String(rawData));
+      let msg: Record<string, unknown>;
+      try {
+        msg = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        return;
+      }
+
+      const msgType = Number(msg.type);
+      const payload = (msg.payload && typeof msg.payload === 'object')
+        ? (msg.payload as Record<string, unknown>)
+        : {};
+
+      if (msgType === 2 && payload.conn_init_ack && typeof payload.conn_init_ack === 'object') {
+        const ack = payload.conn_init_ack as Record<string, unknown>;
+        if (ack.success === true) {
+          if (initTimer !== undefined) clearTimeout(initTimer);
+          ready = true;
+          markViduTaskState(url, serviceKey, liveId, userId, 'on_live', false);
+          sendClient({ event: 'on_live' });
+          // Hard server-side session duration cap matching Admin cost controls.
+          sessionTimer = setTimeout(() => {
+            sendClient({ event: 'server_hangup', reason: 'timeout' });
+            shutdown(true, true, 'timeout');
+          }, (maxDurationSec + 5) * 1000);
+        } else if (ack.error_code === 'NOT_READY') {
+          sendClient({ event: 'not_ready' });
+        } else {
+          fail(
+            typeof ack.error_msg === 'string' && ack.error_msg
+              ? ack.error_msg
+              : 'فشل بدء جلسة البث المباشر.',
+            String(ack.error_code ?? 'conn_init_failed'),
+          );
+        }
+        return;
+      }
+
+      if (msgType === 6) {
+        const hangup = (payload.hangup && typeof payload.hangup === 'object')
+          ? (payload.hangup as Record<string, unknown>)
+          : {};
+        const reason = String(hangup.hangup_reason ?? 'server_closed');
+        sendClient({ event: 'server_hangup', reason });
+        shutdown(true, false);
+        return;
+      }
+
+      if (msgType === 14 && payload.switch_prompt_ack && typeof payload.switch_prompt_ack === 'object') {
+        const ack = payload.switch_prompt_ack as Record<string, unknown>;
+        if (ack.success === false) {
+          sendClient({
+            event: 'switch_prompt_error',
+            code: String(ack.error_code ?? 'switch_failed'),
+            message: String(ack.error_msg ?? 'تعذر تبديل القطعة'),
+          });
+        }
+      }
+    });
+
+    remote.on('close', () => {
+      if (!closed) {
+        sendClient({ event: 'remote_closed' });
+        shutdown(true, false);
+      }
+    });
+
+    remote.on('error', () => {
+      fail('انقطع الاتصال بخادم البث المباشر.', 'remote_error');
+    });
+  };
+
+  client.onmessage = (event) => {
+    if (closed) return;
+    let msg: Record<string, unknown>;
+    try {
+      msg = JSON.parse(typeof event.data === 'string' ? event.data : '') as Record<string, unknown>;
+    } catch {
+      return;
+    }
+
+    const action = typeof msg.action === 'string' ? msg.action : '';
+    if (action === 'hangup') {
+      shutdown(true, true, 'user_end');
+      return;
+    }
+    if (action === 'switch_prompt') {
+      if (!ready) {
+        sendClient({ event: 'action_error', message: 'الجلسة غير جاهزة بعد.' });
+        return;
+      }
+      const imageUrl = msg.image_url;
+      if (!isValidImageInput(imageUrl)) {
+        sendClient({ event: 'action_error', message: 'رابط صورة القطعة غير صالح.' });
+        return;
+      }
+      sendSignal(13, {
+        switch_prompt: {
+          prompts: [{ type: 'image', content: imageUrl.trim() }],
+          editing_type: 'virtual_tryon',
+        },
+      });
+      sendClient({ event: 'switch_prompt_sent' });
+    }
+  };
+
+  client.onclose = () => shutdown(false, true);
+  client.onerror = () => shutdown(false, true);
+
+  return response;
 }
 
 Deno.serve(async (req) => {
@@ -776,15 +953,20 @@ Deno.serve(async (req) => {
     return respond({ error: 'Method not allowed' }, 405);
   }
   try {
-    const auth = req.headers.get('Authorization');
-    if (!auth?.startsWith('Bearer ')) return respond({ error: 'Unauthorized' }, 401);
-
     const url = Deno.env.get('SUPABASE_URL');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (!url || !anonKey || !serviceKey) {
       return respond({ error: 'Service not configured' }, 503);
     }
+
+    const reqUrl = new URL(req.url);
+    const headerAuth = req.headers.get('Authorization');
+    const queryToken = reqUrl.searchParams.get('access_token')?.trim();
+    const auth = headerAuth?.startsWith('Bearer ')
+      ? headerAuth
+      : (queryToken ? `Bearer ${queryToken}` : null);
+    if (!auth) return respond({ error: 'Unauthorized' }, 401);
 
     const userRes = await fetch(`${url}/auth/v1/user`, {
       headers: { Authorization: auth, apikey: anonKey },
@@ -794,18 +976,19 @@ Deno.serve(async (req) => {
     const user = await userRes.json();
     if (!user.id || user.is_anonymous) return respond({ error: 'Unauthorized' }, 401);
 
-    // Admin live aggregated credits balance across all Vidu keys via GET.
+    // WebSocket upgrade for real-time Vidu S2-Editing control plane.
+    const upgrade = req.headers.get('upgrade')?.toLowerCase() ?? '';
+    if (req.method === 'GET' && upgrade === 'websocket') {
+      return await handleLiveControlWebSocket(req, url, serviceKey, user.id);
+    }
+
+    // Admin aggregated live credits across all Vidu keys via standard GET.
     if (req.method === 'GET') {
       return await handleAdminCreditsRequest(url, serviceKey, user.id);
     }
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-    const action = typeof body.action === 'string' ? body.action.toLowerCase() : 'create';
-
-    if (action === 'status') {
-      return await handleStatusPoll(url, serviceKey, user.id, body);
-    }
-    return await handleCreateTask(url, serviceKey, user.id, body);
+    return await handleCreateLiveSession(url, serviceKey, user.id, body);
   } catch {
     return respond({ error: 'Vidu try-on service unavailable' }, 503);
   }

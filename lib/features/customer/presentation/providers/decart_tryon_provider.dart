@@ -7,6 +7,7 @@ import '../../../../config/supabase_config.dart';
 import '../../../../core/network/network_guard.dart';
 import '../../../../core/l10n/app_translations.dart';
 import '../../../../core/services/decart_vton_sdk_service.dart';
+import '../../../../core/services/vidu_tryon_service.dart';
 import '../../../virtual_tryon/data/decart_session_config.dart';
 import '../../../virtual_tryon/data/tryon_errors.dart';
 import '../../../virtual_tryon/domain/tryon_quota.dart';
@@ -158,9 +159,27 @@ final decartVtonSdkServiceProvider = Provider.autoDispose
       return service;
     });
 
+final viduLiveTryonSessionProvider = Provider.autoDispose
+    .family<ViduLiveTryonSession, String>((ref, productId) {
+      final quotaNotifier = ref.read(tryonQuotaProvider.notifier);
+      final service = ViduLiveTryonSession(
+        onQuotaUpdated: quotaNotifier.updateFromSessionConfig,
+        onQuotaBlocked: quotaNotifier.markBlocked,
+      );
+      ref.onDispose(() => unawaited(service.dispose()));
+      return service;
+    });
+
 final decartTryonProvider = StateNotifierProvider.autoDispose
     .family<DecartTryonNotifier, DecartTryonState, String>((ref, id) {
-      final service = ref.watch(decartVtonSdkServiceProvider(id));
+      final activeProvider = ref.watch(
+        tryonQuotaProvider.select(
+          (q) => q.valueOrNull?.activeProvider ?? TryonProvider.decart,
+        ),
+      );
+      final TryonSession service = activeProvider == TryonProvider.vidu
+          ? ref.watch(viduLiveTryonSessionProvider(id))
+          : ref.watch(decartVtonSdkServiceProvider(id));
       // Capture dependencies now, never read a disposed Ref after an await.
       final repository = ref.read(customerRepositoryProvider);
       return DecartTryonNotifier(service, () async {

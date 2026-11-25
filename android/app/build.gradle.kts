@@ -81,6 +81,7 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("com.google.mediapipe:tasks-vision:0.10.21")
+    implementation("com.aliyun.aio:AliVCSDK_ARTC:7.11.0")
 }
 
 // flutter_webrtc declares com.github.davidliu:audioswitch:89582c47... while

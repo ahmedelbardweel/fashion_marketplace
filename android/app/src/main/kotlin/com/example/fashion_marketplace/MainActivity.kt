@@ -7,10 +7,12 @@ import android.os.Bundle
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private var bodyAnalysis: BodyAnalysisHandler? = null
+    private var viduLiveRtc: ViduLiveRtcHandler? = null
     private var toneGenerator: ToneGenerator? = null
 
     private fun getToneGenerator(): ToneGenerator? {
@@ -40,6 +42,17 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "fashion/body_analysis")
             .setMethodCallHandler(bodyAnalysis)
 
+        val viduHandler = ViduLiveRtcHandler(applicationContext)
+        viduLiveRtc = viduHandler
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "fashion/vidu_rtc/methods")
+            .setMethodCallHandler(viduHandler)
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "fashion/vidu_rtc/events")
+            .setStreamHandler(viduHandler)
+        flutterEngine.platformViewsController.registry.registerViewFactory(
+            "fashion/vidu_rtc_view",
+            ViduRtcViewFactory(viduHandler),
+        )
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "fashion/tryon_sound")
             .setMethodCallHandler { call, result ->
                 try {
@@ -63,8 +76,14 @@ class MainActivity : FlutterActivity() {
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "fashion/body_analysis")
             .setMethodCallHandler(null)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "fashion/vidu_rtc/methods")
+            .setMethodCallHandler(null)
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "fashion/vidu_rtc/events")
+            .setStreamHandler(null)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "fashion/tryon_sound")
             .setMethodCallHandler(null)
+        viduLiveRtc?.dispose()
+        viduLiveRtc = null
         try {
             toneGenerator?.release()
         } catch (_: Throwable) {}

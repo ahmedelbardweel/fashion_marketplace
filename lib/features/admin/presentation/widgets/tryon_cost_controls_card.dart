@@ -181,7 +181,7 @@ class _TryonCostControlsCardState extends ConsumerState<TryonCostControlsCard> {
                       ),
                       ButtonSegment<TryonProvider>(
                         value: TryonProvider.vidu,
-                        label: Text('Vidu (صور HD)'.tr),
+                        label: Text('Vidu (مباشر)'.tr),
                         icon: const Icon(Icons.auto_awesome_rounded, size: 18),
                       ),
                     ],
@@ -201,9 +201,9 @@ class _TryonCostControlsCardState extends ConsumerState<TryonCostControlsCard> {
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: InputDecoration(
-                      labelText: 'مدة جلسة Decart المباشرة (بالثواني)'.tr,
+                      labelText: 'مدة جلسة البث المباشر (بالثواني)'.tr,
                       helperText:
-                          'تُطبق على جلسات Decart الحية بين 10 و300 ثانية (الافتراضي 30).'
+                          'تُطبق على جلسات Decart وVidu المباشرة بين 10 و300 ثانية (الافتراضي 30).'
                               .tr,
                     ),
                     validator: (value) {

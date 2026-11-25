@@ -457,9 +457,9 @@ class _AdminSettingsScreenState extends ConsumerState<AdminSettingsScreen> {
         : null;
 
     final viduSubtitle = viduCredits?.hasBalance == true
-        ? '${'المتبقي'.tr}: ${viduCredits!.formattedCredits} ${'توكن'.tr} · ${'صور عالية الدقة'.tr}'
+        ? '${'المتبقي'.tr}: ${viduCredits!.formattedCredits} ${'توكن'.tr} · ${'بث مباشر (Vidu Live)'.tr}'
         : (viduStatus == null
-              ? 'مفتاح ربط خدمة تجربة الملابس بالصور (Vidu AI)'
+              ? 'مفتاح ربط خدمة تجربة الملابس المباشرة (Vidu Stream)'
               : (viduStatus.configured
                     ? 'مفتاح محفوظ ومشفّر بأمان — اضغط للإدارة'
                     : 'لم يتم إعداد مفتاح Vidu بعد'));

@@ -134,7 +134,7 @@ class ViduCreditsInlineBanner extends ConsumerWidget {
                           ),
                           if (balance?.hasBalance == true)
                             Text(
-                              '${'توليد صور عالية الدقة (viduq2)'.tr}${balance!.totalKeys > 1 ? ' · ${'تبديل تلقائي ذكي'.tr}' : ''}${balance.checkedAt != null ? ' · ${_formatTime(balance.checkedAt!)}' : ''}',
+                              '${'بث مباشر (1 توكن/ثانية · Vidu S2)'.tr}${balance!.totalKeys > 1 ? ' · ${'تبديل تلقائي ذكي'.tr}' : ''}${balance.checkedAt != null ? ' · ${_formatTime(balance.checkedAt!)}' : ''}',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: AppColors.textMuted),
                             )
