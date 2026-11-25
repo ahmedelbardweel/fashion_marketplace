@@ -299,7 +299,7 @@ private final class ViduLiveRtcHandler: NSObject, FlutterStreamHandler, AliRtcEn
     if let localView = localRenderView {
       let localCanvas = AliVideoCanvas()
       localCanvas.view = localView
-      localCanvas.renderMode = .clip
+      localCanvas.renderMode = .auto
       localCanvas.mirrorMode = .onlyFrontCameraPreviewEnabled
       localCanvas.rotationMode = ._0
       rtc.setLocalViewConfig(localCanvas, for: .camera)
@@ -307,7 +307,7 @@ private final class ViduLiveRtcHandler: NSObject, FlutterStreamHandler, AliRtcEn
     if let uid = boundRemoteUid, let remoteView = remoteRenderView {
       let remoteCanvas = AliVideoCanvas()
       remoteCanvas.view = remoteView
-      remoteCanvas.renderMode = .clip
+      remoteCanvas.renderMode = .auto
       remoteCanvas.mirrorMode = .allDisabled
       remoteCanvas.rotationMode = ._0
       rtc.setRemoteViewConfig(remoteCanvas, uid: uid, for: .camera)
@@ -402,7 +402,7 @@ private final class ViduLiveRtcHandler: NSObject, FlutterStreamHandler, AliRtcEn
     if let remoteView = remoteRenderView {
       let remoteCanvas = AliVideoCanvas()
       remoteCanvas.view = remoteView
-      remoteCanvas.renderMode = .clip
+      remoteCanvas.renderMode = .auto
       remoteCanvas.mirrorMode = .allDisabled
       remoteCanvas.rotationMode = ._0
       rtc.setRemoteViewConfig(remoteCanvas, uid: uid, for: .camera)
