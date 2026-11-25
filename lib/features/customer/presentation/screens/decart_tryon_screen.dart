@@ -2194,28 +2194,21 @@ class _ScreenRingLightPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    const outerRadius = Radius.circular(36);
+    const innerCornerRadius = Radius.circular(36);
     const frameThickness = 22.0;
-    const innerRadius = Radius.circular(24);
 
-    // 1) Soft inward luminous bloom around the entire border perimeter.
-    final glowRect = rect.deflate(frameThickness * 0.5);
-    final glowPaint = Paint()
-      ..color = const Color(0xFFFFFDF7).withValues(alpha: 0.92)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 34
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24);
-    canvas.drawRRect(RRect.fromRectAndRadius(glowRect, innerRadius), glowPaint);
-
-    // 2) Crisp pure-white studio frame around all four edges of the screen.
+    // Crisp pure-white frame around all four edges of the screen with zero inner shadow.
     final outer = Path()..addRect(rect);
     final inner = Path()
       ..addRRect(
-        RRect.fromRectAndRadius(rect.deflate(frameThickness), outerRadius),
+        RRect.fromRectAndRadius(
+          rect.deflate(frameThickness),
+          innerCornerRadius,
+        ),
       );
     final framePath = Path.combine(PathOperation.difference, outer, inner);
     final framePaint = Paint()
-      ..color = const Color(0xFFFFFEFA).withValues(alpha: 0.96)
+      ..color = Colors.white
       ..style = PaintingStyle.fill;
     canvas.drawPath(framePath, framePaint);
   }
