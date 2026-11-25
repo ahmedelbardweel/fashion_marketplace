@@ -42,7 +42,11 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   DecartVtonSdkService? _decartService;
   ViduLiveTryonSession? _viduService;
-  late DecartTryonNotifier _controller;
+  TryonProvider _boundProvider = TryonProvider.decart;
+  bool _listenersBound = false;
+
+  DecartTryonNotifier get _controller =>
+      ref.read(decartTryonProvider(widget.productId).notifier);
 
   bool get _isVidu => _viduService != null;
   ValueNotifier<bool> get _isGeneratingListenable =>
@@ -51,6 +55,31 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
       _viduService?.connectionQuality ?? _decartService!.connectionQuality;
   ValueNotifier<DecartSessionConfig?> get _sessionConfigListenable =>
       _viduService?.sessionConfig ?? _decartService!.sessionConfig;
+
+  void _unbindServiceListeners() {
+    if (!_listenersBound) return;
+    _listenersBound = false;
+    _isGeneratingListenable.removeListener(_generationChanged);
+    _qualityListenable.removeListener(_generationChanged);
+    _sessionConfigListenable.removeListener(_configChanged);
+  }
+
+  void _bindProvider(TryonProvider provider) {
+    if (_listenersBound && _boundProvider == provider) return;
+    _unbindServiceListeners();
+    _boundProvider = provider;
+    if (provider == TryonProvider.vidu) {
+      _viduService = ref.read(viduLiveTryonSessionProvider(widget.productId));
+      _decartService = null;
+    } else {
+      _decartService = ref.read(decartVtonSdkServiceProvider(widget.productId));
+      _viduService = null;
+    }
+    _isGeneratingListenable.addListener(_generationChanged);
+    _qualityListenable.addListener(_generationChanged);
+    _sessionConfigListenable.addListener(_configChanged);
+    _listenersBound = true;
+  }
   bool _ready = false,
       _started = false,
       _showGarments = false,
@@ -87,19 +116,10 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _viduService =
-        (ref.read(tryonQuotaProvider).valueOrNull?.activeProvider ??
-                TryonProvider.decart) ==
-            TryonProvider.vidu
-        ? ref.read(viduLiveTryonSessionProvider(widget.productId))
-        : null;
-    if (_viduService == null) {
-      _decartService = ref.read(decartVtonSdkServiceProvider(widget.productId));
-    }
-    _controller = ref.read(decartTryonProvider(widget.productId).notifier);
-    _isGeneratingListenable.addListener(_generationChanged);
-    _qualityListenable.addListener(_generationChanged);
-    _sessionConfigListenable.addListener(_configChanged);
+    final activeProvider =
+        ref.read(tryonQuotaProvider).valueOrNull?.activeProvider ??
+        TryonProvider.decart;
+    _bindProvider(activeProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) => _initialize());
   }
 
@@ -638,9 +658,7 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     _warmupTimer?.cancel();
     _releaseNetworkFocus();
     WidgetsBinding.instance.removeObserver(this);
-    _isGeneratingListenable.removeListener(_generationChanged);
-    _qualityListenable.removeListener(_generationChanged);
-    _sessionConfigListenable.removeListener(_configChanged);
+    _unbindServiceListeners();
     _stopCountdown();
     _warmupSecondsNotifier.dispose();
     _remainingSecondsNotifier.dispose();
@@ -662,6 +680,12 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
 
   @override
   Widget build(BuildContext context) {
+    final activeProvider = ref.watch(
+      tryonQuotaProvider.select(
+        (q) => q.valueOrNull?.activeProvider ?? TryonProvider.decart,
+      ),
+    );
+    _bindProvider(activeProvider);
     final state = ref.watch(decartTryonProvider(widget.productId));
     if (state.isConnected) {
       _hasConnectedInSession = true;
@@ -885,6 +909,11 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
                                 const ColoredBox(color: Colors.black),
                                 if (_isVidu && !kIsWeb && io.Platform.isAndroid)
                                   const AndroidView(
+                                    viewType: 'fashion/vidu_rtc_view',
+                                    creationParamsCodec: StandardMessageCodec(),
+                                  )
+                                else if (_isVidu && !kIsWeb && io.Platform.isIOS)
+                                  const UiKitView(
                                     viewType: 'fashion/vidu_rtc_view',
                                     creationParamsCodec: StandardMessageCodec(),
                                   )

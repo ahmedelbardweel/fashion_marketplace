@@ -261,17 +261,6 @@ class ViduLiveRtcHandler(private val appContext: Context) :
         engine = rtc
 
         rtc.setRtcEngineEventListener(object : AliRtcEngineEventListener() {
-            override fun onJoinChannelResult(result: Int, channel: String?, elapsed: Int) {
-                if (result == 0) {
-                    emit("joined", mapOf("channel" to (channel ?: channelId)))
-                } else {
-                    emit(
-                        "error",
-                        mapOf("code" to result, "message" to "AliRTC join failed ($result)"),
-                    )
-                }
-            }
-
             override fun onJoinChannelResult(
                 result: Int,
                 channel: String?,
@@ -382,10 +371,12 @@ class ViduLiveRtcHandler(private val appContext: Context) :
         rtc.publishLocalVideoStream(true)
         rtc.publishLocalAudioStream(false)
 
+        // Single-parameter Base64 V2 token from Vidu already encapsulates appId,
+        // channelId, userId, timestamp, and signature; pass null for channelId/userId.
         val joinCode = rtc.joinChannel(
             token,
-            channelId.ifEmpty { null },
-            userId.ifEmpty { null },
+            null,
+            null,
             userId.ifEmpty { "customer" },
         )
         if (joinCode != 0) {

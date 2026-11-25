@@ -1,15 +1,11 @@
-import NodeWebSocket from 'npm:ws@8';
 import {
   PooledViduKey,
   resolveViduApiKeyPool,
   updateViduKeyTelemetry,
 } from './secret_resolver.ts';
 
-const VIDU_HOST = 'api.vidu.com';
-const VIDU_HTTP_ORIGIN = `https://${VIDU_HOST}`;
-const VIDU_WS_ORIGIN = `wss://${VIDU_HOST}`;
+const VIDU_HTTP_ORIGIN = 'https://api.vidu.com';
 const VIDU_ENT_BASE = `${VIDU_HTTP_ORIGIN}/ent/v2`;
-const MAX_SIGNAL_BYTES = 6 * 1024 * 1024;
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -44,8 +40,6 @@ interface StoredTask {
   key_id: string | null;
   state: string;
   refunded: boolean;
-  client_secret?: string | null;
-  session_duration_seconds?: number | null;
 }
 
 async function isActiveAdmin(
@@ -347,7 +341,6 @@ async function recordViduTask(
     userId: string;
     keyId: string | null;
     state: string;
-    clientSecret?: string | null;
     sessionDurationSeconds?: number;
   },
 ): Promise<void> {
@@ -364,12 +357,11 @@ async function recordViduTask(
         p_user_id: params.userId,
         p_key_id: params.keyId,
         p_state: params.state,
-        p_client_secret: params.clientSecret ?? null,
+        p_client_secret: null,
         p_session_duration_seconds: params.sessionDurationSeconds ?? 30,
       }),
       signal: AbortSignal.timeout(5000),
     });
-    // Fallback for migration 041 without migration 042 parameters.
     if (res.status === 404) {
       await fetch(`${url}/rest/v1/rpc/service_record_vidu_task`, {
         method: 'POST',
@@ -474,9 +466,9 @@ function looksLikeCreditError(status: number, bodyText: string): boolean {
 }
 
 /**
- * Creates a real-time Vidu S2-Editing (`virtual_tryon`) live streaming session.
- * POST https://api.vidu.com/live/s_editing/realtime
- * Returns AliRTC join credentials + render_uid; keeps API key & client_secret on server.
+ * Mints a real-time Vidu S2-Editing (`virtual_tryon`) live streaming session.
+ * Returns session-scoped `clientSecret` (for direct Vidu control WS without exposing
+ * permanent `vda_` keys) + AliRTC join credentials + `renderUid`.
  */
 async function handleCreateLiveSession(
   url: string,
@@ -611,8 +603,9 @@ async function handleCreateLiveSession(
       const liveId = typeof live?.id === 'string' ? live.id.trim() : '';
       const rtcToken = typeof rtc?.token === 'string' ? rtc.token.trim() : '';
       const renderUid = typeof parsed?.render_uid === 'string' ? parsed.render_uid.trim() : '';
+      const clientSecret = typeof parsed?.client_secret === 'string' ? parsed.client_secret.trim() : '';
 
-      if (liveId && rtcToken && renderUid) {
+      if (liveId && rtcToken && renderUid && clientSecret) {
         createdData = parsed;
         selectedKey = candidate;
         break;
@@ -637,10 +630,7 @@ async function handleCreateLiveSession(
   const rtcObj = createdData.rtc as Record<string, unknown>;
   const liveId = String(liveObj.id).trim();
   const renderUid = String(createdData.render_uid).trim();
-  const clientSecret =
-    typeof createdData.client_secret === 'string' && createdData.client_secret.trim()
-      ? createdData.client_secret.trim()
-      : null;
+  const clientSecret = String(createdData.client_secret).trim();
 
   await Promise.all([
     updateViduKeyTelemetry(url, serviceKey, {
@@ -652,13 +642,13 @@ async function handleCreateLiveSession(
       userId,
       keyId: selectedKey.id,
       state: 'waiting',
-      clientSecret,
       sessionDurationSeconds,
     }),
   ]);
 
   return respond({
     liveId,
+    clientSecret,
     renderUid,
     rtc: {
       appId: String(rtcObj.app_id ?? ''),
@@ -675,276 +665,58 @@ async function handleCreateLiveSession(
 }
 
 /**
- * Authenticated WebSocket control bridge between Flutter client and Vidu S2-Editing WS:
- *   wss://api.vidu.com/live/ws/live/connect?live_id=...&conn_id=...[&client_secret=...]
- * Keeps the Vidu API key and client_secret strictly on the server, handles conn_init,
- * live switch_prompt (mid-stream garment changes), server-side duration cap, and hangup.
+ * Best-effort telemetry & safe single-use refund when a live session ends
+ * or fails before going live.
  */
-async function handleLiveControlWebSocket(
-  req: Request,
+async function handleEndLiveSession(
   url: string,
   serviceKey: string,
   userId: string,
+  body: Record<string, unknown>,
 ): Promise<Response> {
-  const reqUrl = new URL(req.url);
-  const liveId = reqUrl.searchParams.get('live_id')?.trim() ?? '';
+  const liveId = typeof body.liveId === 'string' ? body.liveId.trim() : '';
+  const failedBeforeLive = body.failedBeforeLive === true;
   if (!liveId || liveId.length > 128) {
-    return respond({ error: 'Missing live_id' }, 400);
+    return respond({ ok: true, refunded: false });
   }
 
   const stored = await getStoredViduTask(url, serviceKey, liveId, userId);
   if (!stored) {
-    return respond({ error: 'Live session not found' }, 404);
+    return respond({ ok: true, refunded: false });
   }
 
-  const pool = await resolveViduApiKeyPool(
+  const refunded = await markViduTaskState(
     url,
     serviceKey,
-    Deno.env.get('VIDU_API_KEY'),
-  );
-  const matchedKey =
-    (stored.key_id ? pool.find((k) => k.id === stored.key_id) : null) ??
-    pool.find((k) => k.isActive) ??
-    pool[0];
-
-  if (!matchedKey) {
-    return respond({ error: 'Service not configured' }, 503);
-  }
-
-  const maxDurationSec = Math.min(
-    Math.max(Number(stored.session_duration_seconds ?? 30), 10),
-    300,
+    liveId,
+    userId,
+    failedBeforeLive ? 'failed' : 'ended',
+    failedBeforeLive,
   );
 
-  const { socket: client, response } = Deno.upgradeWebSocket(req);
-
-  const connId = crypto.randomUUID();
-  let seqId = 0;
-  let closed = false;
-  let ready = false;
-  let hangupSent = false;
-  let initTimer: number | undefined;
-  let sessionTimer: number | undefined;
-  let remote: NodeWebSocket | null = null;
-
-  const sendClient = (payload: Record<string, unknown>) => {
+  // Refresh the key's remaining credits so Admin badge reflects live spend quickly.
+  if (stored.key_id) {
     try {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify(payload));
-      }
-    } catch {
-      // Ignore send errors on closing socket.
-    }
-  };
-
-  const sendSignal = (type: number, payload: Record<string, unknown>) => {
-    try {
-      if (remote && remote.readyState === NodeWebSocket.OPEN) {
-        remote.send(
-          JSON.stringify({
-            type,
-            live_id: liveId,
-            conn_id: connId,
-            seq_id: ++seqId,
-            payload,
-          }),
-        );
-      }
-    } catch {
-      // Ignore write failures on closing socket.
-    }
-  };
-
-  const shutdown = (closeClient: boolean, sendHangup: boolean, reason = 'user_end') => {
-    if (closed) return;
-    if (sendHangup && !hangupSent) {
-      sendSignal(5, { hangup: { hangup_reason: reason } });
-      hangupSent = true;
-    }
-    closed = true;
-    if (initTimer !== undefined) clearTimeout(initTimer);
-    if (sessionTimer !== undefined) clearTimeout(sessionTimer);
-
-    try {
-      if (remote && remote.readyState < NodeWebSocket.CLOSING) {
-        remote.close(1000, 'session ended');
-      }
-    } catch {}
-    try {
-      if (closeClient && client.readyState < WebSocket.CLOSING) {
-        client.close(1000, 'session ended');
-      }
-    } catch {}
-
-    // Best-effort credit telemetry refresh & refund if session never went live.
-    (async () => {
-      try {
-        if (!ready) {
-          await markViduTaskState(url, serviceKey, liveId, userId, 'failed', true);
-        } else {
-          await markViduTaskState(url, serviceKey, liveId, userId, 'ended', false);
-          const refreshed = await probeViduKeyCredits(matchedKey.apiKey, 5000);
-          if (refreshed.credits !== null) {
-            await updateViduKeyTelemetry(url, serviceKey, {
-              id: matchedKey.id,
-              credits: refreshed.credits,
-              status: refreshed.status,
-            });
-          }
-        }
-      } catch {}
-    })();
-  };
-
-  const fail = (message: string, code = 'session_failed') => {
-    if (closed) return;
-    sendClient({ event: 'fatal', code, message });
-    shutdown(true, true);
-  };
-
-  client.onopen = () => {
-    const query = new URLSearchParams({ live_id: liveId, conn_id: connId });
-    if (stored.client_secret) {
-      query.set('client_secret', stored.client_secret);
-    }
-
-    initTimer = setTimeout(() => {
-      fail('انتهت مهلة تجهيز البث المباشر. يرجى المحاولة مجدداً.', 'init_timeout');
-    }, 90000);
-
-    try {
-      remote = new NodeWebSocket(`${VIDU_WS_ORIGIN}/live/ws/live/connect?${query}`, {
-        headers: { Authorization: `Token ${matchedKey.apiKey}` },
-        handshakeTimeout: 15000,
-        maxPayload: MAX_SIGNAL_BYTES,
-      });
-    } catch {
-      fail('تعذر الاتصال بخادم البث المباشر.', 'ws_connect_failed');
-      return;
-    }
-
-    remote.on('open', () => {
-      if (closed) return;
-      sendClient({ event: 'remote_open' });
-      sendSignal(1, { conn_init: { version: 1 } });
-    });
-
-    remote.on('message', (rawData: unknown) => {
-      if (closed) return;
-      const text = typeof rawData === 'string'
-        ? rawData
-        : (rawData instanceof Uint8Array
-          ? new TextDecoder().decode(rawData)
-          : String(rawData));
-      let msg: Record<string, unknown>;
-      try {
-        msg = JSON.parse(text) as Record<string, unknown>;
-      } catch {
-        return;
-      }
-
-      const msgType = Number(msg.type);
-      const payload = (msg.payload && typeof msg.payload === 'object')
-        ? (msg.payload as Record<string, unknown>)
-        : {};
-
-      if (msgType === 2 && payload.conn_init_ack && typeof payload.conn_init_ack === 'object') {
-        const ack = payload.conn_init_ack as Record<string, unknown>;
-        if (ack.success === true) {
-          if (initTimer !== undefined) clearTimeout(initTimer);
-          ready = true;
-          markViduTaskState(url, serviceKey, liveId, userId, 'on_live', false);
-          sendClient({ event: 'on_live' });
-          // Hard server-side session duration cap matching Admin cost controls.
-          sessionTimer = setTimeout(() => {
-            sendClient({ event: 'server_hangup', reason: 'timeout' });
-            shutdown(true, true, 'timeout');
-          }, (maxDurationSec + 5) * 1000);
-        } else if (ack.error_code === 'NOT_READY') {
-          sendClient({ event: 'not_ready' });
-        } else {
-          fail(
-            typeof ack.error_msg === 'string' && ack.error_msg
-              ? ack.error_msg
-              : 'فشل بدء جلسة البث المباشر.',
-            String(ack.error_code ?? 'conn_init_failed'),
-          );
-        }
-        return;
-      }
-
-      if (msgType === 6) {
-        const hangup = (payload.hangup && typeof payload.hangup === 'object')
-          ? (payload.hangup as Record<string, unknown>)
-          : {};
-        const reason = String(hangup.hangup_reason ?? 'server_closed');
-        sendClient({ event: 'server_hangup', reason });
-        shutdown(true, false);
-        return;
-      }
-
-      if (msgType === 14 && payload.switch_prompt_ack && typeof payload.switch_prompt_ack === 'object') {
-        const ack = payload.switch_prompt_ack as Record<string, unknown>;
-        if (ack.success === false) {
-          sendClient({
-            event: 'switch_prompt_error',
-            code: String(ack.error_code ?? 'switch_failed'),
-            message: String(ack.error_msg ?? 'تعذر تبديل القطعة'),
+      const pool = await resolveViduApiKeyPool(
+        url,
+        serviceKey,
+        Deno.env.get('VIDU_API_KEY'),
+      );
+      const matched = pool.find((k) => k.id === stored.key_id);
+      if (matched) {
+        const refreshed = await probeViduKeyCredits(matched.apiKey, 5000);
+        if (refreshed.credits !== null) {
+          await updateViduKeyTelemetry(url, serviceKey, {
+            id: matched.id,
+            credits: refreshed.credits,
+            status: refreshed.status,
           });
         }
       }
-    });
+    } catch {}
+  }
 
-    remote.on('close', () => {
-      if (!closed) {
-        sendClient({ event: 'remote_closed' });
-        shutdown(true, false);
-      }
-    });
-
-    remote.on('error', () => {
-      fail('انقطع الاتصال بخادم البث المباشر.', 'remote_error');
-    });
-  };
-
-  client.onmessage = (event) => {
-    if (closed) return;
-    let msg: Record<string, unknown>;
-    try {
-      msg = JSON.parse(typeof event.data === 'string' ? event.data : '') as Record<string, unknown>;
-    } catch {
-      return;
-    }
-
-    const action = typeof msg.action === 'string' ? msg.action : '';
-    if (action === 'hangup') {
-      shutdown(true, true, 'user_end');
-      return;
-    }
-    if (action === 'switch_prompt') {
-      if (!ready) {
-        sendClient({ event: 'action_error', message: 'الجلسة غير جاهزة بعد.' });
-        return;
-      }
-      const imageUrl = msg.image_url;
-      if (!isValidImageInput(imageUrl)) {
-        sendClient({ event: 'action_error', message: 'رابط صورة القطعة غير صالح.' });
-        return;
-      }
-      sendSignal(13, {
-        switch_prompt: {
-          prompts: [{ type: 'image', content: imageUrl.trim() }],
-          editing_type: 'virtual_tryon',
-        },
-      });
-      sendClient({ event: 'switch_prompt_sent' });
-    }
-  };
-
-  client.onclose = () => shutdown(false, true);
-  client.onerror = () => shutdown(false, true);
-
-  return response;
+  return respond({ ok: true, refunded });
 }
 
 Deno.serve(async (req) => {
@@ -953,20 +725,15 @@ Deno.serve(async (req) => {
     return respond({ error: 'Method not allowed' }, 405);
   }
   try {
+    const auth = req.headers.get('Authorization');
+    if (!auth?.startsWith('Bearer ')) return respond({ error: 'Unauthorized' }, 401);
+
     const url = Deno.env.get('SUPABASE_URL');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     if (!url || !anonKey || !serviceKey) {
       return respond({ error: 'Service not configured' }, 503);
     }
-
-    const reqUrl = new URL(req.url);
-    const headerAuth = req.headers.get('Authorization');
-    const queryToken = reqUrl.searchParams.get('access_token')?.trim();
-    const auth = headerAuth?.startsWith('Bearer ')
-      ? headerAuth
-      : (queryToken ? `Bearer ${queryToken}` : null);
-    if (!auth) return respond({ error: 'Unauthorized' }, 401);
 
     const userRes = await fetch(`${url}/auth/v1/user`, {
       headers: { Authorization: auth, apikey: anonKey },
@@ -976,18 +743,16 @@ Deno.serve(async (req) => {
     const user = await userRes.json();
     if (!user.id || user.is_anonymous) return respond({ error: 'Unauthorized' }, 401);
 
-    // WebSocket upgrade for real-time Vidu S2-Editing control plane.
-    const upgrade = req.headers.get('upgrade')?.toLowerCase() ?? '';
-    if (req.method === 'GET' && upgrade === 'websocket') {
-      return await handleLiveControlWebSocket(req, url, serviceKey, user.id);
-    }
-
-    // Admin aggregated live credits across all Vidu keys via standard GET.
     if (req.method === 'GET') {
       return await handleAdminCreditsRequest(url, serviceKey, user.id);
     }
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const action = typeof body.action === 'string' ? body.action.toLowerCase() : 'create_live';
+
+    if (action === 'end_live') {
+      return await handleEndLiveSession(url, serviceKey, user.id, body);
+    }
     return await handleCreateLiveSession(url, serviceKey, user.id, body);
   } catch {
     return respond({ error: 'Vidu try-on service unavailable' }, 503);

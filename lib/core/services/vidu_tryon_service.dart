@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' as io;
+import 'dart:math';
 
 import 'package:decart_vton_flutter/decart_vton_flutter.dart'
     show VtonConnectionQuality;
@@ -45,6 +46,7 @@ class ViduTryonException implements Exception {
 class ViduLiveSessionData {
   const ViduLiveSessionData({
     required this.liveId,
+    required this.clientSecret,
     required this.renderUid,
     required this.rtcToken,
     required this.rtcChannelId,
@@ -56,6 +58,7 @@ class ViduLiveSessionData {
   });
 
   final String liveId;
+  final String clientSecret;
   final String renderUid;
   final String rtcToken;
   final String rtcChannelId;
@@ -66,8 +69,12 @@ class ViduLiveSessionData {
   final int remainingToday;
 }
 
-/// Real-time live camera Virtual Try-On client powered by Vidu S2-Editing
-/// (`POST /live/s_editing/realtime` + control WebSocket + native AliRTC).
+/// Real-time live camera Virtual Try-On client powered by Vidu S2-Editing:
+/// 1) Mints a session-scoped `clientSecret` + AliRTC token from Supabase `vidu-tryon`
+///    (permanent `vda_` keys never leave Supabase Vault).
+/// 2) Connects directly to `wss://api.vidu.com/live/ws/live/connect` using `clientSecret`
+///    for `conn_init`, free live `switch_prompt` garment swaps, and `hangup`.
+/// 3) Streams live video via native Android AliRTC (`AliVCSDK_ARTC`).
 class ViduLiveService {
   ViduLiveService({SupabaseClient? client})
     : _client = client ?? SupabaseConfig.client;
@@ -78,8 +85,10 @@ class ViduLiveService {
   static const EventChannel _rtcEvents = EventChannel(
     'fashion/vidu_rtc/events',
   );
+  static const String _viduWsBase = 'wss://api.vidu.com/live/ws/live/connect';
 
   final SupabaseClient _client;
+  final Random _random = Random();
 
   final ValueNotifier<ViduLiveStatus> status = ValueNotifier(
     ViduLiveStatus.idle,
@@ -96,19 +105,50 @@ class ViduLiveService {
   Completer<void>? _onLiveCompleter;
   Timer? _initDeadline;
   Timer? _switchIndicatorTimer;
+
+  String? _activeLiveId;
+  String _activeConnId = '';
+  int _seqId = 0;
+  bool _wentLive = false;
   bool _disposed = false;
   bool _active = false;
   int _generation = 0;
 
   void Function(String reason)? onServerEnded;
 
+  String _generateConnId() {
+    final ts = DateTime.now().microsecondsSinceEpoch.toRadixString(16);
+    final randA = _random.nextInt(0x7fffffff).toRadixString(16);
+    final randB = _random.nextInt(0x7fffffff).toRadixString(16);
+    return '$ts-$randA-$randB';
+  }
+
+  void _sendViduSignal(int type, Map<String, dynamic> payload) {
+    final ws = _socket;
+    final liveId = _activeLiveId;
+    if (ws == null || ws.readyState != io.WebSocket.open || liveId == null) {
+      return;
+    }
+    try {
+      ws.add(
+        jsonEncode({
+          'type': type,
+          'live_id': liveId,
+          'conn_id': _activeConnId,
+          'seq_id': ++_seqId,
+          'payload': payload,
+        }),
+      );
+    } catch (_) {}
+  }
+
   Future<ViduLiveSessionData> startSession({
     required String garmentImageUrl,
     required TryonBandwidthMode bandwidthMode,
   }) async {
-    if (kIsWeb || !io.Platform.isAndroid) {
+    if (kIsWeb || !(io.Platform.isAndroid || io.Platform.isIOS)) {
       throw const ViduTryonException(
-        'البث المباشر لـ Vidu متاح حالياً على أجهزة أندرويد.',
+        'البث المباشر لـ Vidu متاح على هواتف أندرويد وآيفون فقط.',
         code: 'unsupported_platform',
       );
     }
@@ -130,10 +170,13 @@ class ViduLiveService {
 
     final gen = ++_generation;
     _active = true;
+    _wentLive = false;
+    _activeLiveId = null;
+    _seqId = 0;
     hasRemoteFrame.value = false;
     errorMessage.value = null;
     status.value = ViduLiveStatus.creatingSession;
-    stageMessage.value = 'جارٍ إنشاء جلسة البث المباشر (Vidu Live)...';
+    stageMessage.value = 'جارٍ إنشاء جلسة البث المباشر...';
 
     late final Map<String, dynamic> created;
     try {
@@ -163,19 +206,28 @@ class ViduLiveService {
 
     final rtcMap = asStringMap(created['rtc']);
     final liveId = created['liveId']?.toString().trim() ?? '';
+    final clientSecret = created['clientSecret']?.toString().trim() ?? '';
     final renderUid = created['renderUid']?.toString().trim() ?? '';
     final rtcToken = rtcMap['token']?.toString().trim() ?? '';
     final rtcChannelId = rtcMap['channelId']?.toString().trim() ?? '';
     final rtcUserId = rtcMap['userId']?.toString().trim() ?? '';
 
-    if (liveId.isEmpty || rtcToken.isEmpty || renderUid.isEmpty) {
-      const msg = 'تعذر الحصول على بيانات البث المباشر من Vidu.';
+    if (liveId.isEmpty ||
+        clientSecret.isEmpty ||
+        rtcToken.isEmpty ||
+        renderUid.isEmpty) {
+      const msg =
+          'يلزم إعادة نشر دالة vidu-tryon على Supabase لتفعيل البث المباشر.';
       _fail(gen, msg);
       throw const ViduTryonException(msg, code: 'invalid_response');
     }
 
+    _activeLiveId = liveId;
+    _activeConnId = _generateConnId();
+
     final sessionData = ViduLiveSessionData(
       liveId: liveId,
+      clientSecret: clientSecret,
       renderUid: renderUid,
       rtcToken: rtcToken,
       rtcChannelId: rtcChannelId,
@@ -190,10 +242,10 @@ class ViduLiveService {
       remainingToday: (created['remainingToday'] as num?)?.toInt() ?? 2,
     );
 
-    // Connect control WebSocket to Supabase Edge Function proxy and wait for `on_live`.
+    // Connect DIRECTLY to Vidu control WebSocket using session-scoped client_secret.
     status.value = ViduLiveStatus.warmingUp;
-    stageMessage.value = 'جارٍ تجهيز محرك Vidu المباشر...';
-    await _connectControlWebSocket(gen, liveId);
+    stageMessage.value = 'جارٍ تجهيز البث المباشر...';
+    await _connectDirectViduWebSocket(gen, liveId, clientSecret);
 
     if (!_isCurrent(gen)) {
       throw const ViduTryonException('تم إلغاء الجلسة.', code: 'cancelled');
@@ -228,21 +280,17 @@ class ViduLiveService {
     return sessionData;
   }
 
-  Future<void> _connectControlWebSocket(int gen, String liveId) async {
-    final accessToken = _client.auth.currentSession?.accessToken ?? '';
-    final supabaseUrl = SupabaseConfig.url.trim();
-    final anonKey = SupabaseConfig.anonKey.trim();
-    if (accessToken.isEmpty || supabaseUrl.isEmpty) {
-      throw const ViduTryonException(
-        'انتهت جلسة الدخول. يرجى تسجيل الدخول مجدداً.',
-        code: 'unauthorized',
-      );
-    }
-
-    final wsUri = Uri.parse(supabaseUrl).replace(
-      scheme: supabaseUrl.startsWith('https') ? 'wss' : 'ws',
-      path: '/functions/v1/vidu-tryon',
-      queryParameters: {'live_id': liveId, 'access_token': accessToken},
+  Future<void> _connectDirectViduWebSocket(
+    int gen,
+    String liveId,
+    String clientSecret,
+  ) async {
+    final wsUri = Uri.parse(_viduWsBase).replace(
+      queryParameters: {
+        'live_id': liveId,
+        'conn_id': _activeConnId,
+        'client_secret': clientSecret,
+      },
     );
 
     final completer = Completer<void>();
@@ -263,10 +311,6 @@ class ViduLiveService {
     try {
       final ws = await io.WebSocket.connect(
         wsUri.toString(),
-        headers: {
-          'Authorization': 'Bearer $accessToken',
-          if (anonKey.isNotEmpty) 'apikey': anonKey,
-        },
       ).timeout(const Duration(seconds: 20));
 
       if (!_isCurrent(gen)) {
@@ -287,63 +331,71 @@ class ViduLiveService {
           } catch (_) {
             return;
           }
-          final event = msg['event']?.toString() ?? '';
-          switch (event) {
-            case 'not_ready':
-              stageMessage.value = 'محرك Vidu قيد الإحماء (ثوانٍ قليلة)...';
-            case 'on_live':
+          final msgType = (msg['type'] as num?)?.toInt();
+          final payload = msg['payload'] is Map
+              ? asStringMap(msg['payload'])
+              : const <String, dynamic>{};
+
+          // type 2: conn_init_ack
+          if (msgType == 2 && payload['conn_init_ack'] is Map) {
+            final ack = asStringMap(payload['conn_init_ack']);
+            if (ack['success'] == true) {
               _initDeadline?.cancel();
+              _wentLive = true;
               if (!completer.isCompleted) completer.complete();
-            case 'switch_prompt_sent':
-              _switchIndicatorTimer?.cancel();
-              _switchIndicatorTimer = Timer(const Duration(seconds: 3), () {
-                if (!_disposed) isSwitchingGarment.value = false;
-              });
-            case 'switch_prompt_error':
-            case 'action_error':
-              isSwitchingGarment.value = false;
-              errorMessage.value =
-                  msg['message']?.toString() ?? 'تعذر تبديل القطعة.';
-            case 'server_hangup':
-              final reason = msg['reason']?.toString() ?? 'ended';
+            } else if (ack['error_code']?.toString() == 'NOT_READY') {
+              stageMessage.value = 'محرك البث قيد الإحماء (ثوانٍ قليلة)...';
+            } else {
+              final errMsg =
+                  ack['error_msg']?.toString().trim().isNotEmpty == true
+                  ? 'تعذر تجهيز البث المباشر. حاول مجدداً.'
+                  : 'فشل بدء جلسة البث المباشر.';
               if (!completer.isCompleted) {
                 completer.completeError(
-                  ViduTryonException(_friendlyHangupReason(reason), code: reason),
-                );
-              } else {
-                onServerEnded?.call(_friendlyHangupReason(reason));
-                unawaited(stopSession());
-              }
-            case 'fatal':
-              final message =
-                  msg['message']?.toString() ?? 'تعذر بدء جلسة البث المباشر.';
-              if (!completer.isCompleted) {
-                completer.completeError(
-                  ViduTryonException(message, code: msg['code']?.toString()),
-                );
-              } else {
-                _fail(gen, message);
-                unawaited(stopSession());
-              }
-            case 'remote_closed':
-              if (!completer.isCompleted) {
-                completer.completeError(
-                  const ViduTryonException(
-                    'أغلق الخادم اتصال البث المباشر. حاول مجدداً.',
-                    code: 'remote_closed',
+                  ViduTryonException(
+                    errMsg,
+                    code: ack['error_code']?.toString() ?? 'conn_init_failed',
                   ),
                 );
-              } else if (_active) {
-                onServerEnded?.call('انتهت جلسة البث المباشر.');
-                unawaited(stopSession());
               }
+            }
+            return;
+          }
+
+          // type 6: server forced hangup
+          if (msgType == 6) {
+            final hangup = payload['hangup'] is Map
+                ? asStringMap(payload['hangup'])
+                : const <String, dynamic>{};
+            final reason = hangup['hangup_reason']?.toString() ?? 'ended';
+            if (!completer.isCompleted) {
+              completer.completeError(
+                ViduTryonException(
+                  _friendlyHangupReason(reason),
+                  code: reason,
+                ),
+              );
+            } else {
+              onServerEnded?.call(_friendlyHangupReason(reason));
+              unawaited(stopSession());
+            }
+            return;
+          }
+
+          // type 14: switch_prompt_ack (only sent on failure)
+          if (msgType == 14 && payload['switch_prompt_ack'] is Map) {
+            final ack = asStringMap(payload['switch_prompt_ack']);
+            if (ack['success'] == false) {
+              isSwitchingGarment.value = false;
+              errorMessage.value = 'تعذر تبديل القطعة حالياً. حاول مجدداً.';
+            }
           }
         },
         onError: (_) {
           if (!completer.isCompleted) {
             completer.completeError(
               const ViduTryonException(
-                'تعذر الاتصال بخادم التحكم في البث المباشر.',
+                'تعذر الاتصال بخادم البث المباشر.',
                 code: 'ws_error',
               ),
             );
@@ -367,6 +419,11 @@ class ViduLiveService {
         },
       );
 
+      // Immediately send Vidu conn_init (type: 1) after WebSocket opens.
+      _sendViduSignal(1, const {
+        'conn_init': {'version': 1},
+      });
+
       await completer.future;
     } catch (e) {
       _initDeadline?.cancel();
@@ -374,7 +431,7 @@ class ViduLiveService {
         _fail(gen, e.message);
         rethrow;
       }
-      const msg = 'تعذر الاتصال بخادم البث المباشر لـ Vidu.';
+      const msg = 'تعذر الاتصال بخادم البث المباشر.';
       _fail(gen, msg);
       throw const ViduTryonException(msg, code: 'ws_failed');
     }
@@ -406,13 +463,18 @@ class ViduLiveService {
     if (clean.isEmpty) return;
     isSwitchingGarment.value = true;
     errorMessage.value = null;
-    try {
-      ws.add(
-        jsonEncode({'action': 'switch_prompt', 'image_url': clean}),
-      );
-    } catch (_) {
-      isSwitchingGarment.value = false;
-    }
+    _sendViduSignal(13, {
+      'switch_prompt': {
+        'prompts': [
+          {'type': 'image', 'content': clean},
+        ],
+        'editing_type': 'virtual_tryon',
+      },
+    });
+    _switchIndicatorTimer?.cancel();
+    _switchIndicatorTimer = Timer(const Duration(seconds: 3), () {
+      if (!_disposed) isSwitchingGarment.value = false;
+    });
   }
 
   Future<void> switchCamera() async {
@@ -441,7 +503,11 @@ class ViduLiveService {
   }
 
   Future<void> stopSession() async {
+    final endingLiveId = _activeLiveId;
+    final failedBeforeLive = endingLiveId != null && !_wentLive;
+
     _active = false;
+    _activeLiveId = null;
     ++_generation;
     _initDeadline?.cancel();
     _initDeadline = null;
@@ -455,11 +521,21 @@ class ViduLiveService {
     }
     _onLiveCompleter = null;
 
-    try {
-      if (_socket?.readyState == io.WebSocket.open) {
-        _socket!.add(jsonEncode({'action': 'hangup'}));
-      }
-    } catch (_) {}
+    if (endingLiveId != null && _socket?.readyState == io.WebSocket.open) {
+      try {
+        _socket!.add(
+          jsonEncode({
+            'type': 5,
+            'live_id': endingLiveId,
+            'conn_id': _activeConnId,
+            'seq_id': ++_seqId,
+            'payload': {
+              'hangup': {'hangup_reason': 'user_end'},
+            },
+          }),
+        );
+      } catch (_) {}
+    }
 
     await _wsSub?.cancel();
     _wsSub = null;
@@ -471,10 +547,26 @@ class ViduLiveService {
     await _rtcSub?.cancel();
     _rtcSub = null;
 
-    if (!kIsWeb && io.Platform.isAndroid) {
+    if (!kIsWeb && (io.Platform.isAndroid || io.Platform.isIOS)) {
       try {
         await _rtcMethods.invokeMethod<void>('leave');
       } catch (_) {}
+    }
+
+    // Best-effort notify Supabase to refresh key balance & refund if init never reached live.
+    if (endingLiveId != null) {
+      unawaited(
+        _client.functions
+            .invoke(
+              'vidu-tryon',
+              body: {
+                'action': 'end_live',
+                'liveId': endingLiveId,
+                'failedBeforeLive': failedBeforeLive,
+              },
+            )
+            .catchError((_) => FunctionResponse(status: 200)),
+      );
     }
 
     if (!_disposed) {
@@ -515,7 +607,7 @@ class ViduLiveService {
     }
     if (error.status == 404 && code == null) {
       return const ViduTryonException(
-        'دالة البث المباشر لـ Vidu غير منشورة بعد على السيرفر (vidu-tryon).',
+        'دالة البث المباشر غير منشورة بعد على السيرفر.',
         code: 'function_missing',
       );
     }
@@ -652,9 +744,7 @@ class ViduLiveTryonSession implements TryonSession {
   Future<void> setShowOriginal(bool showOriginal) =>
       _live.setShowOriginal(showOriginal);
 
-  Future<void> prewarmGarmentImage(String? url) async {
-    // Vidu accepts the garment URL directly on the server; no local prewarm needed.
-  }
+  Future<void> prewarmGarmentImage(String? url) async {}
 
   @override
   Future<void> start(GarmentSelection garment) async {
@@ -684,7 +774,6 @@ class ViduLiveTryonSession implements TryonSession {
       onQuotaUpdated?.call(cfg);
 
       _emit(DecartSessionStatus.connecting);
-      // Mark connected immediately once RTC is joined (first frame overlay fades in smoothly).
       if (!_connectedReported) {
         _connectedReported = true;
         _emit(DecartSessionStatus.connected);
