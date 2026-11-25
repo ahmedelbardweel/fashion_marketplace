@@ -327,7 +327,10 @@ class ViduLiveRtcHandler(private val appContext: Context) :
                 videoTrack: AliRtcEngine.AliRtcVideoTrack?,
             ) {
                 if (uid == null) return
-                val isTarget = targetRenderUid.isEmpty() || uid == targetRenderUid
+                val isTarget =
+                    targetRenderUid.isEmpty() ||
+                        uid == targetRenderUid ||
+                        boundRemoteUid == null
                 if (!isTarget) return
                 val hasCamera =
                     videoTrack == AliRtcEngine.AliRtcVideoTrack.AliRtcVideoTrackCamera ||
@@ -347,7 +350,10 @@ class ViduLiveRtcHandler(private val appContext: Context) :
                 elapsed: Int,
             ) {
                 if (uid == null) return
-                val isTarget = targetRenderUid.isEmpty() || uid == targetRenderUid
+                val isTarget =
+                    targetRenderUid.isEmpty() ||
+                        uid == targetRenderUid ||
+                        uid == boundRemoteUid
                 if (!isTarget) return
                 hasRemoteFrame = true
                 updateLayerVisibility()

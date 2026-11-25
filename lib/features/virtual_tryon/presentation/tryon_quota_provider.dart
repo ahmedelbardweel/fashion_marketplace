@@ -79,16 +79,22 @@ class TryonQuotaNotifier extends AsyncNotifier<TryonQuota> {
   }
 
   void updateFromSessionConfig(DecartSessionConfig cfg) {
+    final current = state.valueOrNull ?? const TryonQuota();
     final remaining =
         cfg.remainingToday ??
         (cfg.dailyLimit - cfg.usedToday).clamp(0, cfg.dailyLimit);
-    final updated = TryonQuota(
+    final resolvedProvider = cfg.model.toLowerCase().startsWith('vidu')
+        ? TryonProvider.vidu
+        : current.activeProvider;
+    final updated = current.copyWith(
       enabled: true,
       tokensAvailable: true,
+      activeProvider: resolvedProvider,
       sessionDurationSeconds: cfg.sessionDurationSeconds,
       dailyLimit: cfg.dailyLimit,
       usedToday: cfg.usedToday,
       remainingToday: remaining,
+      clearBlockReasonOverride: true,
     );
     _lastFetchedAt = DateTime.now();
     state = AsyncData(updated);

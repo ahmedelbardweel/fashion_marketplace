@@ -179,14 +179,18 @@ class _DecartTryonScreenState extends ConsumerState<DecartTryonScreen>
     final cfg = _sessionConfigListenable.value;
     if (cfg == null) return;
     setState(() {
-      _quota = TryonQuota(
+      _quota = _quota.copyWith(
         enabled: true,
+        activeProvider: cfg.model.toLowerCase().startsWith('vidu')
+            ? TryonProvider.vidu
+            : _quota.activeProvider,
         sessionDurationSeconds: cfg.sessionDurationSeconds,
         dailyLimit: cfg.dailyLimit,
         usedToday: cfg.usedToday,
         remainingToday:
             cfg.remainingToday ??
             (cfg.dailyLimit - cfg.usedToday).clamp(0, cfg.dailyLimit),
+        clearBlockReasonOverride: true,
       );
       if (_countdownTimer == null) {
         _remainingSecondsNotifier.value = cfg.sessionDurationSeconds;

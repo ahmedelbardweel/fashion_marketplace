@@ -2,7 +2,9 @@ import 'package:fashion_marketplace/features/admin/data/admin_repository.dart';
 import 'package:fashion_marketplace/features/admin/domain/models/decart_settings_status.dart';
 import 'package:fashion_marketplace/features/admin/presentation/providers/admin_providers.dart';
 import 'package:fashion_marketplace/features/admin/presentation/widgets/vidu_settings_card.dart';
+import 'package:fashion_marketplace/features/virtual_tryon/data/decart_session_config.dart';
 import 'package:fashion_marketplace/features/virtual_tryon/domain/tryon_quota.dart';
+import 'package:fashion_marketplace/features/virtual_tryon/presentation/tryon_quota_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -93,6 +95,41 @@ void main() {
       expect(balance.hasUsd, isFalse);
       expect(balance.keys.single.hasUsd, isFalse);
       expect(balance.keys.single.formattedCredits, '1000');
+    });
+
+    test('TryonQuotaNotifier.updateFromSessionConfig preserves Vidu provider', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      final notifier = container.read(tryonQuotaProvider.notifier);
+      notifier.updateFromQuota(
+        const TryonQuota(
+          enabled: true,
+          activeProvider: TryonProvider.vidu,
+          dailyLimit: 5,
+          usedToday: 0,
+          remainingToday: 5,
+        ),
+      );
+
+      notifier.updateFromSessionConfig(
+        DecartSessionConfig(
+          clientToken: 'vidu_live',
+          model: 'vidu-s2-editing',
+          iceServers: const [],
+          relayOnly: false,
+          sessionDurationSeconds: 45,
+          dailyLimit: 5,
+          usedToday: 1,
+          remainingToday: 4,
+        ),
+      );
+
+      final updated = container.read(tryonQuotaProvider).requireValue;
+      expect(updated.activeProvider, TryonProvider.vidu);
+      expect(updated.usedToday, 1);
+      expect(updated.remainingToday, 4);
+      expect(updated.sessionDurationSeconds, 45);
     });
   });
 

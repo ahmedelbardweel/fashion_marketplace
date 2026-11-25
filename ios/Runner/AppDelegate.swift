@@ -563,7 +563,10 @@ private final class ViduLiveRtcHandler: NSObject, FlutterStreamHandler, AliRtcEn
   ) {
     DispatchQueue.main.async { [weak self] in
       guard let self = self else { return }
-      let isTarget = self.targetRenderUid.isEmpty || uid == self.targetRenderUid
+      let isTarget =
+        self.targetRenderUid.isEmpty ||
+        uid == self.targetRenderUid ||
+        self.boundRemoteUid == nil
       guard isTarget else { return }
       if videoTrack == .camera || videoTrack == .both {
         self.attachRemoteStream(uid: uid)
@@ -585,7 +588,10 @@ private final class ViduLiveRtcHandler: NSObject, FlutterStreamHandler, AliRtcEn
   ) {
     DispatchQueue.main.async { [weak self] in
       guard let self = self else { return }
-      let isTarget = self.targetRenderUid.isEmpty || uid == self.targetRenderUid
+      let isTarget =
+        self.targetRenderUid.isEmpty ||
+        uid == self.targetRenderUid ||
+        uid == self.boundRemoteUid
       guard isTarget else { return }
       self.markRemoteFrameReady(uid: uid, width: Int(width), height: Int(height))
     }
